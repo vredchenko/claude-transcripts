@@ -9,6 +9,7 @@
     "dev:webapi": "bun --filter @claude-transcripts/webapi dev",
     "dev:webui": "bun --filter @claude-transcripts/webui dev",
     "dev:cli": "bun --filter @claude-transcripts/cli dev",
+    "cli": "bun run packages/cli/src/cli.tsx",
     "build": "bun --filter @claude-transcripts/webui build",
     "start": "bun --filter @claude-transcripts/webapi start",
     "lint": "biome check .",
