@@ -19,8 +19,10 @@ Vite serves it on `7651` and proxies `/api` → webapi on `7650`.
   `TokenUsageChips`, shared `states`.
 - `src/format.ts`, `src/transcript-entry.ts` — pure presentation helpers.
 
-Built (Tier 1): paginated session list, session detail with metadata + token /
-tool breakdown, and a lazy transcript viewer (each entry previews, expands to raw
-JSON). Still planned: virtual scroll, a config-driven Services menu fed by the `/`
-app manifest, local-first cache, keyboard nav. The visual pass is deferred per the
-roadmap. See docs/webui.md.
+Built (Tier 1): paginated session list (with duration, start-path, and
+live/backfilled source columns), session detail with metadata + token / tool
+breakdown, a lazy transcript viewer (each entry previews, expands to raw JSON),
+and a header Services menu (placeholder links). Still planned: virtual scroll,
+making the Services menu config-driven from the `/` app manifest, local-first
+cache, keyboard nav. The theme is a light baseline; a dark variant and the full
+visual pass are deferred per the roadmap. See docs/webui.md.

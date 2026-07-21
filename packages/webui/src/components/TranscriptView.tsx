@@ -11,7 +11,7 @@ import {
 import { useState } from "react";
 import { useGetSessionTranscript } from "../api/generated";
 import { formatCount } from "../format";
-import { MONO } from "../theme";
+import { CODE_BG, MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
 import { EmptyState, ErrorState, Loading } from "./states";
 
@@ -61,7 +61,8 @@ function EntryRow({ entry, index }: { entry: Record<string, unknown>; index: num
             fontSize: 12,
             m: 0,
             p: 1.5,
-            bgcolor: "#0b0e13",
+            bgcolor: CODE_BG,
+            border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 1,
             overflowX: "auto",
             whiteSpace: "pre-wrap",

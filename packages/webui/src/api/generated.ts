@@ -42,6 +42,7 @@ export interface SessionSummary {
   status: SessionStatus;
   lastActivity?: string;
   tokenUsage?: TokenUsage;
+  source?: string;
 }
 
 export interface SessionsResponse {

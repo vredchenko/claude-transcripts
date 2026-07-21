@@ -114,6 +114,12 @@ export interface SessionSummary {
   status: SessionStatus;
   lastActivity?: string;
   tokenUsage?: TokenUsage;
+  /**
+   * Provenance of the recording: "live" (streamed by the hook as it happened) vs
+   * "backfill" / "doctor" / … (adopted after the fact). Undefined ⇒ unknown (treat
+   * as live). A session still in progress has no summary doc yet, so it's live.
+   */
+  source?: string;
 }
 
 export interface SessionsResponse {

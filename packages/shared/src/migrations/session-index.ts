@@ -46,7 +46,8 @@ const AGGREGATE_MAP = `function (doc) {
       end_reason: doc.end_reason || "",
       transcript_bytes: doc.transcript_bytes || 0,
       token_usage: doc.token_usage || null,
-      timestamp: doc.timestamp || ""
+      timestamp: doc.timestamp || "",
+      source: doc.source || ""
     } : null
   });
 }`;
@@ -103,5 +104,7 @@ export interface SessionAggregate {
     transcript_bytes: number;
     token_usage: unknown;
     timestamp: string;
+    /** Provenance of the ended session: "live" (hook) | "backfill" | "doctor" | … */
+    source: string;
   } | null;
 }

@@ -49,8 +49,29 @@ const sessionIndexView: Migration = {
   },
 };
 
+/**
+ * v3 — redeploy `_design/session_index` so its `aggregate` view additionally emits
+ * `summary.source` (session provenance: live / backfill / doctor). The map now
+ * carries the field; the reduce already copies the whole summary object, so no
+ * reduce change is needed. Re-putting the design triggers a lazy reindex on the
+ * next query. `down` is a no-op — the added field is additive and harmless, and v2
+ * still owns the design doc's existence.
+ */
+const sessionIndexSource: Migration = {
+  id: 3,
+  name: "session-index-source",
+  async up(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (emit summary.source)`);
+    const { _rev, ...body } = SESSION_INDEX_DESIGN;
+    await ctx.putDoc(SESSION_INDEX_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (source field left in place — additive)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
-export const MIGRATIONS: Migration[] = [initialSchema, sessionIndexView];
+export const MIGRATIONS: Migration[] = [initialSchema, sessionIndexView, sessionIndexSource];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */
 export function latestVersion(): number {

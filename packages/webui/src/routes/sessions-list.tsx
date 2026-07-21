@@ -15,10 +15,18 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { type SessionSummary, useListSessions } from "../api/generated";
+import { SourceChip } from "../components/SourceChip";
 import { StatusChip } from "../components/StatusChip";
 import { EmptyState, ErrorState, Loading } from "../components/states";
-import { formatBytes, formatCount, formatTimestamp, projectName, totalTools } from "../format";
-import { MONO } from "../theme";
+import {
+  formatBytes,
+  formatCount,
+  formatDuration,
+  formatTimestamp,
+  projectName,
+  totalTools,
+} from "../format";
+import { LINK, MONO } from "../theme";
 
 const PAGE = 50;
 
@@ -26,19 +34,39 @@ function SessionRow({ s }: { s: SessionSummary }) {
   return (
     <TableRow hover>
       <TableCell>
-        <Link to="/sessions/$id" params={{ id: s.sessionId }} style={{ color: "#58a6ff" }}>
+        <Link to="/sessions/$id" params={{ id: s.sessionId }} style={{ color: LINK }}>
           <Typography component="span" sx={{ fontFamily: MONO, fontSize: 13 }}>
             {s.sessionId.slice(0, 8)}
           </Typography>
         </Link>
       </TableCell>
-      <TableCell>{formatTimestamp(s.timestamp)}</TableCell>
+      <TableCell>{formatTimestamp(s.startTimestamp ?? s.timestamp)}</TableCell>
+      <TableCell align="right">{formatDuration(s.durationMs)}</TableCell>
+      <TableCell>{projectName(s.cwd)}</TableCell>
       <TableCell>
         <Tooltip title={s.cwd || ""}>
-          <span>{projectName(s.cwd)}</span>
+          <Typography
+            component="span"
+            sx={{
+              fontFamily: MONO,
+              fontSize: 12,
+              color: "text.secondary",
+              display: "inline-block",
+              maxWidth: 240,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              verticalAlign: "bottom",
+            }}
+          >
+            {s.cwd || "—"}
+          </Typography>
         </Tooltip>
       </TableCell>
       <TableCell>{s.model ?? "—"}</TableCell>
+      <TableCell>
+        <SourceChip source={s.source} />
+      </TableCell>
       <TableCell align="right">{formatCount(s.promptCount)}</TableCell>
       <TableCell align="right">{formatCount(s.eventCount)}</TableCell>
       <TableCell align="right">{formatCount(totalTools(s.toolCounts))}</TableCell>
@@ -84,8 +112,11 @@ export function SessionsListPage() {
               <TableRow>
                 <TableCell>Session</TableCell>
                 <TableCell>Started</TableCell>
+                <TableCell align="right">Duration</TableCell>
                 <TableCell>Project</TableCell>
+                <TableCell>Path</TableCell>
                 <TableCell>Model</TableCell>
+                <TableCell>Source</TableCell>
                 <TableCell align="right">Prompts</TableCell>
                 <TableCell align="right">Events</TableCell>
                 <TableCell align="right">Tools</TableCell>

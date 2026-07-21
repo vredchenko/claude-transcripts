@@ -40,6 +40,7 @@ const SessionSummarySchema = z.object({
   status: SessionStatusSchema,
   lastActivity: z.string().optional(),
   tokenUsage: TokenUsageSchema.optional(),
+  source: z.string().optional(),
 });
 
 const SessionsResponseSchema = z.object({
@@ -55,12 +56,27 @@ const TranscriptResponseSchema = z.object({
 
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
-/** Map a CouchDB `summary:` doc to the response contract. */
-function docToSummary(doc: any): SessionSummary {
+/** Elapsed wall-clock between two ISO timestamps, or undefined if not derivable. */
+function durationBetween(startIso?: string, endIso?: string): number | undefined {
+  if (!startIso || !endIso) return undefined;
+  const start = Date.parse(startIso);
+  const end = Date.parse(endIso);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return undefined;
+  return end - start;
+}
+
+/**
+ * Map a CouchDB `summary:` doc to the response contract. The summary doc records the
+ * SessionEnd time (`timestamp`) but not the session start, so `firstTs` — the first
+ * event's timestamp from the aggregate view — is threaded in to derive `durationMs`.
+ */
+function docToSummary(doc: any, firstTs?: string): SessionSummary {
   const bytes: number = doc.transcript_bytes ?? 0;
   return {
     sessionId: doc.session_id,
     timestamp: doc.timestamp,
+    startTimestamp: firstTs || undefined,
+    durationMs: durationBetween(firstTs, doc.timestamp),
     model: doc.model,
     cwd: doc.cwd ?? "",
     hostname: doc.hostname ?? "",
@@ -72,6 +88,7 @@ function docToSummary(doc: any): SessionSummary {
     hasTranscript: bytes > 0,
     transcriptSize: bytes || undefined,
     status: "ended",
+    source: doc.source || "live",
     tokenUsage: doc.token_usage,
   };
 }
@@ -93,6 +110,8 @@ function aggregateToSummary(
     return {
       sessionId,
       timestamp: s.timestamp || agg.last || "",
+      startTimestamp: agg.first || undefined,
+      durationMs: durationBetween(agg.first, s.timestamp || agg.last),
       model: agg.model || undefined,
       cwd: agg.cwd ?? "",
       hostname: agg.hostname ?? "",
@@ -105,6 +124,7 @@ function aggregateToSummary(
       transcriptSize: bytes || undefined,
       status: "ended",
       lastActivity: agg.last || undefined,
+      source: s.source || "live",
       tokenUsage: (s.token_usage as SessionSummary["tokenUsage"]) ?? undefined,
     };
   }
@@ -117,6 +137,7 @@ function aggregateToSummary(
     sessionId,
     timestamp: agg.first || agg.last || "",
     startTimestamp: agg.first || undefined,
+    durationMs: durationBetween(agg.first, agg.last),
     model: agg.model || undefined,
     cwd: agg.cwd ?? "",
     hostname: agg.hostname ?? "",
@@ -128,6 +149,9 @@ function aggregateToSummary(
     hasTranscript: false,
     status,
     lastActivity: agg.last || undefined,
+    // No summary doc yet ⇒ still live/in-flight (a backfill writes its summary
+    // atomically, so a summary-less session is always a live recording).
+    source: "live",
   };
 }
 
@@ -222,17 +246,21 @@ export function sessionRoutes(ctx: AppContext) {
   route.openapi(detailRoute, async (c: any) => {
     const id = c.req.param("id");
     const db = ctx.couch.db("sessions");
-    // Ended sessions: read the summary doc directly (full fidelity).
+    // The aggregate row gives us the session's first-event timestamp (the summary
+    // doc doesn't record a start), which docToSummary needs to derive duration.
+    const res = await db.view("session_index", "aggregate", { group: true, reduce: true, key: id });
+    const row: any = res.rows[0];
+    const agg: SessionAggregate | undefined = isRealSession(row?.value) ? row.value : undefined;
+    // Ended sessions: read the summary doc directly (full fidelity), enriched with
+    // the aggregate's start time for duration.
     try {
       const doc = await db.get(`summary:${id}`);
-      return c.json(docToSummary(doc));
+      return c.json(docToSummary(doc, agg?.first));
     } catch {
       // Not ended — fall back to the live aggregate (running / incomplete).
     }
-    const res = await db.view("session_index", "aggregate", { group: true, reduce: true, key: id });
-    const row: any = res.rows[0];
-    if (!row || !isRealSession(row.value)) return c.json({ error: "Session not found" }, 404);
-    return c.json(aggregateToSummary(id, row.value, Date.now()));
+    if (!agg) return c.json({ error: "Session not found" }, 404);
+    return c.json(aggregateToSummary(id, agg, Date.now()));
   });
 
   route.openapi(transcriptRoute, async (c: any) => {

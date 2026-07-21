@@ -1,5 +1,6 @@
 import { AppBar, Box, Container, Toolbar, Typography } from "@mui/material";
 import { Link, Outlet } from "@tanstack/react-router";
+import { ServicesMenu } from "../components/ServicesMenu";
 
 /** App shell: top bar + routed content. */
 export function RootLayout() {
@@ -8,7 +9,7 @@ export function RootLayout() {
       <AppBar
         position="sticky"
         elevation={0}
-        sx={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+        sx={{ borderBottom: "1px solid rgba(0,0,0,0.08)", bgcolor: "background.paper" }}
         color="transparent"
       >
         <Toolbar variant="dense">
@@ -17,6 +18,8 @@ export function RootLayout() {
               Claude Transcripts
             </Typography>
           </Link>
+          <Box sx={{ flexGrow: 1 }} />
+          <ServicesMenu />
         </Toolbar>
       </AppBar>
       <Container maxWidth="xl" sx={{ py: 3 }}>

@@ -2,12 +2,13 @@ import { Box, Chip, Divider, Paper, Stack, Typography } from "@mui/material";
 import { Link, useParams } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useGetSession } from "../api/generated";
+import { SourceChip } from "../components/SourceChip";
 import { StatusChip } from "../components/StatusChip";
 import { ErrorState, Loading } from "../components/states";
 import { TokenUsageChips } from "../components/TokenUsageChips";
 import { TranscriptView } from "../components/TranscriptView";
-import { formatBytes, formatCount, formatTimestamp } from "../format";
-import { MONO } from "../theme";
+import { formatBytes, formatCount, formatDuration, formatTimestamp } from "../format";
+import { LINK, MONO } from "../theme";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -33,7 +34,7 @@ export function SessionDetailPage() {
 
   return (
     <Box>
-      <Link to="/" style={{ color: "#58a6ff", textDecoration: "none" }}>
+      <Link to="/" style={{ color: LINK, textDecoration: "none" }}>
         ← All sessions
       </Link>
 
@@ -57,9 +58,17 @@ export function SessionDetailPage() {
                 gridTemplateColumns: { xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
               }}
             >
-              <Field label="Started">{formatTimestamp(session.timestamp)}</Field>
+              <Field label="Started">
+                {formatTimestamp(session.startTimestamp ?? session.timestamp)}
+              </Field>
+              <Field label="Duration">{formatDuration(session.durationMs)}</Field>
               <Field label="Model">{session.model ?? "—"}</Field>
               <Field label="Hostname">{session.hostname || "—"}</Field>
+              <Field label="Recording">
+                <Box sx={{ mt: 0.25 }}>
+                  <SourceChip source={session.source} />
+                </Box>
+              </Field>
               <Field label="End reason">{session.endReason}</Field>
               <Field label="Prompts">{formatCount(session.promptCount)}</Field>
               <Field label="Events">{formatCount(session.eventCount)}</Field>
