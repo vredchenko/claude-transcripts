@@ -2,15 +2,20 @@ import { Button, ListSubheader, Menu, MenuItem } from "@mui/material";
 import { useState } from "react";
 
 /**
- * Header "Services" dropdown — quick links to the backing-service dashboards and
- * the app's own API surface. **Placeholders for now**: the URLs are hard-coded to
- * the bundled dev defaults (the 7650–7661 range). The intended shape is to feed
- * this from the `/` app manifest's `servicesMenu` (config-driven) so it follows
- * whatever ports/hosts a deployment actually uses — tracked as #14.
+ * Secondary (links) menu — quick links to the backing-service dashboards, this
+ * app's own API surface, the source repo, and the technical docs.
  *
- * App-relative links (`/api/...`) resolve against the current origin, so they work
- * in dev (Vite proxy) and in the combined prod image alike.
+ * The service/API URLs are **placeholders** hard-coded to the bundled dev defaults
+ * (the 7650–7661 range). The intended shape is to feed them from the `/api/model`
+ * `servicesMenu` (config-driven) so they follow a deployment's real ports/hosts —
+ * tracked as #14. App-relative links (`/api/...`) resolve against the current
+ * origin, so they work in dev (Vite proxy) and the combined prod image alike.
+ *
+ * Tech docs currently point at the repo's `docs/` on GitHub; if docs are later
+ * published (GitHub Pages) or bundled into the webui, swap this one URL.
  */
+const REPO_URL = "https://github.com/vredchenko/claude-transcripts";
+
 interface LinkDef {
   label: string;
   href: string;
@@ -26,36 +31,33 @@ const GROUPS: LinkGroup[] = [
     links: [
       { label: "API reference (Scalar)", href: "/api/docs" },
       { label: "OpenAPI spec (JSON)", href: "/api/openapi.json" },
-      { label: "App manifest (/)", href: "/" },
+      { label: "App model (JSON)", href: "/api/model" },
     ],
   },
   {
-    heading: "CouchDB",
+    heading: "Services",
     links: [
-      { label: "Fauxton admin UI", href: "http://127.0.0.1:7652/_utils/" },
+      { label: "CouchDB · Fauxton", href: "http://127.0.0.1:7652/_utils/" },
       {
-        label: "Sessions · _all_docs (JSON)",
+        label: "CouchDB · _all_docs (JSON)",
         href: "http://127.0.0.1:7652/claude-transcripts-sessions/_all_docs?include_docs=true&limit=50",
       },
+      { label: "Garage · Web UI", href: "http://127.0.0.1:7655/" },
+      { label: "Garage · buckets", href: "http://127.0.0.1:7655/buckets" },
+      { label: "Meilisearch · UI", href: "http://127.0.0.1:7657/" },
+      { label: "Meilisearch · API", href: "http://127.0.0.1:7656/" },
     ],
   },
   {
-    heading: "Garage (S3)",
+    heading: "Project",
     links: [
-      { label: "Garage Web UI", href: "http://127.0.0.1:7655/" },
-      { label: "Sessions bucket", href: "http://127.0.0.1:7655/buckets" },
-    ],
-  },
-  {
-    heading: "Meilisearch",
-    links: [
-      { label: "Meilisearch UI", href: "http://127.0.0.1:7657/" },
-      { label: "Search API", href: "http://127.0.0.1:7656/" },
+      { label: "GitHub repository", href: REPO_URL },
+      { label: "Technical docs", href: `${REPO_URL}/tree/main/docs` },
     ],
   },
 ];
 
-export function ServicesMenu() {
+export function LinksMenu() {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const open = Boolean(anchor);
 
@@ -68,7 +70,7 @@ export function ServicesMenu() {
         aria-haspopup="true"
         aria-expanded={open ? "true" : undefined}
       >
-        Services ▾
+        Links ▾
       </Button>
       <Menu anchorEl={anchor} open={open} onClose={() => setAnchor(null)}>
         {GROUPS.flatMap((group) => [

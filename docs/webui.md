@@ -10,9 +10,12 @@ everything it does is reachable via the CLI/API ([tiers.md](tiers.md)).
 - **Stack:** React 19 + Vite 6 + MUI 6 (Emotion), TanStack Query 5, **TanStack
   Router**, TypeScript (ESM, strict). No separate state library — routing holds
   the navigational state and TanStack Query holds the server state.
-- **Theme:** a restrained **light** baseline is the primary target (`theme.ts`);
-  a dark variant is future scope. Shared style tokens (`LINK`, `CODE_BG`, `MONO`)
-  are exported from `theme.ts`.
+- **Theme:** a restrained **light** baseline is the primary target, with a
+  parallel **dark** palette. `theme.ts` exposes `createAppTheme(mode)` +
+  `codeBg(mode)` + the `MONO` stack; `color-mode.tsx` owns the mode (a persisted
+  light / dark / follow-system preference) and provides the `ThemeProvider`.
+  Components read semantic tokens (`primary.main`, `divider`, …) so both modes work
+  without per-component color hardcoding.
 - **API client:** **generated** from the webapi OpenAPI spec into
   `src/api/generated.ts` (orval, `bun run gen:clients`;
   [ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md), which
@@ -26,11 +29,13 @@ everything it does is reachable via the CLI/API ([tiers.md](tiers.md)).
   **duration**, the working-directory **path** Claude was started from, and a
   **source** chip (live-recorded vs backfilled).
 - **Session detail** (`/sessions/$id`) — metadata grid (with duration + recording
-  source), token-usage breakdown, tool-call chips.
+  source), token-usage breakdown, tool-call chips. The full start-path lives here
+  (as "Working directory") rather than in a list column.
 - A **transcript viewer** that pages entries incrementally; each entry previews
   on one line and expands to raw JSON.
-- A header **Services menu** linking to the backing-service dashboards and the
-  app's own API surface (placeholder URLs — see below).
+- A **thin header** (`Header.tsx`): app title + build version (from `/api/model`),
+  a placeholder **search box**, a **settings** menu (theme toggle: light / dark /
+  follow-system), and a **links** menu (services, API, GitHub repo, tech docs).
 
 ## Still planned
 
@@ -55,19 +60,24 @@ packages/webui/
 ├── index.html                 # Vite HTML entry (#root + module script)
 ├── vite.config.ts             # React plugin, base "/app/", dev server, /api proxy
 └── src/
-    ├── main.tsx               # React root: QueryClient + MUI theme + RouterProvider
+    ├── main.tsx               # React root: QueryClient + ColorModeProvider + Router
+    ├── color-mode.tsx         # color-mode state (light/dark/system) + ThemeProvider
     ├── router.tsx             # code-based TanStack Router tree (basepath "/app")
-    ├── theme.ts               # dark MUI theme + shared MONO font stack
+    ├── theme.ts               # createAppTheme(mode) + codeBg(mode) + MONO stack
     ├── format.ts              # pure presentation helpers (no React)
     ├── transcript-entry.ts    # raw JSONL entry → compact EntryView
     ├── api/
-    │   └── generated.ts       # orval snapshot: types + fetchers + query hooks
+    │   ├── generated.ts       # orval snapshot: types + fetchers + query hooks
+    │   └── model.ts           # hand-written GET /api/model hook (header title/version)
     ├── routes/
-    │   ├── root.tsx           # RootLayout app shell (AppBar + Outlet)
+    │   ├── root.tsx           # RootLayout app shell (Header + Outlet)
     │   ├── sessions-list.tsx  # SessionsListPage — the "/" list
     │   └── session-detail.tsx # SessionDetailPage — "/sessions/$id"
     └── components/
-        ├── ServicesMenu.tsx   # header dropdown of service/API links (placeholder)
+        ├── Header.tsx         # thin top bar (title/version, search, settings, links)
+        ├── SearchBox.tsx      # header search input (placeholder — search is Phase 2)
+        ├── SettingsMenu.tsx   # primary menu: theme toggle (+ config later)
+        ├── LinksMenu.tsx      # secondary menu: services / API / GitHub / docs links
         ├── TranscriptView.tsx # incrementally-paged transcript accordion
         ├── StatusChip.tsx     # session lifecycle chip (live / abandoned / ended)
         ├── SourceChip.tsx     # recording provenance chip (live / backfilled)
@@ -78,17 +88,18 @@ packages/webui/
 ## Bootstrap & routing
 
 `src/main.tsx` mounts the app into `#root` under `StrictMode`: a
-`QueryClientProvider` (30s `staleTime`, no refetch-on-focus, `retry: 1`), the MUI
-`ThemeProvider` + `CssBaseline`, and a `RouterProvider`.
+`QueryClientProvider` (30s `staleTime`, no refetch-on-focus, `retry: 1`), the
+`ColorModeProvider` (which supplies the MUI `ThemeProvider` + `CssBaseline` for the
+active mode and persists the user's light/dark/system preference in
+`localStorage`), and a `RouterProvider`.
 
 `src/router.tsx` builds a **code-based** TanStack Router tree (no file-based
 plugin): a `RootLayout` root route with two children — `/` → `SessionsListPage`
 and `/sessions/$id` → `SessionDetailPage`. The router is created with
 `basepath: "/app"` because the SPA is served under `/app` in production
 ([ADR 0002](decisions/0002-single-combined-container.md)), matching Vite's
-`base: "/app/"`. `RootLayout` (`routes/root.tsx`) is the shell: a sticky
-transparent `AppBar` titled **Claude Transcripts** (linking home) over a
-`Container` that renders the routed `<Outlet />`.
+`base: "/app/"`. `RootLayout` (`routes/root.tsx`) is the shell: the sticky
+`Header` over a `Container` that renders the routed `<Outlet />`.
 
 ## API layer (`api/generated.ts`)
 
@@ -114,17 +125,22 @@ It exports:
 
 All requests are relative (`/api/...`); in dev Vite proxies them to the webapi.
 
+The one hand-written client is `api/model.ts` (`useAppModel` → `GET /api/model`):
+that endpoint is a plain Hono route, not part of the OpenAPI contract, so it isn't
+in the generated snapshot. The header uses it for the title + build version.
+
 ## Views
 
 - **`SessionsListPage`** (`routes/sessions-list.tsx`) — fetches a page
-  (`PAGE = 50`) and renders an MUI table: session id (first 8 chars, linked to
-  detail), **started** time (session start), **duration**, **project** (trailing
-  `cwd` segment), the full **path** Claude was started from (monospace, truncated,
-  full on hover), model, a **source** chip (live / backfilled), prompt / event /
-  tool counts, total tokens, transcript size, and a **status** chip. Paging is
-  Previous/Next over a `skip` offset with a "N–M of total" label;
-  `placeholderData: (prev) => prev` keeps the current page visible (dimmed) while
-  the next loads. Every row links to its detail.
+  (`PAGE = 50`) and renders a stats-focused MUI table: session id (first 8 chars,
+  linked to detail), **started** time (session start), **duration**, **project**
+  (trailing `cwd` segment, full path on hover), model, a **source** chip (live /
+  backfilled), prompt / event / tool counts, total tokens, transcript size, and a
+  **status** chip. The full start-path is intentionally *not* a column (too long) —
+  it's on the detail view; the list stays compact. Paging is Previous/Next over a
+  `skip` offset with a "N–M of total" label; `placeholderData: (prev) => prev`
+  keeps the current page visible (dimmed) while the next loads. Every row links to
+  its detail.
 - **`SessionDetailPage`** (`routes/session-detail.tsx`) — reads `$id` from the
   route, fetches one summary, and renders a back link, the id + status chip, a
   metadata grid (started, **duration**, model, hostname, **recording** source,
@@ -132,11 +148,19 @@ All requests are relative (`/api/...`); in dev Vite proxies them to the webapi.
   directory, a **Token usage** row (`TokenUsageChips`), and a **Tool calls** chip
   set sorted by count. Mounts `TranscriptView` when `hasTranscript`, else shows a
   "no transcript was stored" note.
-- **`ServicesMenu`** (`components/ServicesMenu.tsx`) — a header dropdown grouping
-  quick links: this app's API reference (Scalar `/api/docs`), OpenAPI spec, and
-  manifest (`/`); CouchDB Fauxton + a `_all_docs` JSON link; the Garage Web UI +
-  bucket view; and the Meilisearch UI + API. The URLs are **placeholders** wired
-  to the bundled dev ports — making them manifest-driven is [#14](roadmap.md).
+- **`Header`** (`components/Header.tsx`) — the thin top bar. Left: app title +
+  build version (from `GET /api/model` via `api/model.ts`, with a "Claude
+  Transcripts" fallback while loading). Center: `SearchBox` — a **placeholder**
+  input (full-text search is Phase 2, backed by Meilisearch; it captures text but
+  doesn't query yet). Right: `SettingsMenu` (a ⚙ button — the theme toggle
+  light / dark / follow-system, plus a disabled "config coming soon") and
+  `LinksMenu`.
+- **`LinksMenu`** (`components/LinksMenu.tsx`) — the secondary dropdown grouping
+  quick links: **This app** (Scalar `/api/docs`, OpenAPI spec, `/api/model`);
+  **Services** (CouchDB Fauxton + a `_all_docs` JSON link, Garage Web UI + buckets,
+  Meilisearch UI + API); **Project** (GitHub repo, tech docs → the repo's `docs/`).
+  The service URLs are **placeholders** wired to the bundled dev ports — making
+  them manifest-driven (from `/api/model` `servicesMenu`) is [#14](roadmap.md).
 - **`StatusChip`** (`components/StatusChip.tsx`) / **`SourceChip`**
   (`components/SourceChip.tsx`) — the lifecycle chip (labels: **live** /
   **abandoned** / **ended**, each with an explanatory tooltip) and the provenance

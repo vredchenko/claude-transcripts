@@ -1,4 +1,4 @@
-import { Box, Chip, Divider, Paper, Stack, Typography } from "@mui/material";
+import { Box, Chip, Divider, Paper, Stack, Typography, useTheme } from "@mui/material";
 import { Link, useParams } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useGetSession } from "../api/generated";
@@ -8,7 +8,7 @@ import { ErrorState, Loading } from "../components/states";
 import { TokenUsageChips } from "../components/TokenUsageChips";
 import { TranscriptView } from "../components/TranscriptView";
 import { formatBytes, formatCount, formatDuration, formatTimestamp } from "../format";
-import { LINK, MONO } from "../theme";
+import { MONO } from "../theme";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -31,10 +31,11 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 export function SessionDetailPage() {
   const { id } = useParams({ from: "/sessions/$id" });
   const { data: session, isPending, isError, error } = useGetSession(id);
+  const theme = useTheme();
 
   return (
     <Box>
-      <Link to="/" style={{ color: LINK, textDecoration: "none" }}>
+      <Link to="/" style={{ color: theme.palette.primary.main, textDecoration: "none" }}>
         ← All sessions
       </Link>
 

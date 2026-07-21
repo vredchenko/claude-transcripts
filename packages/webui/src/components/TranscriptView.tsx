@@ -7,11 +7,12 @@ import {
   Chip,
   Stack,
   Typography,
+  useTheme,
 } from "@mui/material";
 import { useState } from "react";
 import { useGetSessionTranscript } from "../api/generated";
 import { formatCount } from "../format";
-import { CODE_BG, MONO } from "../theme";
+import { codeBg, MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
 import { EmptyState, ErrorState, Loading } from "./states";
 
@@ -26,6 +27,7 @@ const KIND_COLOR: Record<string, "primary" | "secondary" | "default" | "info"> =
 
 function EntryRow({ entry, index }: { entry: Record<string, unknown>; index: number }) {
   const view: EntryView = summarizeEntry(entry);
+  const theme = useTheme();
   return (
     <Accordion disableGutters square sx={{ bgcolor: "background.paper" }}>
       <AccordionSummary
@@ -61,8 +63,9 @@ function EntryRow({ entry, index }: { entry: Record<string, unknown>; index: num
             fontSize: 12,
             m: 0,
             p: 1.5,
-            bgcolor: CODE_BG,
-            border: "1px solid rgba(0,0,0,0.08)",
+            bgcolor: codeBg(theme.palette.mode),
+            border: 1,
+            borderColor: "divider",
             borderRadius: 1,
             overflowX: "auto",
             whiteSpace: "pre-wrap",

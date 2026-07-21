@@ -11,6 +11,7 @@ import {
   TableRow,
   Tooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -26,15 +27,20 @@ import {
   projectName,
   totalTools,
 } from "../format";
-import { LINK, MONO } from "../theme";
+import { MONO } from "../theme";
 
 const PAGE = 50;
 
 function SessionRow({ s }: { s: SessionSummary }) {
+  const theme = useTheme();
   return (
     <TableRow hover>
       <TableCell>
-        <Link to="/sessions/$id" params={{ id: s.sessionId }} style={{ color: LINK }}>
+        <Link
+          to="/sessions/$id"
+          params={{ id: s.sessionId }}
+          style={{ color: theme.palette.primary.main, textDecoration: "none" }}
+        >
           <Typography component="span" sx={{ fontFamily: MONO, fontSize: 13 }}>
             {s.sessionId.slice(0, 8)}
           </Typography>
@@ -42,25 +48,9 @@ function SessionRow({ s }: { s: SessionSummary }) {
       </TableCell>
       <TableCell>{formatTimestamp(s.startTimestamp ?? s.timestamp)}</TableCell>
       <TableCell align="right">{formatDuration(s.durationMs)}</TableCell>
-      <TableCell>{projectName(s.cwd)}</TableCell>
       <TableCell>
         <Tooltip title={s.cwd || ""}>
-          <Typography
-            component="span"
-            sx={{
-              fontFamily: MONO,
-              fontSize: 12,
-              color: "text.secondary",
-              display: "inline-block",
-              maxWidth: 240,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              verticalAlign: "bottom",
-            }}
-          >
-            {s.cwd || "—"}
-          </Typography>
+          <span>{projectName(s.cwd)}</span>
         </Tooltip>
       </TableCell>
       <TableCell>{s.model ?? "—"}</TableCell>
@@ -114,7 +104,6 @@ export function SessionsListPage() {
                 <TableCell>Started</TableCell>
                 <TableCell align="right">Duration</TableCell>
                 <TableCell>Project</TableCell>
-                <TableCell>Path</TableCell>
                 <TableCell>Model</TableCell>
                 <TableCell>Source</TableCell>
                 <TableCell align="right">Prompts</TableCell>
