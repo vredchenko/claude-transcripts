@@ -1,0 +1,46 @@
+{
+  "name": "claude-transcripts",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:webapi": "bun --filter @claude-transcripts/webapi dev",
+    "dev:webui": "bun --filter @claude-transcripts/webui dev",
+    "dev:cli": "bun --filter @claude-transcripts/cli dev",
+    "build": "bun --filter @claude-transcripts/webui build",
+    "start": "bun --filter @claude-transcripts/webapi start",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "bun --filter '*' typecheck",
+    "gen:clients": "bun run scripts/regenerate-api-clients.ts",
+    "gen:compat": "bun run scripts/regenerate-compatibility.ts",
+    "gen:hooks": "bun run scripts/sync-hooks.ts",
+    "gen:hook-events": "bun run scripts/gen-hook-events.ts",
+    "gen:compose": "bun run scripts/gen-compose.ts",
+    "gen:compose-override": "bun run scripts/gen-compose-override.ts",
+    "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:compose && bun run gen:compose-override && bun run gen:compat",
+    "stack:up": "bun run scripts/stack.ts up",
+    "stack:up:upstream": "bun run scripts/stack.ts up --upstream",
+    "stack:down": "bun run scripts/stack.ts down",
+    "stack:restart": "bun run scripts/stack.ts restart",
+    "stack:logs": "bun run scripts/stack.ts logs",
+    "seed": "bun run scripts/seed.ts",
+    "test": "bun test",
+    "test:e2e": "bun test tests/e2e",
+    "postinstall": "bunx lefthook install"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/bun": "latest",
+    "lefthook": "^2.1.3",
+    "orval": "^7.0.0",
+    "typescript": "^5.9.0",
+    "yaml": "^2.6.0"
+  }
+}

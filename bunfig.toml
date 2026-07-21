@@ -1,0 +1,3 @@
+[test]
+# Scope `bun test` to the workspace packages so it only collects unit specs.
+root = "packages"

@@ -1,0 +1,31 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+packages/webui/dist
+dist
+.env
+.env.*
+!.env.template
+.claude
+.vscode
+*.log
+# Tests and colocated specs
+tests
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+# Docs / repo meta — not needed in the runtime image
+CLAUDE.md
+README.md
+**/CLAUDE.md
+**/README.md
+docs
+deploy
+Dockerfile
+.dockerignore
+.github
+.forgejo
+# The Claude Code hook is installed separately as a plugin — not part of the
+# webapi/webui runtime image.
+hook

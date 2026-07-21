@@ -1,0 +1,29 @@
+# Env
+.env
+.env.local
+.env.*.local
+
+# Bun / Node
+node_modules/
+*.log
+.DS_Store
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Live config (instance-specific; copied from config/config.template.json)
+config/config.json
+config/*.local.json
+
+# Backing-service state (bind-mounted by the compose stack)
+deploy/data/
+
+# Generated API clients (regenerated from the OpenAPI spec) ARE committed.
+# packages/*/src/api/generated.ts   # uncomment if we choose not to commit them
+# The OpenAPI spec is a transient build input (emitted by gen:clients, then orval'd):
+openapi.json
+
+# Local hook config / scratch
+hooks/.config/

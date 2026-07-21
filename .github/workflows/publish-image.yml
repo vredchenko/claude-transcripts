@@ -1,0 +1,70 @@
+name: publish-image
+# Tag-driven release of the combined app image (webapi + prebuilt webui SPA) to the
+# GitHub Container Registry (GHCR). Push a vMAJOR.MINOR.PATCH tag to publish; a
+# manual dispatch builds a :<sha> only. Auth uses the built-in GITHUB_TOKEN — no
+# committed secrets. See ADR 0012.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          # GHCR requires a lowercase path; derive it from <owner>/<repo>.
+          REPO="ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')-app"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${{ github.ref_name }}"
+            TAGS="$REPO:$VERSION $REPO:latest $REPO:$SHA"
+          else
+            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)+$SHA"
+            TAGS="$REPO:$SHA"
+          fi
+          echo "list=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "scan=$REPO:$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          set -euo pipefail
+          TAG_ARGS=""
+          for t in ${{ steps.tags.outputs.list }}; do TAG_ARGS="$TAG_ARGS -t $t"; done
+          docker build $TAG_ARGS --build-arg CT_VERSION="${{ steps.tags.outputs.version }}" .
+
+      - name: Install grype + trivy
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Scan with grype (fail on HIGH+)
+        run: grype "${{ steps.tags.outputs.scan }}" --fail-on high --only-fixed
+
+      - name: Scan with trivy (fail on HIGH/CRITICAL)
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${{ steps.tags.outputs.scan }}"
+
+      - name: Push image
+        run: |
+          set -euo pipefail
+          for t in ${{ steps.tags.outputs.list }}; do docker push "$t"; done
