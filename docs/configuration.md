@@ -56,7 +56,13 @@ The config is being formalised into clearly-separated sections. **Target shape**
 {
   // CORE / system — dev-level settings & constants (not user-facing)
   "system": {
-    "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } }
+    "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } },
+    // session-lifecycle tunables. liveWindowMs: how long after its last activity a
+    // still-open (no SessionEnd) session is treated as running/live before it reads
+    // as incomplete/abandoned. Default 86_400_000 (24h). No live heartbeat exists,
+    // so this is a recency heuristic; an abandoned session that gets new events
+    // (within the window again) flips back to live automatically.
+    "sessions": { "liveWindowMs": 86400000 }
     // other tunables/constants live here
   },
 

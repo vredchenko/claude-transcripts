@@ -14,7 +14,15 @@
 
 export interface AppConfigFile {
   app?: { name?: string };
-  system: { logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } } };
+  system: {
+    logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
+    /**
+     * Session-lifecycle tunables. `liveWindowMs` is how long after a session's last
+     * activity a still-open (no SessionEnd) session is treated as `running`/live;
+     * past it, it reads as `incomplete`/abandoned. Optional — the webapi defaults it.
+     */
+    sessions?: { liveWindowMs?: number };
+  };
   /** logical key → CouchDB database name (multi-database by design) */
   couchdb: { databases: Record<string, string> };
   /** logical key → S3 bucket name (multi-bucket by design) */

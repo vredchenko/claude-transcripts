@@ -45,10 +45,21 @@ export interface Config {
     /** logical key → bucket name */
     buckets: Record<string, string>;
   };
-  system: { logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } } };
+  system: {
+    logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
+    sessions?: { liveWindowMs?: number };
+  };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
 }
+
+/**
+ * Default "live" window: a still-open session (no SessionEnd) whose last activity
+ * is within this span reads as `running`/live, else `incomplete`/abandoned. There
+ * is no live heartbeat, so this is a recency heuristic. Overridable via
+ * `system.sessions.liveWindowMs` in config.
+ */
+export const DEFAULT_LIVE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
 
 export function loadConfig(): Config {
   return {
@@ -76,6 +87,12 @@ export function loadConfig(): Config {
     features: appConfig.features,
     servicesMenu: appConfig.servicesMenu,
   };
+}
+
+/** The configured "live" activity window (ms), falling back to the 24h default. */
+export function liveWindowMs(config: Config): number {
+  const v = config.system.sessions?.liveWindowMs;
+  return typeof v === "number" && v > 0 ? v : DEFAULT_LIVE_WINDOW_MS;
 }
 
 /** Resolve a CouchDB database name from its logical key. */

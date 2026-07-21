@@ -1,11 +1,7 @@
 import type { SessionAggregate, SessionStatus, SessionSummary } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { bucketName } from "../config";
+import { bucketName, liveWindowMs } from "../config";
 import type { AppContext } from "../context";
-
-/** How recently a summary-less session must have had activity to count as
- *  `running` (vs `incomplete`/crashed). A heuristic — there is no live heartbeat. */
-const RUNNING_WINDOW_MS = 15 * 60_000;
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +99,7 @@ function aggregateToSummary(
   sessionId: string,
   agg: SessionAggregate,
   nowMs: number,
+  windowMs: number,
 ): SessionSummary {
   if (agg.summary) {
     const s = agg.summary;
@@ -131,7 +128,7 @@ function aggregateToSummary(
 
   const last = agg.last || agg.first || "";
   const lastMs = last ? Date.parse(last) : Number.NaN;
-  const stale = Number.isNaN(lastMs) || nowMs - lastMs > RUNNING_WINDOW_MS;
+  const stale = Number.isNaN(lastMs) || nowMs - lastMs > windowMs;
   const status: SessionStatus = stale ? "incomplete" : "running";
   return {
     sessionId,
@@ -235,9 +232,10 @@ export function sessionRoutes(ctx: AppContext) {
     // time-keyed view is the Tier-2 move if the corpus outgrows it.
     const res = await db.view("session_index", "aggregate", { group: true, reduce: true });
     const now = Date.now();
+    const windowMs = liveWindowMs(ctx.config);
     const all: SessionSummary[] = res.rows
       .filter((r: any) => isRealSession(r.value))
-      .map((r: any) => aggregateToSummary(String(r.key), r.value, now));
+      .map((r: any) => aggregateToSummary(String(r.key), r.value, now, windowMs));
     all.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
     const page = all.slice(skip, skip + limit);
     return c.json({ sessions: page, totalCount: all.length });
@@ -260,7 +258,7 @@ export function sessionRoutes(ctx: AppContext) {
       // Not ended — fall back to the live aggregate (running / incomplete).
     }
     if (!agg) return c.json({ error: "Session not found" }, 404);
-    return c.json(aggregateToSummary(id, agg, Date.now()));
+    return c.json(aggregateToSummary(id, agg, Date.now(), liveWindowMs(ctx.config)));
   });
 
   route.openapi(transcriptRoute, async (c: any) => {
