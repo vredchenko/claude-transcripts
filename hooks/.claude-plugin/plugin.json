@@ -1,0 +1,6 @@
+{
+  "name": "claude-transcripts",
+  "version": "0.0.0",
+  "description": "Claude Transcripts — log session events, summaries, and transcripts to CouchDB + S3 (Garage).",
+  "keywords": ["session-logging", "couchdb", "garage", "s3", "claude-code", "transcripts"]
+}

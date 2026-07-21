@@ -1,0 +1,13 @@
+{
+  "SessionStart": ["seed-session-start", "write-event-marker"],
+  "UserPromptSubmit": ["write-event-marker", "update-counts", "flush-transcript-chunk"],
+  "PostToolUse": ["write-event-marker", "update-counts", "flush-transcript-chunk"],
+  "PostToolUseFailure": ["write-event-marker", "update-counts", "flush-transcript-chunk"],
+  "Stop": ["write-event-marker", "flush-transcript-chunk"],
+  "SubagentStart": ["write-event-marker", "update-counts"],
+  "SubagentStop": ["write-event-marker", "update-counts"],
+  "StopFailure": ["write-event-marker", "update-counts"],
+  "PreCompact": ["write-event-marker"],
+  "PostCompact": ["write-event-marker"],
+  "SessionEnd": ["flush-transcript-chunk", "write-summary", "upload-blobs"]
+}
