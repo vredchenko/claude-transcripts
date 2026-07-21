@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": 12345,
+  "cwd": null,
+  "tool_name": "Bash",
+  "tool_input": "occaecat null"
+}

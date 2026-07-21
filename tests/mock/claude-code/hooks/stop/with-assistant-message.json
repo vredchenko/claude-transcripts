@@ -1,0 +1,12 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "Stop",
+  "permission_mode": "default",
+  "turn_number": 7,
+  "assistant_message": "ea proident irure excepteur aliquip eiusmod voluptate pariatur dolore dolor quis consectetur labore nisi adipiscing nulla pariatur ex magna velit consectetur commodo ut labore fugiat incididunt nostrud voluptate fugiat labore occaecat exe",
+  "effort": {
+    "level": "medium"
+  }
+}

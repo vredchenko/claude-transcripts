@@ -1,0 +1,8 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "TeammateIdle",
+  "agent_id": "teammate_abc",
+  "idle_seconds": 30
+}

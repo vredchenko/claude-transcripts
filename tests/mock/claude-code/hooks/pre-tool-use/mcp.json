@@ -1,0 +1,14 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "mcp__example__do_thing",
+  "tool_input": {
+    "arg": "aliqu"
+  },
+  "effort": {
+    "level": "medium"
+  }
+}

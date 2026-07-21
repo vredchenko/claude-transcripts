@@ -1,0 +1,12 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git status commodo",
+    "description": "sit proident voluptate conse"
+  },
+  "tool_output": "ullamco sed sint aute nulla exercitation labore exe\nsed do ut pariatur minim ipsum ullamco voluptate oc"
+}

@@ -1,0 +1,8 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "CwdChanged",
+  "old_cwd": "/home/USER/project/core/index.md",
+  "new_cwd": "/home/USER/project/src/types.json"
+}

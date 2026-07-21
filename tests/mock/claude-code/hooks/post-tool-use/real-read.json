@@ -1,0 +1,11 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "/home/USER/project/components/index.js"
+  },
+  "tool_output": "non aute velit ut reprehen\namet quis ut do voluptate\ntempor velit tempor labori\nullamco non aute sint sint\nut lorem commodo ullamco i\nadipiscing pariatur velit\nmagna quis et ea minim cil\nut dolor magna elit aute i\naute adipiscing quis proid\nexercitation fugiat amet e\nvelit ipsum aute laboris a\ncillum irure minim ut ulla\nsed voluptate et ad non si\nminim veniam enim veniam m\nminim duis commodo proiden\naliquip commodo ut reprehe\ncillum consequat cupidatat\nsint sint duis commodo ea\nvelit reprehenderit aute o\nea pariatur dolor ut incid\nelit esse lorem veniam ips\nnisi incididunt ex sint fu\nut consectetur laboris do\ncupidatat commodo ea volup\nnon aute irure et sint eli\nelit cupidatat commodo con\nconsectetur nostrud proide\nlaboris veniam occaecat ex\nveniam esse aliquip amet s"
+}

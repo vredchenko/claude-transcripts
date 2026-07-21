@@ -1,0 +1,9 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "SubagentStop",
+  "agent_type": "general-purpose",
+  "agent_id": "subagent_xyz789",
+  "summary": "enim et aute elit aute dolore nulla d"
+}

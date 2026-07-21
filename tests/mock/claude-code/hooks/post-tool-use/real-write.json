@@ -1,0 +1,12 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/home/USER/project/pkg/store.md",
+    "content": "elit ipsum nostrud labore\nvoluptate duis voluptate\nnostrud aliquip minim ips\nenim veniam ad velit elit"
+  },
+  "tool_output": "minim nostrud dolore magna consectetur velit esse pariatur sint ad sit nostrud aliqua ut sed tempor ut cupidatat aliqua adipis"
+}

@@ -19,6 +19,7 @@
     "gen:compat": "bun run scripts/regenerate-compatibility.ts",
     "gen:hooks": "bun run scripts/sync-hooks.ts",
     "gen:hook-events": "bun run scripts/gen-hook-events.ts",
+    "gen:mock": "bun run scripts/regenerate-mock-fixtures.ts",
     "gen:compose": "bun run scripts/gen-compose.ts",
     "gen:compose-override": "bun run scripts/gen-compose-override.ts",
     "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:compose && bun run gen:compose-override && bun run gen:compat",

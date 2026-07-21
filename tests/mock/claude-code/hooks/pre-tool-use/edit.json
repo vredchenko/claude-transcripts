@@ -1,0 +1,16 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/home/USER/project/src/client.tsx",
+    "old_string": "velit am",
+    "new_string": "pariatur"
+  },
+  "effort": {
+    "level": "medium"
+  }
+}

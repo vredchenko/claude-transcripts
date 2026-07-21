@@ -1,0 +1,14 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Edit",
+  "tool_input": {
+    "replace_all": false,
+    "file_path": "/home/USER/project/modules/store.tsx",
+    "old_string": "do ut nisi enim consequat minim ipsum lorem amet eiusmod pariat\nvelit labore amet eiusmod veniam magna sit adipiscing lorem nis\nconsequat fugiat sit laboris ex consectetur ad cillum excepteur\nincididunt ea irure duis do proident ullamco dolor nostrud duis\ndolore sint magna consequat aliqua pariatur aliqua fugiat fugia\ncillum excepteur aliqua elit reprehenderit aliquip aliquip fugi\nexercitation exercitation elit ipsum veniam commodo fugiat ipsu\noccaecat reprehenderit ea voluptate cupidatat aute dolore repre\nconsectetur quis nulla sed aute do aliqua enim veniam aliquip c",
+    "new_string": "nostrud ipsum sed nostrud sint excepteur fugiat ea quis ipsum proident quis\ndolore ut eiusmod velit ad commodo dolor dolor labore nostrud exercitation v\nquis amet ipsum aliquip quis lorem consequat ullamco ad tempor do amet ea ir\nsint voluptate sed ipsum proident sit minim ea dolore lorem tempor ullamco a\nvoluptate cillum et cupidatat et do aliqua incididunt laboris amet fugiat en\nquis ea ea labore aliqua aute cupidatat proident ipsum non nulla aute nostru\ncillum dolore occaecat aute aliquip velit proident esse do aute esse aliqua\ndo velit commodo laboris fugiat ullamco nulla aute ad cillum et aute fugiat\nsit cupidatat ullamco nostrud incididunt elit commodo tempor excepteur venia\nveniam pariatur veniam et non ea minim non consequat nulla ipsum excepteur p\nminim tempor commodo nulla consectetur irure voluptate fugiat adipiscing ven\net duis cupidatat ad cupidatat veniam incididunt dolore occaecat eiusmod lab\nsed enim incididunt commodo tempor minim duis ea tempor enim labore sit mini"
+  }
+}

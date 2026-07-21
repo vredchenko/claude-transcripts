@@ -1,0 +1,14 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "replace_all": false,
+    "file_path": "/home/USER/project/app/client.json",
+    "old_string": "duis aliqua ea consequat aliqua sint aute irure cillum do quis\ncommodo aute adipiscing lorem non duis ex sed fugiat ad non mag\nnon adipiscing aliquip exercitation lorem cillum incididunt dol\nnostrud aute esse amet nisi esse veniam adipiscing ut elit lore\nnisi ipsum nisi nostrud ullamco occaecat aliquip labore irure r\nea amet occaecat occaecat veniam excepteur voluptate adipiscing\nduis lorem ullamco quis ut aliqua occaecat ad laboris adipiscin\nnostrud aliquip sint proident laboris eiusmod quis enim cillum\ndo ullamco proident sit ut tempor ipsum eiusmod pariatur sed no",
+    "new_string": "dolore amet ipsum occaecat aliquip ullamco do ex adipiscing excepteur non ei\nex labore sit amet aliqua magna nulla excepteur exercitation nostrud tempor\naute reprehenderit amet do aliquip laboris commodo veniam minim non aute eni\nsed aliquip cupidatat lorem aute nisi voluptate sed non lorem cupidatat exer\nvelit sit fugiat sit elit consectetur minim aliquip lorem ullamco nostrud vo\ndolore cillum consectetur aute voluptate pariatur reprehenderit adipiscing s\nsed elit laboris proident ipsum cupidatat pariatur quis dolore cupidatat par\nipsum velit sint ea lorem dolor voluptate sint ut veniam elit dolor tempor a\nveniam magna voluptate cillum excepteur occaecat consectetur sit ea incididu\nesse minim commodo irure pariatur ea elit nulla veniam voluptate voluptate n\nnon ex esse lorem ad enim consectetur eiusmod esse reprehenderit quis ad et\nut adipiscing cillum cupidatat ea do lorem duis incididunt elit consequat cu\nsint cillum minim consequat dolore nisi elit exercitation fugiat ullamco dui"
+  },
+  "tool_output": "veniam occaecat voluptate occaecat esse lorem lorem elit sed non commodo occaecat pariatur ipsum esse esse quis aute irure nostrud exc"
+}

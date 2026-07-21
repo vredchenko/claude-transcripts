@@ -1,0 +1,12 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "InstructionsLoaded",
+  "file_path": "/home/USER/project/components/helpers.js",
+  "memory_type": "Project",
+  "load_reason": "session_start",
+  "globs": [],
+  "trigger_file_path": null,
+  "parent_file_path": null
+}
