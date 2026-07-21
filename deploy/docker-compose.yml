@@ -1,0 +1,127 @@
+# GENERATED from the app model (@claude-transcripts/shared, services topology) by
+# scripts/gen-compose.ts — run `bun run gen:compose` to regenerate. The model is
+# the source of truth; this committed copy is a readable snapshot. (Inline comments
+# below are not reproduced by the generator.)
+#
+# Claude Transcripts (claude-transcripts) — backing services + app.
+#
+#   Dev    : bun run scripts/stack.ts up          → backing services only.
+#                                                    Run webapi/webui/cli on the HOST.
+#   Deploy : bun run scripts/stack.ts up --app    → also runs the app container.
+#
+# The runner reads the repo-root .env (the SAME file the host-run webapi/webui
+# use) and passes it to compose, so ports/credentials/image refs are defined once
+# and stay coherent across host dev and the compose stack. App config (names,
+# feature flags) lives in config/ — baked into the app image AND read by the host
+# app, so both are coherent too.
+#
+# Images are PULLED from the GitHub Container Registry (GHCR) (${IMAGE_NS}); mirror/publish
+# them with scripts/mirror-images.ts (backing) + the publish-image workflow (app).
+# Bundled stack = NO AUTH for app access (ADR 0020), localhost only. Garage's
+# internal cluster secrets (rpc/admin/metrics) still come from .env.
+
+name: claude-transcripts
+
+services:
+  couchdb:
+    image: ${IMAGE_NS}/claude-transcripts-couchdb:${COUCHDB_TAG:-3}
+    container_name: claude-transcripts-couchdb
+    # No COUCHDB_USER/PASSWORD ⇒ single-node "admin party" (dev, no auth).
+    ports:
+      - "127.0.0.1:${COUCHDB_PORT:-7652}:5984" # HTTP API + Fauxton at /_utils/
+    volumes:
+      - ./data/couchdb:/opt/couchdb/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5984/_up"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks: [claude-transcripts]
+
+  garage:
+    image: ${IMAGE_NS}/claude-transcripts-garage:${GARAGE_TAG:-v2.3.0}
+    container_name: claude-transcripts-garage
+    ports:
+      - "127.0.0.1:${GARAGE_S3_PORT:-7653}:3900" # S3 API
+      - "127.0.0.1:${GARAGE_ADMIN_PORT:-7654}:3903" # admin API
+    environment:
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+      - GARAGE_ADMIN_TOKEN=${GARAGE_ADMIN_TOKEN}
+      - GARAGE_METRICS_TOKEN=${GARAGE_METRICS_TOKEN}
+    volumes:
+      - ./data/garage/meta:/var/lib/garage/meta
+      - ./data/garage/data:/var/lib/garage/data
+      - ./garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: ["CMD", "/garage", "status"] # distroless image — use the bundled CLI
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks: [claude-transcripts]
+
+  garage-ui:
+    image: ${IMAGE_NS}/claude-transcripts-garage-ui:${GARAGE_UI_TAG:-1.1.0}
+    container_name: claude-transcripts-garage-ui
+    depends_on: [garage]
+    environment:
+      - API_BASE_URL=http://garage:3903
+      - API_ADMIN_KEY=${GARAGE_ADMIN_TOKEN}
+      - S3_ENDPOINT_URL=http://garage:3900
+      - S3_REGION=garage
+    ports:
+      - "127.0.0.1:${GARAGE_WEBUI_PORT:-7655}:3909"
+    restart: unless-stopped
+    networks: [claude-transcripts]
+
+  meilisearch:
+    image: ${IMAGE_NS}/claude-transcripts-meilisearch:${MEILI_TAG:-v1.10}
+    container_name: claude-transcripts-meilisearch
+    environment:
+      - MEILI_ENV=development # no master key required in dev; built-in UI on /
+    ports:
+      - "127.0.0.1:${MEILI_PORT:-7656}:7700"
+    volumes:
+      - ./data/meilisearch:/meili_data
+    restart: unless-stopped
+    networks: [claude-transcripts]
+
+  meilisearch-ui:
+    image: ${IMAGE_NS}/claude-transcripts-meilisearch-ui:${MEILI_UI_TAG:-latest}
+    container_name: claude-transcripts-meilisearch-ui
+    depends_on: [meilisearch]
+    ports:
+      - "127.0.0.1:${MEILI_UI_PORT:-7657}:24900"
+    restart: unless-stopped
+    networks: [claude-transcripts]
+
+  # The combined app image (webapi + webui SPA + Scalar + bundled CLI). Pulled
+  # from the GitHub Container Registry (GHCR); only runs under the `app` profile (deploy). For a
+  # LOCAL build instead, comment `image:` and uncomment `build: ..`.
+  app:
+    profiles: ["app"]
+    image: ${IMAGE_NS}/claude-transcripts-app:${APP_TAG:-latest}
+    # build: ..
+    container_name: claude-transcripts-app
+    depends_on: [couchdb, garage, meilisearch]
+    env_file: ../.env
+    environment:
+      # Inside the compose network the backends resolve to service names, not the
+      # host's localhost ports. config/ + secrets stay shared; only endpoints differ.
+      - WEBAPI_HOST=0.0.0.0
+      - COUCHDB_HOST=couchdb
+      - COUCHDB_PORT=5984
+      - S3_ENDPOINT=http://garage:3900
+      - MEILI_HOST=http://meilisearch:7700
+    ports:
+      - "127.0.0.1:${WEBAPI_PORT:-7650}:7650"
+    restart: unless-stopped
+    networks: [claude-transcripts]
+
+networks:
+  claude-transcripts:
+    name: claude-transcripts-network
+    driver: bridge
+# State is bind-mounted to ./data/* (deploy/data, gitignored) so it lives in-repo
+# and is easy to inspect/wipe.

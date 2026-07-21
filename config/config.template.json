@@ -1,0 +1,34 @@
+{
+  "app": {
+    "name": "claude-transcripts"
+  },
+  "system": {
+    "logging": {
+      "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 }
+    }
+  },
+  "couchdb": {
+    "databases": {
+      "sessions": "claude-transcripts-sessions",
+      "appLogs": "claude-transcripts-app-logs"
+    }
+  },
+  "s3": {
+    "buckets": {
+      "sessions": "claude-transcripts-sessions"
+    }
+  },
+  "features": {
+    "s3Blobs": true,
+    "midFlightChunking": true,
+    "couchFullContentChunks": true,
+    "meilisearch": false,
+    "secretsMasking": false
+  },
+  "servicesMenu": {
+    "couchdbFauxton": "http://127.0.0.1:7652/_utils/",
+    "garageWebui": "http://127.0.0.1:7655/",
+    "meilisearch": "http://127.0.0.1:7656/"
+  },
+  "userSettings": {}
+}
