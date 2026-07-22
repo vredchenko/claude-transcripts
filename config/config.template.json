@@ -6,7 +6,7 @@
     "logging": {
       "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 }
     },
-    "sessions": { "liveWindowMs": 86400000 }
+    "sessions": { "liveWindowMs": 86400000, "idleThresholdMs": 300000 }
   },
   "couchdb": {
     "databases": {

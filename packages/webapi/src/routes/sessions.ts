@@ -1,6 +1,11 @@
-import type { SessionAggregate, SessionStatus, SessionSummary } from "@claude-transcripts/shared";
+import {
+  type SessionAggregate,
+  type SessionStatus,
+  type SessionSummary,
+  sumActiveDurationMs,
+} from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { bucketName, liveWindowMs } from "../config";
+import { bucketName, idleThresholdMs, liveWindowMs } from "../config";
 import type { AppContext } from "../context";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -23,6 +28,7 @@ const SessionSummarySchema = z.object({
   timestamp: z.string(),
   startTimestamp: z.string().optional(),
   durationMs: z.number().optional(),
+  activeMs: z.number().optional(),
   model: z.string().optional(),
   cwd: z.string(),
   hostname: z.string(),
@@ -152,6 +158,27 @@ function aggregateToSummary(
   };
 }
 
+/**
+ * Active (working) duration for one session in ms, or undefined if not derivable.
+ * Reads the session's per-event timestamps from the `session_index/aggregate` view
+ * with `reduce=false` (one row per event/summary doc; each value's `first` is that
+ * doc's own timestamp), then sums the intervals that fall within the idle threshold.
+ * Only used on the session detail — the list stays wall-clock, since this is a
+ * per-session scan (fine at Tier-1 volumes, not for every row of the list).
+ */
+async function computeActiveMs(db: any, id: string, idleMs: number): Promise<number | undefined> {
+  try {
+    const res = await db.view("session_index", "aggregate", { key: id, reduce: false });
+    const stamps = (res.rows as any[])
+      .map((r) => r.value?.first)
+      .filter((t: unknown): t is string => typeof t === "string" && t.length > 0);
+    if (stamps.length < 2) return undefined;
+    return sumActiveDurationMs(stamps, idleMs);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Best-effort recency key for ordering (running/incomplete float up by activity). */
 function orderKey(s: SessionSummary): string {
   return s.lastActivity || s.timestamp || "";
@@ -249,16 +276,21 @@ export function sessionRoutes(ctx: AppContext) {
     const res = await db.view("session_index", "aggregate", { group: true, reduce: true, key: id });
     const row: any = res.rows[0];
     const agg: SessionAggregate | undefined = isRealSession(row?.value) ? row.value : undefined;
+    // Active (working) time needs every event's timestamp, not just first/last.
+    const activeMs = await computeActiveMs(db, id, idleThresholdMs(ctx.config));
     // Ended sessions: read the summary doc directly (full fidelity), enriched with
     // the aggregate's start time for duration.
     try {
       const doc = await db.get(`summary:${id}`);
-      return c.json(docToSummary(doc, agg?.first));
+      return c.json({ ...docToSummary(doc, agg?.first), activeMs });
     } catch {
       // Not ended — fall back to the live aggregate (running / incomplete).
     }
     if (!agg) return c.json({ error: "Session not found" }, 404);
-    return c.json(aggregateToSummary(id, agg, Date.now(), liveWindowMs(ctx.config)));
+    return c.json({
+      ...aggregateToSummary(id, agg, Date.now(), liveWindowMs(ctx.config)),
+      activeMs,
+    });
   });
 
   route.openapi(transcriptRoute, async (c: any) => {

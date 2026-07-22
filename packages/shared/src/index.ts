@@ -100,7 +100,15 @@ export interface SessionSummary {
   sessionId: string;
   timestamp: string;
   startTimestamp?: string;
+  /** Wall-clock runtime: last activity minus first event (includes idle time). */
   durationMs?: number;
+  /**
+   * Active time: `durationMs` minus idle gaps — the sum of inter-event intervals
+   * that fall within the idle threshold. Distinguishes real working time from a
+   * session left open (e.g. in tmux). Derived on the session detail from per-event
+   * timestamps; see `sumActiveDurationMs`.
+   */
+  activeMs?: number;
   model?: string;
   cwd: string;
   hostname: string;
@@ -131,6 +139,36 @@ export interface TranscriptResponse {
   messages: Record<string, any>[];
   totalCount: number;
   hasMore: boolean;
+}
+
+/** Default idle threshold (ms): gaps longer than this count as idle, not activity. */
+export const DEFAULT_IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min
+
+/**
+ * Active session time: the wall-clock span minus idle gaps. Given event timestamps
+ * (ISO strings, any order), sort them and sum the intervals between consecutive
+ * events, counting a gap only if it is within `idleThresholdMs` — longer gaps mean
+ * the session sat idle (e.g. left running in tmux) and are excluded. Returns 0 for
+ * fewer than two valid timestamps. Pure + isomorphic (webapi and hook can share it).
+ */
+export function sumActiveDurationMs(
+  timestamps: string[],
+  idleThresholdMs: number = DEFAULT_IDLE_THRESHOLD_MS,
+): number {
+  const ms = timestamps
+    .map((t) => Date.parse(t))
+    .filter((n) => !Number.isNaN(n))
+    .sort((a, b) => a - b);
+  let active = 0;
+  let prev: number | undefined;
+  for (const t of ms) {
+    if (prev !== undefined) {
+      const gap = t - prev;
+      if (gap > 0 && gap <= idleThresholdMs) active += gap;
+    }
+    prev = t;
+  }
+  return active;
 }
 
 // ── Transcript chunking ─────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AppConfigFile } from "@claude-transcripts/shared";
+import { type AppConfigFile, DEFAULT_IDLE_THRESHOLD_MS } from "@claude-transcripts/shared";
 
 const env = process.env;
 
@@ -47,7 +47,7 @@ export interface Config {
   };
   system: {
     logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
-    sessions?: { liveWindowMs?: number };
+    sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
   };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
@@ -93,6 +93,12 @@ export function loadConfig(): Config {
 export function liveWindowMs(config: Config): number {
   const v = config.system.sessions?.liveWindowMs;
   return typeof v === "number" && v > 0 ? v : DEFAULT_LIVE_WINDOW_MS;
+}
+
+/** The configured idle threshold (ms) for active-duration, falling back to 5 min. */
+export function idleThresholdMs(config: Config): number {
+  const v = config.system.sessions?.idleThresholdMs;
+  return typeof v === "number" && v > 0 ? v : DEFAULT_IDLE_THRESHOLD_MS;
 }
 
 /** Resolve a CouchDB database name from its logical key. */
