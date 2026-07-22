@@ -226,3 +226,123 @@ export function sliceIntoChunks(
 export function chunkDocId(sessionId: string, byteStart: number): string {
   return `chunk:${sessionId}:${String(byteStart).padStart(12, "0")}`;
 }
+
+// ── Content chunks (per-turn parsed content embedded in chunk docs, ADR 0027) ───
+//
+// When `couchFullContentChunks` is on, a chunk doc carries the parsed turns it
+// covers (`entries[]`) in addition to its byte range — so CouchDB map-reduce views
+// can read individual turns (speaker-split, per-turn search) without fetching S3.
+// `buildChunkEntries` is byte-identical in the hook (like sliceIntoChunks), and its
+// output partitions 1:1 with `sliceIntoChunks(jsonl)` by `entryCount` (one entry per
+// non-blank line, in order), so a writer attaches each chunk's entries by slicing.
+
+/** Speaker/kind of a parsed transcript turn projected into a content chunk. */
+export type ChunkEntryRole = "user" | "assistant" | "tool_result" | "system" | "other";
+
+/**
+ * One parsed transcript turn inside a content chunk — a pruned projection of a JSONL
+ * entry. Ordering is (chunk.byte_start, array position); no global index is stored,
+ * so it stays consistent between live flushes and backfill.
+ */
+export interface ChunkEntry {
+  role: ChunkEntryRole;
+  timestamp?: string;
+  /** Flattened text: assistant/user text blocks, or a tool_result's text. */
+  text?: string;
+  /** tool_use calls in an assistant turn. */
+  toolUses?: { name: string; id?: string }[];
+  /** For a tool_result turn: the tool_use id it answers, and whether it errored. */
+  toolUseId?: string;
+  isError?: boolean;
+  /** A subagent sub-transcript line. */
+  isSidechain?: boolean;
+}
+
+/** Flatten a message/tool_result content field to text (`onlyType` filters items). */
+function flattenEntryText(content: any, onlyType?: string): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  let out = "";
+  for (const item of content) {
+    if (onlyType && item?.type !== onlyType) continue;
+    if (typeof item?.text === "string") out += item.text;
+  }
+  return out;
+}
+
+/** Project one parsed JSONL doc into a pruned `ChunkEntry`. */
+function projectChunkEntry(doc: any): ChunkEntry {
+  const type: string = typeof doc?.type === "string" ? doc.type : "other";
+  const content = doc?.message?.content;
+  const timestamp: string | undefined =
+    typeof doc?.timestamp === "string" ? doc.timestamp : undefined;
+  const sidechain = doc?.isSidechain === true;
+
+  if (type === "assistant") {
+    const toolUses: { name: string; id?: string }[] = [];
+    if (Array.isArray(content)) {
+      for (const item of content) {
+        if (item?.type === "tool_use" && typeof item.name === "string") {
+          toolUses.push(item.id ? { name: item.name, id: String(item.id) } : { name: item.name });
+        }
+      }
+    }
+    const text = flattenEntryText(content, "text");
+    const entry: ChunkEntry = { role: "assistant" };
+    if (timestamp) entry.timestamp = timestamp;
+    if (text) entry.text = text;
+    if (toolUses.length) entry.toolUses = toolUses;
+    if (sidechain) entry.isSidechain = true;
+    return entry;
+  }
+
+  if (type === "user") {
+    // A user turn is a real prompt unless it carries a tool_result echo.
+    const toolResult = Array.isArray(content)
+      ? content.find((i: any) => i?.type === "tool_result")
+      : undefined;
+    if (toolResult) {
+      const entry: ChunkEntry = { role: "tool_result" };
+      if (timestamp) entry.timestamp = timestamp;
+      const text = flattenEntryText(toolResult.content);
+      if (text) entry.text = text;
+      if (typeof toolResult.tool_use_id === "string") entry.toolUseId = toolResult.tool_use_id;
+      if (toolResult.is_error === true) entry.isError = true;
+      if (sidechain) entry.isSidechain = true;
+      return entry;
+    }
+    const entry: ChunkEntry = { role: "user" };
+    if (timestamp) entry.timestamp = timestamp;
+    const text = flattenEntryText(content, "text");
+    if (text) entry.text = text;
+    if (sidechain) entry.isSidechain = true;
+    return entry;
+  }
+
+  const entry: ChunkEntry = { role: type === "system" ? "system" : "other" };
+  if (timestamp) entry.timestamp = timestamp;
+  const text = flattenEntryText(content, "text");
+  if (text) entry.text = text;
+  if (sidechain) entry.isSidechain = true;
+  return entry;
+}
+
+/**
+ * Parse a JSONL transcript (or slice) into pruned per-turn `ChunkEntry`s — exactly
+ * one entry per non-blank line, in order (a malformed line yields an `"other"`
+ * placeholder so the count stays aligned with `sliceIntoChunks`). Pure + isomorphic;
+ * the hook keeps a byte-identical copy.
+ */
+export function buildChunkEntries(jsonl: string): ChunkEntry[] {
+  const out: ChunkEntry[] = [];
+  for (const line of jsonl.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      out.push(projectChunkEntry(JSON.parse(trimmed)));
+    } catch {
+      out.push({ role: "other" }); // keep 1:1 with sliceIntoChunks' entry count
+    }
+  }
+  return out;
+}
