@@ -12,13 +12,18 @@ logging + viewing that previously lived across several repos. The items below ar
 intentionally not built yet (Meilisearch ships in the stack but is not wired up).
 The UI is functional but deliberately unstyled — a visual rework comes later.
 
-The next major piece is the **logging rework** (#4): persist session content
-mid-flight (crash resilience) and store the full session log as chunked docs in
-CouchDB so map-reduce views can extract session features. (Dropping CouchDB
-transcript attachments — the first part of that rework — is **done**: transcripts
-now live in S3 only, see
-[ADR 0014](decisions/0014-transcripts-live-in-s3-only.md).) It's the phase-in
-blocker and is being planned before implementation.
+The next major piece is completing the **logging rework** (#4). Two parts are
+already **done**: dropping CouchDB transcript attachments (transcripts now live in
+S3 only, [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)) and the
+**mid-flight chunking *mechanism*** — the hook flushes append-only `chunk` docs as
+a session grows (crash resilience), ingested idempotently with stable ids. But
+today a `chunk` doc holds only a **byte-range slice** into the S3 transcript
+(`byte_start` / `byte_end` / `entry_count`), not the messages themselves — so
+CouchDB still can't see individual turns. The remaining, and now next, piece is
+**full-content chunks**: parsing transcript entries into CouchDB docs that carry
+each turn's role + content, so map-reduce views can extract session features
+(speaker-split, per-turn search, analytics). Design:
+[ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md).
 
 ## Tier 1 build (current scope)
 
@@ -45,8 +50,12 @@ done.
 - Evaluate DeltaDB-style delta granularity ([database-choice.md](database-choice.md)) (#16)
 
 **Logging & data model (Tier 1/2)**
-- Persist mid-flight + chunked CouchDB logs for map-reduce feature views
-  ([mid-flight-chunking.md](mid-flight-chunking.md)) (#4)
+- **Full-content chunks** (#4) — the mid-flight chunking *mechanism* is **done**
+  (byte-range `chunk` docs, idempotent ingest, crash resilience); the remaining
+  work is promoting those to per-turn content docs (role + content) so map-reduce
+  views can extract session features
+  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md),
+  [mid-flight-chunking.md](mid-flight-chunking.md))
 - Session enrichment: harness config / PROMPT / MCP / plugins / CLI version
   ([actions.md](actions.md), [hooks.md](hooks.md)) (#3)
 - Multi-user / multi-machine attribution ([tiers.md](tiers.md) → T2) (#7)
@@ -57,13 +66,17 @@ done.
     / id) per session, laying the ground for multi-user once we go multiplayer.
 - Secrets scanning + masking ([app-logging.md](app-logging.md), #11)
 - **Speaker-split views** — CouchDB map views that project a session into just the
-  user's turns vs Claude's turns (side-by-side or filtered reading). Should fall out
-  of the existing entry `role`/`type` in the transcript shape; confirm feasibility
-  against [couchdb-documents.md](couchdb-documents.md).
+  user's turns vs Claude's turns (side-by-side or filtered reading). The per-turn
+  `role`/`type` already exists in the transcript shape, but it isn't in CouchDB yet
+  (chunks are byte-range only) — so this is **gated on full-content chunks**
+  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)); trivial once
+  those land.
 - **Active vs wall-clock session duration** — alongside total runtime (first→last
   event), compute *active* duration by summing only intervals where something was
   happening (gaps beyond an idle threshold subtracted). Sessions left running in
-  tmux otherwise inflate duration. Surface both figures in the summary + webui.
+  tmux otherwise inflate duration. Independent of full-content chunks (uses the
+  existing per-event timestamps). *First cut landing on the session detail; the
+  session list stays wall-clock for now at Tier-1 volumes.*
 - **Combined-prompt provenance** *(nice-to-have, Tier 2/3)* — for each session,
   record and visualise the effective combined prompt (system prompt + CLAUDE.md
   layers + memory + appended instructions) so it's clear which instructions, and

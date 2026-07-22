@@ -31,3 +31,4 @@ Lightweight records of non-obvious decisions. See
 | [0024](0024-mirror-backing-images-to-registry.md) | Mirror third-party backing-service images to the container registry | Accepted |
 | [0025](0025-claude-code-compatibility-matrix.md) | Claude Code compatibility is a generated, structured definition | Accepted |
 | [0026](0026-single-main-branch.md) | A single `main` branch | Accepted |
+| [0027](0027-full-content-chunks-in-couchdb.md) | Full-content chunks in CouchDB (per-turn content, not just byte ranges) | Proposed |
