@@ -1,6 +1,6 @@
 # Claude Transcripts
 
-> **Codename:** `claude-transcripts` · **Slug:** `claude-transcripts` · **Title:** Claude Transcripts
+[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-CC785C?logo=anthropic&logoColor=white)](https://claude.com/claude-code)
 
 **Self-hosted history for your [Claude Code](https://claude.com/claude-code)
 sessions.** A Claude Code hook logs every session — events, an end-of-session
@@ -16,29 +16,16 @@ Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─�
                         └───────── reads/writes ──────agents┘
 ```
 
-## Components
-
-| Component | Path | Role |
-|-----------|------|------|
-| **hooks** | `hooks/` | Claude Code plugin (writer). Logs sessions; installs per machine. |
-| **webapi** | `packages/webapi/` | Bun + Hono gateway: the single I/O surface; serves the SPA in prod. |
-| **webui** | `packages/webui/` | React + MUI SPA (optional). |
-| **cli** | `packages/cli/` | Bun + Ink user-facing tool + admin utility (optional). |
-| **shared** | `packages/shared/` | Cross-cutting types + token accounting. |
-| **scripts** | `scripts/` | Dev-only automation (client gen, image mirroring, release). |
-| **deploy** | `deploy/` | Docker Compose: CouchDB + Garage + Meilisearch + admin UIs. |
-
-## Status
-
-Early rebuild. Tier 1 (single machine, single user) first. See
-[`docs/`](docs/) for the technical design, and [`CLAUDE.md`](CLAUDE.md) for the
-build conventions.
+> **Status:** early rebuild. Tier 1 (single machine, single user) first — retention,
+> browse/search, and programmatic access, no auth. A public project website and
+> hosted docs are planned (GitHub Pages); for now the design lives in
+> [`docs/`](docs/).
 
 ## Getting started (localhost, single machine)
 
 Runs entirely on your machine on ports `7650–7661`, no auth (localhost only). The
 backing services come from **public** Docker images and the app runs on the host
-via Bun — so **nothing needs to be built or published** for this flow.
+via Bun — so nothing needs to be built or published to try it.
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/) (with Compose),
 [Bun](https://bun.sh) ≥ 1.1, `git`, `openssl`, and
@@ -140,19 +127,49 @@ bun run cli backfill --dry-run     # preview what would be adopted
 bun run cli backfill               # adopt on-disk ~/.claude transcripts as history
 ```
 
-### Do I need to build/publish Docker images?
-
-**Not for this flow.** The backing services use public upstream images and the app
-runs on the host. You'd only build/publish the combined **app** image
-(`claude-transcripts-app`) for a *container-based deploy* — that's produced by the
-`publish-image` GitHub Actions workflow on a `vX.Y.Z` tag ([ADR
-0023](docs/decisions/0023-lockstep-versioning-and-combined-image.md)). The default
-(non-`--upstream`) stack mode instead pulls mirrored backing images from your own
-`${IMAGE_NS}` registry; `--upstream` skips that entirely.
-
 ## Configuration
 
 Non-secret deployment-wide settings live in [`config/`](config/) (copy
 [`config/config.template.json`](config/config.template.json) → `config/config.json`);
 secrets/endpoints in a local `.env` (copy [`.env.template`](.env.template)). The
 bundled dev stack runs on ports `7650–7661` with no auth on localhost.
+
+---
+
+## For developers
+
+Everything below is for working **on** Claude Transcripts, not just running it.
+
+### Components
+
+| Component | Path | Role |
+|-----------|------|------|
+| **hooks** | `hooks/` | Claude Code plugin (writer). Logs sessions; installs per machine. |
+| **webapi** | `packages/webapi/` | Bun + Hono gateway: the single I/O surface; serves the SPA in prod. |
+| **webui** | `packages/webui/` | React + MUI SPA (optional). |
+| **cli** | `packages/cli/` | Bun + Ink user-facing tool + admin utility (optional). |
+| **shared** | `packages/shared/` | The app model (central state) + cross-cutting types + token accounting. |
+| **scripts** | `scripts/` | Dev-only automation (client gen, image mirroring, release). |
+| **deploy** | `deploy/` | Docker Compose: CouchDB + Garage + Meilisearch + admin UIs. |
+
+### Container-based deploy
+
+For a container deploy (rather than running on the host), the combined **app**
+image (`claude-transcripts-app`, webapi + prebuilt webui SPA) is published to GHCR
+by the `publish-image` GitHub Actions workflow on a `vX.Y.Z` tag
+([ADR 0023](docs/decisions/0023-lockstep-versioning-and-combined-image.md)). The
+default (non-`--upstream`) stack mode pulls mirrored backing images from your own
+`${IMAGE_NS}` registry; `--upstream` uses public upstream images instead.
+
+### Docs & conventions
+
+- [`docs/`](docs/) — architecture, ADRs, and the data model (the spec).
+- [`CLAUDE.md`](CLAUDE.md) — build conventions and repo invariants for agents.
+- **Bun** workspace monorepo, TypeScript (ESM, strict); **Biome** formatting;
+  **lefthook** pre-commit. `bun run lint`, `bun run typecheck`, `bun run build`.
+
+## License
+
+[MIT](LICENSE)
+</content>
+</invoke>
