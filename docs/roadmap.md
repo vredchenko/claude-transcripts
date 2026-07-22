@@ -65,6 +65,21 @@ done.
   - **Claude account identity** — capture the Claude account user (username / email
     / id) per session, laying the ground for multi-user once we go multiplayer.
 - Secrets scanning + masking ([app-logging.md](app-logging.md), #11)
+- **Git-change capture** *(Tier 2)* — record the code changes Claude authors per
+  session as structured data (changed paths, unified diffs, and any commits it
+  makes), not just the `Edit`/`Write`/`Bash` tool calls buried in the transcript.
+  A `PostToolUse` hook on write tools plus a Stop/SessionEnd `git diff` snapshot
+  (or watching the repo) would give a first-class "what did this session change"
+  record for analytics + recall. *Partially latent today* (Edit/Write inputs live
+  in the transcript content) but not collected as structured diffs.
+- **Claude Code API traffic capture** *(Tier 2/3)* — the model I/O (system prompt,
+  tool schemas, exact request/response bodies, per-request token headers) is **not**
+  in transcripts or anywhere else — it goes straight to the Anthropic API over TLS.
+  Capturable via an **opt-in local MITM proxy** (e.g. mitmproxy) with its CA trusted
+  by Claude Code (`HTTPS_PROXY` + `NODE_EXTRA_CA_CERTS`); the CLI is a Node/Bun app
+  and honours those, so no cert-pinning workaround is needed. High-value but
+  privacy-sensitive (raw prompts/keys) → strictly opt-in, masked, and off by
+  default. (Supersedes the old "consider" #2.)
 - **Speaker-split views** — CouchDB map views that project a session into just the
   user's turns vs Claude's turns (side-by-side or filtered reading). The per-turn
   `role`/`type` already exists in the transcript shape, but it isn't in CouchDB yet
@@ -113,5 +128,5 @@ done.
 - **Session export to PDF / Markdown / JSON** ([tiers.md](tiers.md))
 - Extensibility & bundled tooling (OpenHack, Fossil, integration points)
 
-> Earlier "consider" issues, now noted here: codebase search (#1), logging CC web
-> traffic (#2).
+> Earlier "consider" issues, now noted here: codebase search (#1). Logging CC web
+> traffic (#2) is promoted to "Claude Code API traffic capture" above.
