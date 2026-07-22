@@ -24,15 +24,15 @@ export function sliceIntoChunks(
   offsets[0] = 0;
   for (let i = 0; i < lines.length; i++) {
     const newline = i < lines.length - 1 ? 1 : 0; // split() implies a \n between lines
-    offsets[i + 1] = offsets[i] + enc.encode(lines[i]).length + newline;
+    offsets[i + 1] = offsets[i]! + enc.encode(lines[i]).length + newline;
   }
   const slices: ChunkSlice[] = [];
   let startLine = 0;
   let entryCount = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().length > 0) entryCount++;
+    if (lines[i]!.trim().length > 0) entryCount++;
     if (entryCount >= max || (i === lines.length - 1 && entryCount > 0)) {
-      slices.push({ byteStart: offsets[startLine], byteEnd: offsets[i + 1], entryCount });
+      slices.push({ byteStart: offsets[startLine]!, byteEnd: offsets[i + 1]!, entryCount });
       startLine = i + 1;
       entryCount = 0;
     }

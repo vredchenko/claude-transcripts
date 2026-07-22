@@ -14,6 +14,7 @@ export function parseFlags(argv: string[]): ParsedArgs {
   const options: Record<string, string | boolean> = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    if (a === undefined) continue;
     if (a.startsWith("--")) {
       const body = a.slice(2);
       const eq = body.indexOf("=");
