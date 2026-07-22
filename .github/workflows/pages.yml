@@ -1,7 +1,7 @@
 name: pages
-# Build and deploy the public project website to GitHub Pages. For now this is the
-# static landing page in `site/`; the docs static-build step is added on top of this
-# (it renders `docs/*.md` into `site/docs/`). Uses the built-in GITHUB_TOKEN.
+# Build and deploy the public project website to GitHub Pages: the static landing
+# page in `site/` plus the technical docs rendered from `docs/*.md` into `/docs`.
+# Uses the built-in GITHUB_TOKEN.
 on:
   push:
     branches: [main]
@@ -31,12 +31,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Assemble site
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Assemble site (landing + rendered docs)
         run: |
           set -euo pipefail
           rm -rf _site
           mkdir -p _site
           cp -r site/. _site/
+          # Render docs/*.md straight into the published /docs (dependency-free; no install).
+          bun run scripts/build-docs.ts --out _site/docs
 
       - uses: actions/configure-pages@v5
 

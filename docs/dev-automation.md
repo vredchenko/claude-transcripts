@@ -24,6 +24,7 @@ truth for the behaviour, no drift between local and CI.
 | **regenerate-compatibility** | Regenerate `compatibility.json` from the external Claude Code source of truth | [compatibility.md](compatibility.md) |
 | **mirror-images** | Pull the pinned third-party backing-service images and push them to the **GitHub Container Registry (GHCR)** | [ADR 0024](decisions/0024-mirror-backing-images-to-registry.md), [containers.md](containers.md) |
 | **release** | Version all components together (semver) and build the combined image | [ADR 0023](decisions/0023-lockstep-versioning-and-combined-image.md) |
+| **build-docs** | Render `docs/*.md` (+ `decisions/`) into a self-contained static HTML site | see below; feeds GitHub Pages `/docs` and the combined image |
 | **migrate** *(via cli, not here)* | Schema/view migrations | lives in [cli/](tools.md), not `scripts/` |
 
 ## Client generation (orval)
@@ -47,6 +48,18 @@ generated clients are **committed** (regenerated in CI and checked) so a contrac
 change fails fast at the consumer. The CLI's `WebapiSink` (used by `backfill`) calls
 these functions; the raw transcript upload stays a direct mutator call (no JSON
 schema for a binary body).
+
+## Docs static build (build-docs)
+
+`bun run build:docs` (`scripts/build-docs.ts`) renders the Markdown in `docs/`
+(plus `docs/decisions/`) into a self-contained, theme-aware HTML site with a
+sidebar, writing to `build/docs/` by default (`--out <dir>` to override). It is
+**dependency-free** — Bun + Node built-ins only, with a small GFM-subset Markdown
+renderer — so it needs no install (CI stays `--frozen-lockfile`) and its output is
+fully offline. The same output is consumed twice: the [Pages workflow](../.github/workflows/pages.yml)
+renders it into the published `/docs`, and the combined app image bakes it in to be
+served by the webapi ([containers.md](containers.md)). The renderer is intentionally
+minimal and swappable for a full SSG later.
 
 ## CI/CD wrapping
 
