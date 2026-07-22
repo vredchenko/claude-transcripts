@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="brand/logo.svg" alt="Claude Transcripts" width="360" />
+</p>
+
 # Claude Transcripts
 
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-CC785C?logo=anthropic&logoColor=white)](https://claude.com/claude-code)
