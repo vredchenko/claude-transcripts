@@ -7,7 +7,8 @@ build everything else from.
 ## The combined application image
 
 One container serves the whole front door — webapi + the built webui SPA +
-Swagger, and (Tier 3) the static HTML docs — under one origin
+Swagger + the static HTML docs (rendered from `docs/*.md` by
+[build-docs](dev-automation.md), served at `/docs`) — under one origin
 ([ADR 0002](decisions/0002-single-combined-container.md),
 [routes.md](routes.md)). It also **bundles the CLI binary**, which the webui
 offers as a download link ([cli.md](cli.md)).
@@ -58,11 +59,11 @@ Components are **built separately, then combined** into the deployment image, an
 **versioned together** (lockstep semver) —
 [ADR 0023](decisions/0023-lockstep-versioning-and-combined-image.md):
 
-1. Build each component independently: webapi bundle, webui SPA `dist/`, CLI
-   binary.
+1. Build each component independently, in parallel Docker stages: webui SPA
+   `dist/`, the static docs (`build-docs`), and (planned) the CLI binary.
 2. Release those artifacts.
 3. **Combine** them into the single app image (serves `/api`, `/app`, Swagger,
-   the bundled CLI download, and — Tier 3 — static docs).
+   `/docs`, and the bundled CLI download).
 
 Driven by `scripts` + CI ([dev-automation.md](dev-automation.md)).
 

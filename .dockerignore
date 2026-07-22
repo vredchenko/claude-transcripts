@@ -20,7 +20,6 @@ CLAUDE.md
 README.md
 **/CLAUDE.md
 **/README.md
-docs
 deploy
 Dockerfile
 .dockerignore
@@ -29,3 +28,9 @@ Dockerfile
 # The Claude Code hook is installed separately as a plugin — not part of the
 # webapi/webui runtime image.
 hook
+
+# docs/ Markdown is a build input for the docs static-build stage (rendered to
+# HTML by scripts/build-docs.ts). Re-include it despite the README.md excludes
+# above; the runtime stage copies only the rendered output, not the raw Markdown.
+!docs
+!docs/**
