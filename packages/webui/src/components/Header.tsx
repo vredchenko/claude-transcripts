@@ -1,6 +1,7 @@
 import { AppBar, Box, Toolbar, Typography } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { useAppModel } from "../api/model";
+import logoMark from "../assets/logo-mark.svg";
 import { MONO } from "../theme";
 import { LinksMenu } from "./LinksMenu";
 import { SearchBox } from "./SearchBox";
@@ -26,6 +27,12 @@ export function Header() {
       <Toolbar variant="dense" sx={{ gap: 1, minHeight: 48 }}>
         <Link to="/" style={{ textDecoration: "none", color: "inherit", flexShrink: 0 }}>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+            <Box
+              component="img"
+              src={logoMark}
+              alt=""
+              sx={{ width: 22, height: 22, display: "block", alignSelf: "center" }}
+            />
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
               {title}
             </Typography>

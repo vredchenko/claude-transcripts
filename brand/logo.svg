@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 40" role="img" aria-label="Claude Transcripts">
+  <style>
+    .wm { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    @media (prefers-color-scheme: dark) { .wm { fill: #e6edf3; } }
+  </style>
+  <g transform="translate(4,4)">
+    <rect width="32" height="32" rx="7" fill="#D97757"/>
+    <rect x="7" y="8.5" width="12" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.96"/>
+    <rect x="7" y="14.6" width="18" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.74"/>
+    <rect x="7" y="20.7" width="9" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.96"/>
+  </g>
+  <text class="wm" x="48" y="26" font-size="19" font-weight="700" letter-spacing="-0.2">Claude Transcripts</text>
+</svg>
