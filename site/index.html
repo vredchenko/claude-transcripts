@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Claude Transcripts — self-hosted history for Claude Code</title>
+    <meta
+      name="description"
+      content="Self-hosted history for your Claude Code sessions. A hook logs every session to your own CouchDB + S3; a web API, web UI, and CLI read it back. Nothing leaves your network."
+    />
+    <style>
+      :root {
+        --clay: #d97757;
+        --clay-deep: #c15f3c;
+        --bg: #f6f8fa;
+        --paper: #ffffff;
+        --ink: #1f2328;
+        --muted: #57606a;
+        --border: rgba(0, 0, 0, 0.1);
+        --code-bg: #eef1f4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --paper: #161b22;
+          --ink: #e6edf3;
+          --muted: #8b949e;
+          --border: rgba(255, 255, 255, 0.12);
+          --code-bg: #0d1117;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+          sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--clay-deep);
+      }
+      @media (prefers-color-scheme: dark) {
+        a {
+          color: var(--clay);
+        }
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+      header.site {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 18px 0;
+      }
+      header.site .mark {
+        width: 30px;
+        height: 30px;
+      }
+      header.site .name {
+        font-weight: 700;
+        font-size: 17px;
+      }
+      header.site nav {
+        margin-left: auto;
+        display: flex;
+        gap: 18px;
+        font-size: 14px;
+      }
+      header.site nav a {
+        text-decoration: none;
+        color: var(--muted);
+      }
+      header.site nav a:hover {
+        color: var(--ink);
+      }
+      .hero {
+        text-align: center;
+        padding: 56px 0 40px;
+      }
+      .hero h1 {
+        font-size: clamp(30px, 6vw, 46px);
+        line-height: 1.1;
+        margin: 0 0 14px;
+        letter-spacing: -0.02em;
+      }
+      .hero .clay {
+        color: var(--clay);
+      }
+      .hero p.lead {
+        font-size: clamp(16px, 2.6vw, 20px);
+        color: var(--muted);
+        max-width: 640px;
+        margin: 0 auto 28px;
+      }
+      .btns {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        border: 1px solid var(--border);
+      }
+      .btn.primary {
+        background: var(--clay);
+        border-color: var(--clay);
+        color: #fff;
+      }
+      .btn.primary:hover {
+        background: var(--clay-deep);
+      }
+      .btn.ghost {
+        background: var(--paper);
+        color: var(--ink);
+      }
+      pre.diagram {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px;
+        overflow-x: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        margin: 40px 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 8px 0 48px;
+      }
+      .card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px 20px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .note {
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0 0 48px;
+      }
+      footer.site {
+        border-top: 1px solid var(--border);
+        padding: 24px 0 48px;
+        color: var(--muted);
+        font-size: 14px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      footer.site a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      footer.site a:hover {
+        color: var(--ink);
+      }
+      footer.site .spacer {
+        margin-left: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site">
+        <svg class="mark" viewBox="0 0 32 32" role="img" aria-label="Claude Transcripts">
+          <rect width="32" height="32" rx="7" fill="#d97757" />
+          <rect x="7" y="8.5" width="12" height="2.8" rx="1.4" fill="#fff" fill-opacity="0.96" />
+          <rect x="7" y="14.6" width="18" height="2.8" rx="1.4" fill="#fff" fill-opacity="0.74" />
+          <rect x="7" y="20.7" width="9" height="2.8" rx="1.4" fill="#fff" fill-opacity="0.96" />
+        </svg>
+        <span class="name">Claude Transcripts</span>
+        <nav>
+          <a href="#how">How it works</a>
+          <a href="./docs/">Docs</a>
+          <a href="https://github.com/vredchenko/claude-transcripts">GitHub</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <h1>Self-hosted history for<br /><span class="clay">Claude Code</span> sessions</h1>
+        <p class="lead">
+          A Claude Code hook logs every session — events, an end-of-session summary, and the full
+          transcript — to your own CouchDB + S3 storage. A web API serves it back; a web UI, a CLI,
+          and AI agents read it. Nothing leaves your network.
+        </p>
+        <div class="btns">
+          <a class="btn primary" href="https://github.com/vredchenko/claude-transcripts#getting-started-localhost-single-machine">
+            Get started
+          </a>
+          <a class="btn ghost" href="https://github.com/vredchenko/claude-transcripts">View on GitHub</a>
+        </div>
+      </section>
+
+      <pre class="diagram" id="how">Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─┐
+                        ▲                             cli  ──┼─► webapi
+                        └───────── reads/writes ──────agents┘</pre>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Yours, entirely</h3>
+          <p>Runs on your own infrastructure — CouchDB + S3-compatible storage. No third-party service, no data leaving your network.</p>
+        </div>
+        <div class="card">
+          <h3>Full transcripts</h3>
+          <p>Every session is captured: per-event records, a summary with token + tool usage, and a byte-faithful copy of the full transcript.</p>
+        </div>
+        <div class="card">
+          <h3>Web UI · CLI · API</h3>
+          <p>Browse in the web UI, script with the CLI, or read the OpenAPI-typed web API directly — the single gateway to everything.</p>
+        </div>
+        <div class="card">
+          <h3>Agent-readable</h3>
+          <p>The corpus is built to be consumed by agents too — a foundation for recall, self-retrospection, and analytics over your own history.</p>
+        </div>
+      </div>
+
+      <p class="note">
+        Early rebuild — single machine, single user first. Follow along on
+        <a href="https://github.com/vredchenko/claude-transcripts">GitHub</a>.
+      </p>
+
+      <footer class="site">
+        <span>Claude Transcripts</span>
+        <a href="https://github.com/vredchenko/claude-transcripts/blob/main/LICENSE">MIT License</a>
+        <span class="spacer"></span>
+        <a href="./docs/">Docs</a>
+        <a href="https://github.com/vredchenko/claude-transcripts">Source</a>
+      </footer>
+    </div>
+  </body>
+</html>
