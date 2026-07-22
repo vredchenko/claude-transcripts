@@ -31,7 +31,7 @@ export function buildServer(ctx: AppContext) {
     info: { title: ctx.model.identity.title, version: ctx.model.identity.version },
   } as const;
   app.doc("/api/openapi.json", openapiConfig);
-  app.get("/api/docs", apiReference({ url: "/api/openapi.json" }));
+  app.get("/api/docs", apiReference({ spec: { url: "/api/openapi.json" } }));
 
   // `/` — machine-readable app manifest (agent entrypoint). Mount last so it
   // doesn't shadow /api or /app.
