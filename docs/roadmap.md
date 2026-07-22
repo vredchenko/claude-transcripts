@@ -50,7 +50,24 @@ done.
 - Session enrichment: harness config / PROMPT / MCP / plugins / CLI version
   ([actions.md](actions.md), [hooks.md](hooks.md)) (#3)
 - Multi-user / multi-machine attribution ([tiers.md](tiers.md) → T2) (#7)
+  - **System fingerprint per session** — record a machine fingerprint on every
+    session so a store written to by more than one machine stays attributable
+    (groundwork for multiplayer).
+  - **Claude account identity** — capture the Claude account user (username / email
+    / id) per session, laying the ground for multi-user once we go multiplayer.
 - Secrets scanning + masking ([app-logging.md](app-logging.md), #11)
+- **Speaker-split views** — CouchDB map views that project a session into just the
+  user's turns vs Claude's turns (side-by-side or filtered reading). Should fall out
+  of the existing entry `role`/`type` in the transcript shape; confirm feasibility
+  against [couchdb-documents.md](couchdb-documents.md).
+- **Active vs wall-clock session duration** — alongside total runtime (first→last
+  event), compute *active* duration by summing only intervals where something was
+  happening (gaps beyond an idle threshold subtracted). Sessions left running in
+  tmux otherwise inflate duration. Surface both figures in the summary + webui.
+- **Combined-prompt provenance** *(nice-to-have, Tier 2/3)* — for each session,
+  record and visualise the effective combined prompt (system prompt + CLAUDE.md
+  layers + memory + appended instructions) so it's clear which instructions, and
+  from where, applied to every message.
 - **Self-built CouchDB migrations** — up/down + views + export/import bundles
   ([migrations.md](migrations.md), [ADR 0021](decisions/0021-self-built-couchdb-migrations.md))
 
@@ -71,6 +88,9 @@ done.
 **Webui (Tier 2)**
 - Configurable session-list columns + virtual scroll (#8)
 - Config-driven services menu, fed by the `/` manifest ([routes.md](routes.md)) (#14)
+- **Claude Code statusline indicator** — show a statusline in Claude Code when the
+  external transcripts store is connected and logging, giving live confirmation the
+  hook is wired.
 
 **Tier 3 — multiplayer & public release**
 - Masterless replication + auth/security ([tiers.md](tiers.md), [ADR 0015](decisions/0015-tiered-architecture.md))
