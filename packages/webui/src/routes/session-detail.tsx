@@ -62,7 +62,8 @@ export function SessionDetailPage() {
               <Field label="Started">
                 {formatTimestamp(session.startTimestamp ?? session.timestamp)}
               </Field>
-              <Field label="Duration">{formatDuration(session.durationMs)}</Field>
+              <Field label="Total runtime">{formatDuration(session.durationMs)}</Field>
+              <Field label="Active time">{formatDuration(session.activeMs)}</Field>
               <Field label="Model">{session.model ?? "—"}</Field>
               <Field label="Hostname">{session.hostname || "—"}</Field>
               <Field label="Recording">

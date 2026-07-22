@@ -19,9 +19,11 @@ export interface AppConfigFile {
     /**
      * Session-lifecycle tunables. `liveWindowMs` is how long after a session's last
      * activity a still-open (no SessionEnd) session is treated as `running`/live;
-     * past it, it reads as `incomplete`/abandoned. Optional — the webapi defaults it.
+     * past it, it reads as `incomplete`/abandoned. `idleThresholdMs` is the gap
+     * above which a session counts as idle when computing active (vs wall-clock)
+     * duration. Both optional — the webapi defaults them.
      */
-    sessions?: { liveWindowMs?: number };
+    sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
   };
   /** logical key → CouchDB database name (multi-database by design) */
   couchdb: { databases: Record<string, string> };

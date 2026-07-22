@@ -29,6 +29,7 @@ export interface SessionSummary {
   timestamp: string;
   startTimestamp?: string;
   durationMs?: number;
+  activeMs?: number;
   model?: string;
   cwd: string;
   hostname: string;

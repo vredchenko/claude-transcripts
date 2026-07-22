@@ -62,7 +62,11 @@ The config is being formalised into clearly-separated sections. **Target shape**
     // as incomplete/abandoned. Default 86_400_000 (24h). No live heartbeat exists,
     // so this is a recency heuristic; an abandoned session that gets new events
     // (within the window again) flips back to live automatically.
-    "sessions": { "liveWindowMs": 86400000 }
+    // idleThresholdMs: gap between consecutive events above which the session counts
+    // as idle when deriving *active* duration (vs total wall-clock runtime) on the
+    // session detail. Default 300_000 (5 min) — a session left open in tmux stops
+    // accruing active time past this gap.
+    "sessions": { "liveWindowMs": 86400000, "idleThresholdMs": 300000 }
     // other tunables/constants live here
   },
 
