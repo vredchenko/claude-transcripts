@@ -11,6 +11,7 @@
     "dev:cli": "bun --filter @claude-transcripts/cli dev",
     "cli": "bun run packages/cli/src/cli.tsx",
     "build": "bun --filter @claude-transcripts/webui build",
+    "build:docs": "bun run scripts/build-docs.ts",
     "start": "bun --filter @claude-transcripts/webapi start",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

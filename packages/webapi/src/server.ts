@@ -51,6 +51,21 @@ export function buildServer(ctx: AppContext) {
     });
   }
 
+  // Serve the prebuilt static docs at /docs in production (CT_DOCS_DIR set). The
+  // docs are rendered from docs/*.md by scripts/build-docs.ts and baked into the
+  // combined image (containers.md); the webui links here.
+  const docsDir = ctx.config.webapi.docsDir;
+  if (docsDir) {
+    app.get("/docs", (c) => c.redirect("/docs/"));
+    app.use(
+      "/docs/*",
+      serveStatic({
+        root: docsDir,
+        rewriteRequestPath: (p) => p.replace(/^\/docs\/?/, "/"),
+      }),
+    );
+  }
+
   // Attach the generated OpenAPI document back onto the model (central state), so
   // the manifest + any consumer can see the live API contract in-memory.
   ctx.model.apiSpec = app.getOpenAPIDocument(openapiConfig);

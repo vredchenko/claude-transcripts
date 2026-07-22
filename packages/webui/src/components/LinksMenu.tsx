@@ -11,8 +11,8 @@ import { useState } from "react";
  * tracked as #14. App-relative links (`/api/...`) resolve against the current
  * origin, so they work in dev (Vite proxy) and the combined prod image alike.
  *
- * Tech docs currently point at the repo's `docs/` on GitHub; if docs are later
- * published (GitHub Pages) or bundled into the webui, swap this one URL.
+ * Tech docs are served from the combined image at `/docs` (rendered from `docs/`
+ * by scripts/build-docs.ts); app-relative so it works in dev and prod alike.
  */
 const REPO_URL = "https://github.com/vredchenko/claude-transcripts";
 
@@ -29,6 +29,7 @@ const GROUPS: LinkGroup[] = [
   {
     heading: "This app",
     links: [
+      { label: "Technical docs", href: "/docs" },
       { label: "API reference (Scalar)", href: "/api/docs" },
       { label: "OpenAPI spec (JSON)", href: "/api/openapi.json" },
       { label: "App model (JSON)", href: "/api/model" },
@@ -52,7 +53,7 @@ const GROUPS: LinkGroup[] = [
     heading: "Project",
     links: [
       { label: "GitHub repository", href: REPO_URL },
-      { label: "Technical docs", href: `${REPO_URL}/tree/main/docs` },
+      { label: "Docs source (Markdown)", href: `${REPO_URL}/tree/main/docs` },
     ],
   },
 ];
