@@ -1,6 +1,6 @@
 import { makeChunkState } from "../lib/chunk-state";
 import type { HookContext } from "../lib/context";
-import { chunkDocId, sliceIntoChunks } from "../transcript-chunks";
+import { buildChunkEntries, chunkDocId, sliceIntoChunks } from "../transcript-chunks";
 
 /**
  * Action `flush-transcript-chunk`: incrementally tail the live transcript into
@@ -11,9 +11,9 @@ import { chunkDocId, sliceIntoChunks } from "../transcript-chunks";
  * the flush interval elapsed. So live chunks match how `backfill` stores them
  * (same shape, same byte-faithful tiling). Gated behind `features.midFlightChunking`.
  *
- * TODO(couchFullContentChunks): when that flag is on, also embed the pruned parsed
- * `entries[]` in each chunk (and mirror it in the CLI's buildChunkDocs). Deferred —
- * chunks are metadata-only for now.
+ * When `features.couchFullContentChunks` is on, each chunk also embeds the pruned
+ * parsed `entries[]` it covers (ADR 0027): `buildChunkEntries(complete)` partitions
+ * 1:1 with the slices by `entryCount`, so entries attach without re-slicing bytes.
  */
 export async function handle(ctx: HookContext): Promise<void> {
   if (!ctx.config.features?.midFlightChunking) return;
@@ -49,11 +49,19 @@ export async function handle(ctx: HookContext): Promise<void> {
     if (last.entryCount < max && !(forced || timeElapsed)) emit -= 1;
     if (emit <= 0) return;
 
+    // With full-content chunks on, parse `complete` once and hand each chunk its
+    // slice of entries (1:1 with the slices by entry_count — see buildChunkEntries).
+    const withContent = ctx.config.features?.couchFullContentChunks === true;
+    const allEntries = withContent ? buildChunkEntries(complete) : undefined;
+    let entryCursor = 0;
+
     let advance = state.offset;
     for (let i = 0; i < emit; i++) {
       const s = slices[i];
       const byteStart = state.offset + s.byteStart;
       const byteEnd = state.offset + s.byteEnd;
+      const entries = allEntries?.slice(entryCursor, entryCursor + s.entryCount);
+      entryCursor += s.entryCount;
       const doc = {
         type: "chunk" as const,
         session_id: ctx.sessionId,
@@ -63,8 +71,9 @@ export async function handle(ctx: HookContext): Promise<void> {
         timestamp: ctx.timestamp,
         hostname: ctx.hostname,
         cwd: ctx.cwd,
-        schema_version: 1,
+        schema_version: withContent ? 2 : 1,
         source: "live",
+        ...(entries ? { entries } : {}),
       };
       await ctx.couch.putDoc(ctx.sessionsDb, chunkDocId(ctx.sessionId, byteStart), doc);
       advance = byteEnd;

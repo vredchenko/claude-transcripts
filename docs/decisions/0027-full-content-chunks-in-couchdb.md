@@ -4,7 +4,10 @@ Date: 2026-07-22
 
 ## Status
 
-Proposed
+Accepted — write path implemented (the hook + `backfill` embed `entries[]` when
+`couchFullContentChunks` is on, validated at the webapi). Follow-ups: map-reduce
+views over `entries[]` (speaker-split, per-turn search) and a migration that
+backfills content chunks for already-recorded sessions from their S3 transcripts.
 
 ## Context
 

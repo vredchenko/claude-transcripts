@@ -32,6 +32,9 @@ export async function runBackfill(argv: string[]): Promise<number> {
   const backfilledAt = new Date().toISOString();
   const chunkSizeOpt = strOpt(options, "chunk-size");
   const maxEntriesPerChunk = chunkSizeOpt ? Number(chunkSizeOpt) : undefined;
+  // Full-content chunks (ADR 0027) are embedded by default; `--no-content` opts out
+  // (byte-range-only chunks — content then lives in the S3 transcript alone).
+  const withContent = options["no-content"] !== true;
   const sink = makeSink({ dryRun, webapiUrl: strOpt(options, "webapi") });
 
   const who = `host=${host}${actor ? `, actor=${actor}` : ""}`;
@@ -55,7 +58,9 @@ export async function runBackfill(argv: string[]): Promise<number> {
 
       await sink.putSummary(buildSummaryDoc(facts, "backfill", { actor, backfilledAt }));
       await sink.putEvents(buildEventDocs(jsonl, facts, "backfill"));
-      await sink.putChunks(buildChunkDocs(jsonl, facts, "backfill", maxEntriesPerChunk));
+      await sink.putChunks(
+        buildChunkDocs(jsonl, facts, "backfill", maxEntriesPerChunk, withContent),
+      );
       await sink.putTranscript(t.sessionId, new TextEncoder().encode(jsonl));
       written++;
     } catch (err) {
