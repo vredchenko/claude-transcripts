@@ -41,8 +41,18 @@ source of truth. `bun run gen:clients` (`regenerate-api-clients`) runs in two st
      hand-written **mutator**, `src/api/http.ts`, injects the off-origin base URL),
    - the **webui** SPA's client → `packages/webui/src/api/generated.ts` (react-query).
 
-Both consumers share one generated, typed boundary and can't drift from the
-contract ([ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md)).
+> **Known divergence (to reconcile).** The committed clients are currently
+> **hand-maintained**, not faithful orval output: the webui `generated.ts` is a clean
+> hand-written `fetch` client, but `orval.config.ts` (webui, no mutator) emits an
+> **axios** client — and axios isn't a webui dependency — so `bun run gen:clients`
+> would overwrite it with something that won't compile. Until orval is made
+> authoritative for the webui (switch to `httpClient: "fetch"` + migrate the consumer
+> call sites), **extend the webui client by hand** in its existing style. The CLI
+> client (with its `customFetch` mutator) is closer to orval's output but is likewise
+> hand-simplified today.
+
+Both consumers share one typed boundary against the same OpenAPI contract
+([ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md)).
 Route `operationId`s name the generated functions (e.g. `ingestSummary`). The
 generated clients are **committed** (regenerated in CI and checked) so a contract
 change fails fast at the consumer. The CLI's `WebapiSink` (used by `backfill`) calls
