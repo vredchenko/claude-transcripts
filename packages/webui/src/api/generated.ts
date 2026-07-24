@@ -1,13 +1,15 @@
 /**
- * GENERATED API client — produced by `bun run gen:clients` (orval, from the webapi
- * OpenAPI spec; ADR 0019). Query hooks + fetchers are named after each route's
- * `operationId`.
+ * Hand-maintained API client (native `fetch` + react-query) for the webui. Hooks +
+ * fetchers are named after each route's `operationId`.
  *
- * This file is the orval `target` (orval.config.ts → webui, `client: "react-query"`,
- * `baseUrl: "/api"`). The version committed here is a **snapshot**: it is overwritten
- * on regeneration — do not edit by hand. The webui is served same-origin under
- * `/app` with `/api` proxied to the webapi, so the transport is native `fetch` with
- * a `/api` base (no mutator, unlike the off-origin CLI client).
+ * NOTE: despite ADR 0019, this file is currently **hand-written**, not orval output —
+ * `orval.config.ts` (webui, `client: "react-query"`, no mutator) emits an **axios**
+ * client that doesn't match this fetch shape (and axios isn't a webui dependency), so
+ * `gen:clients` would overwrite this with something that won't compile. Reconciling
+ * orval to be authoritative (webui `httpClient: "fetch"` + migrate consumers) is a
+ * separate task; until then, extend this by hand in the existing style. The webui is
+ * served under `/app` with `/api` proxied to the webapi, so transport is `fetch` on a
+ * `/api` base.
  */
 import { type UseQueryOptions, type UseQueryResult, useQuery } from "@tanstack/react-query";
 
@@ -67,6 +69,52 @@ export interface GetSessionTranscriptParams {
   offset?: number;
 }
 
+export type SpeakerRole = "user" | "assistant" | "tool_result" | "system" | "other";
+
+export interface SpeakerTurn {
+  role: SpeakerRole;
+  timestamp: string;
+  text: string;
+  toolUses?: { name: string; id?: string }[] | null;
+  toolUseId?: string | null;
+  isError?: boolean;
+}
+
+export interface SessionTurnsResponse {
+  turns: SpeakerTurn[];
+  totalCount: number;
+  hasMore: boolean;
+  role: SpeakerRole | null;
+}
+
+export interface CrossSessionTurn {
+  sessionId: string;
+  cwd: string;
+  role: SpeakerRole;
+  timestamp: string;
+  text: string;
+}
+
+export interface CrossSessionTurnsResponse {
+  turns: CrossSessionTurn[];
+  hasMore: boolean;
+  role: SpeakerRole | null;
+}
+
+export interface GetSessionTurnsParams {
+  role?: SpeakerRole;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetTurnsParams {
+  role?: SpeakerRole;
+  from?: string;
+  to?: string;
+  limit?: number;
+  skip?: number;
+}
+
 // ── Transport ─────────────────────────────────────────────────────────────────
 
 const BASE_URL = "/api";
@@ -117,6 +165,29 @@ export function getSessionTranscript(
   );
 }
 
+/** GET /api/sessions/{id}/turns — speaker-split turns for one session. */
+export function getSessionTurns(
+  id: string,
+  params: GetSessionTurnsParams = {},
+): Promise<SessionTurnsResponse> {
+  return request<SessionTurnsResponse>(
+    `/sessions/${encodeURIComponent(id)}/turns${qs({ role: params.role, limit: params.limit, offset: params.offset })}`,
+  );
+}
+
+/** GET /api/turns — cross-session turns for one speaker, in time order. */
+export function getTurns(params: GetTurnsParams = {}): Promise<CrossSessionTurnsResponse> {
+  return request<CrossSessionTurnsResponse>(
+    `/turns${qs({
+      role: params.role,
+      from: params.from,
+      to: params.to,
+      limit: params.limit,
+      skip: params.skip,
+    })}`,
+  );
+}
+
 // ── Query keys ────────────────────────────────────────────────────────────────
 
 export const queryKeys = {
@@ -124,6 +195,9 @@ export const queryKeys = {
   session: (id: string) => ["session", id] as const,
   transcript: (id: string, params: GetSessionTranscriptParams = {}) =>
     ["session", id, "transcript", params] as const,
+  turns: (id: string, params: GetSessionTurnsParams = {}) =>
+    ["session", id, "turns", params] as const,
+  crossTurns: (params: GetTurnsParams = {}) => ["turns", params] as const,
 };
 
 // ── React Query hooks ─────────────────────────────────────────────────────────
@@ -162,6 +236,30 @@ export function useGetSessionTranscript(
     queryKey: queryKeys.transcript(id, params),
     queryFn: () => getSessionTranscript(id, params),
     enabled: Boolean(id),
+    ...options,
+  });
+}
+
+export function useGetSessionTurns(
+  id: string,
+  params: GetSessionTurnsParams = {},
+  options?: QueryOpts<SessionTurnsResponse>,
+): UseQueryResult<SessionTurnsResponse, Error> {
+  return useQuery({
+    queryKey: queryKeys.turns(id, params),
+    queryFn: () => getSessionTurns(id, params),
+    enabled: Boolean(id),
+    ...options,
+  });
+}
+
+export function useGetTurns(
+  params: GetTurnsParams = {},
+  options?: QueryOpts<CrossSessionTurnsResponse>,
+): UseQueryResult<CrossSessionTurnsResponse, Error> {
+  return useQuery({
+    queryKey: queryKeys.crossTurns(params),
+    queryFn: () => getTurns(params),
     ...options,
   });
 }

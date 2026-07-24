@@ -1,14 +1,27 @@
-import { Box, Chip, Divider, Paper, Stack, Typography, useTheme } from "@mui/material";
+import {
+  Box,
+  Chip,
+  Divider,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+  useTheme,
+} from "@mui/material";
 import { Link, useParams } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useGetSession } from "../api/generated";
 import { SourceChip } from "../components/SourceChip";
+import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
 import { ErrorState, Loading } from "../components/states";
 import { TokenUsageChips } from "../components/TokenUsageChips";
 import { TranscriptView } from "../components/TranscriptView";
 import { formatBytes, formatCount, formatDuration, formatTimestamp } from "../format";
 import { MONO } from "../theme";
+
+type SpeakerFilter = "all" | "user" | "assistant";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -31,6 +44,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 export function SessionDetailPage() {
   const { id } = useParams({ from: "/sessions/$id" });
   const { data: session, isPending, isError, error } = useGetSession(id);
+  const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
   const theme = useTheme();
 
   return (
@@ -112,10 +126,29 @@ export function SessionDetailPage() {
             )}
           </Paper>
 
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            Transcript
-          </Typography>
-          {session.hasTranscript ? (
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent="space-between"
+            sx={{ mb: 1, flexWrap: "wrap", gap: 1 }}
+          >
+            <Typography variant="h6">Transcript</Typography>
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={speaker}
+              onChange={(_e, v: SpeakerFilter | null) => v && setSpeaker(v)}
+              aria-label="speaker filter"
+            >
+              <ToggleButton value="all">Full</ToggleButton>
+              <ToggleButton value="user">You</ToggleButton>
+              <ToggleButton value="assistant">Claude</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+          {speaker !== "all" ? (
+            <SpeakerTurnsView sessionId={session.sessionId} role={speaker} />
+          ) : session.hasTranscript ? (
             <TranscriptView sessionId={session.sessionId} />
           ) : (
             <Typography color="text.secondary" variant="body2">
