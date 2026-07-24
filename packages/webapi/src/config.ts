@@ -49,6 +49,7 @@ export interface Config {
     logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
     sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
   };
+  meili: { host: string; apiKey?: string; enabled: boolean };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
 }
@@ -85,6 +86,11 @@ export function loadConfig(): Config {
       buckets: { ...appConfig.s3.buckets },
     },
     system: appConfig.system,
+    meili: {
+      host: env.MEILI_HOST ?? "http://127.0.0.1:7656",
+      apiKey: env.MEILI_API_KEY || undefined,
+      enabled: appConfig.features.meilisearch === true,
+    },
     features: appConfig.features,
     servicesMenu: appConfig.servicesMenu,
   };

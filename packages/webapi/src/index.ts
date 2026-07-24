@@ -8,20 +8,24 @@ import type { AppContext } from "./context";
 import { buildServer } from "./server";
 import { makeCouch } from "./storage/couch";
 import { ensureCouchDbs } from "./storage/ensure";
+import { Meili, SESSIONS_INDEX, SESSIONS_INDEX_SETTINGS } from "./storage/meili";
 import { S3BlobStore } from "./storage/s3-blob-store";
 
 const config = loadConfig();
 const couch = makeCouch(config);
 const blob = new S3BlobStore(config);
+const meili = new Meili(config.meili);
 // The app model (central state) — built once from the raw config + env, held
 // in-memory, and served at `/`. Projections derive from it.
 const model = buildAppModel(loadAppConfigFile(), process.env);
-const ctx: AppContext = { config, couch, blob, model };
+const ctx: AppContext = { config, couch, blob, meili, model };
 
 // Idempotent boot-time schema setup. Never block startup on it.
 await ensureCouchDbs(couch, config).catch((err) => {
   console.error("ensureCouchDbs failed (continuing):", err);
 });
+// Ensure the search index (best-effort; no-ops when Meili is disabled/unreachable).
+await meili.ensureIndex(SESSIONS_INDEX, SESSIONS_INDEX_SETTINGS).catch(() => {});
 
 const app = buildServer(ctx);
 

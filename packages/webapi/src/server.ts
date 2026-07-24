@@ -7,6 +7,7 @@ import { manifestRoutes } from "./routes/manifest";
 import { migrateRoutes } from "./routes/migrate";
 import { modelRoutes } from "./routes/model";
 import { proxyRoutes } from "./routes/proxy";
+import { searchRoutes } from "./routes/search";
 import { sessionRoutes } from "./routes/sessions";
 
 export function buildServer(ctx: AppContext) {
@@ -20,6 +21,7 @@ export function buildServer(ctx: AppContext) {
   // introspection, under /api.
   app.route("/api", sessionRoutes(ctx));
   app.route("/api", ingestRoutes(ctx));
+  app.route("/api", searchRoutes(ctx));
   app.route("/api", proxyRoutes(ctx));
   app.route("/api", modelRoutes(ctx));
   app.route("/api", migrateRoutes(ctx));

@@ -23,7 +23,7 @@
     "s3Blobs": true,
     "midFlightChunking": true,
     "couchFullContentChunks": true,
-    "meilisearch": false,
+    "meilisearch": true,
     "secretsMasking": false
   },
   "servicesMenu": {
