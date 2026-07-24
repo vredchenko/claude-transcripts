@@ -4,6 +4,7 @@
  */
 import { INITIAL_DESIGNS } from "./designs";
 import { SESSION_INDEX_DESIGN } from "./session-index";
+import { SPEAKER_SPLIT_DESIGN } from "./speaker-split";
 import type { Migration } from "./types";
 
 /**
@@ -70,8 +71,34 @@ const sessionIndexSource: Migration = {
   },
 };
 
+/**
+ * v4 — add `_design/speaker_split`, a per-turn view over full-content `chunk` docs
+ * that lets a reader pull just the user's turns or just Claude's turns for a session
+ * (ADR 0027). `up` upserts the design; `down` removes it. Only content chunks
+ * (`entries[]`, `couchFullContentChunks`) populate it; byte-range-only chunks are
+ * skipped, so it's empty until content chunks exist.
+ */
+const speakerSplitView: Migration = {
+  id: 4,
+  name: "speaker-split-view",
+  async up(ctx) {
+    ctx.log(`+ ${SPEAKER_SPLIT_DESIGN._id}`);
+    const { _rev, ...body } = SPEAKER_SPLIT_DESIGN;
+    await ctx.putDoc(SPEAKER_SPLIT_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`- ${SPEAKER_SPLIT_DESIGN._id}`);
+    await ctx.deleteDoc(SPEAKER_SPLIT_DESIGN._id);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
-export const MIGRATIONS: Migration[] = [initialSchema, sessionIndexView, sessionIndexSource];
+export const MIGRATIONS: Migration[] = [
+  initialSchema,
+  sessionIndexView,
+  sessionIndexSource,
+  speakerSplitView,
+];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */
 export function latestVersion(): number {

@@ -5,9 +5,11 @@ Date: 2026-07-22
 ## Status
 
 Accepted — write path implemented (the hook + `backfill` embed `entries[]` when
-`couchFullContentChunks` is on, validated at the webapi). Follow-ups: map-reduce
-views over `entries[]` (speaker-split, per-turn search) and a migration that
-backfills content chunks for already-recorded sessions from their S3 transcripts.
+`couchFullContentChunks` is on, validated at the webapi), and the first consuming
+view has landed: `speaker_split/by_role` (migration v4) served by
+`GET /api/sessions/{id}/turns`. Follow-ups: per-turn search (Meilisearch over
+`entries[]`), a webui speaker toggle, and a migration that backfills content chunks
+for already-recorded sessions from their S3 transcripts.
 
 ## Context
 
