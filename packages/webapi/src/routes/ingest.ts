@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName } from "../config";
 import type { AppContext } from "../context";
+import { SESSIONS_INDEX, toSessionSearchDoc } from "../storage/meili";
 
 /**
  * Ingest — the curated WRITE surface of the gateway (ADR 0016). Reads are proxied;
@@ -189,6 +190,8 @@ export function ingestRoutes(ctx: AppContext) {
       if (err?.statusCode !== 404) throw err;
     }
     await db.insert(rev ? { ...doc, _id: id, _rev: rev } : { ...doc, _id: id });
+    // Index the session for full-text search (best-effort; no-ops when disabled).
+    await ctx.meili.index(SESSIONS_INDEX, [toSessionSearchDoc(doc)]).catch(() => {});
     return c.json({ ok: true, id, updated: rev !== undefined });
   });
 

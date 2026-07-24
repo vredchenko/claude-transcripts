@@ -12,6 +12,7 @@ import { loadAppConfigFile, loadConfig } from "./config";
 import { buildServer } from "./server";
 import type { BlobStore } from "./storage/blob-store";
 import { makeCouch } from "./storage/couch";
+import { Meili } from "./storage/meili";
 
 // Route registration never touches the backends — only the handlers do — so a
 // no-op blob store and a (lazily-constructed, never-called) couch handle suffice.
@@ -31,6 +32,8 @@ export function buildOpenApiDocument(): unknown {
   const config = loadConfig();
   const model = buildAppModel(loadAppConfigFile(), process.env);
   // buildServer sets model.apiSpec = app.getOpenAPIDocument(...) as a side effect.
-  buildServer({ config, couch: makeCouch(config), blob: specBlob, model });
+  // A disabled Meili is enough — route registration never calls it.
+  const meili = new Meili({ ...config.meili, enabled: false });
+  buildServer({ config, couch: makeCouch(config), blob: specBlob, meili, model });
   return model.apiSpec;
 }

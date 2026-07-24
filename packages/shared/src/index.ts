@@ -385,3 +385,23 @@ export interface CrossSessionTurnsResponse {
   hasMore: boolean;
   role: ChunkEntryRole | null;
 }
+
+/** One full-text search result (a matching session), from `GET /api/search`. */
+export interface SearchHit {
+  sessionId: string;
+  timestamp?: string;
+  cwd?: string;
+  model?: string;
+  hostname?: string;
+  endReason?: string;
+  source?: string;
+  tools?: string[];
+}
+
+/** Response contract for the search endpoint. */
+export interface SearchResponse {
+  hits: SearchHit[];
+  query: string;
+  /** false when Meilisearch is disabled/unconfigured. */
+  enabled: boolean;
+}

@@ -115,6 +115,28 @@ export interface GetTurnsParams {
   skip?: number;
 }
 
+export interface SearchHit {
+  sessionId: string;
+  timestamp?: string;
+  cwd?: string;
+  model?: string;
+  hostname?: string;
+  endReason?: string;
+  source?: string;
+  tools?: string[];
+}
+
+export interface SearchResponse {
+  hits: SearchHit[];
+  query: string;
+  enabled: boolean;
+}
+
+export interface SearchParams {
+  q?: string;
+  limit?: number;
+}
+
 // ── Transport ─────────────────────────────────────────────────────────────────
 
 const BASE_URL = "/api";
@@ -188,6 +210,11 @@ export function getTurns(params: GetTurnsParams = {}): Promise<CrossSessionTurns
   );
 }
 
+/** GET /api/search — full-text session search (Meilisearch). */
+export function search(params: SearchParams = {}): Promise<SearchResponse> {
+  return request<SearchResponse>(`/search${qs({ q: params.q, limit: params.limit })}`);
+}
+
 // ── Query keys ────────────────────────────────────────────────────────────────
 
 export const queryKeys = {
@@ -198,6 +225,7 @@ export const queryKeys = {
   turns: (id: string, params: GetSessionTurnsParams = {}) =>
     ["session", id, "turns", params] as const,
   crossTurns: (params: GetTurnsParams = {}) => ["turns", params] as const,
+  search: (params: SearchParams = {}) => ["search", params] as const,
 };
 
 // ── React Query hooks ─────────────────────────────────────────────────────────
@@ -260,6 +288,18 @@ export function useGetTurns(
   return useQuery({
     queryKey: queryKeys.crossTurns(params),
     queryFn: () => getTurns(params),
+    ...options,
+  });
+}
+
+export function useSearch(
+  params: SearchParams = {},
+  options?: QueryOpts<SearchResponse>,
+): UseQueryResult<SearchResponse, Error> {
+  return useQuery({
+    queryKey: queryKeys.search(params),
+    queryFn: () => search(params),
+    enabled: Boolean(params.q),
     ...options,
   });
 }
