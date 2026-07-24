@@ -92,12 +92,33 @@ const speakerSplitView: Migration = {
   },
 };
 
+/**
+ * v5 — redeploy `_design/speaker_split` to add the `by_role_time` view (turns
+ * re-keyed `[role, timestamp, session_id, …]` for cross-session, time-ordered
+ * reading — every turn of one speaker across all sessions). Re-putting the design
+ * (now carrying both views) triggers a lazy reindex. `down` is a no-op — the added
+ * view is additive and harmless; v4 still owns the design doc's existence.
+ */
+const speakerSplitTimeView: Migration = {
+  id: 5,
+  name: "speaker-split-time-view",
+  async up(ctx) {
+    ctx.log(`~ ${SPEAKER_SPLIT_DESIGN._id} (add by_role_time)`);
+    const { _rev, ...body } = SPEAKER_SPLIT_DESIGN;
+    await ctx.putDoc(SPEAKER_SPLIT_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${SPEAKER_SPLIT_DESIGN._id} (by_role_time left in place — additive)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
 export const MIGRATIONS: Migration[] = [
   initialSchema,
   sessionIndexView,
   sessionIndexSource,
   speakerSplitView,
+  speakerSplitTimeView,
 ];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */

@@ -77,6 +77,22 @@ const TurnsResponseSchema = z.object({
   role: SpeakerRoleSchema.nullable(),
 });
 
+// A turn from the CROSS-session view (`by_role_time`) — carries its session/project
+// context so turns stay attributable when read across all sessions.
+const CrossSessionTurnSchema = z.object({
+  sessionId: z.string(),
+  cwd: z.string(),
+  role: SpeakerRoleSchema,
+  timestamp: z.string(),
+  text: z.string(),
+});
+
+const CrossSessionTurnsResponseSchema = z.object({
+  turns: z.array(CrossSessionTurnSchema),
+  hasMore: z.boolean(),
+  role: SpeakerRoleSchema.nullable(),
+});
+
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 /** Elapsed wall-clock between two ISO timestamps, or undefined if not derivable. */
@@ -285,6 +301,28 @@ const turnsRoute = createRoute({
   },
 });
 
+const crossTurnsRoute = createRoute({
+  method: "get",
+  path: "/turns",
+  operationId: "getTurns",
+  request: {
+    query: z.object({
+      role: SpeakerRoleSchema.optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+      limit: z.string().optional(),
+      skip: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: CrossSessionTurnsResponseSchema } },
+      description: "Cross-session turns (time-ordered)",
+    },
+    500: { content: { "application/json": { schema: ErrorSchema } }, description: "Error" },
+  },
+});
+
 export function sessionRoutes(ctx: AppContext) {
   // Loosely typed so CouchDB's `any` docs don't fight the OpenAPI return types.
   const app = new OpenAPIHono();
@@ -383,6 +421,33 @@ export function sessionRoutes(ctx: AppContext) {
       turns: page,
       totalCount: all.length,
       hasMore: offset + limit < all.length,
+      role: role ?? null,
+    });
+  });
+
+  // Cross-session: every turn of one speaker across ALL sessions, in time order,
+  // from `speaker_split/by_role_time`. The corpus for "what do I repeatedly say /
+  // what does Claude repeatedly say" analysis. Paginated at the view (limit/skip)
+  // since it spans the whole store; optional from/to ISO-timestamp bounds.
+  route.openapi(crossTurnsRoute, async (c: any) => {
+    const role: string | undefined = c.req.query("role");
+    const from: string | undefined = c.req.query("from");
+    const to: string | undefined = c.req.query("to");
+    const limit = Number(c.req.query("limit") ?? 200);
+    const skip = Number(c.req.query("skip") ?? 0);
+    const db = ctx.couch.db("sessions");
+    // Fetch limit+1 to detect a further page without a separate count query.
+    const opts: Record<string, unknown> = { reduce: false, limit: limit + 1, skip };
+    if (role) {
+      opts.startkey = [role, from ?? ""];
+      opts.endkey = [role, to ?? {}];
+    }
+    const res = await db.view("speaker_split", "by_role_time", opts);
+    const rows = res.rows.map((r: any) => r.value);
+    const hasMore = rows.length > limit;
+    return c.json({
+      turns: hasMore ? rows.slice(0, limit) : rows,
+      hasMore,
       role: role ?? null,
     });
   });
