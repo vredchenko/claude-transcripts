@@ -27,10 +27,12 @@
     "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:compose && bun run gen:compose-override && bun run gen:compat",
     "stack:up": "bun run scripts/stack.ts up",
     "stack:up:upstream": "bun run scripts/stack.ts up --upstream",
+    "stack:up:local": "bun run scripts/stack.ts up --build --upstream",
     "stack:down": "bun run scripts/stack.ts down",
     "stack:restart": "bun run scripts/stack.ts restart",
     "stack:logs": "bun run scripts/stack.ts logs",
     "seed": "bun run scripts/seed.ts",
+    "bootstrap:garage": "bun run scripts/bootstrap-garage.ts",
     "test": "bun test",
     "test:e2e": "bun test tests/e2e",
     "postinstall": "bunx lefthook install"
