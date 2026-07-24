@@ -50,12 +50,13 @@ done.
 - Evaluate DeltaDB-style delta granularity ([database-choice.md](database-choice.md)) (#16)
 
 **Logging & data model (Tier 1/2)**
-- **Full-content chunks** (#4) — the mid-flight chunking *mechanism* is **done**
-  (byte-range `chunk` docs, idempotent ingest, crash resilience); the remaining
-  work is promoting those to per-turn content docs (role + content) so map-reduce
-  views can extract session features
+- **Full-content chunks** (#4) — **write path done**: the hook + `backfill` embed
+  parsed per-turn `entries[]` (role + content) in `chunk` docs when
+  `couchFullContentChunks` is on, validated at the webapi
   ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md),
-  [mid-flight-chunking.md](mid-flight-chunking.md))
+  [mid-flight-chunking.md](mid-flight-chunking.md)). Remaining: map-reduce views
+  over `entries[]` (speaker-split, per-turn search) and a migration to backfill
+  content chunks for already-recorded sessions from their S3 transcripts.
 - Session enrichment: harness config / PROMPT / MCP / plugins / CLI version
   ([actions.md](actions.md), [hooks.md](hooks.md)) (#3)
 - Multi-user / multi-machine attribution ([tiers.md](tiers.md) → T2) (#7)
@@ -81,11 +82,10 @@ done.
   privacy-sensitive (raw prompts/keys) → strictly opt-in, masked, and off by
   default. (Supersedes the old "consider" #2.)
 - **Speaker-split views** — CouchDB map views that project a session into just the
-  user's turns vs Claude's turns (side-by-side or filtered reading). The per-turn
-  `role`/`type` already exists in the transcript shape, but it isn't in CouchDB yet
-  (chunks are byte-range only) — so this is **gated on full-content chunks**
-  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)); trivial once
-  those land.
+  user's turns vs Claude's turns (side-by-side or filtered reading). Now
+  **unblocked**: full-content chunks put per-turn `role`/content in CouchDB
+  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)), so this is a map
+  over `chunk.entries[]` keyed on `role`.
 - **Active vs wall-clock session duration** — alongside total runtime (first→last
   event), compute *active* duration by summing only intervals where something was
   happening (gaps beyond an idle threshold subtracted). Sessions left running in

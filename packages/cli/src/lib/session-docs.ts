@@ -5,7 +5,12 @@
  * `@claude-transcripts/shared` doc-schema module (with zod validators) so the hook, the
  * webapi, and the CLI share one definition. TODO(#6): promote + validate.
  */
-import { chunkDocId, sliceIntoChunks } from "@claude-transcripts/shared";
+import {
+  buildChunkEntries,
+  type ChunkEntry,
+  chunkDocId,
+  sliceIntoChunks,
+} from "@claude-transcripts/shared";
 import { parseEntries, type SessionFacts } from "./transcript";
 
 /** Provenance of an ingested doc — distinguishes adopted history (`backfill`) and
@@ -80,34 +85,48 @@ export interface ChunkDoc {
   cwd: string;
   schema_version: number;
   source: IngestSource;
+  /** Parsed per-turn content (ADR 0027) — present only for full-content chunks. */
+  entries?: ChunkEntry[];
 }
 
 /**
  * Reconstruct `chunk` docs from a transcript (backfill), so an adopted session is
  * stored like a live one (chunk views reassemble it by byte order). Uses the shared
- * `sliceIntoChunks` policy. Metadata-only: the full content stays in the S3
- * transcript. Chunk `timestamp` is the session start — chunks power reassembly, not
- * the activity timeline (which uses event docs' real per-event times).
+ * `sliceIntoChunks` policy. Chunk `timestamp` is the session start — chunks power
+ * reassembly, not the activity timeline (which uses event docs' real per-event times).
+ *
+ * With `withContent` (default), each chunk also embeds its parsed `entries[]`
+ * (ADR 0027) — the byte-identical partition the live hook writes; pass `false` for
+ * byte-range-only chunks (content then lives in the S3 transcript alone).
  */
 export function buildChunkDocs(
   jsonl: string,
   facts: SessionFacts,
   source: IngestSource,
   maxEntriesPerChunk?: number,
+  withContent = true,
 ): ChunkDoc[] {
-  return sliceIntoChunks(jsonl, maxEntriesPerChunk).map((s) => ({
-    _id: chunkDocId(facts.sessionId, s.byteStart),
-    type: "chunk",
-    session_id: facts.sessionId,
-    byte_start: s.byteStart,
-    byte_end: s.byteEnd,
-    entry_count: s.entryCount,
-    timestamp: facts.startTimestamp ?? "",
-    hostname: facts.hostname,
-    cwd: facts.cwd,
-    schema_version: 1,
-    source,
-  }));
+  const slices = sliceIntoChunks(jsonl, maxEntriesPerChunk);
+  const allEntries = withContent ? buildChunkEntries(jsonl) : undefined;
+  let cursor = 0;
+  return slices.map((s) => {
+    const entries = allEntries?.slice(cursor, cursor + s.entryCount);
+    cursor += s.entryCount;
+    return {
+      _id: chunkDocId(facts.sessionId, s.byteStart),
+      type: "chunk" as const,
+      session_id: facts.sessionId,
+      byte_start: s.byteStart,
+      byte_end: s.byteEnd,
+      entry_count: s.entryCount,
+      timestamp: facts.startTimestamp ?? "",
+      hostname: facts.hostname,
+      cwd: facts.cwd,
+      schema_version: withContent ? 2 : 1,
+      source,
+      ...(entries ? { entries } : {}),
+    };
+  });
 }
 
 /** A per-event marker doc — what the live hook appends per hook event. */

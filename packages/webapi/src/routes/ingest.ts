@@ -66,6 +66,20 @@ const EventDocSchema = z
 
 const EventsBodySchema = z.object({ docs: z.array(EventDocSchema) });
 
+// A parsed transcript turn embedded in a full-content chunk (ADR 0027). Present
+// only when `couchFullContentChunks` is on; kept permissive as the shape evolves.
+const ChunkEntrySchema = z
+  .object({
+    role: z.enum(["user", "assistant", "tool_result", "system", "other"]),
+    timestamp: z.string().optional(),
+    text: z.string().optional(),
+    toolUses: z.array(z.object({ name: z.string(), id: z.string().optional() })).optional(),
+    toolUseId: z.string().optional(),
+    isError: z.boolean().optional(),
+    isSidechain: z.boolean().optional(),
+  })
+  .passthrough();
+
 const ChunkDocSchema = z
   .object({
     _id: z.string(),
@@ -78,6 +92,7 @@ const ChunkDocSchema = z
     hostname: z.string(),
     cwd: z.string(),
     schema_version: z.number(),
+    entries: z.array(ChunkEntrySchema).optional(),
   })
   .passthrough();
 
