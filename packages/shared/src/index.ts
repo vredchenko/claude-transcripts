@@ -365,3 +365,23 @@ export interface SessionTurnsResponse {
   /** The role filter that produced these turns, or null for "all turns". */
   role: ChunkEntryRole | null;
 }
+
+/**
+ * A turn from the cross-session view (`GET /api/turns`) — every turn of one speaker
+ * across all sessions, in time order. Carries its `sessionId`/`cwd` so a turn read
+ * outside its session keeps its project context.
+ */
+export interface CrossSessionTurn {
+  sessionId: string;
+  cwd: string;
+  role: ChunkEntryRole;
+  timestamp: string;
+  text: string;
+}
+
+/** Response contract for the cross-session turns endpoint. */
+export interface CrossSessionTurnsResponse {
+  turns: CrossSessionTurn[];
+  hasMore: boolean;
+  role: ChunkEntryRole | null;
+}

@@ -81,11 +81,16 @@ done.
   and honours those, so no cert-pinning workaround is needed. High-value but
   privacy-sensitive (raw prompts/keys) → strictly opt-in, masked, and off by
   default. (Supersedes the old "consider" #2.)
-- **Speaker-split views** — **done**: the `speaker_split/by_role` view (migration v4)
-  maps over `chunk.entries[]` keyed `[session_id, role, byte_start, index]`, served
-  by `GET /api/sessions/{id}/turns?role=…`
+- **Speaker-split views** — **done**: `speaker_split/by_role` (v4, per-session,
+  `GET /api/sessions/{id}/turns`) and `speaker_split/by_role_time` (v5, **cross-session**
+  in time order, `GET /api/turns`) map over `chunk.entries[]`
   ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). Remaining: a webui
-  toggle to read just one speaker inline in the transcript view.
+  toggle to read one speaker inline per session, and a cross-session browser.
+- **Cross-project speech-pattern analysis** *(Tier 2)* — built on `by_role_time`:
+  cluster/aggregate what the user repeatedly says (recurring instructions →
+  candidates for CLAUDE.md / memory) and what Claude repeatedly says (recurring
+  caveats/refusals/patterns). The view is the corpus; the analysis (n-grams,
+  embeddings, dedup) is a scheduled-task job ([tiers.md](tiers.md) → T2).
 - **Active vs wall-clock session duration** — alongside total runtime (first→last
   event), compute *active* duration by summing only intervals where something was
   happening (gaps beyond an idle threshold subtracted). Sessions left running in
