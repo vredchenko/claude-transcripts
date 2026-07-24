@@ -33,6 +33,7 @@ const GROUPS: LinkGroup[] = [
       { label: "API reference (Scalar)", href: "/api/docs" },
       { label: "OpenAPI spec (JSON)", href: "/api/openapi.json" },
       { label: "App model (JSON)", href: "/api/model" },
+      { label: "Download CLI (binary)", href: "/cli/download" },
     ],
   },
   {

@@ -1,0 +1,36 @@
+name: mirror-images
+# Mirror the pinned third-party backing-service images (CouchDB, Garage, Meilisearch
+# + their admin UIs) into this repo's GitHub Container Registry namespace, under the
+# claude-transcripts-* names the compose stack pulls (ADR 0024). Run it on demand, or
+# automatically on a version tag. Then set IMAGE_NS=ghcr.io/<owner> and the stack
+# pulls ONLY from your registry — no dependency on external/unverified upstreams.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  packages: write # push to GHCR
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mirror backing images → GHCR
+        run: bun run scripts/mirror-images.ts
+        env:
+          # GHCR paths must be lowercase; repository_owner is the login (already lc).
+          IMAGE_NS: ghcr.io/${{ github.repository_owner }}

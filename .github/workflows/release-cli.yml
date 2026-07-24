@@ -1,0 +1,74 @@
+name: release-cli
+# On a vMAJOR.MINOR.PATCH tag: cross-compile the CLI to standalone binaries
+# (Linux + macOS, x64 + arm64), attach them to the GitHub Release, and publish the
+# npm package (@claude-transcripts/cli, a bun-runnable bundle). A manual dispatch
+# builds the binaries and uploads them as workflow artifacts only (no publish).
+# Lockstep-versioned with the app image (ADR 0023); see docs/releasing.md.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach binaries to the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - run: bun install --frozen-lockfile
+
+      - name: Compute version
+        id: v
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile binaries (Linux + macOS)
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for t in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
+            plat="${t#bun-}"
+            bun build --compile --target="$t" packages/cli/src/cli.tsx \
+              --outfile "out/claude-transcripts-$plat"
+          done
+          (cd out && for f in claude-transcripts-*; do sha256sum "$f" > "$f.sha256"; done)
+          ls -la out
+
+      # Tag build → publish. Dispatch → upload artifacts only.
+      - name: Attach binaries to the Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+
+      - name: Upload binaries as artifacts (dispatch)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-binaries
+          path: out/*
+
+      - name: Build the npm bundle
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          # The bundle is self-contained (deps inlined by bun), so the published
+          # package carries no runtime dependencies (drops the workspace: protocol).
+          npm pkg delete dependencies --workspace @claude-transcripts/cli
+          npm --workspace @claude-transcripts/cli version "${{ steps.v.outputs.version }}" \
+            --no-git-tag-version --allow-same-version
+          bun run scripts/build-cli-npm.ts
+
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm publish --workspace @claude-transcripts/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

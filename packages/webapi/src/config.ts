@@ -28,7 +28,14 @@ export function loadAppConfigFile(): AppConfigFile {
 const appConfig = loadAppConfigFile();
 
 export interface Config {
-  webapi: { host: string; port: number; staticDir?: string; docsDir?: string; version: string };
+  webapi: {
+    host: string;
+    port: number;
+    staticDir?: string;
+    docsDir?: string;
+    cliBin?: string;
+    version: string;
+  };
   couchdb: {
     host: string;
     port: number;
@@ -68,6 +75,7 @@ export function loadConfig(): Config {
       port: Number(env.WEBAPI_PORT ?? 7650),
       staticDir: env.CT_STATIC_DIR || undefined,
       docsDir: env.CT_DOCS_DIR || undefined,
+      cliBin: env.CT_CLI_BIN || undefined,
       version: env.CT_VERSION ?? "0.0.0-dev",
     },
     couchdb: {

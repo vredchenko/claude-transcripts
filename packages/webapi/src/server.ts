@@ -66,6 +66,22 @@ export function buildServer(ctx: AppContext) {
     );
   }
 
+  // Stream the bundled CLI binary for download (CT_CLI_BIN set, i.e. the combined
+  // image). The webui's "Download CLI" link points here.
+  const cliBin = ctx.config.webapi.cliBin;
+  if (cliBin) {
+    app.get("/cli/download", async (c) => {
+      const file = Bun.file(cliBin);
+      if (!(await file.exists())) return c.json({ error: "CLI binary not available" }, 404);
+      return new Response(await file.bytes(), {
+        headers: {
+          "content-type": "application/octet-stream",
+          "content-disposition": 'attachment; filename="claude-transcripts"',
+        },
+      });
+    });
+  }
+
   // Attach the generated OpenAPI document back onto the model (central state), so
   // the manifest + any consumer can see the live API contract in-memory.
   ctx.model.apiSpec = app.getOpenAPIDocument(openapiConfig);
