@@ -56,6 +56,27 @@ const TranscriptResponseSchema = z.object({
   hasMore: z.boolean(),
 });
 
+const SpeakerRoleSchema = z.enum(["user", "assistant", "tool_result", "system", "other"]);
+
+const SpeakerTurnSchema = z.object({
+  role: SpeakerRoleSchema,
+  timestamp: z.string(),
+  text: z.string(),
+  toolUses: z
+    .array(z.object({ name: z.string(), id: z.string().optional() }))
+    .nullable()
+    .optional(),
+  toolUseId: z.string().nullable().optional(),
+  isError: z.boolean().optional(),
+});
+
+const TurnsResponseSchema = z.object({
+  turns: z.array(SpeakerTurnSchema),
+  totalCount: z.number(),
+  hasMore: z.boolean(),
+  role: SpeakerRoleSchema.nullable(),
+});
+
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
 /** Elapsed wall-clock between two ISO timestamps, or undefined if not derivable. */
@@ -243,6 +264,27 @@ const transcriptRoute = createRoute({
   },
 });
 
+const turnsRoute = createRoute({
+  method: "get",
+  path: "/sessions/{id}/turns",
+  operationId: "getSessionTurns",
+  request: {
+    params: z.object({ id: z.string() }),
+    query: z.object({
+      role: SpeakerRoleSchema.optional(),
+      limit: z.string().optional(),
+      offset: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: TurnsResponseSchema } },
+      description: "Turns (speaker-split)",
+    },
+    404: { content: { "application/json": { schema: ErrorSchema } }, description: "Not found" },
+  },
+});
+
 export function sessionRoutes(ctx: AppContext) {
   // Loosely typed so CouchDB's `any` docs don't fight the OpenAPI return types.
   const app = new OpenAPIHono();
@@ -314,6 +356,34 @@ export function sessionRoutes(ctx: AppContext) {
       messages: page,
       totalCount: lines.length,
       hasMore: offset + limit < lines.length,
+    });
+  });
+
+  // Speaker-split: one side of the conversation (or all turns) from the
+  // `speaker_split/by_role` view over full-content chunks. Populated only for
+  // sessions logged with `couchFullContentChunks` on; empty otherwise.
+  route.openapi(turnsRoute, async (c: any) => {
+    const id = c.req.param("id");
+    const role: string | undefined = c.req.query("role");
+    const limit = Number(c.req.query("limit") ?? 500);
+    const offset = Number(c.req.query("offset") ?? 0);
+    const db = ctx.couch.db("sessions");
+    // Key prefix: [id] for all turns, [id, role] for one speaker. `{}` is CouchDB's
+    // high-key sentinel, so endkey collects everything under the prefix.
+    const startkey = role ? [id, role] : [id];
+    const endkey = role ? [id, role, {}] : [id, {}];
+    const res = await db.view("speaker_split", "by_role", {
+      startkey,
+      endkey,
+      reduce: false,
+    });
+    const all = res.rows.map((r: any) => r.value);
+    const page = all.slice(offset, offset + limit);
+    return c.json({
+      turns: page,
+      totalCount: all.length,
+      hasMore: offset + limit < all.length,
+      role: role ?? null,
     });
   });
 

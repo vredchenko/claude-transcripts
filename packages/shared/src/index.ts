@@ -346,3 +346,22 @@ export function buildChunkEntries(jsonl: string): ChunkEntry[] {
   }
   return out;
 }
+
+/** One turn from the speaker-split view (`GET /api/sessions/{id}/turns`, ADR 0027). */
+export interface SpeakerTurn {
+  role: ChunkEntryRole;
+  timestamp: string;
+  text: string;
+  toolUses?: { name: string; id?: string }[] | null;
+  toolUseId?: string | null;
+  isError?: boolean;
+}
+
+/** Response contract for the speaker-split turns endpoint. */
+export interface SessionTurnsResponse {
+  turns: SpeakerTurn[];
+  totalCount: number;
+  hasMore: boolean;
+  /** The role filter that produced these turns, or null for "all turns". */
+  role: ChunkEntryRole | null;
+}

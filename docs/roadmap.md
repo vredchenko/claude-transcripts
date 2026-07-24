@@ -81,11 +81,11 @@ done.
   and honours those, so no cert-pinning workaround is needed. High-value but
   privacy-sensitive (raw prompts/keys) → strictly opt-in, masked, and off by
   default. (Supersedes the old "consider" #2.)
-- **Speaker-split views** — CouchDB map views that project a session into just the
-  user's turns vs Claude's turns (side-by-side or filtered reading). Now
-  **unblocked**: full-content chunks put per-turn `role`/content in CouchDB
-  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)), so this is a map
-  over `chunk.entries[]` keyed on `role`.
+- **Speaker-split views** — **done**: the `speaker_split/by_role` view (migration v4)
+  maps over `chunk.entries[]` keyed `[session_id, role, byte_start, index]`, served
+  by `GET /api/sessions/{id}/turns?role=…`
+  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). Remaining: a webui
+  toggle to read just one speaker inline in the transcript view.
 - **Active vs wall-clock session duration** — alongside total runtime (first→last
   event), compute *active* duration by summing only intervals where something was
   happening (gaps beyond an idle threshold subtracted). Sessions left running in

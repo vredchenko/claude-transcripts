@@ -14,6 +14,7 @@ front door and the only writer to the backends
 |------|--------|-------|
 | `/` | **App manifest (machine-readable)** | JSON/MDX definition of the live app — the **agent/automation entrypoint**, not a human page. See below. |
 | `/api` | **webapi** | The application JSON API (sessions, transcripts, search, enrichment). Stable contract. |
+| `/api/sessions/{id}/turns` | **Speaker-split turns** | One side of the conversation (`?role=user`/`assistant`/…) or all turns, from the `speaker_split` view over full-content chunks ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). Empty for sessions logged without `couchFullContentChunks`. |
 | `/api/docs` | **Scalar API reference** | Renders the published OpenAPI spec (the source of truth for generated clients) via Scalar, replacing Swagger UI. (Implemented today as Swagger at `/api/doc`; target is Scalar at `/api/docs`.) |
 | `/api/ingest/*` | **Curated ingest (writes)** | The *only* write surface (ADR 0016). `POST /api/ingest/summary` (validated, idempotent upsert), `POST /api/ingest/events` + `POST /api/ingest/chunks` (bulk append), `PUT /api/ingest/{id}/transcript` (blob → S3). Host-side `backfill` delivers here. |
 | `/api/couch/*` | **CouchDB proxy (read-only)** | Transparent passthrough to CouchDB's HTTP API — docs + design views as a first-class read surface. Writes are **not** proxied. |
