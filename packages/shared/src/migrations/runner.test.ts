@@ -88,12 +88,16 @@ describe("migration runner", () => {
     const result = await migrateDown(fake.ctx, { steps: 1 });
     expect(result.direction).toBe("down");
     expect(result.applied.length).toBe(1);
-    // v2 (session index) removed, v1 (initial views) kept
-    expect(fake.store.has("_design/session_index")).toBe(false);
+    // Only the top migration is rolled back: version drops by one and every earlier
+    // design doc (initial views + session_index) is still installed. (Asserting a
+    // specific view is removed would be brittle — the latest migration may be an
+    // additive redeploy whose `down` is a no-op.)
+    expect(marker(fake.store)?.version).toBe(latestVersion() - 1);
+    expect(marker(fake.store)?.applied.length).toBe(latestVersion() - 1);
+    expect(fake.store.has("_design/session_index")).toBe(true);
     for (const d of INITIAL_DESIGNS) {
       expect(fake.store.has(d._id)).toBe(true);
     }
-    expect(marker(fake.store)?.version).toBe(latestVersion() - 1);
   });
 
   test("down rolls back everything, removing every view", async () => {

@@ -27,12 +27,15 @@ const EMPTY_MARKER: Omit<SchemaVersionDoc, "_rev"> = {
 /** Read the marker doc, defaulting to a pristine (version 0) marker. */
 async function readMarker(ctx: MigrationContext): Promise<SchemaVersionDoc> {
   const doc = await ctx.getDoc<SchemaVersionDoc>(SCHEMA_VERSION_ID);
-  if (!doc) return { ...EMPTY_MARKER };
+  // Always return a FRESH `applied` array — `{ ...EMPTY_MARKER }` would share the
+  // module-level constant's array by reference, and `migrateUp` mutates it (push),
+  // so a pristine-DB read must not alias it (state would bleed across runs).
+  if (!doc) return { ...EMPTY_MARKER, applied: [] };
   // Defensive: tolerate an older/partial marker shape.
   return {
     ...EMPTY_MARKER,
     ...doc,
-    applied: Array.isArray(doc.applied) ? doc.applied : [],
+    applied: Array.isArray(doc.applied) ? [...doc.applied] : [],
     version: typeof doc.version === "number" ? doc.version : 0,
   };
 }
