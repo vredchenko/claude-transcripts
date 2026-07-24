@@ -76,7 +76,15 @@ Meilisearch → `:7656`. State lives under `deploy/data/` (delete it to reset).
 
 ### 4. One-time Garage bootstrap (create the bucket + an app key)
 
-S3 always signs requests, so create a bucket and a key once:
+S3 always signs requests, so a bucket and key must exist. One command does it —
+it assigns the layout, creates the bucket + app key, grants access, and writes
+`S3_ACCESS_KEY` / `S3_SECRET_KEY` into `.env` (idempotent):
+
+```bash
+bun run bootstrap:garage
+```
+
+<details><summary>Prefer to do it by hand (or the script's admin API doesn't match your Garage)?</summary>
 
 ```bash
 G="docker exec claude-transcripts-garage /garage"
@@ -88,16 +96,25 @@ $G key create claude-transcripts-app       # prints a Key ID + Secret — copy b
 $G bucket allow --read --write claude-transcripts-sessions --key claude-transcripts-app
 ```
 
-Paste the Key ID → `S3_ACCESS_KEY` and the Secret → `S3_SECRET_KEY` in `.env`.
-(Commands may vary slightly by Garage version — see the
-[Garage quick-start](https://garagehq.deuxfleurs.fr/documentation/quick-start/).)
+Then paste the Key ID → `S3_ACCESS_KEY` and the Secret → `S3_SECRET_KEY` in `.env`
+(see the [Garage quick-start](https://garagehq.deuxfleurs.fr/documentation/quick-start/)).
+</details>
 
-### 5. Run the app (on the host)
+### 5. Run the app
+
+**On the host** (fast iteration — edit + reload, no image build):
 
 ```bash
 bun run dev:webapi     # http://127.0.0.1:7650  — creates the CouchDB DBs + views on boot
 # in a second terminal:
 bun run dev:webui      # http://127.0.0.1:7651/app/
+```
+
+**Or as a container** (the full stack, app image built locally from this repo):
+
+```bash
+bun run stack:up:local   # = stack up --build --upstream: builds + runs the app container
+# webapi + webui served at http://127.0.0.1:7650/app/
 ```
 
 ### 6. Smoke-test the write → read path

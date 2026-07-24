@@ -1,0 +1,21 @@
+# Local-build override for the combined app image (hand-maintained; NOT generated).
+#
+# Layer this over the base compose to BUILD the app image from the repo instead of
+# pulling it from ${IMAGE_NS} — the zero-registry path for running the full stack,
+# custom app container and all, on a clean machine:
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml --profile app up -d --build
+#   bun run scripts/stack.ts up --build          # the runner does this for you (implies --app)
+#
+# Combine with --upstream so the BACKING services also come from public images:
+#   bun run scripts/stack.ts up --build --upstream
+#
+# The `image:` tag here is local (not ${IMAGE_NS}/…) so compose never tries to pull it.
+
+name: claude-transcripts
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: claude-transcripts-app:local
