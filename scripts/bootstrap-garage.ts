@@ -11,11 +11,11 @@
  *
  * Idempotent: it no-ops if `.env` already has S3 keys, skips layout assignment if
  * a role is present, and reuses an existing bucket. Run it AFTER `stack:up`, while
- * Garage is healthy. It drives Garage's **v1 admin HTTP API** on
- * `GARAGE_ADMIN_PORT` (default 7654), authed with `GARAGE_ADMIN_TOKEN` — no
- * `docker exec`. (If your Garage version's admin API differs, the errors below print
- * the endpoint + response so it's easy to adjust; the CLI equivalents are in the
- * README.)
+ * Garage is healthy. It drives Garage's **v2 admin HTTP API** (RPC-style `/v2/*`
+ * operations — v1 is deprecated as of Garage 2.0) on `GARAGE_ADMIN_PORT` (default
+ * 7654), authed with `GARAGE_ADMIN_TOKEN` — no `docker exec`. (If your Garage
+ * version's admin API differs, the errors below print the endpoint + response so
+ * it's easy to adjust; the CLI equivalents are in the README.)
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -83,47 +83,51 @@ async function main() {
     return;
   }
 
-  // 1. This node's id + current layout version.
-  const status = await api("GET", "/v1/status");
+  // 1. This node's id (GetClusterStatus.nodes[].id — single node in the bundled stack).
+  const status = await api("GET", "/v2/GetClusterStatus");
   if (!status.ok) fail("cluster status", status);
-  const nodeId: string | undefined = status.json.node;
+  const nodes: any[] = Array.isArray(status.json.nodes) ? status.json.nodes : [];
+  const self = nodes.find((n) => n?.id && n.isUp !== false) ?? nodes[0];
+  const nodeId: string | undefined = self?.id;
   if (!nodeId)
     throw new Error(
-      `could not read this node's id from /v1/status: ${JSON.stringify(status.json).slice(0, 200)}`,
+      `could not read a node id from GetClusterStatus: ${JSON.stringify(status.json).slice(0, 200)}`,
     );
   console.log(`[garage] node ${nodeId.slice(0, 16)}…`);
 
   // 2. Layout: assign this node to a zone with capacity (unless it already has one).
-  const layout = await api("GET", "/v1/layout");
+  const layout = await api("GET", "/v2/GetClusterLayout");
   if (!layout.ok) fail("read layout", layout);
   const version: number = typeof layout.json.version === "number" ? layout.json.version : 0;
   const roles: unknown[] = Array.isArray(layout.json.roles) ? layout.json.roles : [];
   const hasRole = roles.some(
     (r) =>
-      (r as { id?: string; capacity?: number }).id === nodeId &&
-      Boolean((r as { capacity?: number }).capacity),
+      (r as { id?: string; capacity?: number | null }).id === nodeId &&
+      Boolean((r as { capacity?: number | null }).capacity),
   );
   if (hasRole) {
     console.log("[garage] layout already assigned — skipping");
   } else {
-    const assign = await api("POST", "/v1/layout", [
+    // UpdateClusterLayout stages role changes (array); ApplyClusterLayout commits at
+    // the next version (a safety check against concurrent edits).
+    const assign = await api("POST", "/v2/UpdateClusterLayout", [
       { id: nodeId, zone: ZONE, capacity: CAPACITY, tags: [] },
     ]);
     if (!assign.ok) fail("layout assign", assign);
-    const apply = await api("POST", "/v1/layout/apply", { version: version + 1 });
+    const apply = await api("POST", "/v2/ApplyClusterLayout", { version: version + 1 });
     if (!apply.ok) fail("layout apply", apply);
     console.log(`[garage] layout applied → v${version + 1}`);
   }
 
   // 3. Bucket (create, or find the existing one by alias).
   const bucket = sessionsBucket();
-  const create = await api("POST", "/v1/bucket", { globalAlias: bucket });
+  const create = await api("POST", "/v2/CreateBucket", { globalAlias: bucket });
   let bucketId: string | undefined;
   if (create.ok) {
     bucketId = create.json.id;
     console.log(`[garage] bucket created: ${bucket}`);
   } else {
-    const found = await api("GET", `/v1/bucket?globalAlias=${encodeURIComponent(bucket)}`);
+    const found = await api("GET", `/v2/GetBucketInfo?globalAlias=${encodeURIComponent(bucket)}`);
     if (!found.ok) fail("bucket lookup", found);
     bucketId = found.json.id;
     console.log(`[garage] bucket exists: ${bucket}`);
@@ -131,7 +135,7 @@ async function main() {
   if (!bucketId) throw new Error(`could not resolve bucket id for "${bucket}"`);
 
   // 4. App key (fresh — we only get here when .env has no key yet).
-  const key = await api("POST", "/v1/key", { name: KEY_NAME });
+  const key = await api("POST", "/v2/CreateKey", { name: KEY_NAME });
   if (!key.ok) fail("key create", key);
   const accessKey: string | undefined = key.json.accessKeyId;
   const secretKey: string | undefined = key.json.secretAccessKey;
@@ -140,7 +144,7 @@ async function main() {
   console.log(`[garage] app key created: ${accessKey}`);
 
   // 5. Grant read + write on the bucket.
-  const allow = await api("POST", "/v1/bucket/allow", {
+  const allow = await api("POST", "/v2/AllowBucketKey", {
     bucketId,
     accessKeyId: accessKey,
     permissions: { read: true, write: true, owner: false },
