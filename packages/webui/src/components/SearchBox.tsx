@@ -1,10 +1,12 @@
 import {
   Box,
+  Chip,
   ClickAwayListener,
   InputAdornment,
   List,
   ListItemButton,
   ListItemText,
+  ListSubheader,
   Paper,
   Popper,
   TextField,
@@ -36,6 +38,7 @@ export function SearchBox() {
 
   const { data, isFetching } = useSearch({ q: debounced, limit: 8 });
   const hits = data?.hits ?? [];
+  const turns = data?.turns ?? [];
   const showPanel = open && debounced.length > 0;
 
   const go = (sessionId: string) => {
@@ -67,25 +70,50 @@ export function SearchBox() {
           placement="bottom-start"
           style={{ zIndex: 1300, width: anchorRef.current?.clientWidth }}
         >
-          <Paper elevation={3} sx={{ mt: 0.5, maxHeight: 360, overflowY: "auto" }}>
+          <Paper elevation={3} sx={{ mt: 0.5, maxHeight: 420, overflowY: "auto" }}>
             {data && !data.enabled ? (
               <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
                 Search is unavailable — Meilisearch isn't configured.
               </Typography>
-            ) : hits.length === 0 ? (
+            ) : hits.length === 0 && turns.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
                 {isFetching ? "Searching…" : "No matches."}
               </Typography>
             ) : (
               <List dense disablePadding>
+                {hits.length > 0 && <ListSubheader disableSticky>Sessions</ListSubheader>}
                 {hits.map((h) => (
-                  <ListItemButton key={h.sessionId} onClick={() => go(h.sessionId)}>
+                  <ListItemButton key={`s-${h.sessionId}`} onClick={() => go(h.sessionId)}>
                     <ListItemText
                       primary={projectName(h.cwd)}
                       secondary={
                         <span style={{ fontFamily: MONO, fontSize: 11 }}>
                           {h.sessionId}
                           {h.model ? ` · ${h.model}` : ""}
+                        </span>
+                      }
+                    />
+                  </ListItemButton>
+                ))}
+                {turns.length > 0 && <ListSubheader disableSticky>In conversations</ListSubheader>}
+                {turns.map((t, i) => (
+                  // Turns lack a stable client id; index within the result set is fine.
+                  <ListItemButton key={`t-${i}`} onClick={() => go(t.sessionId)}>
+                    <ListItemText
+                      primary={
+                        <span>
+                          <Chip
+                            component="span"
+                            size="small"
+                            label={t.role}
+                            sx={{ mr: 1, height: 18, fontSize: 10 }}
+                          />
+                          {t.snippet}
+                        </span>
+                      }
+                      secondary={
+                        <span style={{ fontFamily: MONO, fontSize: 11 }}>
+                          {projectName(t.cwd)} · {t.sessionId}
                         </span>
                       }
                     />

@@ -114,11 +114,12 @@ done.
   ([testing.md](testing.md))
 
 **Search & recall (Tier 2)**
-- Meilisearch search + typeahead — **first cut done**: the webapi indexes each
-  session (metadata: cwd, model, tools, host) on ingest and serves `GET /api/search`;
-  the webui header search box queries it live (best-effort — degrades gracefully when
-  Meili is down/disabled). Remaining: **full-text over conversation content** (index
-  `chunk.entries[]` turns), typeahead ranking, and a vector index for agent retrieval
+- Meilisearch search — **done**: `GET /api/search` returns both **session-metadata**
+  hits (cwd, model, tools, host — `sessions` index, on summary ingest) and
+  **conversation-content** hits (turn text with cropped snippets — `turns` index, on
+  chunk ingest over `chunk.entries[]`). The webui header search box shows both,
+  live + best-effort (degrades gracefully when Meili is down/disabled). Remaining:
+  typeahead ranking, filters, and a vector index for agent retrieval
   ([database-choice.md](database-choice.md)) (#9)
 - Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10)
 

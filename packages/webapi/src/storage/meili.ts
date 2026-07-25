@@ -62,13 +62,24 @@ export class Meili {
     await this.req("POST", `/indexes/${uid}/documents`, docs);
   }
 
-  /** Search an index; returns the hits array (empty on any failure). */
+  /** Search an index; returns the hits array (empty on any failure). Cropping +
+   *  highlighting (for content snippets) are opt-in and land in each hit's
+   *  `_formatted`. */
   async search(
     uid: string,
     q: string,
-    opts: { limit?: number } = {},
+    opts: {
+      limit?: number;
+      attributesToCrop?: string[];
+      cropLength?: number;
+      attributesToHighlight?: string[];
+    } = {},
   ): Promise<Record<string, unknown>[]> {
-    const res = await this.req("POST", `/indexes/${uid}/search`, { q, limit: opts.limit ?? 20 });
+    const body: Record<string, unknown> = { q, limit: opts.limit ?? 20 };
+    if (opts.attributesToCrop) body.attributesToCrop = opts.attributesToCrop;
+    if (opts.cropLength) body.cropLength = opts.cropLength;
+    if (opts.attributesToHighlight) body.attributesToHighlight = opts.attributesToHighlight;
+    const res = await this.req("POST", `/indexes/${uid}/search`, body);
     if (!res || !res.ok) return [];
     try {
       const json = (await res.json()) as { hits?: Record<string, unknown>[] };
@@ -105,4 +116,38 @@ export function toSessionSearchDoc(doc: any): Record<string, unknown> {
     promptCount: doc.prompt_count ?? 0,
     eventCount: doc.event_count ?? 0,
   };
+}
+
+/** The Meilisearch index holding one document per conversation turn (content search). */
+export const TURNS_INDEX = "turns";
+
+export const TURNS_INDEX_SETTINGS: IndexSettings = {
+  primaryKey: "id",
+  searchableAttributes: ["text"],
+  filterableAttributes: ["role", "sessionId", "cwd"],
+  sortableAttributes: ["timestamp"],
+};
+
+/**
+ * Project a full-content `chunk` doc into per-turn Meilisearch documents — one per
+ * `entries[]` turn that has text. Ids are stable (`<session>:<byteStart>:<index>`)
+ * so re-ingesting a chunk replaces, not duplicates. Empty for byte-range-only chunks.
+ */
+export function toTurnSearchDocs(doc: any): Record<string, unknown>[] {
+  const entries: any[] = Array.isArray(doc.entries) ? doc.entries : [];
+  const out: Record<string, unknown>[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const text: string = typeof e?.text === "string" ? e.text : "";
+    if (!text) continue;
+    out.push({
+      id: `${doc.session_id}:${doc.byte_start}:${i}`,
+      sessionId: doc.session_id,
+      role: e.role ?? "other",
+      text,
+      timestamp: e.timestamp ?? doc.timestamp ?? "",
+      cwd: doc.cwd ?? "",
+    });
+  }
+  return out;
 }
