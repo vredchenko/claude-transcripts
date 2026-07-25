@@ -8,7 +8,13 @@ import type { AppContext } from "./context";
 import { buildServer } from "./server";
 import { makeCouch } from "./storage/couch";
 import { ensureCouchDbs } from "./storage/ensure";
-import { Meili, SESSIONS_INDEX, SESSIONS_INDEX_SETTINGS } from "./storage/meili";
+import {
+  Meili,
+  SESSIONS_INDEX,
+  SESSIONS_INDEX_SETTINGS,
+  TURNS_INDEX,
+  TURNS_INDEX_SETTINGS,
+} from "./storage/meili";
 import { S3BlobStore } from "./storage/s3-blob-store";
 
 const config = loadConfig();
@@ -24,8 +30,9 @@ const ctx: AppContext = { config, couch, blob, meili, model };
 await ensureCouchDbs(couch, config).catch((err) => {
   console.error("ensureCouchDbs failed (continuing):", err);
 });
-// Ensure the search index (best-effort; no-ops when Meili is disabled/unreachable).
+// Ensure the search indexes (best-effort; no-op when Meili is disabled/unreachable).
 await meili.ensureIndex(SESSIONS_INDEX, SESSIONS_INDEX_SETTINGS).catch(() => {});
+await meili.ensureIndex(TURNS_INDEX, TURNS_INDEX_SETTINGS).catch(() => {});
 
 const app = buildServer(ctx);
 

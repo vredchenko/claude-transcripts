@@ -126,8 +126,17 @@ export interface SearchHit {
   tools?: string[];
 }
 
+export interface TurnHit {
+  sessionId: string;
+  role: string;
+  snippet: string;
+  timestamp?: string;
+  cwd?: string;
+}
+
 export interface SearchResponse {
   hits: SearchHit[];
+  turns: TurnHit[];
   query: string;
   enabled: boolean;
 }

@@ -398,9 +398,21 @@ export interface SearchHit {
   tools?: string[];
 }
 
+/** A conversation-content search match — one turn, with a cropped snippet. */
+export interface TurnHit {
+  sessionId: string;
+  role: string;
+  snippet: string;
+  timestamp?: string;
+  cwd?: string;
+}
+
 /** Response contract for the search endpoint. */
 export interface SearchResponse {
+  /** Session-metadata matches. */
   hits: SearchHit[];
+  /** Conversation-content matches (content chunks only). */
+  turns: TurnHit[];
   query: string;
   /** false when Meilisearch is disabled/unconfigured. */
   enabled: boolean;
