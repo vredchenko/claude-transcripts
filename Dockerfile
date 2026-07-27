@@ -11,7 +11,11 @@ FROM oven/bun:1 AS deps
 WORKDIR /app
 COPY package.json bun.lock* bunfig.toml tsconfig.base.json ./
 COPY packages ./packages
-RUN bun install --frozen-lockfile || bun install
+# --ignore-scripts: the root `postinstall` installs lefthook's git hooks, which
+# needs a `git` binary and a `.git` dir — neither exists in this image (nor should
+# they: an image has no working tree to hook). We declare no trustedDependencies,
+# so this skips nothing else.
+RUN bun install --frozen-lockfile --ignore-scripts || bun install --ignore-scripts
 
 # ── build-webui: the React SPA → packages/webui/dist ────────────────────────
 FROM deps AS build-webui
