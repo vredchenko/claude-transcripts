@@ -31,7 +31,7 @@ export async function handle(ctx: HookContext): Promise<void> {
     transcript_bytes: transcriptBytes,
     token_usage: sumTranscriptTokens(jsonl),
     system_checks: {},
-    source: "live", // live-recorded (vs "import" from the CLI) — see docs/couchdb-documents.md
+    source: "live", // live-recorded (vs "import" from the CLI) — see docs/reference/couchdb-documents.md
   };
 
   await ctx.couch.putDoc(ctx.sessionsDb, `summary:${ctx.sessionId}`, doc, 30000);

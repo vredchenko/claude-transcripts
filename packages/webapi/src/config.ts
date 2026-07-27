@@ -6,7 +6,7 @@
  * for zero-config dev); `.env` overlays only secrets + endpoints. Stores are
  * referenced by **logical key** (e.g. "sessions", "appLogs") — never by a
  * hard-coded name — so the app supports multiple databases and buckets. See
- * docs/configuration.md.
+ * docs/start/configuration.md.
  */
 
 import { existsSync, readFileSync } from "node:fs";

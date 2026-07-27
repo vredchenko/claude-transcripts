@@ -72,7 +72,7 @@ derived search index):
   The plumbing is there for all three, but **no external deployment has been
   exercised end to end** — hence the TODO.
 
-  See [backend topology](docs/configuration.md#backend-topology--bundled-or-external)
+  See [backend topology](docs/start/configuration.md#backend-topology--bundled-or-external)
   in the configuration docs.
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/) (with Compose),
@@ -222,13 +222,19 @@ Everything below is for working **on** Claude Transcripts, not just running it.
 For a container deploy (rather than running on the host), the combined **app**
 image (`claude-transcripts-app`, webapi + prebuilt webui SPA) is published to GHCR
 by the `publish-image` GitHub Actions workflow on a `vX.Y.Z` tag
-([ADR 0023](docs/decisions/0023-lockstep-versioning-and-combined-image.md)). The
+([ADR 0023](docs/design/decisions/0023-lockstep-versioning-and-combined-image.md)). The
 default (non-`--upstream`) stack mode pulls mirrored backing images from your own
 `${IMAGE_NS}` registry; `--upstream` uses public upstream images instead.
 
 ### Docs & conventions
 
-- [`docs/`](docs/) — architecture, ADRs, and the data model (the spec).
+- [`docs/`](docs/) — organised into
+  [getting started](docs/start/installation.md),
+  [development](docs/develop/getting-started.md),
+  [operations](docs/operate/releasing.md), [reference](docs/reference/webapi.md),
+  and [design](docs/design/specification.md) (with the
+  [ADRs](docs/design/decisions/README.md) nested under it). Published at
+  [vredchenko.github.io/claude-transcripts/docs](https://vredchenko.github.io/claude-transcripts/docs/).
 - [`CLAUDE.md`](CLAUDE.md) — build conventions and repo invariants for agents.
 - **Bun** workspace monorepo, TypeScript (ESM, strict); **Biome** formatting;
   **lefthook** pre-commit. `bun run lint`, `bun run typecheck`, `bun run build`.

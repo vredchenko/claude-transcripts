@@ -4,7 +4,7 @@
  * Per ADR 0016 the webapi is the sole I/O gateway: the CLI never writes CouchDB/S3
  * directly. Host-side ingestion reads local files the container can't see and hands
  * the derived docs **to** the webapi (an input source, not a backend write around
- * it — docs/cli.md). `--dry-run` swaps in a sink that only prints.
+ * it — docs/reference/cli.md). `--dry-run` swaps in a sink that only prints.
  *
  * `WebapiSink` calls the **generated** API client (../api/generated, from the
  * OpenAPI spec — ADR 0019) for the JSON endpoints; the transcript blob and the

@@ -3,7 +3,7 @@
  * entries and derived per-session facts. Reused by backfill and (later) as
  * a verification oracle (diff CouchDB content against the fs transcript). Token
  * math reuses the shared `sumTranscriptTokens` — the same dedupe-by-message-id
- * rule the hook uses, so counts match (docs/tools.md "schema parity").
+ * rule the hook uses, so counts match (docs/operate/tools.md "schema parity").
  */
 import { sumTranscriptTokens, type TokenUsage } from "@claude-transcripts/shared";
 

@@ -2,7 +2,7 @@
 
 Example **stdin payloads** Claude Code sends to a hook, one folder per event. They
 serve two purposes: documenting each event's input shape (referenced from
-[`docs/hook-events.md`](../../../../docs/hook-events.md)) and feeding **test
+[`docs/reference/hook-events.md`](../../../../docs/reference/hook-events.md)) and feeding **test
 automation** (dispatch/handler unit tests, the smoke test, fixture-driven
 round-trips).
 
@@ -22,7 +22,7 @@ tests/mock/claude-code/hooks/
 ```
 
 Folder names are the event name in kebab-case (`PostToolUseFailure` →
-`post-tool-use-failure/`). `docs/hook-events.md` links to the **folder**, so adding
+`post-tool-use-failure/`). `docs/reference/hook-events.md` links to the **folder**, so adding
 or renaming individual scenario files never breaks the docs.
 
 ## Placeholder value convention

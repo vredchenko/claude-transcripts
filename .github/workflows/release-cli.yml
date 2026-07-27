@@ -3,7 +3,7 @@ name: release-cli
 # (Linux + macOS, x64 + arm64), attach them to the GitHub Release, and publish the
 # npm package (@claude-transcripts/cli, a bun-runnable bundle). A manual dispatch
 # builds the binaries and uploads them as workflow artifacts only (no publish).
-# Lockstep-versioned with the app image (ADR 0023); see docs/releasing.md.
+# Lockstep-versioned with the app image (ADR 0023); see docs/operate/releasing.md.
 on:
   push:
     tags: ["v*.*.*"]

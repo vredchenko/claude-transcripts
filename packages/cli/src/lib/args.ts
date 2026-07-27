@@ -1,7 +1,7 @@
 /**
  * Minimal flag parser for the data commands: `--key value`, `--key=value`, and
  * boolean `--flag`. Deliberately tiny — the command framework will firm up against
- * Claude Code's own CLI practices (see docs/cli.md); this keeps the scaffold
+ * Claude Code's own CLI practices (see docs/reference/cli.md); this keeps the scaffold
  * dependency-free until then.
  */
 export interface ParsedArgs {
