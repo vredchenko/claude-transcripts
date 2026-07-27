@@ -169,6 +169,32 @@
         font-size: 14px;
         margin: 0 0 48px;
       }
+      .wip {
+        background: var(--paper);
+        border: 1px solid var(--clay);
+        border-left: 4px solid var(--clay);
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin: 18px 0 0;
+        font-size: 14.5px;
+        color: var(--muted);
+      }
+      .wip strong {
+        color: var(--ink);
+      }
+      .wip .tag {
+        display: inline-block;
+        background: var(--clay);
+        color: #fff;
+        border-radius: 5px;
+        padding: 1px 8px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        margin-right: 8px;
+        vertical-align: 1px;
+      }
       footer.site {
         border-top: 1px solid var(--border);
         padding: 24px 0 48px;
@@ -193,6 +219,14 @@
   </head>
   <body>
     <div class="wrap">
+      <p class="wip">
+        <span class="tag">Work in progress</span>
+        <strong>Under active development — not tested as ready for use.</strong>
+        Nothing here is released or proven: the install path has not been validated on a clean
+        machine, breaking changes land without notice, and there is no auth or security model
+        (single user, single trusted machine). Read and experiment with it — don't depend on it.
+      </p>
+
       <header class="site">
         <svg class="mark" viewBox="0 0 32 32" role="img" aria-label="Claude Transcripts">
           <rect width="32" height="32" rx="7" fill="#d97757" />

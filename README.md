@@ -20,16 +20,58 @@ Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─�
                         └───────── reads/writes ──────agents┘
 ```
 
-> **Status:** early rebuild. Tier 1 (single machine, single user) first — retention,
-> browse/search, and programmatic access, no auth. A public project website and
-> hosted docs are planned (GitHub Pages); for now the design lives in
-> [`docs/`](docs/).
+> ### ⚠️ Work in progress — not ready for use
+>
+> **This project is under active development and has not been tested as
+> ready for use.** Nothing here is released or proven: the install path below has
+> not been validated on a clean machine, breaking changes land without notice, and
+> stored data may have to be discarded between revisions. There is **no auth and no
+> security model** — Tier 1 assumes a single user on a single trusted machine, so
+> don't expose it to a network or point it at anything you can't afford to lose.
+> Treat it as a preview to read and experiment with, not as software to depend on.
+> Issues and feedback are welcome.
+
+**Status:** early rebuild. Tier 1 (single machine, single user) first — retention,
+browse/search, and programmatic access, no auth. The design lives in
+[`docs/`](docs/), also published as a
+[project site](https://vredchenko.github.io/claude-transcripts/).
 
 ## Getting started (localhost, single machine)
 
-Runs entirely on your machine on ports `7650–7661`, no auth (localhost only). The
-backing services come from **public** Docker images and the app runs on the host
-via Bun — so nothing needs to be built or published to try it.
+Everything runs on your own machine, bound to `127.0.0.1`, with no auth. The
+`7650–7661` range is only a **default**: every port is an `.env` variable
+(`WEBAPI_PORT`, `COUCHDB_PORT`, `GARAGE_S3_PORT`, …) and that one file feeds both
+Docker Compose and the host-run app, so changing a number moves the port
+everywhere at once — pick whatever is free on your box.
+
+**Two ways to provide the backing services** — CouchDB (source of truth),
+S3-compatible object storage (transcript blobs), and optionally Meilisearch (a
+derived search index):
+
+- **A. All local — the bundled stack.** *Supported; this is the path the steps
+  below walk.* The [`deploy/`](deploy/) Docker Compose stack brings up CouchDB +
+  Garage (S3) + Meilisearch and their admin UIs from **public** images, and the app
+  runs on the host via Bun (or as a container built from this repo). Nothing needs
+  to be built or published to try it.
+- **B. External backing services.** *Designed for, **not yet verified** — TODO.*
+  Only the app runs locally; `.env` points at services you already operate. How far
+  it goes today:
+  - **S3 — external-capable.** `S3_ENDPOINT` is a full URL, so any S3-compatible
+    store works (Garage, MinIO, Cloudflare R2, AWS S3) with `S3_ACCESS_KEY` /
+    `S3_SECRET_KEY`. You create the bucket and key yourself — `bun run
+    bootstrap:garage` (step 4) only targets the bundled Garage.
+  - **Meilisearch — yes, it can be external too.** It's just a URL plus a key
+    (`MEILI_HOST` + `MEILI_API_KEY`), so a remote or hosted instance is fine. It's
+    also fully optional: `features.meilisearch: false` simply drops the search
+    index.
+  - **CouchDB — the current gap.** It's addressed as `COUCHDB_HOST` +
+    `COUCHDB_PORT` (with `COUCHDB_USER` / `COUCHDB_PASSWORD`), and the URL is built
+    as plain `http://`. A CouchDB reachable over HTTP on a trusted network works;
+    **HTTPS, a non-root path prefix, or a managed provider do not yet** — that's the
+    piece to finish before external deployments are real.
+
+  See [backend topology](docs/configuration.md#backend-topology--bundled-or-external)
+  in the configuration docs.
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/) (with Compose),
 [Bun](https://bun.sh) ≥ 1.1, `git`, `openssl`, and
