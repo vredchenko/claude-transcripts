@@ -44,7 +44,8 @@ Two layers, per [configuration.md](configuration.md): non-secret defaults from t
 repo-root `claude-transcripts.config.json` (DB/bucket names, `features`, `servicesMenu`),
 overlaid with secrets/endpoints from `.env`.
 
-- **CouchDB:** `COUCHDB_HOST/PORT/USER/PASSWORD`, `COUCHDB_DB` (or
+- **CouchDB:** `COUCHDB_URL` (full base URL; https + path prefix supported, wins
+  over `COUCHDB_HOST/PORT`), `COUCHDB_HOST/PORT/USER/PASSWORD`, `COUCHDB_DB` (or
   `claude-transcripts.config.json` → `couchdb.database`).
 - **S3:** `S3_ENDPOINT` (full URL), `S3_REGION` (Garage default `garage`),
   `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` (or `s3.bucket`).

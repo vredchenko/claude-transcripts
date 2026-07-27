@@ -53,6 +53,11 @@ export const ENV_VARS: EnvVarDef[] = [
   { name: "CT_STATIC_DIR", scope: "host", description: "prebuilt SPA dir (prod image only)" },
   { name: "CT_VERSION", scope: "host", description: "baked release version" },
 
+  {
+    name: "COUCHDB_URL",
+    scope: "endpoint",
+    description: "full CouchDB base URL; wins over COUCHDB_HOST/PORT (https + path prefix OK)",
+  },
   { name: "COUCHDB_HOST", scope: "endpoint", default: "127.0.0.1", description: "CouchDB host" },
   { name: "COUCHDB_USER", scope: "secret", description: "CouchDB admin (blank in bundled dev)" },
   {

@@ -3,6 +3,7 @@
  * plus the cross-cutting types + token accounting below.
  */
 
+export * from "./couch-url";
 export * from "./migrations";
 export * from "./model";
 

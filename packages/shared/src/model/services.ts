@@ -134,6 +134,9 @@ export const SERVICES: ServiceDef[] = [
       // Inside the compose network backends resolve to service names, not the
       // host's localhost ports. config/ + secrets stay shared; only endpoints differ.
       WEBAPI_HOST: "0.0.0.0",
+      // COUCHDB_URL wins over HOST/PORT, so it must be pinned here too — otherwise
+      // a `.env` set for an external CouchDB would leak into the bundled app.
+      COUCHDB_URL: "http://couchdb:5984",
       COUCHDB_HOST: "couchdb",
       COUCHDB_PORT: "5984",
       S3_ENDPOINT: "http://garage:3900",

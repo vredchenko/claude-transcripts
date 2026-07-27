@@ -8,23 +8,13 @@ import { join } from "node:path";
  *
  *   bun run scripts/seed.ts [--dry-run]
  */
-import { buildAppModel, toSeedPlan } from "@claude-transcripts/shared";
+import { buildAppModel, resolveCouchUrlWithAuth, toSeedPlan } from "@claude-transcripts/shared";
 import { loadConfigFile } from "./lib/config-file";
 
 const ROOT = join(import.meta.dir, "..");
 
-function couchUrl(): string {
-  const host = process.env.COUCHDB_HOST ?? "127.0.0.1";
-  const port = process.env.COUCHDB_PORT ?? "7652";
-  const user = process.env.COUCHDB_USER;
-  const auth = user
-    ? `${encodeURIComponent(user)}:${encodeURIComponent(process.env.COUCHDB_PASSWORD ?? "")}@`
-    : "";
-  return `http://${auth}${host}:${port}`;
-}
-
 async function ensureDatabases(dbs: string[]) {
-  const base = couchUrl();
+  const base = resolveCouchUrlWithAuth(process.env);
   for (const db of dbs) {
     const head = await fetch(`${base}/${db}`, { method: "HEAD" });
     if (head.ok) {
