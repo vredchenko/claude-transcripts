@@ -13,6 +13,21 @@ import { sessionRoutes } from "./routes/sessions";
 export function buildServer(ctx: AppContext) {
   const app = new OpenAPIHono();
 
+  // Surface the cause of a failure instead of a bare "Internal Server Error".
+  // Tier 1 is a single user on localhost, so the message is safe to return —
+  // and without it a store-level failure (missing database, unreachable
+  // CouchDB/S3) reaches the CLI as an opaque 500 that needs server logs to read.
+  app.onError((err, c) => {
+    const status = (err as { statusCode?: number }).statusCode;
+    const reason = (err as { reason?: string }).reason;
+    const message = [err.message, reason].filter(Boolean).join(" — ");
+    console.error(`[webapi] ${c.req.method} ${c.req.path} failed:`, err);
+    return c.json(
+      { error: message || "Internal Server Error", ...(status ? { upstreamStatus: status } : {}) },
+      500,
+    );
+  });
+
   app.get("/health", (c) =>
     c.json({ ok: true, status: "ok", version: ctx.model.identity.version }),
   );

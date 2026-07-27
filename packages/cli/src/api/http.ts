@@ -32,10 +32,32 @@ export function webapiUrl(): string {
 export async function customFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, init);
   if (!res.ok) {
-    throw new Error(`${init?.method ?? "GET"} ${url} → ${res.status} ${res.statusText}`);
+    // Include the server's own explanation — the webapi returns `{error}` on
+    // failure, and without it the caller only sees an opaque status code.
+    throw new Error(
+      `${init?.method ?? "GET"} ${url} → ${res.status} ${res.statusText}${await errorDetail(res)}`,
+    );
   }
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** Best-effort ": <server message>" for a failed response; "" if there is none. */
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const text = (await res.text()).trim();
+    if (!text) return "";
+    try {
+      const body = JSON.parse(text) as { error?: unknown; reason?: unknown };
+      const msg = body.error ?? body.reason;
+      if (typeof msg === "string" && msg) return `: ${msg}`;
+    } catch {
+      // not JSON — fall through to the raw text
+    }
+    return `: ${text.slice(0, 300)}`;
+  } catch {
+    return "";
+  }
 }
 
 /** GET `path` and report whether it exists (ok). Never throws on 404. */
@@ -51,5 +73,7 @@ export async function putRaw(path: string, body: Uint8Array, contentType: string
     headers: { "content-type": contentType },
     body,
   });
-  if (!res.ok) throw new Error(`PUT ${path} → ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    throw new Error(`PUT ${path} → ${res.status} ${res.statusText}${await errorDetail(res)}`);
+  }
 }
