@@ -344,6 +344,20 @@ function buildNav(pages: Page[], current: Page): string {
   return parts.join("\n");
 }
 
+/**
+ * Project-status banner shown on every docs page. The project is not tested as
+ * ready for use; say so wherever the docs are published (Pages + the app image).
+ */
+const WIP_BANNER = [
+  '<div class="wip">',
+  '<span class="wip-tag">Work in progress</span>',
+  "<strong>Under active development — not tested as ready for use.</strong> ",
+  "Breaking changes land without notice, stored data may need to be discarded ",
+  "between revisions, and there is no auth or security model. These docs describe ",
+  "the intended design as much as the current state.",
+  "</div>",
+].join("");
+
 function renderShell(page: Page, content: string, nav: string): string {
   const prefix = page.depth === 1 ? "../" : "";
   return `<!doctype html>
@@ -362,7 +376,7 @@ function renderShell(page: Page, content: string, nav: string): string {
     </header>
     <div class="layout">
       <nav class="sidebar">${nav}</nav>
-      <main class="content">${content}</main>
+      <main class="content">${WIP_BANNER}${content}</main>
     </div>
   </body>
 </html>
@@ -396,6 +410,9 @@ a{color:var(--clay-deep)}@media (prefers-color-scheme:dark){a{color:var(--clay)}
 .content th{background:var(--paper)}
 .content blockquote{margin:1em 0;padding:.4em 1em;border-left:3px solid var(--clay);background:var(--paper);color:var(--muted);border-radius:0 8px 8px 0}
 .content img{max-width:100%}
+.wip{background:var(--paper);border:1px solid var(--clay);border-left:4px solid var(--clay);border-radius:10px;padding:12px 16px;margin:0 0 24px;font-size:14px;color:var(--muted)}
+.wip strong{color:var(--ink)}
+.wip-tag{display:inline-block;background:var(--clay);color:#fff;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-right:8px;vertical-align:1px}
 .content hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 @media (max-width:800px){.layout{flex-direction:column}.sidebar{position:static;height:auto;flex-basis:auto;border-bottom:1px solid var(--border)}}
 `;
