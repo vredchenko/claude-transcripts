@@ -60,10 +60,14 @@ published by the `publish-image` workflow on a `vX.Y.Z` tag (no upstream).
 
 Bind-mounted under `deploy/data/` (gitignored) — wipe it to reset the stack.
 
-## No auth (localhost only) — ADR 0020
+## No credentials to supply (localhost only) — ADR 0020
 
-App access needs no tokens/keys/passwords; safe only because everything binds to
-`127.0.0.1`. Garage still needs **internal** cluster secrets (`GARAGE_RPC_SECRET`,
+You generate no tokens, keys, or passwords of your own; safe only because
+everything binds to `127.0.0.1`. Two things ship with credentials rather than
+without: Garage's pre-baked app key, and CouchDB's default admin
+(`COUCHDB_USER`/`COUCHDB_PASSWORD`, defaulting to `admin`/`admin`) — CouchDB 3
+removed "admin party" and will not start without an admin. Garage also needs
+**internal** cluster secrets (`GARAGE_RPC_SECRET`,
 `GARAGE_ADMIN_TOKEN`, `GARAGE_METRICS_TOKEN` in `.env`; `openssl rand -hex 32`).
 
 ## One-time Garage bootstrap

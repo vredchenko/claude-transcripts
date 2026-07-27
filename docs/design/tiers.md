@@ -21,9 +21,10 @@ and **integrate programmatically** (webapi/CLI).
   registered against it. Minimal system setup.
 - **Security:** **none required, by design.** No auth, no access control, no
   network exposure beyond localhost. Tier 1 explicitly assumes a trusted single
-  user on a trusted machine. The **bundled** backing services default to **no
-  auth** — no tokens/keys/passwords to supply (CouchDB open, Meilisearch no master
-  key, Garage with a pre-baked default key); see
+  user on a trusted machine. The **bundled** backing services need **no
+  credentials from the operator** — Meilisearch has no master key, Garage ships a
+  pre-baked key, CouchDB gets a fixed default admin (CouchDB 3 will not start
+  without one); see
   [ADR 0020](decisions/0020-bundled-services-default-no-auth.md). The stack binds
   to localhost only.
 - **What you get:**

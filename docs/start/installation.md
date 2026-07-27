@@ -58,9 +58,12 @@ bun install
 cp .env.template .env
 ```
 
-Leave `IMAGE_NS` blank (public images), and leave `COUCHDB_USER` /
-`COUCHDB_PASSWORD` blank — the bundled stack runs without auth
-([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)).
+Leave `IMAGE_NS` blank (public images). `COUCHDB_USER` / `COUCHDB_PASSWORD`
+default to `admin` / `admin`: CouchDB 3 refuses to start without an admin, so the
+bundled stack ships one rather than nothing — change both if this box is not
+your own ([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)).
+The same credentials log you into Fauxton at `:7652/_utils/`.
+
 Generate Garage's internal cluster secrets:
 
 ```bash

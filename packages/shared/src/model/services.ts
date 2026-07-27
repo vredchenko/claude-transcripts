@@ -42,8 +42,15 @@ export const SERVICES: ServiceDef[] = [
     ],
     adminUiServiceKey: "couchdbFauxton",
     volumes: [{ host: "./data/couchdb", container: "/opt/couchdb/data" }],
+    // CouchDB 3 REMOVED "admin party": without an admin the container refuses to
+    // start and crash-loops. So the bundled stack ships a fixed default admin
+    // (localhost-only) rather than no auth — the one exception to ADR 0020.
+    containerEnv: {
+      COUCHDB_USER: "${COUCHDB_USER:-admin}",
+      COUCHDB_PASSWORD: "${COUCHDB_PASSWORD:-admin}",
+    },
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:5984/_up"] },
-    notes: "Source of truth. Bundled dev = no auth (admin party). Fauxton at /_utils/.",
+    notes: "Source of truth. Bundled dev = fixed default admin (CouchDB 3 requires one).",
   },
   {
     key: "garage",

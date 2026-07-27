@@ -26,7 +26,12 @@ services:
   couchdb:
     image: ${IMAGE_NS}/claude-transcripts-couchdb:${COUCHDB_TAG:-3}
     container_name: claude-transcripts-couchdb
-    # No COUCHDB_USER/PASSWORD ⇒ single-node "admin party" (dev, no auth).
+    # CouchDB 3 removed "admin party" — with no admin the container refuses to
+    # start and crash-loops, so the bundled stack ships a fixed default admin
+    # (admin/admin, localhost only). Override in .env for anything exposed.
+    environment:
+      - COUCHDB_USER=${COUCHDB_USER:-admin}
+      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-admin}
     ports:
       - "127.0.0.1:${COUCHDB_PORT:-7652}:5984" # HTTP API + Fauxton at /_utils/
     volumes:

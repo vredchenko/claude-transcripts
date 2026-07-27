@@ -133,10 +133,13 @@ same image runs in two topologies ([containers.md](../operate/containers.md)):
 
 - **Bundled** — the `deploy/` Docker Compose stack brings up CouchDB + Garage (S3)
   + Meilisearch locally; the env points at those localhost services (Tier 1
-  default). The bundled services default to **no auth** — no tokens/keys/passwords
-  for the operator to supply (CouchDB open, Meilisearch no master key, Garage with
-  a pre-baked default key); the stack binds to localhost only. The `COUCHDB_*` /
-  `S3_*` / search auth fields may be left empty for the bundled case. See
+  default). The bundled services ask the operator to supply **no credentials of
+  their own** — Meilisearch runs with no master key, Garage ships a pre-baked
+  key, and CouchDB gets a fixed default admin (`admin`/`admin`), because CouchDB 3
+  refuses to start without one. The stack binds to localhost only. Search and
+  `S3_*` auth fields may be left empty for the bundled case; `COUCHDB_USER` /
+  `COUCHDB_PASSWORD` must match whatever the CouchDB container was started with.
+  See
   [ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md).
 - **External** — run the app container alone with env pointing at remote services
   (e.g. managed CouchDB + **Cloudflare R2** + a hosted Meilisearch). Nothing in
