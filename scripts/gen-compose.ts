@@ -15,7 +15,7 @@ const ROOT = join(import.meta.dir, "..");
 const model = buildAppModel(loadConfigFile(ROOT), process.env);
 
 const header = `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-compose.ts.
-# Do NOT edit by hand — run \`bun run gen:compose\` to regenerate. See docs/containers.md.
+# Do NOT edit by hand — run \`bun run gen:compose\` to regenerate. See docs/operate/containers.md.
 #
 # Driven by the stack runner (scripts/stack.ts), which feeds the repo-root .env so
 # host dev and the stack share one config. Bundled stack = no auth, localhost only.

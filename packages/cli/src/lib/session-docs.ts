@@ -1,6 +1,6 @@
 /**
  * Build the CouchDB docs an ingest writes, in **schema parity with the hook**
- * (docs/couchdb-documents.md / couchdb.md). For now these shapes live here; once
+ * (docs/reference/couchdb-documents.md / couchdb.md). For now these shapes live here; once
  * the hook's write path lands they should be promoted to a shared
  * `@claude-transcripts/shared` doc-schema module (with zod validators) so the hook, the
  * webapi, and the CLI share one definition. TODO(#6): promote + validate.
@@ -149,7 +149,7 @@ const clip = (s: string): string => (s.length > PREVIEW_LIMIT ? s.slice(0, PREVI
  * adopted session from "summary only" to parity — so the events/tools/activity/
  * failure views populate. The transcript has no hook events, so we reconstruct
  * their equivalents and mark them `reconstructed: true` (distinguishable from live
- * markers). Field shapes mirror the hook's markers (docs/couchdb-documents.md).
+ * markers). Field shapes mirror the hook's markers (docs/reference/couchdb-documents.md).
  *
  * Emits: `SessionStart`, `UserPromptSubmit`, and one `PostToolUse` /
  * `PostToolUseFailure` per tool call (classified by the matching tool_result's

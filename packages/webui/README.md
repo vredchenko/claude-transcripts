@@ -30,4 +30,4 @@ start-path; and a lazy transcript viewer (each entry previews, expands to raw
 JSON). Light + dark themes (persisted, follow-system default). Still planned:
 wiring search to Meilisearch, virtual scroll, making the links menu config-driven
 from `/api/model`, local-first cache, keyboard nav. The full visual pass is
-deferred per the roadmap. See docs/webui.md.
+deferred per the roadmap. See docs/reference/webui.md.

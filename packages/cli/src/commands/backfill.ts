@@ -14,7 +14,7 @@
  * `backfilled_at` tag how/when the record was adopted. Idempotent + `--dry-run`.
  *
  * Chunk-doc reconstruction and subagent sub-transcripts are still TODO (see the
- * NOTE at the end + docs/tools.md).
+ * NOTE at the end + docs/operate/tools.md).
  */
 import { hostname } from "node:os";
 import { parseFlags, strOpt } from "../lib/args";
@@ -73,7 +73,7 @@ export async function runBackfill(argv: string[]): Promise<number> {
   console.log(
     "backfill: NOTE — summary + per-event markers + chunk docs reconstructed" +
       `${sidechains ? `; subagent sub-transcripts (${sidechains} session(s) have them) still TODO` : ""}` +
-      " (see docs/tools.md).",
+      " (see docs/operate/tools.md).",
   );
   return failed > 0 ? 1 : 0;
 }

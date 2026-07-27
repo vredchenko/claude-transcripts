@@ -1,6 +1,6 @@
 /**
  * The `.claude/` reader — discovers + reads Claude Code transcripts from the local
- * filesystem. A standalone, host-side module (docs/cli.md): the one legitimately
+ * filesystem. A standalone, host-side module (docs/reference/cli.md): the one legitimately
  * non-webapi input path, reading local files the container can't see. It only
  * READS — derived docs are delivered to the webapi via a sink (see sink.ts).
  *

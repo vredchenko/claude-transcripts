@@ -6,7 +6,7 @@
  * which stay as the bundled-stack convenience default (`http://127.0.0.1:7652`).
  * Because it is a URL, external CouchDB over **HTTPS** and behind a **path
  * prefix** (`https://couch.example.com/couchdb`) both work — see
- * docs/configuration.md.
+ * docs/start/configuration.md.
  *
  * Credentials are kept OUT of the resolved URL: `resolveCouchUrl` returns a
  * clean, loggable endpoint, and `withCouchAuth` injects `COUCHDB_USER` /

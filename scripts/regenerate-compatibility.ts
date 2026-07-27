@@ -2,7 +2,7 @@
 /**
  * Regenerate compatibility.json — the structured Claude Code compatibility
  * definition (latestPublic + per-version supported hooks) from the external
- * source of truth (ADR 0025, docs/compatibility.md). Dev-only tooling.
+ * source of truth (ADR 0025, docs/start/compatibility.md). Dev-only tooling.
  *
  *   bun run scripts/regenerate-compatibility.ts
  *

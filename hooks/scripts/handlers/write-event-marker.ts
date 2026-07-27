@@ -36,7 +36,7 @@ export async function handle(ctx: HookContext): Promise<void> {
       doc.agent_id = p.agent_id;
       doc.agent_type = p.agent_type;
       break;
-    // Scaffold cases (newly wired) — field names per docs/hook-events.md; confirm
+    // Scaffold cases (newly wired) — field names per docs/reference/hook-events.md; confirm
     // against a real payload + compatibility.json before relying on them.
     case "StopFailure":
       doc.error_type = p.error_type;

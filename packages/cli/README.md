@@ -4,7 +4,7 @@ The user-facing CLI + admin utility. Optional interface — everything it does i
 reachable via the webapi; handy for humans and for AI agents driving the system
 headless. Built with **Bun + Ink**.
 
-**Aggregate of internal modules** (docs/cli.md), composed under one command:
+**Aggregate of internal modules** (docs/reference/cli.md), composed under one command:
 
 - `src/cli.tsx` — entry + dispatch. Runnable data commands execute via the
   `src/commands` registry; anything else renders the Ink help (`src/app.tsx`,
@@ -34,7 +34,7 @@ A single **`backfill`** command adopts on-disk `~/.claude` transcripts as first-
 history: for each session it reconstructs the `summary:<id>` doc **and** per-event
 marker docs (and, **planned**, `chunk` docs), so a backfilled session matches a
 live-recorded one — no summary-only shortcut. It's **idempotent** and
-**`--dry-run`**-able (docs/tools.md). Backfilled summaries carry `source: "backfill"` +
+**`--dry-run`**-able (docs/operate/tools.md). Backfilled summaries carry `source: "backfill"` +
 `backfilled_at` (vs the hook's `source: "live"`), and the transcript's real per-entry
 timestamps are preserved. Subagent sub-transcript capture + chunk-doc
 reconstruction are the remaining TODOs (see #6/#7).

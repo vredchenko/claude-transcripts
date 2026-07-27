@@ -31,4 +31,4 @@ Re-run `gen:hooks` after changing the model's `BINDINGS` (in `@claude-transcript
 > (mid-flight chunking), `write-summary` (SessionEnd rollup + token usage → CouchDB
 > and S3), `upload-blobs` (transcript → S3). All CouchDB/S3 calls are wrapped so the
 > hook **never blocks a session**. Still open: full mid-flight chunking polish and
-> secrets masking (see docs/mid-flight-chunking.md, roadmap #4/#11).
+> secrets masking (see docs/design/mid-flight-chunking.md, roadmap #4/#11).

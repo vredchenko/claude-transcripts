@@ -1,5 +1,5 @@
 /**
- * Static docs builder — renders `docs/*.md` (+ `docs/decisions/*.md`) into a
+ * Static docs builder — renders `docs/*.md` (+ `docs/design/decisions/*.md`) into a
  * self-contained, theme-aware HTML site. Dependency-free on purpose: it uses only
  * Bun + Node built-ins so it needs no npm install (keeps CI's `--frozen-lockfile`
  * green) and produces fully offline output — the same output feeds both GitHub
@@ -8,13 +8,13 @@
  * The Markdown renderer is a deliberately small GFM subset (headings, paragraphs,
  * fenced/inline code, bold/italic, links, images, tables, blockquotes, nested
  * lists, hr). It is meant to be good enough for our docs and swappable for a full
- * SSG later — see docs/dev-automation.md.
+ * SSG later — see docs/develop/dev-automation.md.
  *
  * Usage: `bun run scripts/build-docs.ts [--out <dir>]`  (default: build/docs)
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 const DOCS_DIR = join(REPO_ROOT, "docs");
@@ -29,15 +29,69 @@ function parseOutDir(argv: string[]): string {
   return raw.startsWith("/") ? raw : join(REPO_ROOT, raw);
 }
 
+/**
+ * The published section order + labels. `dir` is a directory under `docs/`
+ * (empty string = the docs root, i.e. the overview page); `lead` names the files
+ * that should sort first within a section — everything else follows
+ * alphabetically. Adding a doc needs no change here; adding a *section* does.
+ */
+interface Section {
+  dir: string;
+  title: string;
+  /** Blurb rendered under the section heading on the docs index. */
+  blurb?: string;
+  lead?: string[];
+}
+
+const SECTIONS: Section[] = [
+  { dir: "", title: "Overview" },
+  {
+    dir: "start",
+    title: "Getting started",
+    blurb: "Install it, point it at your stores, and record your first session.",
+    lead: ["installation.md", "configuration.md", "hook-setup.md"],
+  },
+  {
+    dir: "develop",
+    title: "Development",
+    blurb: "Working on Claude Transcripts itself: setup, conventions, tests, automation.",
+    lead: ["getting-started.md", "development.md"],
+  },
+  {
+    dir: "operate",
+    title: "Operations",
+    blurb: "Running and shipping it: releases, containers, migrations, logs.",
+    lead: ["releasing.md", "containers.md"],
+  },
+  {
+    dir: "reference",
+    title: "Reference",
+    blurb: "Per-component and per-surface detail — the codebase as documented.",
+    lead: ["webapi.md", "webui.md", "cli.md"],
+  },
+  {
+    dir: "design",
+    title: "Design & specification",
+    blurb: "What the system is meant to be, and the reasoning behind it.",
+    lead: ["specification.md", "architecture.md", "tiers.md", "roadmap.md"],
+  },
+  {
+    dir: "design/decisions",
+    title: "Decisions (ADRs)",
+    blurb: "One record per architectural decision, in the order they were taken.",
+  },
+];
+
 interface Page {
   /** Absolute source path. */
   src: string;
-  /** Output path relative to the out dir, e.g. "tiers.html" or "decisions/0001.html". */
+  /** Output path relative to the out dir, e.g. "design/tiers.html". */
   outRel: string;
-  /** Nesting depth of the output file (0 = root, 1 = decisions/). */
+  /** Nesting depth of the output file (0 = root, 1 = start/, 2 = design/decisions/). */
   depth: number;
   title: string;
-  group: "Docs" | "Decisions";
+  /** Section title this page is grouped under in the nav. */
+  group: string;
 }
 
 function stripInlineMarkers(s: string): string {
@@ -60,42 +114,46 @@ function titleCaseFromSlug(slug: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * Order files: a section's own README (its index) first, then the section's
+ * `lead` list, then everything else alphabetically.
+ */
+function orderFiles(files: string[], lead: string[] = []): string[] {
+  const rank = (f: string) => {
+    if (f === "README.md") return -1;
+    const i = lead.indexOf(f);
+    return i === -1 ? lead.length : i;
+  };
+  return [...files].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
 function collectPages(): Page[] {
   const pages: Page[] = [];
-  const top = readdirSync(DOCS_DIR)
-    .filter((f) => f.endsWith(".md"))
-    .sort();
 
-  for (const file of top) {
-    const src = join(DOCS_DIR, file);
-    const md = readFileSync(src, "utf8");
-    if (file === "README.md") {
-      pages.push({ src, outRel: "index.html", depth: 0, title: "Overview", group: "Docs" });
-    } else {
-      pages.push({
-        src,
-        outRel: `${file.replace(/\.md$/, "")}.html`,
-        depth: 0,
-        title: extractTitle(md, titleCaseFromSlug(file)),
-        group: "Docs",
-      });
-    }
-  }
+  for (const section of SECTIONS) {
+    const dir = section.dir ? join(DOCS_DIR, section.dir) : DOCS_DIR;
+    if (!existsSync(dir)) continue;
+    const files = orderFiles(
+      readdirSync(dir).filter((f) => f.endsWith(".md")),
+      section.lead,
+    );
 
-  const decisionsDir = join(DOCS_DIR, "decisions");
-  if (existsSync(decisionsDir)) {
-    const decisions = readdirSync(decisionsDir)
-      .filter((f) => f.endsWith(".md") && f !== "README.md")
-      .sort();
-    for (const file of decisions) {
-      const src = join(decisionsDir, file);
+    for (const file of files) {
+      const src = join(dir, file);
       const md = readFileSync(src, "utf8");
+      // Any README.md is its directory's index page — the docs root's becomes the
+      // site index, a section's becomes that section's (e.g. the ADR index).
+      // rewriteLink maps `README.md` links onto the same `index.html`.
+      const isIndex = file === "README.md";
+      const stem = isIndex ? "index" : file.replace(/\.md$/, "");
+      const outRel = section.dir ? `${section.dir}/${stem}.html` : `${stem}.html`;
       pages.push({
         src,
-        outRel: `decisions/${file.replace(/\.md$/, "")}.html`,
-        depth: 1,
-        title: extractTitle(md, titleCaseFromSlug(file)),
-        group: "Decisions",
+        outRel,
+        depth: outRel.split("/").length - 1,
+        title:
+          section.dir === "" && isIndex ? "Overview" : extractTitle(md, titleCaseFromSlug(file)),
+        group: section.title,
       });
     }
   }
@@ -117,12 +175,42 @@ function slugify(text: string): string {
     .replace(/\s+/g, "-");
 }
 
-/** Rewrite a relative `*.md` link (with optional #anchor) to its `.html` output. */
+/** Blob root for links that point at repo files rather than docs pages. */
+const GITHUB_BLOB = "https://github.com/vredchenko/claude-transcripts/blob/main";
+
+/**
+ * Directory (relative to `docs/`) of the page currently being rendered, and the
+ * broken links found so far. Module-level because the renderer is a synchronous
+ * pipeline of pure string functions — threading a context object through every
+ * inline/block helper would cost more than it buys.
+ */
+let currentDir = "";
+const brokenLinks: string[] = [];
+
+/**
+ * Rewrite a relative link for the published site:
+ *  - `*.md` inside docs/ → the corresponding `.html` (existence-checked)
+ *  - anything that escapes docs/ (`../../config/…`) → a GitHub blob URL, since
+ *    the published site contains only the docs tree
+ */
 function rewriteLink(href: string): string {
   if (/^[a-z]+:/i.test(href) || href.startsWith("#") || href.startsWith("//")) return href;
   const [path, anchor] = href.split("#");
+  if (!path) return href;
+
+  // Resolve against the page's own directory to see where it lands.
+  const resolved = normalize(join(currentDir, path));
+  if (resolved.startsWith("..")) {
+    const repoPath = resolved.replace(/^(\.\.\/)+/, "");
+    return `${GITHUB_BLOB}/${repoPath}`;
+  }
+
   if (!path.endsWith(".md")) return href;
-  const html = path.replace(/\.md$/, ".html");
+  if (!existsSync(join(DOCS_DIR, resolved))) {
+    brokenLinks.push(`${currentDir || "."}: ${href}`);
+  }
+  // A directory's README.md is published as its index.html.
+  const html = path.replace(/(^|\/)README\.md$/, "$1index.md").replace(/\.md$/, ".html");
   return anchor ? `${html}#${anchor}` : html;
 }
 
@@ -328,20 +416,49 @@ const MARK_SVG = [
   '<rect x="7" y="20.7" width="9" height="2.8" rx="1.4" fill="#fff" fill-opacity="0.96"/></svg>',
 ].join("");
 
+/** `../` repeated to climb from a page back to the docs root. */
+function upToRoot(depth: number): string {
+  return "../".repeat(depth);
+}
+
 function buildNav(pages: Page[], current: Page): string {
-  const prefix = current.depth === 1 ? "../" : "";
-  const groups: Page["group"][] = ["Docs", "Decisions"];
+  const prefix = upToRoot(current.depth);
   const parts: string[] = [];
-  for (const group of groups) {
-    const inGroup = pages.filter((p) => p.group === group);
+  for (const section of SECTIONS) {
+    const inGroup = pages.filter((p) => p.group === section.title);
     if (inGroup.length === 0) continue;
-    parts.push(`<div class="nav-group">${group}</div>`);
+    // The docs root holds only the index — it needs no group heading of its own.
+    if (section.dir !== "") parts.push(`<div class="nav-group">${escapeHtml(section.title)}</div>`);
     for (const p of inGroup) {
       const active = p.outRel === current.outRel ? ' class="active"' : "";
       parts.push(`<a href="${prefix}${p.outRel}"${active}>${escapeHtml(p.title)}</a>`);
     }
   }
   return parts.join("\n");
+}
+
+/**
+ * The index page's section directory: every published page, grouped, with each
+ * section's blurb. Generated so it can never drift from what actually shipped —
+ * `docs/README.md` stays a short intro and doesn't restate the file list.
+ */
+function buildIndexSections(pages: Page[]): string {
+  const parts: string[] = ['<div class="sections">'];
+  for (const section of SECTIONS) {
+    if (section.dir === "") continue;
+    const inGroup = pages.filter((p) => p.group === section.title);
+    if (inGroup.length === 0) continue;
+    parts.push('<section class="section-card">');
+    parts.push(`<h2 id="${slugify(section.title)}">${escapeHtml(section.title)}</h2>`);
+    if (section.blurb) parts.push(`<p class="blurb">${escapeHtml(section.blurb)}</p>`);
+    parts.push("<ul>");
+    for (const p of inGroup) {
+      parts.push(`<li><a href="${p.outRel}">${escapeHtml(p.title)}</a></li>`);
+    }
+    parts.push("</ul></section>");
+  }
+  parts.push("</div>");
+  return parts.join("");
 }
 
 /**
@@ -359,7 +476,7 @@ const WIP_BANNER = [
 ].join("");
 
 function renderShell(page: Page, content: string, nav: string): string {
-  const prefix = page.depth === 1 ? "../" : "";
+  const prefix = upToRoot(page.depth);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -414,6 +531,12 @@ a{color:var(--clay-deep)}@media (prefers-color-scheme:dark){a{color:var(--clay)}
 .wip strong{color:var(--ink)}
 .wip-tag{display:inline-block;background:var(--clay);color:#fff;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-right:8px;vertical-align:1px}
 .content hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:2em 0}
+.section-card{background:var(--paper);border:1px solid var(--border);border-radius:10px;padding:4px 18px 16px}
+.section-card h2{margin-top:1em;font-size:17px;border:none;padding:0}
+.section-card .blurb{color:var(--muted);font-size:13.5px;margin:.3em 0 .7em}
+.section-card ul{margin:0;padding-left:18px}
+.section-card li{font-size:14px;margin:.18em 0}
 @media (max-width:800px){.layout{flex-direction:column}.sidebar{position:static;height:auto;flex-basis:auto;border-bottom:1px solid var(--border)}}
 `;
 
@@ -434,7 +557,12 @@ function main(): void {
 
   for (const page of pages) {
     const md = readFileSync(page.src, "utf8");
-    const content = renderMarkdown(md);
+    // Link rewriting resolves against the page's own directory (see rewriteLink).
+    currentDir = dirname(page.outRel) === "." ? "" : dirname(page.outRel);
+    const body = renderMarkdown(md);
+    // The site index gets the generated section directory appended, so the full
+    // page list is never hand-maintained.
+    const content = page.outRel === "index.html" ? body + buildIndexSections(pages) : body;
     const nav = buildNav(pages, page);
     const outPath = join(outDir, page.outRel);
     mkdirSync(dirname(outPath), { recursive: true });
@@ -442,6 +570,12 @@ function main(): void {
   }
 
   console.log(`Rendered ${pages.length} docs pages → ${outDir}`);
+
+  if (brokenLinks.length > 0) {
+    console.error(`\n${brokenLinks.length} broken internal doc link(s):`);
+    for (const b of brokenLinks) console.error(`  ${b}`);
+    process.exit(1);
+  }
 }
 
 main();

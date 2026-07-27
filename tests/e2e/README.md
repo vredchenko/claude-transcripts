@@ -4,7 +4,7 @@ Fakes a Claude Code session and drives the **whole write → store → read path
 through the real webapi gateway (ingest → CouchDB + S3, then the reader
 endpoints), asserting the session reads back with correct rollups, token usage,
 tool counts, status, and a full transcript round-trip. This is the Tier-1 → Tier-2
-gate ([../../docs/testing.md](../../docs/testing.md)).
+gate ([../../docs/develop/testing.md](../../docs/develop/testing.md)).
 
 - **`synth.ts`** — the session synthesizer. Builds a transcript JSONL plus the
   derived `summary` / `event` / `chunk` docs for one session, computing the
