@@ -17,13 +17,20 @@
 export const DEFAULT_COUCHDB_HOST = "127.0.0.1";
 export const DEFAULT_COUCHDB_PORT = "7652";
 
-/** The env vars this module reads (a subset of `process.env`). */
+/**
+ * The env vars this module reads (a subset of `process.env`).
+ *
+ * The index signature is load-bearing: without it every property is optional,
+ * which makes this a *weak type* that `process.env` can't be assigned to
+ * (TS2559 — no properties in common).
+ */
 export interface CouchEnv {
   COUCHDB_URL?: string;
   COUCHDB_HOST?: string;
   COUCHDB_PORT?: string;
   COUCHDB_USER?: string;
   COUCHDB_PASSWORD?: string;
+  [key: string]: string | undefined;
 }
 
 /** Drop trailing slashes so callers can always append `/<db>`. */
