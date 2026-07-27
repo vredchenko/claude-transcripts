@@ -26,6 +26,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { resolveCouchUrl } from "@claude-transcripts/shared";
 import { parseFlags } from "../lib/args";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
@@ -53,7 +54,7 @@ function buildHookConfig(cfg: RepoConfig) {
   const env = process.env;
   const couchUser = env.COUCHDB_USER;
   const couch = {
-    url: `http://${env.COUCHDB_HOST ?? "127.0.0.1"}:${env.COUCHDB_PORT ?? "7652"}`,
+    url: resolveCouchUrl(env),
     databases: cfg.couchdb.databases,
     ...(couchUser ? { auth: `${couchUser}:${env.COUCHDB_PASSWORD ?? ""}` } : {}),
   };

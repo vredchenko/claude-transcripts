@@ -11,7 +11,11 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type AppConfigFile, DEFAULT_IDLE_THRESHOLD_MS } from "@claude-transcripts/shared";
+import {
+  type AppConfigFile,
+  DEFAULT_IDLE_THRESHOLD_MS,
+  resolveCouchUrl,
+} from "@claude-transcripts/shared";
 
 const env = process.env;
 
@@ -37,8 +41,8 @@ export interface Config {
     version: string;
   };
   couchdb: {
-    host: string;
-    port: number;
+    /** Base URL, credential-free (from `COUCHDB_URL`, else `COUCHDB_HOST`/`PORT`). */
+    url: string;
     user?: string;
     password?: string;
     /** logical key → database name */
@@ -80,8 +84,7 @@ export function loadConfig(): Config {
       version: env.CT_VERSION ?? "0.0.0-dev",
     },
     couchdb: {
-      host: env.COUCHDB_HOST ?? "127.0.0.1",
-      port: Number(env.COUCHDB_PORT ?? 7652),
+      url: resolveCouchUrl(env),
       user: env.COUCHDB_USER || undefined,
       password: env.COUCHDB_PASSWORD || undefined,
       databases: { ...appConfig.couchdb.databases },

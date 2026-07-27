@@ -64,11 +64,13 @@ derived search index):
     (`MEILI_HOST` + `MEILI_API_KEY`), so a remote or hosted instance is fine. It's
     also fully optional: `features.meilisearch: false` simply drops the search
     index.
-  - **CouchDB — the current gap.** It's addressed as `COUCHDB_HOST` +
-    `COUCHDB_PORT` (with `COUCHDB_USER` / `COUCHDB_PASSWORD`), and the URL is built
-    as plain `http://`. A CouchDB reachable over HTTP on a trusted network works;
-    **HTTPS, a non-root path prefix, or a managed provider do not yet** — that's the
-    piece to finish before external deployments are real.
+  - **CouchDB — external-capable.** Set `COUCHDB_URL` to the full base URL (plus
+    `COUCHDB_USER` / `COUCHDB_PASSWORD`); HTTPS and a path prefix are both
+    accepted, e.g. `https://couch.example.com/couchdb`. It wins over
+    `COUCHDB_HOST` / `COUCHDB_PORT`, which stay as the bundled-stack shorthand.
+
+  The plumbing is there for all three, but **no external deployment has been
+  exercised end to end** — hence the TODO.
 
   See [backend topology](docs/configuration.md#backend-topology--bundled-or-external)
   in the configuration docs.

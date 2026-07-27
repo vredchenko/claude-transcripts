@@ -121,7 +121,8 @@ The config is being formalised into clearly-separated sections. **Target shape**
 
 See [`.env.example`](../.env.example) (root, for the webapi/dev) and
 [`deploy/.env.example`](../deploy/.env.example) (for the bundled stack). The
-secret/endpoint variables are: `COUCHDB_HOST/PORT/USER/PASSWORD/DB`,
+secret/endpoint variables are: `COUCHDB_URL` (full base URL — wins over
+`COUCHDB_HOST/PORT`), `COUCHDB_HOST/PORT/USER/PASSWORD/DB`,
 `S3_ENDPOINT/REGION/ACCESS_KEY/SECRET_KEY/BUCKET`, and the webapi/webui
 host/port settings.
 
@@ -139,7 +140,19 @@ same image runs in two topologies ([containers.md](containers.md)):
   [ADR 0020](decisions/0020-bundled-services-default-no-auth.md).
 - **External** — run the app container alone with env pointing at remote services
   (e.g. managed CouchDB + **Cloudflare R2** + a hosted Meilisearch). Nothing in
-  the image assumes localhost; S3 is reached vendor-neutrally via `S3_*`.
+  the image assumes localhost: each backend is addressed by a full URL —
+  `COUCHDB_URL` (with `COUCHDB_USER`/`COUCHDB_PASSWORD`), `S3_ENDPOINT` +
+  `S3_*` keys, `MEILI_HOST` + `MEILI_API_KEY` — so HTTPS and a path prefix
+  (`https://couch.example.com/couchdb`) work for each. `COUCHDB_HOST`/`PORT`
+  remain as the bundled-stack shorthand and are ignored when `COUCHDB_URL` is set.
+  Resolution lives in one place (`resolveCouchUrl` in
+  `@claude-transcripts/shared`) so the webapi, CLI, and seed script agree.
+
+  **Not yet verified end to end** — the plumbing is in place, but no external
+  deployment has been exercised; expect rough edges (bucket + key creation is
+  manual, `bootstrap:garage` only targets the bundled Garage, and a CouchDB
+  **path prefix** depends on how the nano client joins the database name onto
+  the base URL — untested).
 
 ## Toggling optional components
 
