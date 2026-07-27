@@ -108,12 +108,28 @@ async function main() {
   if (hasRole) {
     console.log("[garage] layout already assigned — skipping");
   } else {
-    // UpdateClusterLayout stages role changes (array); ApplyClusterLayout commits at
+    // UpdateClusterLayout stages the role change; ApplyClusterLayout commits it at
     // the next version (a safety check against concurrent edits).
-    const assign = await api("POST", "/v2/UpdateClusterLayout", [
-      { id: nodeId, zone: ZONE, capacity: CAPACITY, tags: [] },
-    ]);
-    if (!assign.ok) fail("layout assign", assign);
+    //
+    // Body shape: Garage 2.3's OpenAPI spec (garage-admin-v2.json, `type:
+    // UpdateClusterLayoutRequest`) wants an OBJECT — `{roles: [...]}`. Earlier 2.x
+    // builds took the bare array inherited from the v1 `/v1/layout` endpoint. Try
+    // the documented shape, then fall back, so one script covers both; a rejected
+    // request stages nothing, so the retry is safe.
+    const roleChange = { id: nodeId, zone: ZONE, capacity: CAPACITY, tags: [] };
+    let assign = await api("POST", "/v2/UpdateClusterLayout", { roles: [roleChange] });
+    if (!assign.ok) {
+      const legacy = await api("POST", "/v2/UpdateClusterLayout", [roleChange]);
+      if (!legacy.ok) {
+        console.error(
+          `[garage] bare-array body also rejected (HTTP ${legacy.status}): ` +
+            `${JSON.stringify(legacy.json).slice(0, 200)}`,
+        );
+        fail("layout assign", assign);
+      }
+      console.log("[garage] layout staged via the legacy bare-array body");
+      assign = legacy;
+    }
     const apply = await api("POST", "/v2/ApplyClusterLayout", { version: version + 1 });
     if (!apply.ok) fail("layout apply", apply);
     console.log(`[garage] layout applied → v${version + 1}`);
