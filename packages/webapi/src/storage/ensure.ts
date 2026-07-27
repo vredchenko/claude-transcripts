@@ -13,7 +13,25 @@ import type { Config } from "../config";
 import type { CouchHandles } from "./couch";
 import { makeMigrationContext } from "./migrations";
 
+/**
+ * CouchDB 3's system databases. A fresh single node does NOT create them — that
+ * normally happens during cluster setup, which the bundled stack never runs — and
+ * their absence shows up later as internal errors. Creating them here keeps the
+ * bundled path self-sufficient; on a managed CouchDB they already exist (or the
+ * user lacks rights to make them), so failures are ignored.
+ */
+const SYSTEM_DBS = ["_users", "_replicator", "_global_changes"];
+
 export async function ensureCouchDbs(couch: CouchHandles, config: Config): Promise<void> {
+  for (const name of SYSTEM_DBS) {
+    try {
+      await couch.server.db.create(name);
+      console.log(`[couch] created system database ${name}`);
+    } catch {
+      // Already there, or not ours to create — neither is a problem.
+    }
+  }
+
   // Create every configured database (sessions, appLogs, …). Idempotent.
   for (const name of Object.values(config.couchdb.databases)) {
     try {

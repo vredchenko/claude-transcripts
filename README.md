@@ -93,9 +93,10 @@ bun install
 cp .env.template .env
 ```
 
-In `.env`: leave `IMAGE_NS` blank (we use public images) and leave
-`COUCHDB_USER`/`COUCHDB_PASSWORD` blank (the bundled stack has no auth). Generate
-Garage's internal cluster secrets and paste them in:
+In `.env`: leave `IMAGE_NS` blank (we use public images). `COUCHDB_USER` /
+`COUCHDB_PASSWORD` default to `admin`/`admin` — CouchDB 3 refuses to start
+without an admin, so the bundled stack ships one; change both if this box isn't
+just yours. Generate Garage's internal cluster secrets and paste them in:
 
 ```bash
 for k in GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN GARAGE_METRICS_TOKEN; do

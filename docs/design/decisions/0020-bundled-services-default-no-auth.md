@@ -4,7 +4,8 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted
+Accepted — **amended 2026-07-27**: CouchDB is a forced exception, see
+[Amendment](#amendment-couchdb-3-cannot-run-without-an-admin) below.
 
 ## Context
 
@@ -42,3 +43,33 @@ a **Tier 3** concern, introduced with the public/multiplayer release.
   `deploy/`.
 - Moving to external/exposed backends means turning auth **on** — that transition
   is part of the Tier-3 security work, not a silent default.
+
+## Amendment: CouchDB 3 cannot run without an admin
+
+*2026-07-27.* The decision above assumed CouchDB could run in "admin party" mode.
+It cannot: **CouchDB 3.0 removed it**, and the official image refuses to start
+without `COUCHDB_USER` / `COUCHDB_PASSWORD`, printing
+
+```
+ERROR: CouchDB 3.0+ will no longer run in "Admin Party" mode.
+```
+
+and crash-looping. This was not caught until the first end-to-end install, where
+it surfaced as an opaque `500` from the webapi — the store the whole system is
+built on had never started.
+
+The bundled stack therefore ships a **fixed default admin** (`admin` / `admin`,
+overridable in `.env`) instead of no auth. The spirit of the decision is kept —
+the operator still generates and manages nothing — but "no credential at all" is
+factually impossible here, so the honest description is: *the bundled stack
+supplies credentials the operator doesn't have to think about*, exactly as it
+already did for Garage's baked-in key.
+
+Two related consequences:
+
+- The webapi still treats empty credentials as valid (an external CouchDB may be
+  open), so this is a change to the **bundled default**, not to the code contract.
+- A fresh single node does not create the `_users` / `_replicator` /
+  `_global_changes` system databases — cluster setup normally does, and the
+  bundled stack never runs it. `ensureCouchDbs` now creates them, ignoring
+  failures for managed CouchDBs where they exist or aren't ours to create.
