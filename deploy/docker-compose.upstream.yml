@@ -23,4 +23,4 @@ services:
   meilisearch:
     image: getmeili/meilisearch:${MEILI_TAG:-v1.10}
   meilisearch-ui:
-    image: riccoxie/meilisearch-ui:${MEILI_UI_TAG:-latest}
+    image: riccoxie/meilisearch-ui:${MEILI_UI_TAG:-v0.14.1}

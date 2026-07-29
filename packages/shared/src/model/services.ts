@@ -122,7 +122,9 @@ export const SERVICES: ServiceDef[] = [
     image: {
       name: "meilisearch-ui",
       tagEnv: "MEILI_UI_TAG",
-      defaultTag: "latest",
+      // Pinned like every other backing image: `latest` would make the mirrored
+      // copy — and so the stack — irreproducible from one release to the next.
+      defaultTag: "v0.14.1",
       upstream: "riccoxie/meilisearch-ui",
     },
     ports: [{ internal: 24900, hostEnv: "MEILI_UI_PORT", defaultHost: 7657 }],

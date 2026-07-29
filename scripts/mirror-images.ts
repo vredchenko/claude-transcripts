@@ -6,33 +6,33 @@
  *
  *   IMAGE_NS=<registry>/<org> bun run scripts/mirror-images.ts
  *
+ * The image list is a PROJECTION of the app model (toMirrorPlan) — the model's
+ * SERVICES is the one place image names and tags are declared, so this script can't
+ * drift from what the compose stack actually pulls. Add a backing service there.
+ *
  * (The app image — claude-transcripts-app — is built + published by the
- * publish-image workflow, not here.)
+ * publish-image workflow, not here: it has no `upstream`, so it isn't in the plan.)
  */
+import { join } from "node:path";
+import { buildAppModel, toMirrorPlan } from "@claude-transcripts/shared";
 import { $ } from "bun";
+import { loadConfigFile } from "./lib/config-file";
 
 const NS = process.env.IMAGE_NS; // e.g. ghcr.io/OWNER
 
-// [ upstream image, destination name:tag ] — keep in lockstep with the tags in
-// deploy/docker-compose.yml / .env.template.
-const IMAGES: Array<[string, string]> = [
-  ["couchdb:3", "claude-transcripts-couchdb:3"],
-  ["dxflrs/garage:v2.3.0", "claude-transcripts-garage:v2.3.0"],
-  ["khairul169/garage-webui:1.1.0", "claude-transcripts-garage-ui:1.1.0"],
-  ["getmeili/meilisearch:v1.10", "claude-transcripts-meilisearch:v1.10"],
-  ["riccox/meilisearch-ui:latest", "claude-transcripts-meilisearch-ui:latest"],
-];
+const ROOT = join(import.meta.dir, "..");
+const IMAGES = toMirrorPlan(buildAppModel(loadConfigFile(ROOT), process.env));
 
 async function main() {
   if (!NS) throw new Error("IMAGE_NS is required (e.g. ghcr.io/OWNER)");
-  for (const [upstream, dest] of IMAGES) {
+  for (const { upstream, dest } of IMAGES) {
     const target = `${NS}/${dest}`;
     console.log(`[mirror] ${upstream} → ${target}`);
     await $`docker pull ${upstream}`;
     await $`docker tag ${upstream} ${target}`;
     await $`docker push ${target}`;
   }
-  console.log("[mirror] done");
+  console.log(`[mirror] done — ${IMAGES.length} image(s)`);
 }
 
 await main();

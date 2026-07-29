@@ -93,7 +93,7 @@ services:
     networks: [claude-transcripts]
 
   meilisearch-ui:
-    image: ${IMAGE_NS}/claude-transcripts-meilisearch-ui:${MEILI_UI_TAG:-latest}
+    image: ${IMAGE_NS}/claude-transcripts-meilisearch-ui:${MEILI_UI_TAG:-v0.14.1}
     container_name: claude-transcripts-meilisearch-ui
     depends_on: [meilisearch]
     ports:
