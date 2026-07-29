@@ -99,6 +99,25 @@ export function toComposeOverrideObject(model: AppModel) {
   return { name: "claude-transcripts", services };
 }
 
+/**
+ * Project the **image-mirror plan**: for every service we merely mirror (has
+ * `image.upstream`), the pinned upstream reference and the `claude-transcripts-*`
+ * name it is republished under (ADR 0024). The mirror script iterates this instead
+ * of keeping its own copy of the image list — the model is the one place image
+ * names and tags are declared, so the two can't drift.
+ */
+export function toMirrorPlan(model: AppModel): Array<{ upstream: string; dest: string }> {
+  const plan: Array<{ upstream: string; dest: string }> = [];
+  for (const s of model.services) {
+    if (!s.image?.upstream) continue;
+    plan.push({
+      upstream: `${s.image.upstream}:${s.image.defaultTag}`,
+      dest: `claude-transcripts-${s.image.name}:${s.image.defaultTag}`,
+    });
+  }
+  return plan;
+}
+
 // ── Hook events doc projection ───────────────────────────────────────────────
 
 /** Base URL of the official Claude Code hooks reference. */

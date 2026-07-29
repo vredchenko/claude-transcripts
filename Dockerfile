@@ -17,6 +17,16 @@ COPY packages ./packages
 # so this skips nothing else.
 RUN bun install --frozen-lockfile --ignore-scripts || bun install --ignore-scripts
 
+# ── prod-deps: the same install WITHOUT devDependencies, for the runtime stage ─
+# The build stages need vite/esbuild/typescript; the runtime needs none of them.
+# Shipping them would put the whole dev toolchain's vulnerability surface into the
+# published image (esbuild's Go runtime, biome, orval, …) — which the release gate
+# (grype/trivy, fail on HIGH) rightly counts against us.
+FROM deps AS prod-deps
+RUN rm -rf node_modules \
+  && (bun install --frozen-lockfile --production --ignore-scripts \
+      || bun install --production --ignore-scripts)
+
 # ── build-webui: the React SPA → packages/webui/dist ────────────────────────
 FROM deps AS build-webui
 RUN bun run build
@@ -35,7 +45,16 @@ RUN bun build --compile packages/cli/src/cli.tsx --outfile /out/claude-transcrip
 # ── runtime: compose the built artifacts into a slim image ──────────────────
 FROM oven/bun:1 AS runtime
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Patch the base OS packages. The published base image lags behind Debian security
+# updates by however long since its last rebuild, and those CVEs are counted against
+# this image by the release gate (grype/trivy, fail on HIGH) — so patch rather than
+# waiting on an upstream rebuild. Runs as root, which is the base image's default.
+RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+# Runtime dependencies only — no dev toolchain (see the prod-deps stage).
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY config ./config
 # Prebuilt webui SPA (served at /app) + rendered docs (served at /docs).

@@ -22,6 +22,10 @@ jobs:
         with:
           bun-version: latest
 
+      # The script projects its image list from the app model, so the workspace
+      # has to be resolvable (@claude-transcripts/shared).
+      - run: bun install --frozen-lockfile
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:

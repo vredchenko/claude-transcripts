@@ -89,6 +89,23 @@ together, but the surface is still moving.
   to verify).
 - Public landing page + technical docs published to GitHub Pages.
 
+### Fixed
+
+Found by dry-running the three tag-triggered workflows before cutting the tag — none
+of them had ever executed:
+
+- **Image mirroring pulled a nonexistent image.** `scripts/mirror-images.ts` kept its
+  own hardcoded copy of the image list, in which the Meilisearch UI was
+  `riccox/meilisearch-ui` — the account is `riccoxie`. The app model had it right all
+  along, so the script now projects the list from the model (`toMirrorPlan`) and the
+  two can no longer drift. The UI image is also pinned (`v0.14.1`) like every other
+  backing image instead of floating on `latest`.
+- **The published image carried the whole dev toolchain.** The runtime stage copied
+  the full `node_modules`, so vite/esbuild/biome/orval and their vulnerabilities
+  shipped to users and tripped the release's own HIGH-severity gate. The runtime now
+  installs production dependencies only, and patches the base image's OS packages —
+  the published base lags behind Debian security updates between rebuilds.
+
 ### Known limitations
 
 - **Tier 1 scope**: no authentication or authorization anywhere — run it on
