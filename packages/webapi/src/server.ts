@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { apiReference } from "@scalar/hono-api-reference";
 import { serveStatic } from "hono/bun";
+import { dbName } from "./config";
 import type { AppContext } from "./context";
 import { ingestRoutes } from "./routes/ingest";
 import { manifestRoutes } from "./routes/manifest";
@@ -9,6 +10,35 @@ import { modelRoutes } from "./routes/model";
 import { proxyRoutes } from "./routes/proxy";
 import { searchRoutes } from "./routes/search";
 import { sessionRoutes } from "./routes/sessions";
+
+/** Store status for `/health`: is the sessions database actually there, now? */
+async function checkCouch(ctx: AppContext) {
+  const database = dbName(ctx.config, "sessions");
+  const base = {
+    database,
+    // Boot-time provisioning (databases + migrations) is separate from
+    // reachability: CouchDB may have come up after we did.
+    provisioned: ctx.boot.couchProvisioned,
+    ...(ctx.boot.error ? { provisioningError: ctx.boot.error } : {}),
+  };
+  try {
+    const res = await fetch(`${ctx.couch.url}/${encodeURIComponent(database)}`, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(2000),
+    });
+    if (res.ok) return { ok: true, ...base };
+    const why =
+      res.status === 404
+        ? `database "${database}" does not exist`
+        : res.status === 401
+          ? "CouchDB rejected the credentials"
+          : `CouchDB returned ${res.status}`;
+    return { ok: false, ...base, error: why };
+  } catch (err) {
+    // Never surface ctx.couch.url — it carries credentials.
+    return { ok: false, ...base, error: `CouchDB unreachable: ${(err as Error).message}` };
+  }
+}
 
 export function buildServer(ctx: AppContext) {
   const app = new OpenAPIHono();
@@ -28,9 +58,26 @@ export function buildServer(ctx: AppContext) {
     );
   });
 
-  app.get("/health", (c) =>
-    c.json({ ok: true, status: "ok", version: ctx.model.identity.version }),
-  );
+  /**
+   * Liveness + store readiness.
+   *
+   * Always HTTP 200 while the process is alive — "can I reach the webapi" and
+   * "are its stores usable" are different questions, and callers (tests, the
+   * CLI, container probes) rely on the first. The body answers the second:
+   * `ok: false` / `status: "degraded"` when the sessions database can't be
+   * reached, with the reason. Without this, a webapi whose provisioning failed
+   * reports "ok" and only reveals the truth as a 500 on the first write.
+   */
+  app.get("/health", async (c) => {
+    const couch = await checkCouch(ctx);
+    return c.json({
+      ok: couch.ok,
+      status: couch.ok ? "ok" : "degraded",
+      version: ctx.model.identity.version,
+      startedAt: ctx.boot.startedAt,
+      stores: { couch },
+    });
+  });
 
   // App API (OpenAPI-typed) + curated ingest writes + read-only proxies + model
   // introspection, under /api.
