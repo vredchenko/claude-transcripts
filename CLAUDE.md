@@ -29,8 +29,11 @@ or host-specific tooling in code/config/docs.
   `typecheck`, no `docker`/`docker compose`. This is a live homeserver and local
   runs can interfere with running services. Write code carefully enough that it
   would pass `lint`/`typecheck`/`build` without running them.
-- **Git: not set up yet** (owner is handling repo creation) — don't `git init`,
-  commit, or push unless asked.
+- **Git is live** — `origin` is `github.com:vredchenko/claude-transcripts`. Commit and
+  push only when asked; work on a `feat/*` / `fix/*` / `chore/*` branch and merge via
+  PR (**rebase only** — the repo has merge- and squash-commits disabled). Since local
+  runs are off-limits, **CI is the verification step**: let `ci.yml` go green on the PR
+  before merging.
 - Read-only inspection is always fine.
 
 ## Repo structure

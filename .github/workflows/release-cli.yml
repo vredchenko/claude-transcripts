@@ -67,8 +67,17 @@ jobs:
             --no-git-tag-version --allow-same-version
           bun run scripts/build-cli-npm.ts
 
+      # npm is the one artifact needing a secret. Until NPM_TOKEN is configured
+      # (docs/operate/releasing.md → one-time setup), skip it with a warning rather
+      # than failing the release — the binaries and images publish either way.
       - name: Publish to npm
         if: startsWith(github.ref, 'refs/tags/')
-        run: npm publish --workspace @claude-transcripts/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::warning title=npm publish skipped::NPM_TOKEN is not configured; see docs/operate/releasing.md"
+            exit 0
+          fi
+          npm publish --workspace @claude-transcripts/cli
