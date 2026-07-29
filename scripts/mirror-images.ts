@@ -14,8 +14,13 @@
  * publish-image workflow, not here: it has no `upstream`, so it isn't in the plan.)
  */
 import { join } from "node:path";
-import { buildAppModel, toMirrorPlan } from "@claude-transcripts/shared";
 import { $ } from "bun";
+// Imported by path, not by package name: `bun install` links workspace packages into
+// the *packages* that depend on them, not the repo root, so `@claude-transcripts/shared`
+// doesn't resolve from scripts/ in a bare CI checkout. Unlike its siblings here, this
+// script runs in CI (mirror-images.yml), so it can't rely on a dev's node_modules.
+// shared/ is dependency-free, so importing the source directly costs nothing.
+import { buildAppModel, toMirrorPlan } from "../packages/shared/src/index";
 import { loadConfigFile } from "./lib/config-file";
 
 const NS = process.env.IMAGE_NS; // e.g. ghcr.io/OWNER
