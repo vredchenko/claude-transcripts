@@ -23,7 +23,7 @@ truth for the behaviour, no drift between local and CI.
 | **regenerate-api-clients** | Generate the typed API clients from the **latest OpenAPI spec** into **both** the CLI and the webui SPA | **orval**; the first one we build. [ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md) |
 | **regenerate-compatibility** | Regenerate `compatibility.json` from the external Claude Code source of truth | [compatibility.md](../start/compatibility.md) |
 | **mirror-images** | Pull the pinned third-party backing-service images and push them to the **GitHub Container Registry (GHCR)** | [ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md), [containers.md](../operate/containers.md) |
-| **release** | Version all components together (semver) and build the combined image | [ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md) |
+| **release** | Stamp one lockstep semver across every component manifest (`--check` verifies without writing); CI does the building on the tag | [ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md), [releasing.md](../operate/releasing.md) |
 | **build-docs** | Render `docs/*.md` (+ `decisions/`) into a self-contained static HTML site | see below; feeds GitHub Pages `/docs` and the combined image |
 | **migrate** *(via cli, not here)* | Schema/view migrations | lives in [cli/](../operate/tools.md), not `scripts/` |
 

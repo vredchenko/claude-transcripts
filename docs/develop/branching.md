@@ -3,11 +3,11 @@
 > Effective now. The old "commit straight to `main`" guidance is retired in
 > favour of the feature-branch → PR flow below.
 
-> **Note: the repo has no git remote yet** (the owner handles repo creation
-> later, so this is currently a **local-only** repository). The branch model below
-> applies once the repo gets its remote on GitHub; until then `main` and any
-> `feat/*` branches exist as local branches and the "push / open a PR" steps take
-> effect after the remote is added.
+The repo lives on GitHub at
+[`vredchenko/claude-transcripts`](https://github.com/vredchenko/claude-transcripts),
+so the whole flow below — push, PR, CI gate, merge — is live. **Rebase is the only
+merge strategy enabled** on the repo, which keeps `main` linear; put the PR/issue
+reference in the branch commit message, since rebase appends no `(#N)` suffix.
 
 ## Branches
 

@@ -1,7 +1,8 @@
 # Releasing & publishing
 
 Everything is **lockstep-versioned** (ADR 0023): one `vMAJOR.MINOR.PATCH` git tag
-drives every published artifact. Push the tag and CI does the rest.
+drives every published artifact. Push the tag and CI does the rest. What each release
+contained is recorded in [`CHANGELOG.md`](../../CHANGELOG.md).
 
 ## What a `vX.Y.Z` tag publishes
 
@@ -10,7 +11,7 @@ drives every published artifact. Push the tag and CI does the rest.
 | **App image** (`claude-transcripts-app` — webapi + webui SPA + docs + bundled CLI) | GHCR: `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | **Mirrored backing images** (CouchDB, Garage, Meilisearch + admin UIs) | GHCR: `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) (also on-demand) |
 | **CLI binaries** (Linux + macOS, x64 + arm64) + SHA-256 sums | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
-| **CLI on npm** (`@claude-transcripts/cli`, a bun-runnable bundle) | npmjs.org | `release-cli.yml` |
+| **CLI on npm** (`@claude-transcripts/cli`, a bun-runnable bundle) | npmjs.org | `release-cli.yml` — **skipped with a warning until `NPM_TOKEN` is set** (below) |
 
 The CLI needs **bun** at runtime (it uses Bun APIs). So: the **compiled binaries** are
 the zero-dependency option (`curl` the one for your platform from the Release); the
@@ -20,10 +21,15 @@ with bun on `PATH`).
 ## Cutting a release
 
 ```bash
-# bump versions (lockstep) and tag — scripts/release.ts automates the bump
-git tag v0.1.0
-git push origin v0.1.0
+bun run scripts/release.ts 0.1.0   # stamp the lockstep version into every manifest
+git commit -am "chore(release): 0.1.0" && git push   # via a PR, per branching.md
+git tag v0.1.0 && git push origin v0.1.0             # from main, once merged
 ```
+
+`scripts/release.ts <semver>` stamps the version into the root `package.json`, each
+`packages/*/package.json`, and the hook's `.claude-plugin/plugin.json` (ADR 0023);
+`--check` verifies they all match without writing. The tag is what CI reacts to — the
+stamped manifests just keep the tree honest about which release it is.
 
 CI then builds + publishes all of the above. A **manual** `release-cli` /
 `mirror-images` dispatch (Actions tab → Run workflow) is available for testing —
