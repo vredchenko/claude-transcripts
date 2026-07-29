@@ -58,13 +58,22 @@ jobs:
 
       - name: Build the npm bundle
         if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
           set -euo pipefail
-          # The bundle is self-contained (deps inlined by bun), so the published
-          # package carries no runtime dependencies (drops the workspace: protocol).
-          npm pkg delete dependencies --workspace @claude-transcripts/cli
-          npm --workspace @claude-transcripts/cli version "${{ steps.v.outputs.version }}" \
-            --no-git-tag-version --allow-same-version
+          # Stamp the version and drop `dependencies` from the manifest we publish:
+          # the bundle is self-contained (bun inlines every dependency), and npm can't
+          # parse this monorepo's `workspace:` protocol — it fails EUNSUPPORTEDPROTOCOL.
+          #
+          # Edited with jq rather than `npm version`/`npm pkg`, because those reify the
+          # whole workspace and hit that same protocol error on the OTHER packages,
+          # which still legitimately declare `workspace:*`. This mutation is CI-local
+          # and never committed. node_modules is already installed, so removing the
+          # declaration doesn't affect how the bundle resolves imports.
+          jq --arg v "$VERSION" '.version = $v | del(.dependencies)' \
+            packages/cli/package.json > /tmp/cli-package.json
+          mv /tmp/cli-package.json packages/cli/package.json
           bun run scripts/build-cli-npm.ts
 
       # npm is the one artifact needing a secret. Until NPM_TOKEN is configured
@@ -80,4 +89,6 @@ jobs:
             echo "::warning title=npm publish skipped::NPM_TOKEN is not configured; see docs/operate/releasing.md"
             exit 0
           fi
-          npm publish --workspace @claude-transcripts/cli
+          # From the package directory, not `--workspace`: the latter pulls npm into
+          # workspace-wide resolution and the `workspace:` protocol it can't read.
+          cd packages/cli && npm publish
