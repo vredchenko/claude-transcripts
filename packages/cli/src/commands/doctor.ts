@@ -82,6 +82,29 @@ function eq(name: string, got: unknown, want: unknown): Check {
   };
 }
 
+interface HealthResponse {
+  ok?: boolean;
+  version?: string;
+  startedAt?: string;
+  stores?: { couch?: { ok?: boolean; error?: string; provisioningError?: string } };
+}
+
+/** GET /health, tolerating an older server that predates the stores field. */
+async function probeHealth(): Promise<HealthResponse | undefined> {
+  try {
+    const res = await fetch(`${webapiUrl()}/health`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return undefined;
+    return (await res.json()) as HealthResponse;
+  } catch {
+    return undefined; // unreachable — the write below reports it with more context
+  }
+}
+
+/** " (up since <time>)" when the server reports its start time. */
+function startedSuffix(health: HealthResponse): string {
+  return health.startedAt ? ` (up since ${health.startedAt})` : "";
+}
+
 export async function runDoctor(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const sink = makeSink({ dryRun: false, webapiUrl: strOpt(options, "webapi") });
@@ -92,6 +115,27 @@ export async function runDoctor(argv: string[]): Promise<number> {
   const ts = new Date().toISOString();
 
   console.log(`doctor: smoke-testing ${sink.label}`);
+
+  // Identify the server BEFORE writing to it. A stale container left listening on
+  // the port answers happily and looks like the code you just changed; and if its
+  // stores are missing, saying so here beats an opaque failure mid-write.
+  const health = await probeHealth();
+  if (health) {
+    console.log(`doctor: webapi version ${health.version}${startedSuffix(health)}`);
+    const couch = health.stores?.couch;
+    if (couch && !couch.ok) {
+      console.error(`doctor: STORE NOT READY — ${couch.error ?? "CouchDB unavailable"}`);
+      if (couch.provisioningError) {
+        console.error(`doctor: boot-time provisioning failed — ${couch.provisioningError}`);
+      }
+      console.error(
+        "doctor: fix the store first (is CouchDB up? do the credentials match?), " +
+          "then restart the webapi so it can create the databases.",
+      );
+      return 1;
+    }
+  }
+
   console.log(`doctor: synthetic session ${sessionId}`);
 
   const jsonl = buildTranscript(sessionId, cwd, ts);

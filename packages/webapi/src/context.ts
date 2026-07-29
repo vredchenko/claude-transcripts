@@ -4,6 +4,21 @@ import type { BlobStore } from "./storage/blob-store";
 import type { CouchHandles } from "./storage/couch";
 import type { Meili } from "./storage/meili";
 
+/**
+ * Outcome of boot-time provisioning. Startup deliberately never blocks on the
+ * stores (the app must come up so you can see *why* it is unhappy), so this
+ * records what happened for `/health` to report — otherwise a webapi with no
+ * databases looks identical to a healthy one until the first write fails.
+ */
+export interface BootStatus {
+  /** ISO timestamp of process start. */
+  startedAt: string;
+  /** Did `ensureCouchDbs` (databases + migrations) complete? */
+  couchProvisioned: boolean;
+  /** Why it didn't, when it didn't. */
+  error?: string;
+}
+
 /** Everything the route handlers need. Built once at boot in index.ts. */
 export interface AppContext {
   config: Config;
@@ -13,4 +28,6 @@ export interface AppContext {
   meili: Meili;
   /** the isomorphic app model (central state) — served at `/`, used by routes */
   model: AppModel;
+  /** what boot-time store provisioning did — reported by `/health` */
+  boot: BootStatus;
 }

@@ -61,13 +61,33 @@ from the same definitions (no hand-written spec).
 
 | Method | Path | Query | Returns |
 |--------|------|-------|---------|
-| `GET` | `/health` | — | `{ ok, status, version }` |
+| `GET` | `/health` | — | `{ ok, status, version, startedAt, stores }` — see below |
 | `GET` | `/api/claude/sessions` | `limit=50`, `skip=0` | `{ sessions: ClaudeSessionSummary[], totalCount }` |
 | `GET` | `/api/claude/sessions/{id}` | — | `ClaudeSessionSummary` (404 if absent) |
 | `GET` | `/api/claude/sessions/{id}/transcript` | `limit=100`, `offset=0` | `{ messages: object[], totalCount, hasMore }` |
 | `GET` | `/api/openapi.json` | — | OpenAPI 3.0 spec |
 | `GET` | `/api/doc` | — | Swagger UI |
 | `GET` | `/*` | — | SPA static + `index.html` fallback (**only when `CT_STATIC_DIR` is set**) |
+
+### Health and store readiness
+
+`/health` answers two questions that are easy to conflate:
+
+- **Is the process alive?** It always returns **HTTP 200** while it is. Callers
+  that only want liveness (the e2e suite, container probes) can keep using the
+  status code.
+- **Are its stores usable?** The body carries that: `ok: false` and
+  `status: "degraded"` when the sessions database can't be reached, with
+  `stores.couch.error` explaining why (missing database, rejected credentials,
+  unreachable server) and `stores.couch.provisioned` reporting whether boot-time
+  provisioning — database creation plus [migrations](../operate/migrations.md) —
+  completed, with `provisioningError` when it didn't.
+
+Boot deliberately never blocks on the stores ([index.ts](../../packages/webapi/src/index.ts)):
+the webapi must come up so you can *see* what is wrong. That makes this
+distinction load-bearing — without it, a webapi with no databases is
+indistinguishable from a healthy one until the first write fails. `cli doctor`
+checks it before writing anything.
 
 ### List behaviour (running-session detection)
 
