@@ -22,8 +22,8 @@ jobs:
         with:
           bun-version: latest
 
-      # The script projects its image list from the app model, so the workspace
-      # has to be resolvable (@claude-transcripts/shared).
+      # The script itself needs no dependencies (it imports the dependency-free app
+      # model by path), but install anyway so it keeps working if that changes.
       - run: bun install --frozen-lockfile
 
       - name: Log in to GHCR
