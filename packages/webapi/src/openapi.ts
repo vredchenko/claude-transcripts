@@ -34,6 +34,15 @@ export function buildOpenApiDocument(): unknown {
   // buildServer sets model.apiSpec = app.getOpenAPIDocument(...) as a side effect.
   // A disabled Meili is enough — route registration never calls it.
   const meili = new Meili({ ...config.meili, enabled: false });
-  buildServer({ config, couch: makeCouch(config), blob: specBlob, meili, model });
+  buildServer({
+    config,
+    couch: makeCouch(config),
+    blob: specBlob,
+    meili,
+    model,
+    // Spec generation registers routes without ever serving one, so no boot
+    // provisioning happens (and /health is never called) — a stub suffices.
+    boot: { startedAt: new Date().toISOString(), couchProvisioned: false },
+  });
   return model.apiSpec;
 }
