@@ -6,6 +6,17 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`release-cli` couldn't build the npm bundle** (surfaced by the 0.0.1 tag run, after
+  it had already attached the CLI binaries). `npm version --workspace` reifies the whole
+  workspace, and npm can't read the `workspace:` protocol that webapi and webui use —
+  `EUNSUPPORTEDPROTOCOL`. The published manifest is now assembled with `jq` and
+  `npm publish` runs inside `packages/cli`, so npm never walks the workspace. The
+  publish call itself stays unverified while `NPM_TOKEN` is unset.
+
 ## [0.0.1] — 2026-07-29
 
 First tagged release: the **Tier 1** system — single machine, single user, no auth —
