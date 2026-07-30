@@ -7,7 +7,12 @@
  * `chunkDocId`) so the expected numbers can't drift from the app's own accounting.
  * The e2e spec POSTs these through the webapi and asserts they read back.
  */
-import { chunkDocId, sliceIntoChunks, sumTranscriptTokens } from "@claude-transcripts/shared";
+import {
+  buildChunkEntries,
+  chunkDocId,
+  sliceIntoChunks,
+  sumTranscriptTokens,
+} from "@claude-transcripts/shared";
 
 export interface SynthOptions {
   sessionId: string;
@@ -126,15 +131,26 @@ export function synthSession(opts: SynthOptions): SynthSession {
   ev("SessionEnd", { reason: "clear" });
 
   // ── Chunk docs (byte-faithful, same slicing as live/backfill) ─────────────
-  const chunkDocs: Record<string, unknown>[] = sliceIntoChunks(transcript).map((slice) => ({
-    _id: chunkDocId(sessionId, slice.byteStart),
-    type: "chunk",
-    ...common,
-    byte_start: slice.byteStart,
-    byte_end: slice.byteEnd,
-    entry_count: slice.entryCount,
-    schema_version: 1,
-  }));
+  // Full-content chunks (`couchFullContentChunks`, the default): each chunk embeds the
+  // parsed turns it covers, which is what makes the chunk docs — not S3 — the reader's
+  // default transcript source. `buildChunkEntries` partitions 1:1 with the slices by
+  // entry count, exactly as the live writer and backfill attach them.
+  const allEntries = buildChunkEntries(transcript);
+  let entryCursor = 0;
+  const chunkDocs: Record<string, unknown>[] = sliceIntoChunks(transcript).map((slice) => {
+    const covered = allEntries.slice(entryCursor, entryCursor + slice.entryCount);
+    entryCursor += slice.entryCount;
+    return {
+      _id: chunkDocId(sessionId, slice.byteStart),
+      type: "chunk",
+      ...common,
+      byte_start: slice.byteStart,
+      byte_end: slice.byteEnd,
+      entry_count: slice.entryCount,
+      schema_version: 2,
+      entries: covered,
+    };
+  });
 
   // ── Summary rollup doc ────────────────────────────────────────────────────
   const summaryDoc: Record<string, unknown> = {

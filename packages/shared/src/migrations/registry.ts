@@ -2,7 +2,7 @@
  * The ordered migration registry. Append new migrations here with the next id;
  * never renumber or edit an already-released migration's `up` (add a new one).
  */
-import { INITIAL_DESIGNS } from "./designs";
+import { CHUNKS_DESIGN, INITIAL_DESIGNS } from "./designs";
 import { SESSION_INDEX_DESIGN } from "./session-index";
 import { SPEAKER_SPLIT_DESIGN } from "./speaker-split";
 import type { Migration } from "./types";
@@ -112,6 +112,49 @@ const speakerSplitTimeView: Migration = {
   },
 };
 
+/**
+ * v6 — redeploy `_design/chunks` to add `entries_by_session`: the session's turns
+ * keyed `[session_id, byte_start, entry_index]`, i.e. the transcript in reading order
+ * across all speakers. This makes the chunk docs the primary read path for
+ * `GET /api/sessions/{id}/transcript`, so a transcript is readable mid-session
+ * (chunks flush as the session runs) instead of only after the SessionEnd S3 upload.
+ * Re-putting the design triggers a lazy reindex. `down` is a no-op — the added view is
+ * additive and harmless; v1 still owns the design doc's existence.
+ */
+const chunkEntriesView: Migration = {
+  id: 6,
+  name: "chunk-entries-view",
+  async up(ctx) {
+    ctx.log(`~ ${CHUNKS_DESIGN._id} (add entries_by_session)`);
+    const { _rev, ...body } = CHUNKS_DESIGN;
+    await ctx.putDoc(CHUNKS_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${CHUNKS_DESIGN._id} (entries_by_session left in place — additive)`);
+  },
+};
+
+/**
+ * v7 — redeploy `_design/session_index` so its `aggregate` view also carries chunk
+ * coverage (`chunkEntries` / `chunkBytes`). Without it the reader can only report
+ * `hasTranscript` from a `summary` doc's `transcript_bytes`, which hides the
+ * transcript of any session that hasn't ended (or that crashed before SessionEnd)
+ * even when its chunks hold the content. Additive to the emitted value; `down` is a
+ * no-op and v2 still owns the design doc's existence.
+ */
+const sessionIndexChunkCoverage: Migration = {
+  id: 7,
+  name: "session-index-chunk-coverage",
+  async up(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (emit chunk coverage)`);
+    const { _rev, ...body } = SESSION_INDEX_DESIGN;
+    await ctx.putDoc(SESSION_INDEX_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (chunk coverage left in place — additive)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
 export const MIGRATIONS: Migration[] = [
   initialSchema,
@@ -119,6 +162,8 @@ export const MIGRATIONS: Migration[] = [
   sessionIndexSource,
   speakerSplitView,
   speakerSplitTimeView,
+  chunkEntriesView,
+  sessionIndexChunkCoverage,
 ];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */

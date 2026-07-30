@@ -53,10 +53,25 @@ export interface SessionsResponse {
   totalCount: number;
 }
 
+/** One turn of a transcript — the shape both webapi sources (chunks, S3) normalise to. */
+export interface TranscriptEntry {
+  role: SpeakerRole;
+  timestamp?: string;
+  text?: string;
+  toolUses?: { name: string; id?: string }[] | null;
+  toolUseId?: string | null;
+  isError?: boolean;
+  isSidechain?: boolean;
+}
+
 export interface TranscriptResponse {
-  messages: Record<string, unknown>[];
+  entries: TranscriptEntry[];
   totalCount: number;
   hasMore: boolean;
+  /** Which store served this page — CouchDB chunks (live-capable) or the S3 blob. */
+  source: "chunks" | "s3";
+  /** Transcript bytes the serving source covers. */
+  byteCoverage: number;
 }
 
 export interface ListSessionsParams {

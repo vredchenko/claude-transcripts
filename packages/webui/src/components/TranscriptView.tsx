@@ -10,7 +10,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { useState } from "react";
-import { useGetSessionTranscript } from "../api/generated";
+import { type TranscriptEntry, useGetSessionTranscript } from "../api/generated";
 import { formatCount } from "../format";
 import { codeBg, MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
@@ -22,10 +22,10 @@ const KIND_COLOR: Record<string, "primary" | "secondary" | "default" | "info"> =
   user: "info",
   assistant: "primary",
   system: "secondary",
-  summary: "default",
+  tool_result: "default",
 };
 
-function EntryRow({ entry, index }: { entry: Record<string, unknown>; index: number }) {
+function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
   const view: EntryView = summarizeEntry(entry);
   const theme = useTheme();
   return (
@@ -72,7 +72,9 @@ function EntryRow({ entry, index }: { entry: Record<string, unknown>; index: num
             wordBreak: "break-word",
           }}
         >
-          {JSON.stringify(entry, null, 2)}
+          {/* Full text is the payload worth expanding; a tool-only turn has none, so
+              fall back to the turn's structured fields. */}
+          {entry.text ? entry.text : JSON.stringify(entry, null, 2)}
         </Box>
       </AccordionDetails>
     </Accordion>
@@ -95,17 +97,20 @@ export function TranscriptView({ sessionId }: { sessionId: string }) {
 
   if (isPending) return <Loading label="Loading transcript…" />;
   if (isError) return <ErrorState error={error} />;
-  if (!data || data.messages.length === 0) {
+  if (!data || data.entries.length === 0) {
     return <EmptyState>No transcript stored for this session.</EmptyState>;
   }
 
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        Showing {formatCount(data.messages.length)} of {formatCount(data.totalCount)} entries
+        Showing {formatCount(data.entries.length)} of {formatCount(data.totalCount)} entries
+        {/* Which store answered: `chunks` means this is readable mid-session and will
+            keep growing; `s3` means the session's finalised transcript. */}
+        {data.source === "chunks" ? " · live from chunks" : " · from stored transcript"}
       </Typography>
       <Stack spacing={0.5}>
-        {data.messages.map((entry, i) => (
+        {data.entries.map((entry, i) => (
           // Transcript order is append-only + stable, so the index is a valid key.
           <EntryRow key={i} entry={entry} index={i} />
         ))}

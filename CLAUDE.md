@@ -19,22 +19,29 @@ Claude Code sessions. A Claude Code **hook** (writer) logs every session to
 Homelab-agnostic and public-release-minded: no internal hostnames, IPs, secrets,
 or host-specific tooling in code/config/docs.
 
-> This is a clean rebuild. The full technical design — tiers, architecture, ADRs,
-> data model — is being migrated into `docs/` from the predecessor project; treat
-> `docs/` as the spec once present.
+> `docs/` holds the full technical design — tiers, architecture, ADRs, data model.
+> Treat it as the spec.
 
-## Operating constraints (this machine)
+## Local development
 
-- **Do NOT run or test anything locally** — no `bun install`/`dev`/`build`/`lint`/
-  `typecheck`, no `docker`/`docker compose`. This is a live homeserver and local
-  runs can interfere with running services. Write code carefully enough that it
-  would pass `lint`/`typecheck`/`build` without running them.
-- **Git is live** — `origin` is `github.com:vredchenko/claude-transcripts`. Commit and
-  push only when asked; work on a `feat/*` / `fix/*` / `chore/*` branch and merge via
-  PR (**rebase only** — the repo has merge- and squash-commits disabled). Since local
-  runs are off-limits, **CI is the verification step**: let `ci.yml` go green on the PR
-  before merging.
-- Read-only inspection is always fine.
+```
+bun install
+bun run typecheck && bun run lint && bun test   # verify a change
+bun run gen:clients                             # regenerate API clients after a contract change
+bun run stack:up                                # bring up CouchDB + Garage + Meilisearch
+bun run dev:webapi / dev:webui / dev:cli        # run a component
+bun run test:e2e                                # full write→read path (needs stack + webapi up)
+```
+
+`bun run gen:all` refreshes every generated artifact (hooks bindings, compose files,
+compatibility matrix). Generated files are committed — regenerate, don't hand-edit.
+
+## Contributing
+
+- **Git** — `origin` is `github.com:vredchenko/claude-transcripts`. Commit and push
+  only when asked; work on a `feat/*` / `fix/*` / `chore/*` branch and merge via PR
+  (**rebase only** — the repo has merge- and squash-commits disabled).
+- **CI is the gate**: let `ci.yml` go green on the PR before merging.
 
 ## Repo structure
 

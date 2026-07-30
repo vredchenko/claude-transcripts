@@ -14,6 +14,54 @@ export interface DesignDoc {
   views: Record<string, { map: string; reduce?: string }>;
 }
 
+/**
+ * One row per **turn**, keyed `[session_id, byte_start, entry_index]` — the session's
+ * transcript in reading order, across all speakers (unlike `speaker_split/by_role`,
+ * which groups by role and so can't interleave them). This is the primary read path
+ * for `GET /api/sessions/{id}/transcript`: because chunks are flushed mid-flight, the
+ * view serves a live session's transcript-so-far, with no dependency on the SessionEnd
+ * upload. The `_count` reduce gives the session's available entry count in one query.
+ *
+ * Only full-content chunks (`entries[]`, `couchFullContentChunks`) populate it;
+ * byte-range-only chunks emit nothing, so the reader falls back to the S3 transcript.
+ */
+const CHUNK_ENTRIES_MAP = `function (doc) {
+  if (doc.type !== "chunk" || !doc.entries) return;
+  for (var i = 0; i < doc.entries.length; i++) {
+    var e = doc.entries[i];
+    if (!e || !e.role) continue;
+    emit([doc.session_id, doc.byte_start, i], {
+      role: e.role,
+      timestamp: e.timestamp || "",
+      text: e.text || "",
+      toolUses: e.toolUses || null,
+      toolUseId: e.toolUseId || null,
+      isError: e.isError || false,
+      isSidechain: e.isSidechain || false
+    });
+  }
+}`;
+
+/**
+ * `_design/chunks` — byte-range bookkeeping plus the per-turn transcript view.
+ * Exported on its own so a migration can redeploy it after a view is added
+ * (v1 installs it as part of {@link INITIAL_DESIGNS}; v6 redeploys it).
+ */
+export const CHUNKS_DESIGN: DesignDoc = {
+  _id: "_design/chunks",
+  language: "javascript",
+  views: {
+    by_session: {
+      map: 'function(doc){if(doc.type==="chunk"){emit([doc.session_id,doc.byte_start],{byte_start:doc.byte_start,byte_end:doc.byte_end,entry_count:doc.entry_count});}}',
+    },
+    entry_count_by_session: {
+      map: 'function(doc){if(doc.type==="chunk"){emit(doc.session_id,doc.entry_count||0);}}',
+      reduce: "_sum",
+    },
+    entries_by_session: { map: CHUNK_ENTRIES_MAP, reduce: "_count" },
+  },
+};
+
 export const INITIAL_DESIGNS: DesignDoc[] = [
   {
     _id: "_design/sessions",
@@ -68,19 +116,7 @@ export const INITIAL_DESIGNS: DesignDoc[] = [
       },
     },
   },
-  {
-    _id: "_design/chunks",
-    language: "javascript",
-    views: {
-      by_session: {
-        map: 'function(doc){if(doc.type==="chunk"){emit([doc.session_id,doc.byte_start],{byte_start:doc.byte_start,byte_end:doc.byte_end,entry_count:doc.entry_count});}}',
-      },
-      entry_count_by_session: {
-        map: 'function(doc){if(doc.type==="chunk"){emit(doc.session_id,doc.entry_count||0);}}',
-        reduce: "_sum",
-      },
-    },
-  },
+  CHUNKS_DESIGN,
   {
     _id: "_design/session_meta",
     language: "javascript",

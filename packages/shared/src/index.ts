@@ -136,10 +136,20 @@ export interface SessionsResponse {
   totalCount: number;
 }
 
+/**
+ * `GET /api/sessions/{id}/transcript`. Turns come from the `chunk` docs by default and
+ * from the S3 blob only when that reaches further, so a **live** session's
+ * transcript-so-far is readable — it doesn't wait for the SessionEnd upload. Both
+ * sources normalise to {@link ChunkEntry}, so the shape never depends on `source`.
+ */
 export interface TranscriptResponse {
-  messages: Record<string, any>[];
+  entries: ChunkEntry[];
   totalCount: number;
   hasMore: boolean;
+  /** Which store served this page. */
+  source: "chunks" | "s3";
+  /** Transcript bytes the serving source covers (diagnostics). */
+  byteCoverage: number;
 }
 
 /** Default idle threshold (ms): gaps longer than this count as idle, not activity. */

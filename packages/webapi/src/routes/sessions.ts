@@ -1,4 +1,5 @@
 import {
+  buildChunkEntries,
   type SessionAggregate,
   type SessionStatus,
   type SessionSummary,
@@ -50,13 +51,36 @@ const SessionsResponseSchema = z.object({
   totalCount: z.number(),
 });
 
-const TranscriptResponseSchema = z.object({
-  messages: z.array(z.record(z.string(), z.any())),
-  totalCount: z.number(),
-  hasMore: z.boolean(),
+const SpeakerRoleSchema = z.enum(["user", "assistant", "tool_result", "system", "other"]);
+
+/**
+ * One turn of a transcript — the pruned `ChunkEntry` projection (ADR 0027), which is
+ * what a `chunk` doc stores. Both transcript sources normalise to this shape, so the
+ * response doesn't change form depending on where it was served from. Raw, byte-exact
+ * JSONL is still reachable through the read-only S3 proxy for consumers that need it.
+ */
+const TranscriptEntrySchema = z.object({
+  role: SpeakerRoleSchema,
+  timestamp: z.string().optional(),
+  text: z.string().optional(),
+  toolUses: z
+    .array(z.object({ name: z.string(), id: z.string().optional() }))
+    .nullable()
+    .optional(),
+  toolUseId: z.string().nullable().optional(),
+  isError: z.boolean().optional(),
+  isSidechain: z.boolean().optional(),
 });
 
-const SpeakerRoleSchema = z.enum(["user", "assistant", "tool_result", "system", "other"]);
+const TranscriptResponseSchema = z.object({
+  entries: z.array(TranscriptEntrySchema),
+  totalCount: z.number(),
+  hasMore: z.boolean(),
+  /** Which store served this page — `chunks` (CouchDB) or `s3`. */
+  source: z.enum(["chunks", "s3"]),
+  /** How many transcript bytes the serving source covers (diagnostics). */
+  byteCoverage: z.number(),
+});
 
 const SpeakerTurnSchema = z.object({
   role: SpeakerRoleSchema,
@@ -108,8 +132,10 @@ function durationBetween(startIso?: string, endIso?: string): number | undefined
  * Map a CouchDB `summary:` doc to the response contract. The summary doc records the
  * SessionEnd time (`timestamp`) but not the session start, so `firstTs` — the first
  * event's timestamp from the aggregate view — is threaded in to derive `durationMs`.
+ * `chunkEntries` comes from the same aggregate row: a transcript is readable if
+ * *either* store holds it, so a summary that recorded no bytes doesn't mask chunks.
  */
-function docToSummary(doc: any, firstTs?: string): SessionSummary {
+function docToSummary(doc: any, firstTs?: string, chunkEntries = 0): SessionSummary {
   const bytes: number = doc.transcript_bytes ?? 0;
   return {
     sessionId: doc.session_id,
@@ -124,7 +150,7 @@ function docToSummary(doc: any, firstTs?: string): SessionSummary {
     errorCount: doc.error_count ?? 0,
     toolCounts: doc.tool_counts ?? {},
     endReason: doc.end_reason ?? "unknown",
-    hasTranscript: bytes > 0,
+    hasTranscript: bytes > 0 || chunkEntries > 0,
     transcriptSize: bytes || undefined,
     status: "ended",
     source: doc.source || "live",
@@ -160,7 +186,7 @@ function aggregateToSummary(
       errorCount: s.error_count ?? 0,
       toolCounts: s.tool_counts ?? {},
       endReason: s.end_reason || "unknown",
-      hasTranscript: bytes > 0,
+      hasTranscript: bytes > 0 || (agg.chunkEntries ?? 0) > 0,
       transcriptSize: bytes || undefined,
       status: "ended",
       lastActivity: agg.last || undefined,
@@ -186,7 +212,10 @@ function aggregateToSummary(
     errorCount: agg.errors ?? 0,
     toolCounts: agg.tools ?? {},
     endReason: status,
-    hasTranscript: false,
+    // Mid-flight chunks make the transcript readable long before the summary doc
+    // lands, so a running (or crashed) session still reports one.
+    hasTranscript: (agg.chunkEntries ?? 0) > 0,
+    transcriptSize: agg.chunkBytes || undefined,
     status,
     lastActivity: agg.last || undefined,
     // No summary doc yet ⇒ still live/in-flight (a backfill writes its summary
@@ -213,6 +242,49 @@ async function computeActiveMs(db: any, id: string, idleMs: number): Promise<num
     return sumActiveDurationMs(stamps, idleMs);
   } catch {
     return undefined;
+  }
+}
+
+/** The S3 object key holding a session's byte-exact transcript. */
+function blobKey(id: string): string {
+  return `${id}/transcript.jsonl`;
+}
+
+/**
+ * How much of a session's transcript the chunk docs can serve: `entries` is the turn
+ * count from `chunks/entries_by_session` (0 for byte-range-only chunks — they carry no
+ * `entries[]`), `bytes` is how far the chunks' byte ranges reach. Degrades to zero
+ * coverage if the views aren't indexed yet, so the reader falls back to S3 rather than
+ * failing.
+ */
+async function chunkCoverage(db: any, id: string): Promise<{ entries: number; bytes: number }> {
+  try {
+    const [count, furthest] = await Promise.all([
+      db.view("chunks", "entries_by_session", { startkey: [id], endkey: [id, {}], reduce: true }),
+      // Highest byte_end for the session: `by_session` is keyed [id, byte_start], read
+      // backwards. `descending` swaps the bounds, so start high and end low.
+      db.view("chunks", "by_session", {
+        startkey: [id, {}],
+        endkey: [id],
+        descending: true,
+        limit: 1,
+      }),
+    ]);
+    return {
+      entries: Number((count.rows as any[])[0]?.value ?? 0),
+      bytes: Number((furthest.rows as any[])[0]?.value?.byte_end ?? 0),
+    };
+  } catch {
+    return { entries: 0, bytes: 0 };
+  }
+}
+
+/** Whether a session's S3 transcript exists; false if S3 is off or unreachable. */
+async function blobTranscriptExists(ctx: AppContext, id: string): Promise<boolean> {
+  try {
+    return (await ctx.blob.stat(bucketName(ctx.config, "sessions"), blobKey(id))) !== null;
+  } catch {
+    return false;
   }
 }
 
@@ -277,6 +349,10 @@ const transcriptRoute = createRoute({
       description: "Transcript",
     },
     404: { content: { "application/json": { schema: ErrorSchema } }, description: "Not found" },
+    502: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "No transcript in CouchDB and the S3 fallback failed",
+    },
   },
 });
 
@@ -360,41 +436,96 @@ export function sessionRoutes(ctx: AppContext) {
     const activeMs = await computeActiveMs(db, id, idleThresholdMs(ctx.config));
     // Ended sessions: read the summary doc directly (full fidelity), enriched with
     // the aggregate's start time for duration.
+    let summary: SessionSummary;
     try {
       const doc = await db.get(`summary:${id}`);
-      return c.json({ ...docToSummary(doc, agg?.first), activeMs });
+      summary = docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0);
     } catch {
       // Not ended — fall back to the live aggregate (running / incomplete).
+      if (!agg) return c.json({ error: "Session not found" }, 404);
+      summary = aggregateToSummary(id, agg, Date.now(), liveWindowMs(ctx.config));
     }
-    if (!agg) return c.json({ error: "Session not found" }, 404);
-    return c.json({
-      ...aggregateToSummary(id, agg, Date.now(), liveWindowMs(ctx.config)),
-      activeMs,
-    });
+    // Neither the summary nor the chunks claim a transcript — but byte-range-only
+    // chunks (`couchFullContentChunks` off) leave S3 as the only readable copy, so
+    // confirm with a stat rather than reporting none. Worth one HEAD on the detail
+    // view; the list can't afford it per row, so it reports from the index alone.
+    if (!summary.hasTranscript) {
+      summary.hasTranscript = await blobTranscriptExists(ctx, id);
+    }
+    return c.json({ ...summary, activeMs });
   });
 
+  /**
+   * Transcript, served from the **chunk docs** by default and from the S3 blob only
+   * when that reaches further.
+   *
+   * Chunks are flushed mid-session, so this reads a live session's transcript-so-far
+   * — it no longer depends on the SessionEnd upload having happened. The S3 blob is
+   * written once, at SessionEnd, so it exists only for a session that ended cleanly.
+   *
+   * Source choice is "whichever covers more bytes, chunks winning ties": identical for
+   * an ended or backfilled session (both derive from the same file), chunks for a live
+   * one (no blob yet), and S3 when a session's final flush was missed — e.g. the
+   * forced SessionEnd flush lost the chunk-state lock to a concurrent Stop flush, so
+   * the last chunk is short of the uploaded file.
+   */
   route.openapi(transcriptRoute, async (c: any) => {
     const id = c.req.param("id");
     const limit = Number(c.req.query("limit") ?? 100);
     const offset = Number(c.req.query("offset") ?? 0);
-    const bucket = bucketName(ctx.config, "sessions");
-    const stat = await ctx.blob.stat(bucket, `${id}/transcript.jsonl`);
-    if (!stat) return c.json({ error: "No transcript stored" }, 404);
-    const stream = await ctx.blob.get(bucket, `${id}/transcript.jsonl`);
-    const text = await new Response(stream).text();
-    const lines = text.split("\n").filter((l) => l.trim().length > 0);
-    const page = lines.slice(offset, offset + limit).map((l) => {
-      try {
-        return JSON.parse(l);
-      } catch {
-        return { raw: l };
-      }
-    });
-    return c.json({
-      messages: page,
-      totalCount: lines.length,
-      hasMore: offset + limit < lines.length,
-    });
+    const db = ctx.couch.db("sessions");
+
+    const chunks = await chunkCoverage(db, id);
+    // A missing blob and an unreachable one both mean "can't serve from S3", but only
+    // the latter is worth reporting — and only if CouchDB can't serve either.
+    let blob: { size: number } | null = null;
+    let blobError: string | undefined;
+    try {
+      blob = await ctx.blob.stat(bucketName(ctx.config, "sessions"), blobKey(id));
+    } catch (err) {
+      blobError = err instanceof Error ? err.message : String(err);
+    }
+
+    if (chunks.entries > 0 && (!blob || chunks.bytes >= blob.size)) {
+      // Page at the view — CouchDB does the slicing, so a long transcript never has
+      // to be materialised in the gateway.
+      const res = await db.view("chunks", "entries_by_session", {
+        startkey: [id],
+        endkey: [id, {}],
+        reduce: false,
+        limit,
+        skip: offset,
+      });
+      const page = (res.rows as any[]).map((r) => r.value);
+      return c.json({
+        entries: page,
+        totalCount: chunks.entries,
+        hasMore: offset + page.length < chunks.entries,
+        source: "chunks",
+        byteCoverage: chunks.bytes,
+      });
+    }
+
+    if (blob) {
+      // Normalise the raw JSONL to the same turn shape the chunk view emits, so the
+      // response is source-independent. `buildChunkEntries` is the exact projection
+      // the writer applies before embedding entries in a chunk doc.
+      const stream = await ctx.blob.get(bucketName(ctx.config, "sessions"), blobKey(id));
+      const entries = buildChunkEntries(await new Response(stream).text());
+      const page = entries.slice(offset, offset + limit);
+      return c.json({
+        entries: page,
+        totalCount: entries.length,
+        hasMore: offset + page.length < entries.length,
+        source: "s3",
+        byteCoverage: blob.size,
+      });
+    }
+
+    if (blobError) {
+      return c.json({ error: `No transcript in CouchDB, and S3 failed: ${blobError}` }, 502);
+    }
+    return c.json({ error: "No transcript stored" }, 404);
   });
 
   // Speaker-split: one side of the conversation (or all turns) from the

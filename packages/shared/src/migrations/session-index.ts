@@ -22,6 +22,19 @@ import type { DesignDoc } from "./designs";
 
 const AGGREGATE_MAP = `function (doc) {
   if (!doc.session_id) return;
+  // A \`chunk\` doc contributes transcript coverage ONLY — no timestamps, no counts —
+  // so every other metric keeps the exact meaning it had before chunks were indexed.
+  // \`chunkEntries\` counts turns the chunk view can actually serve (byte-range-only
+  // chunks carry no \`entries[]\`), while \`chunkBytes\` tracks raw byte coverage.
+  if (doc.type === "chunk") {
+    emit(doc.session_id, {
+      ended: 0, events: 0, prompts: 0, errors: 0, started: 0, tools: {},
+      first: "", last: "", model: "", cwd: "", hostname: "", summary: null,
+      chunkEntries: doc.entries ? doc.entries.length : 0,
+      chunkBytes: doc.byte_end || 0
+    });
+    return;
+  }
   if (doc.type !== "event" && doc.type !== "summary") return;
   var isSummary = doc.type === "summary";
   var tools = {};
@@ -48,15 +61,19 @@ const AGGREGATE_MAP = `function (doc) {
       token_usage: doc.token_usage || null,
       timestamp: doc.timestamp || "",
       source: doc.source || ""
-    } : null
+    } : null,
+    chunkEntries: 0,
+    chunkBytes: 0
   });
 }`;
 
 const AGGREGATE_REDUCE = `function (keys, values, rereduce) {
-  var acc = { ended:0, events:0, prompts:0, errors:0, started:0, tools:{}, first:"", last:"", model:"", cwd:"", hostname:"", summary:null };
+  var acc = { ended:0, events:0, prompts:0, errors:0, started:0, tools:{}, first:"", last:"", model:"", cwd:"", hostname:"", summary:null, chunkEntries:0, chunkBytes:0 };
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
     if (!v) continue;
+    acc.chunkEntries += v.chunkEntries || 0;
+    if ((v.chunkBytes || 0) > acc.chunkBytes) acc.chunkBytes = v.chunkBytes;
     acc.ended += v.ended || 0;
     acc.events += v.events || 0;
     acc.prompts += v.prompts || 0;
@@ -107,4 +124,12 @@ export interface SessionAggregate {
     /** Provenance of the ended session: "live" (hook) | "backfill" | "doctor" | … */
     source: string;
   } | null;
+  /**
+   * Turns available from `chunks/entries_by_session` (full-content chunks only) — the
+   * reader uses this to report `hasTranscript` for a session whose `summary` doc
+   * hasn't landed yet, so a live or crashed session still exposes its transcript.
+   */
+  chunkEntries: number;
+  /** Highest `byte_end` across the session's chunks — how far chunk coverage reaches. */
+  chunkBytes: number;
 }

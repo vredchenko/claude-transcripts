@@ -35,7 +35,7 @@
     "seed": "bun run scripts/seed.ts",
     "bootstrap:garage": "bun run scripts/bootstrap-garage.ts",
     "test": "bun test",
-    "test:e2e": "bun test tests/e2e",
+    "test:e2e": "bun test ./tests/e2e/*.test.ts",
     "postinstall": "bunx lefthook install"
   },
   "engines": {

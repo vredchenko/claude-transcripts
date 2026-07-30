@@ -231,8 +231,16 @@ field), keyed `"unknown"` when no tool name.
 |------|-----|-------|--------|
 | `by_session` | `[session_id, byte_start]` | `{ byte_start, byte_end, entry_count }` | — |
 | `entry_count_by_session` | `session_id` | `entry_count` | `_sum` |
+| `entries_by_session` | `[session_id, byte_start, entry_index]` | the parsed turn (`role`, `timestamp`, `text`, `toolUses`, `toolUseId`, `isError`, `isSidechain`) | `_count` |
 
 `by_session` reassembles a session's chunked content in byte order.
+
+`entries_by_session` (v6) is the session's transcript **in reading order across all
+speakers** — unlike `speaker_split/by_role`, which groups by speaker and so can't
+interleave them. It backs `GET /api/sessions/{id}/transcript`, paged at the view, with
+the `_count` reduce supplying the total in one query. Since chunks are flushed
+mid-session, it serves a live session's transcript-so-far; only full-content chunks
+(`couchFullContentChunks`) populate it, so byte-range-only chunks fall back to S3.
 
 ### `_design/session_meta` — running-session enrichment & token rollup
 

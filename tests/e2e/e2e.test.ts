@@ -81,8 +81,12 @@ async function assertRoundTrip(s: SynthSession): Promise<void> {
 
   const tr = await getJson(`/api/sessions/${s.sessionId}/transcript?limit=10000`);
   expect(tr.totalCount).toBe(s.expected.entryCount);
-  expect(tr.messages.length).toBe(s.expected.entryCount);
+  expect(tr.entries.length).toBe(s.expected.entryCount);
   expect(tr.hasMore).toBe(false);
+  // Content chunks cover the whole synth transcript, so they tie with the S3 blob on
+  // byte coverage and win — the chunk docs are the default read path.
+  expect(tr.source).toBe("chunks");
+  expect(tr.byteCoverage).toBe(s.expected.transcriptBytes);
 }
 
 const run = Date.now();
@@ -145,6 +149,16 @@ describe("e2e: synthesized session round-trips", () => {
       (x: { sessionId: string }) => x.sessionId === incomplete.sessionId,
     );
     expect(found).toBe(true);
+
+    // No chunk docs were written, so the chunk view can serve nothing — the reader
+    // must fall back to the S3 blob, and the detail must still report a transcript
+    // (its stat finds the blob even though the index knows of no chunks).
+    expect(detail.hasTranscript).toBe(true);
+    const tr = await getJson(`/api/sessions/${incomplete.sessionId}/transcript?limit=10000`);
+    expect(tr.source).toBe("s3");
+    expect(tr.totalCount).toBe(incomplete.expected.entryCount);
+    expect(tr.entries.length).toBe(incomplete.expected.entryCount);
+    expect(tr.byteCoverage).toBe(incomplete.expected.transcriptBytes);
   });
 
   it("summary re-ingest is idempotent", async () => {

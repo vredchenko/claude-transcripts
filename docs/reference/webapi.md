@@ -64,7 +64,7 @@ from the same definitions (no hand-written spec).
 | `GET` | `/health` | — | `{ ok, status, version, startedAt, stores }` — see below |
 | `GET` | `/api/claude/sessions` | `limit=50`, `skip=0` | `{ sessions: ClaudeSessionSummary[], totalCount }` |
 | `GET` | `/api/claude/sessions/{id}` | — | `ClaudeSessionSummary` (404 if absent) |
-| `GET` | `/api/claude/sessions/{id}/transcript` | `limit=100`, `offset=0` | `{ messages: object[], totalCount, hasMore }` |
+| `GET` | `/api/claude/sessions/{id}/transcript` | `limit=100`, `offset=0` | `{ entries: TranscriptEntry[], totalCount, hasMore, source, byteCoverage }` |
 | `GET` | `/api/openapi.json` | — | OpenAPI 3.0 spec |
 | `GET` | `/api/doc` | — | Swagger UI |
 | `GET` | `/*` | — | SPA static + `index.html` fallback (**only when `CT_STATIC_DIR` is set**) |
@@ -103,10 +103,31 @@ last 36 h. Each is classified `running` if it logged activity within 15 min, els
 - **Detail** fetches the `summary:<id>` doc. If a transcript blob exists in S3 but
   the summary lacks `token_usage`, it computes it on the fly with
   `sumTranscriptTokens` (see shared, below).
-- **Transcript** streams `<id>/transcript.jsonl` from S3 and returns a page of
-  parsed JSONL lines (`limit`/`offset` over lines, with `hasMore`). The transcript
-  lives in **S3 only** ([ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md));
-  there is no CouchDB-attachment fallback.
+- **Transcript** reads from the **CouchDB `chunk` docs by default**, via
+  `chunks/entries_by_session` (turns keyed `[session_id, byte_start, entry_index]`,
+  i.e. transcript order across all speakers), paged at the view by `limit`/`offset`.
+  Because chunks are flushed *mid-session*, this serves a **live** session's
+  transcript-so-far — it no longer waits for the SessionEnd upload, which is why a
+  session that crashed before finalising is still readable.
+
+  The S3 blob (`<id>/transcript.jsonl`) is the fallback, used when it reaches
+  further than the chunks: for a session logged with `couchFullContentChunks` off
+  (byte-range-only chunks carry no turns), or when a final flush was missed so the
+  last chunk falls short of the uploaded file. The rule is *whichever source covers
+  more bytes, chunks winning ties* — identical for an ended or backfilled session,
+  chunks for a live one. The response reports which store answered (`source`:
+  `chunks` | `s3`) and how far it reaches (`byteCoverage`).
+
+  Both sources normalise to the same pruned per-turn shape
+  ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)), so the response
+  never changes form with `source`. That means the endpoint no longer returns raw
+  Claude Code JSONL — byte-exact lines remain available through the read-only S3
+  proxy (`/api/s3/sessions/<id>/transcript.jsonl`). This narrows
+  [ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md): S3 is still
+  the durable, byte-faithful home, but it is no longer the *read* path.
+
+  A 502 (rather than 404) distinguishes "nothing in CouchDB and S3 itself failed"
+  from "no transcript stored".
 
 ## Storage
 

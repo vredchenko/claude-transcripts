@@ -7,7 +7,7 @@
  *   claude-transcripts sessions <id>            # detail + transcript preview
  *   (both accept --limit <n> and --webapi <url>)
  */
-import type { SessionSummary } from "@claude-transcripts/shared";
+import type { ChunkEntry, SessionSummary } from "@claude-transcripts/shared";
 import { getSession, getSessionTranscript, listSessions } from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
@@ -83,28 +83,18 @@ async function showList(limit: number): Promise<number> {
   return 0;
 }
 
-/** Compact one-line description of a raw transcript entry. */
-function entryLine(entry: Record<string, unknown>, i: number): string {
-  const msg = (entry.message ?? {}) as Record<string, unknown>;
-  const kind = String(entry.type ?? msg.role ?? "?");
-  let text = "";
-  const content = msg.content ?? entry.summary ?? entry.content;
-  if (typeof content === "string") {
-    text = content;
-  } else if (Array.isArray(content)) {
-    text = content
-      .map((b: unknown) => {
-        const block = (b ?? {}) as Record<string, unknown>;
-        if (block.type === "text" && typeof block.text === "string") return block.text;
-        if (block.type === "tool_use") return `⚙ ${String(block.name ?? "tool")}`;
-        if (block.type === "tool_result") return "[tool result]";
-        if (block.type === "thinking") return "[thinking]";
-        return "";
-      })
-      .join(" ");
-  }
-  const preview = text.replace(/\s+/g, " ").trim().slice(0, 100);
-  return `  ${padL(`#${i}`, 4)}  ${pad(kind, 10)} ${preview}`;
+/**
+ * Compact one-line description of a transcript turn. The webapi normalises both of its
+ * sources (CouchDB chunks, S3 blob) to this shape, so there's no raw JSONL to unpick.
+ */
+function entryLine(entry: ChunkEntry, i: number): string {
+  const tools = (entry.toolUses ?? []).map((t) => `⚙ ${t.name}`).join(" ");
+  const text = entry.text ?? "";
+  const preview = (text && tools ? `${text} ${tools}` : text || tools)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+  return `  ${padL(`#${i}`, 4)}  ${pad(entry.role, 12)} ${preview}`;
 }
 
 async function showDetail(id: string, limit: number): Promise<number> {
@@ -127,12 +117,13 @@ async function showDetail(id: string, limit: number): Promise<number> {
 
   if (s.hasTranscript) {
     const tr = await getSessionTranscript(id, { limit });
+    const from = tr.source === "chunks" ? "live from chunks" : "stored transcript";
     console.log(
-      `\ntranscript — first ${num(tr.messages.length)} of ${num(tr.totalCount)} entries:`,
+      `\ntranscript — first ${num(tr.entries.length)} of ${num(tr.totalCount)} entries (${from}):`,
     );
-    for (const [i, m] of tr.messages.entries()) console.log(entryLine(m, i));
+    for (const [i, e] of tr.entries.entries()) console.log(entryLine(e, i));
     if (tr.hasMore)
-      console.log(`  … (${num(tr.totalCount - tr.messages.length)} more — raise --limit)`);
+      console.log(`  … (${num(tr.totalCount - tr.entries.length)} more — raise --limit)`);
   }
   return 0;
 }
