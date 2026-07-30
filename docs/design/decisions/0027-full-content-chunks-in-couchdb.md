@@ -20,9 +20,15 @@ at the webapi. Every consuming view has landed:
 Per-turn search over `entries[]` is live in Meilisearch's `turns` index
 ([ADR 0009](0009-meilisearch-search.md)).
 
-Remaining: a migration that rebuilds content chunks for sessions recorded before this,
-from their S3 transcripts. Until it runs, those sessions have byte-range-only chunks —
-they fall back to S3 on read and contribute nothing to content search.
+Content chunks are the default for both writers (the hook and `backfill`), so history
+adopted from here on needs nothing extra.
+
+Remaining, and only where history was adopted **before** this landed or with
+`--no-content`: those sessions carry byte-range-only chunks, fall back to S3 on read,
+and contribute nothing to content search. `backfill` can't redo them — it skips any
+session that already has a summary doc — so closing this needs either a re-process flag
+on `backfill` or a migration that rebuilds chunks from the S3 transcript. Not built,
+because no known deployment is in that state.
 
 ## Context
 
