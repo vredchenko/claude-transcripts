@@ -62,10 +62,14 @@ done.
   [mid-flight-chunking.md](mid-flight-chunking.md)). The views over `entries[]` all
   exist — `speaker_split/by_role` + `by_role_time` (v4/v5) and
   `chunks/entries_by_session` (v6, transcript order across speakers), which backs the
-  chunk-first transcript read. Remaining: a migration to rebuild content chunks for
-  sessions recorded before this, from their S3 transcripts (they currently have
-  byte-range-only chunks, so they fall back to S3 on read and contribute nothing to
-  content search).
+  chunk-first transcript read. Content chunks are written by default by both the hook
+  and `backfill`, so newly adopted history needs no follow-up.
+  Remaining, and only for deployments that adopted history **before** this landed or
+  with `--no-content`: those sessions have byte-range-only chunks, so they fall back to
+  S3 on read and contribute nothing to content search. There's currently no way to
+  redo them — `backfill` skips any session that already has a summary doc — so the fix
+  is either a re-process flag on `backfill` or a migration that rebuilds chunks from
+  the S3 transcript.
 - Session enrichment: harness config / PROMPT / MCP / plugins / CLI version
   ([actions.md](../reference/actions.md), [hooks.md](../reference/hooks.md)) (#3)
 - Multi-user / multi-machine attribution ([tiers.md](tiers.md) → T2) (#7)
