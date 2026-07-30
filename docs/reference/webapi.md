@@ -65,6 +65,7 @@ from the same definitions (no hand-written spec).
 | `GET` | `/api/claude/sessions` | `limit=50`, `skip=0` | `{ sessions: ClaudeSessionSummary[], totalCount }` |
 | `GET` | `/api/claude/sessions/{id}` | — | `ClaudeSessionSummary` (404 if absent) |
 | `GET` | `/api/claude/sessions/{id}/transcript` | `limit=100`, `offset=0` | `{ entries: TranscriptEntry[], totalCount, hasMore, source, byteCoverage }` |
+| `POST` | `/api/search/reindex` | — | `{ enabled, sessions: {scanned, indexed}, turns: {scanned, indexed}, failures }` |
 | `GET` | `/api/openapi.json` | — | OpenAPI 3.0 spec |
 | `GET` | `/api/doc` | — | Swagger UI |
 | `GET` | `/*` | — | SPA static + `index.html` fallback (**only when `CT_STATIC_DIR` is set**) |
@@ -128,6 +129,31 @@ last 36 h. Each is classified `running` if it logged activity within 15 min, els
 
   A 502 (rather than 404) distinguishes "nothing in CouchDB and S3 itself failed"
   from "no transcript stored".
+
+### Search indexes (derived state)
+
+Two Meilisearch indexes: `sessions` (one doc per `summary`, metadata search) and
+`turns` (one doc per full-content `chunk` entry with text, content search).
+
+They are **derived**, and written only as a side effect of `/api/ingest/*` — nothing
+follows CouchDB's change feed. Three consequences worth knowing:
+
+- History adopted before search existed is **not** indexed, and neither is anything
+  written straight to CouchDB rather than through ingest — which is the hook's path, so
+  a live-recorded session is not searchable until a rebuild.
+- A document deleted from CouchDB **stays** in the index.
+- `POST /api/search/reindex` (`cli reindex`) is the reconciliation step for all of it.
+
+Two Meilisearch behaviours the write path has to respect:
+
+- **Document ids accept only `a-zA-Z0-9`, `-` and `_`.** Build them with
+  `searchDocId()`, never by joining parts with a separator like `:`. Ids must also be a
+  pure function of their parts so re-ingesting a chunk *replaces* its turns.
+- **Validation is asynchronous.** `POST /documents` answers `202 Accepted` and rejects
+  the batch later, in the task queue, so an invalid batch is indistinguishable from
+  success at the call site. Ingest accepts that (search must never break a write); the
+  reindex path instead waits on the tasks and surfaces failures. If an index is
+  unexpectedly empty, read `GET /tasks` on Meilisearch — that is where the error is.
 
 ## Storage
 

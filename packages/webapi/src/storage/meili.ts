@@ -56,10 +56,67 @@ export class Meili {
     });
   }
 
-  /** Add-or-replace documents by primary key. Best-effort. */
-  async index(uid: string, docs: Record<string, unknown>[]): Promise<void> {
-    if (!docs.length) return;
-    await this.req("POST", `/indexes/${uid}/documents`, docs);
+  /**
+   * Add-or-replace documents by primary key. Best-effort; returns the enqueued task
+   * uid so a caller that cares (a deliberate reindex) can confirm the outcome.
+   *
+   * Meili answers `202 Accepted` and validates **asynchronously**, so a rejected batch
+   * looks like success here — see {@link taskFailures}.
+   */
+  async index(uid: string, docs: Record<string, unknown>[]): Promise<number | null> {
+    if (!docs.length) return null;
+    const res = await this.req("POST", `/indexes/${uid}/documents`, docs);
+    if (!res?.ok) return null;
+    try {
+      const json = (await res.json()) as { taskUid?: number };
+      return typeof json.taskUid === "number" ? json.taskUid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Delete every document in an index, so a rebuild starts from empty. Best-effort. */
+  async clear(uid: string): Promise<number | null> {
+    const res = await this.req("DELETE", `/indexes/${uid}/documents`);
+    if (!res?.ok) return null;
+    try {
+      const json = (await res.json()) as { taskUid?: number };
+      return typeof json.taskUid === "number" ? json.taskUid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Wait for the given tasks to finish and report the ones that failed. Indexing is
+   * asynchronous, so this is the only way to learn that a batch was rejected —
+   * without it a whole reindex can "succeed" and leave the index empty.
+   */
+  async taskFailures(
+    taskUids: number[],
+    timeoutMs = 120_000,
+  ): Promise<{ indexed: number; failures: string[] }> {
+    if (!taskUids.length) return { indexed: 0, failures: [] };
+    const deadline = Date.now() + timeoutMs;
+    const uids = taskUids.join(",");
+    while (Date.now() < deadline) {
+      const res = await this.req("GET", `/tasks?uids=${uids}&limit=${taskUids.length}`);
+      if (!res?.ok) return { indexed: 0, failures: ["could not read Meilisearch task status"] };
+      const json = (await res.json()) as { results?: any[] };
+      const tasks = json.results ?? [];
+      if (tasks.some((t) => t.status === "enqueued" || t.status === "processing")) {
+        await new Promise((r) => setTimeout(r, 250));
+        continue;
+      }
+      const failures = tasks
+        .filter((t) => t.status === "failed")
+        .map((t) => `${t.type} on ${t.indexUid}: ${t.error?.code} — ${t.error?.message}`);
+      const indexed = tasks.reduce((n, t) => n + (t.details?.indexedDocuments ?? 0), 0);
+      // Distinct messages only: one rejected batch usually means every batch failed
+      // the same way, and the caller wants the cause, not 49 copies of it.
+      return { indexed, failures: [...new Set(failures)] };
+    }
+    return { indexed: 0, failures: ["timed out waiting for Meilisearch to index"] };
   }
 
   /** Search an index; returns the hits array (empty on any failure). Cropping +
@@ -80,7 +137,7 @@ export class Meili {
     if (opts.cropLength) body.cropLength = opts.cropLength;
     if (opts.attributesToHighlight) body.attributesToHighlight = opts.attributesToHighlight;
     const res = await this.req("POST", `/indexes/${uid}/search`, body);
-    if (!res || !res.ok) return [];
+    if (!res?.ok) return [];
     try {
       const json = (await res.json()) as { hits?: Record<string, unknown>[] };
       return json.hits ?? [];
@@ -88,6 +145,19 @@ export class Meili {
       return [];
     }
   }
+}
+
+/**
+ * Build a Meilisearch document id from parts.
+ *
+ * Meili only accepts `a-zA-Z0-9`, `-` and `_` in a document id, and it enforces that
+ * **asynchronously**: a composite id containing anything else (`:` was the original
+ * separator here) fails the whole batch with `invalid_document_id` long after the POST
+ * returned `202`. Ids must also stay stable across re-ingest so a chunk replaces its
+ * turns instead of duplicating them — hence a pure function of the parts.
+ */
+export function searchDocId(...parts: (string | number)[]): string {
+  return parts.map((p) => String(p).replace(/[^a-zA-Z0-9_-]/g, "_")).join("_");
 }
 
 /** The Meilisearch index holding one document per session (metadata search). */
@@ -104,7 +174,7 @@ export const SESSIONS_INDEX_SETTINGS: IndexSettings = {
 /** Project a stored `summary:` doc into a Meilisearch session document. */
 export function toSessionSearchDoc(doc: any): Record<string, unknown> {
   return {
-    id: doc.session_id,
+    id: searchDocId(doc.session_id),
     sessionId: doc.session_id,
     timestamp: doc.timestamp,
     cwd: doc.cwd ?? "",
@@ -141,7 +211,7 @@ export function toTurnSearchDocs(doc: any): Record<string, unknown>[] {
     const text: string = typeof e?.text === "string" ? e.text : "";
     if (!text) continue;
     out.push({
-      id: `${doc.session_id}:${doc.byte_start}:${i}`,
+      id: searchDocId(doc.session_id, doc.byte_start, i),
       sessionId: doc.session_id,
       role: e.role ?? "other",
       text,

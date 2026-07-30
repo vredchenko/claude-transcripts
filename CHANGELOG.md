@@ -20,7 +20,26 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   [ADR 0014](docs/design/decisions/0014-transcripts-live-in-s3-only.md): S3 is still
   the durable home, but no longer the read path.
 
+### Added
+
+- **`reindex`** (CLI) / `POST /api/search/reindex` — rebuild both Meilisearch indexes
+  from CouchDB. The indexes are derived state written only as a side effect of
+  `/api/ingest/*`, so nothing previously reconciled them: history adopted before search
+  existed, anything written straight to CouchDB (the hook's path), and entries orphaned
+  by a CouchDB delete were all invisible or stale with no way to fix it. Unlike the
+  ingest hot path it waits on Meilisearch's asynchronous validation and reports
+  failures.
+
 ### Fixed
+
+- **Content search indexed nothing — every turn document was silently rejected.** Turn
+  ids were built as `<session>:<byteStart>:<index>`, but Meilisearch only accepts
+  `a-zA-Z0-9`, `-` and `_` in a document id, and it enforces that *asynchronously*: the
+  `POST` returned `202` and the batch failed later in the task queue, where nothing was
+  looking. 9,362 turn documents had been accepted and zero indexed, so the `turns` index
+  sat empty while the sessions index looked healthy. Ids now go through `searchDocId()`,
+  with unit tests pinning the character set and the stability that makes re-ingest
+  replace rather than duplicate.
 
 - **A transcript was unreadable until SessionEnd had uploaded it to S3**, so a session
   that was still running — or that died before finalising — showed metadata and nothing

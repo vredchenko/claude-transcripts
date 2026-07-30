@@ -39,6 +39,14 @@ export interface IngestEventsResult {
 /** A migrate up/down response — the run result plus the engine's progress log. */
 export type MigrationRunResponse = MigrationRunResult & { log: string[] };
 
+/** A search-index rebuild result: what was scanned/indexed per index, plus failures. */
+export interface ReindexResult {
+  enabled: boolean;
+  sessions: { scanned: number; indexed: number };
+  turns: { scanned: number; indexed: number };
+  failures: string[];
+}
+
 /** GET /api/sessions */
 export function listSessions(
   params: { limit?: number; skip?: number } = {},
@@ -92,6 +100,11 @@ export function ingestChunks(body: { docs: ChunkDoc[] }): Promise<IngestEventsRe
 /** GET /api/migrate/status */
 export function migrateStatus(): Promise<MigrationStatus> {
   return customFetch<MigrationStatus>("/api/migrate/status", { method: "GET" });
+}
+
+/** POST /api/search/reindex */
+export function searchReindex(): Promise<ReindexResult> {
+  return customFetch<ReindexResult>("/api/search/reindex", { method: "POST" });
 }
 
 /** POST /api/migrate/up */
