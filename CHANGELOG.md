@@ -8,7 +8,32 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING — `GET /api/sessions/{id}/transcript` now returns
+  `{ entries, totalCount, hasMore, source, byteCoverage }`**; the `messages` array of
+  raw Claude Code JSONL is gone. Chunk docs store pruned per-turn entries rather than
+  raw bytes, so reading them first is necessarily a fidelity change; both sources
+  normalise through `buildChunkEntries`, so the shape never varies with `source`.
+  Byte-exact JSONL stays available via the read-only S3 proxy
+  (`/api/s3/sessions/<id>/transcript.jsonl`). This narrows
+  [ADR 0014](docs/design/decisions/0014-transcripts-live-in-s3-only.md): S3 is still
+  the durable home, but no longer the read path.
+
 ### Fixed
+
+- **A transcript was unreadable until SessionEnd had uploaded it to S3**, so a session
+  that was still running — or that died before finalising — showed metadata and nothing
+  else, even though its chunk docs already held the content. The reader now serves from
+  the chunk docs by default and falls back to S3 only when that reaches further
+  (whichever covers more bytes, chunks winning ties). New view
+  `chunks/entries_by_session` (migration v6) gives the transcript in reading order
+  across speakers, and `session_index/aggregate` carries chunk coverage (v7) so
+  `hasTranscript` no longer depends on a `summary` doc existing.
+- **`test:e2e` never ran anything** — bunfig's `[test] root = "packages"` meant
+  `bun test tests/e2e` matched no files. The e2e synth also wrote byte-range-only
+  chunks, so its "multi-chunk content" scenario never exercised content chunks; it now
+  emits them like the real writer and asserts which store served each read.
 
 - **`release-cli` couldn't build the npm bundle** (surfaced by the 0.0.1 tag run, after
   it had already attached the CLI binaries). `npm version --workspace` reifies the whole
