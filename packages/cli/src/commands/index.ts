@@ -10,6 +10,7 @@
 import { runBackfill } from "./backfill";
 import { runDoctor } from "./doctor";
 import { runMigrate } from "./migrate";
+import { runReindex } from "./reindex";
 import { runSessions } from "./sessions";
 import { runSetup } from "./setup";
 
@@ -19,6 +20,7 @@ export const COMMANDS: Record<string, CommandRunner> = {
   setup: runSetup,
   backfill: runBackfill,
   migrate: runMigrate,
+  reindex: runReindex,
   doctor: runDoctor,
   sessions: runSessions,
 };

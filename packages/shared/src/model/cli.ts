@@ -58,6 +58,11 @@ export const CLI_SPEC: CliSpec = {
       args: [{ name: "direction", description: "up | down | status" }],
     },
     {
+      name: "reindex",
+      summary: "Rebuild the search indexes from CouchDB",
+      args: [{ name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" }],
+    },
+    {
       name: "doctor",
       summary: "Smoke-test the write/read path end-to-end",
       args: [{ name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" }],

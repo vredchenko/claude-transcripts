@@ -74,6 +74,9 @@ To be specified. Anticipated groups:
 - `claude-transcripts couch …` / `claude-transcripts s3 …` — power-user read access to the proxies.
 - `claude-transcripts meta post …` — enrichment.
 - `claude-transcripts setup|configure|smoke-test` — install/admin.
+- `claude-transcripts reindex` — rebuild the search indexes from CouchDB (they're
+  derived state, populated only by writes through the ingest endpoints; see
+  [webapi.md](webapi.md#search-indexes-derived-state)).
 - `claude-transcripts backfill|export|import|migrate` — data lifecycle (`backfill` adopts
   on-disk transcripts; `export`/`import` is the bundle round-trip; see
   [migrations.md](../operate/migrations.md)).
