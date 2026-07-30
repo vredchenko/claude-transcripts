@@ -4,56 +4,23 @@ There are two layers of configuration, split by sensitivity:
 
 | Layer | File | Holds | Committed? |
 |-------|------|-------|-----------|
-| **Top-level settings** | `claude-transcripts.config.json` (repo root) | Non-secret, deployment-wide defaults: database/bucket names, feature flags, tunables, service-menu URLs | **Yes** — it's the single source of truth |
+| **Top-level settings** | `config/config.template.json` → `config/config.json` | Non-secret, deployment-wide defaults: database/bucket names, feature flags, tunables, service-menu URLs | **Template yes**; the live `config/config.json` is `.gitignore`d |
 | **Secrets & endpoints** | `.env` (per machine) | Hosts, ports, credentials, S3 keys | **No** (`.gitignore`d) |
 
-`.env` values **override** the matching `claude-transcripts.config.json` defaults. Anything
-secret or per-deployment belongs in `.env`; anything stable and shareable belongs
-in `claude-transcripts.config.json`.
+Copy the template to `config/config.json` to customise an instance; the loader falls
+back to the template, so zero-config development works out of the box. `.env` values
+**override** the matching defaults. Anything secret or per-deployment belongs in
+`.env`; anything stable and shareable belongs in `config/`, which is designed to grow
+into **multiple files**.
 
-## `claude-transcripts.config.json`
+## `config/config.json`
 
-```jsonc
-{
-  "couchdb": { "database": "claude-sessions" },   // default DB name (env: COUCHDB_DB)
-  "s3":      { "bucket":   "claude-sessions" },   // default bucket  (env: S3_BUCKET)
-
-  "features": {
-    "s3Blobs": true,                  // upload transcript/summary blobs to S3
-    "midFlightChunking": false,       // tail the transcript into CouchDB chunk docs during the session (#4)
-    "couchFullContentChunks": false,  // when chunking, store parsed entry content (vs light markers) (#4)
-    "meilisearch": false,             // phase-2 full-text search (not wired up yet)
-    "secretsMasking": false           // mask secrets on write/read (future scope)
-  },
-
-  "logging": {
-    "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 }  // (#4)
-  },
-
-  "servicesMenu": {                   // links shown in the webui Services menu
-    "couchdbFauxton": "http://localhost:7652/_utils/",
-    "garageWebui":    "http://localhost:7655/",
-    "meilisearch":    "http://localhost:7656/"
-  }
-}
-```
-
-> `midFlightChunking` + `couchFullContentChunks` + `logging.chunk.*` drive the
-> mid-flight transcript chunking from the logging rework (**issue #4**); see
-> [`docs/mid-flight-chunking.md`](../design/mid-flight-chunking.md). Both flags default `false` (exact prior
-> behaviour); set `midFlightChunking: true` to tail the transcript into CouchDB
-> `chunk:` docs during the session, and `couchFullContentChunks: true` to store
-> the parsed entry content in those chunks (vs light offset/count markers). Re-run
-> `hooks/scripts/setup.sh` after changing them so the hook runtime config is rebaked.
-> `meilisearch` + `secretsMasking` remain **placeholders** (future scope).
-
-## Structured config (Tier-1 target shape)
-
-The config is being formalised into clearly-separated sections. **Target shape**
-(the current flat keys keep working and are migrated into this):
+The committed template, in full — this is the current shape, not a target:
 
 ```jsonc
 {
+  "app": { "name": "claude-transcripts" },
+
   // CORE / system — dev-level settings & constants (not user-facing)
   "system": {
     "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } },
@@ -73,23 +40,47 @@ The config is being formalised into clearly-separated sections. **Target shape**
   // NAMES — designed for MORE THAN ONE database and bucket from the start
   "couchdb": {
     "databases": {
-      "sessions": "claude-sessions",   // the session corpus
-      "appLogs":  "app-logs"           // operational logs (app-logging.md)
+      "sessions": "claude-transcripts-sessions",   // the session corpus
+      "appLogs":  "claude-transcripts-app-logs"    // operational logs (app-logging.md)
     }
   },
   "s3": {
     "buckets": {
-      "sessions": "claude-sessions"    // room for more buckets later
+      "sessions": "claude-transcripts-sessions"    // room for more buckets later
     }
   },
 
-  "features":     { /* toggles: s3Blobs, midFlightChunking, meilisearch, … */ },
-  "servicesMenu": { /* admin-UI links */ },
+  "features": {
+    "s3Blobs": true,                 // upload transcript/summary blobs to S3
+    "midFlightChunking": true,       // tail the transcript into CouchDB chunk docs during the session
+    "couchFullContentChunks": true,  // embed parsed per-turn content in those chunks (ADR 0027)
+    "meilisearch": true,             // full-text search over sessions + conversation content
+    "secretsMasking": false          // mask secrets on write/read (future scope)
+  },
+
+  "servicesMenu": {                  // links shown in the webui Services menu
+    "couchdbFauxton": "http://127.0.0.1:7652/_utils/",
+    "garageWebui":    "http://127.0.0.1:7655/",
+    "meilisearch":    "http://127.0.0.1:7656/"
+  },
 
   // USER settings — reserved, empty for now
   "userSettings": {}
 }
 ```
+
+> **Feature flags.** `midFlightChunking` + `couchFullContentChunks` +
+> `system.logging.chunk.*` drive mid-flight transcript chunking
+> ([mid-flight-chunking.md](../design/mid-flight-chunking.md),
+> [ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)). They now
+> default **on**, and quite a lot depends on that: content chunks are what make a live
+> session's transcript readable before it ends, what the speaker-split views map over,
+> and what content search indexes. Turn `couchFullContentChunks` off and chunks carry
+> byte ranges only — transcripts then read from S3 (so only after the session ends)
+> and contribute nothing to search. `meilisearch` gates search entirely
+> ([ADR 0009](../design/decisions/0009-meilisearch-search.md)); `secretsMasking`
+> remains a placeholder. Re-run the CLI's `setup` after changing flags so the hook's
+> runtime config is rebaked.
 
 - **`system`** — core/dev-level constants and tunables (e.g. chunk buffer size).
 - **`couchdb.databases` / `s3.buckets`** — **keyed maps**, not single names, so the
@@ -101,21 +92,17 @@ The config is being formalised into clearly-separated sections. **Target shape**
   or empty ([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)), but
   `.env` always carries the **full endpoint paths** to CouchDB and S3.
 
-> Migrating the flat `couchdb.database` / `s3.bucket` keys to the keyed maps (and
-> updating `config.ts` to resolve by key) is part of the webapi scaffolding pass;
-> the shape above is the contract it targets.
-
 ## Who reads what
 
-- **webapi** imports `claude-transcripts.config.json` directly (`packages/webapi/src/config.ts`)
-  for the default DB/bucket names, feature flags, and service URLs, then overlays
-  `.env`. The repo-root file is copied into the runtime image by the `Dockerfile`.
-- **hook** can't resolve the workspace at install time, so `hooks/scripts/setup.sh`
-  reads `claude-transcripts.config.json` (via Bun) and **bakes** the names + `features` +
-  `logging` into the generated runtime config at
-  `~/.config/claude-transcripts/config.json` (alongside the secrets from
-  `.env`). Re-run `setup.sh` (with `FORCE=1`) after editing `claude-transcripts.config.json`.
-- **docker-compose** uses `.env` only; its defaults mirror `claude-transcripts.config.json`.
+- **webapi** loads `config/` directly (`packages/webapi/src/config.ts`) for the DB and
+  bucket names, feature flags, and service URLs, then overlays `.env`. The config is
+  copied into the runtime image by the `Dockerfile`.
+- **hook** can't resolve the workspace at install time, so the CLI's `setup` reads
+  `config/` and **bakes** the names + `features` + `system.logging` into the generated
+  runtime config at `~/.config/claude-transcripts/config.json` (alongside the secrets
+  from `.env`). Re-run `setup` after editing `config/config.json` — the hook reads the
+  baked copy, not the repo.
+- **docker-compose** uses `.env` only; its defaults mirror the committed template.
 
 ## Environment variables (`.env`)
 

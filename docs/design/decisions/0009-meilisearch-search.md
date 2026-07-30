@@ -4,9 +4,15 @@ Date: 2026-06-06
 
 ## Status
 
-Proposed — search is Phase 2 and not yet wired up. Meilisearch is provisionally
-included in the `deploy/` stack; the choice will be confirmed (including a
-Typesense evaluation, see Alternatives) before the search layer is built.
+**Accepted** — the search layer is built and running on Meilisearch. `GET /api/search`
+serves session-metadata and conversation-content hits; the indexes are kept current by
+a CouchDB `_changes` follower and rebuildable with `POST /api/search/reindex`.
+
+The Typesense evaluation below never happened — Meilisearch was implemented directly.
+That's a decision by default rather than by comparison; switching now would be a
+superseding ADR, and the fact that the index is disposable and rebuilt from CouchDB is
+what keeps that cheap. Whether the engine may live **outside** the bundled stack is
+open: [ADR 0028](0028-external-vs-bundled-meilisearch.md).
 
 ## Context
 
@@ -55,9 +61,17 @@ coupled, optional** component.
 
 ## Consequences
 
-- The `deploy/` stack runs Meilisearch but nothing reads/writes it yet (Phase 1).
-- When built, an indexer projects CouchDB (and later external sources) into
-  Meilisearch; the index is rebuildable from the sources of truth and disposable.
-- Because it's optional, deployments that don't want search can simply not run it.
-- Status stays `Proposed` until the search layer is implemented (and Typesense
-  evaluated); confirming it is a status bump, switching is a superseding ADR.
+- Two indexes are projected from CouchDB: `sessions` (one doc per `summary`) and
+  `turns` (one doc per full-content `chunk` entry). Both are **disposable** — nothing
+  in them is authoritative, and `reindex` rebuilds them from the store.
+- Because it's optional, deployments that don't want search can simply not run it:
+  every Meilisearch call is best-effort, and search degrades to `enabled: false`
+  rather than erroring.
+- "Rebuildable and disposable" turned out to be load-bearing in practice, not just
+  theory: it's what let a silent indexing bug be fixed by a rebuild rather than a data
+  migration.
+- Being a derived index rather than a store is also what makes it *harder* to
+  externalise than CouchDB or Garage — see [ADR 0028](0028-external-vs-bundled-meilisearch.md).
+- Indexing must never block or break a write. That constrains the write path: it can't
+  wait on Meilisearch's asynchronous validation, so index-level failures are invisible
+  there by design and surface through `reindex` instead.

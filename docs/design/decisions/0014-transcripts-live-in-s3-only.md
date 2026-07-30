@@ -8,6 +8,14 @@ Accepted (supersedes [ADR 0013](0013-s3-is-the-transcript-home-couch-attachment-
 and the remaining attachment-read parts of
 [ADR 0011](0011-read-couch-attachments-over-http.md))
 
+**Narrowed by [ADR 0027](0027-full-content-chunks-in-couchdb.md):** this ADR is about
+where transcript *bytes* durably live, and that hasn't changed — S3, never a CouchDB
+attachment. But CouchDB is no longer blind to transcript *content*: full-content chunk
+docs carry each turn's parsed text, and the reader now serves
+`GET /api/sessions/{id}/transcript` from those chunks by default, falling back to the
+S3 blob only when it reaches further. So "S3 only" remains true of the durable,
+byte-exact copy and is no longer true of the read path. See "Consequences" below.
+
 ## Context
 
 [ADR 0013](0013-s3-is-the-transcript-home-couch-attachment-opt-in.md) made S3 the
@@ -45,14 +53,20 @@ Remove CouchDB transcript-attachment support entirely:
 
 ## Consequences
 
-- CouchDB holds only event + summary docs — no transcript bytes, ever. The
-  primary store stays compact; replication and view builds are cheaper.
-- A deployment with **no** S3 backend no longer persists transcript content at all
-  (only the summary doc's `transcript_bytes` is recorded). S3 is now a hard
-  requirement for keeping transcripts — documented in `docs/hook-setup.md`.
-- `hasTranscript` depends on `transcript_bytes` being set. The legacy
-  attachment-only docs were backfilled with `transcript_bytes` (from their S3
-  object size) as part of the attachment removal, so they still surface in the UI.
+- CouchDB holds no transcript **bytes** — no attachments, ever. The primary store
+  stays compact; replication and view builds are cheaper.
+  *(Since [ADR 0027](0027-full-content-chunks-in-couchdb.md), chunk docs do hold
+  parsed per-turn **text**. That's a projection for querying, not the byte-faithful
+  transcript, and it's what makes the store searchable and readable mid-session.)*
+- A deployment with **no** S3 backend still loses the byte-exact transcript — but no
+  longer loses transcript content outright, since content chunks live in CouchDB. S3
+  remains required for a faithful copy (and for export).
+- `hasTranscript` **no longer depends on `transcript_bytes` alone**: it is true when
+  either the summary records bytes or the session's chunks carry turns. Without that,
+  a running or crashed session showed metadata and no transcript even though its
+  content was already in CouchDB. Legacy attachment-only docs were backfilled with
+  `transcript_bytes` (from their S3 object size) as part of the attachment removal, so
+  they still surface in the UI.
 - The Bun-specific `nano.attachment.get` finding from
   [ADR 0011](0011-read-couch-attachments-over-http.md) no longer applies to this
   codebase (no attachment is read); the ADR is retained only as history.
