@@ -75,7 +75,7 @@ packages/webui/
     │   └── session-detail.tsx # SessionDetailPage — "/sessions/$id"
     └── components/
         ├── Header.tsx         # thin top bar (title/version, search, settings, links)
-        ├── SearchBox.tsx      # header search input (placeholder — search is Phase 2)
+        ├── SearchBox.tsx      # header search input → GET /api/search (sessions + content)
         ├── SettingsMenu.tsx   # primary menu: theme toggle (+ config later)
         ├── LinksMenu.tsx      # secondary menu: services / API / GitHub / docs links
         ├── TranscriptView.tsx # incrementally-paged transcript accordion
@@ -150,9 +150,11 @@ in the generated snapshot. The header uses it for the title + build version.
   "no transcript was stored" note.
 - **`Header`** (`components/Header.tsx`) — the thin top bar. Left: app title +
   build version (from `GET /api/model` via `api/model.ts`, with a "Claude
-  Transcripts" fallback while loading). Center: `SearchBox` — a **placeholder**
-  input (full-text search is Phase 2, backed by Meilisearch; it captures text but
-  doesn't query yet). Right: `SettingsMenu` (a ⚙ button — the theme toggle
+  Transcripts" fallback while loading). Center: `SearchBox` — a debounced
+  full-text search over `GET /api/search`, showing both **session** matches (project,
+  id, model) and **in-conversation** matches (turn text with a cropped snippet and a
+  role chip); selecting either navigates to that session. Degrades to a hint when
+  Meilisearch is disabled or unreachable rather than erroring. Right: `SettingsMenu` (a ⚙ button — the theme toggle
   light / dark / follow-system, plus a disabled "config coming soon") and
   `LinksMenu`.
 - **`LinksMenu`** (`components/LinksMenu.tsx`) — the secondary dropdown grouping

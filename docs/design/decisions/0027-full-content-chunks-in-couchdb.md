@@ -4,12 +4,25 @@ Date: 2026-07-22
 
 ## Status
 
-Accepted — write path implemented (the hook + `backfill` embed `entries[]` when
-`couchFullContentChunks` is on, validated at the webapi), and the first consuming
-view has landed: `speaker_split/by_role` (migration v4) served by
-`GET /api/sessions/{id}/turns`. Follow-ups: per-turn search (Meilisearch over
-`entries[]`), a webui speaker toggle, and a migration that backfills content chunks
-for already-recorded sessions from their S3 transcripts.
+Accepted — implemented on both the write and read paths.
+
+The hook + `backfill` embed `entries[]` when `couchFullContentChunks` is on, validated
+at the webapi. Every consuming view has landed:
+
+- `speaker_split/by_role` (v4) → `GET /api/sessions/{id}/turns`, with the webui's
+  per-speaker toggle on the session detail;
+- `speaker_split/by_role_time` (v5) → `GET /api/turns`, cross-session in time order;
+- `chunks/entries_by_session` (v6) → the transcript in reading order across speakers,
+  which makes chunks the **default source** for
+  `GET /api/sessions/{id}/transcript` (S3 is the fallback) — so a live or crashed
+  session is readable. This narrows [ADR 0014](0014-transcripts-live-in-s3-only.md).
+
+Per-turn search over `entries[]` is live in Meilisearch's `turns` index
+([ADR 0009](0009-meilisearch-search.md)).
+
+Remaining: a migration that rebuilds content chunks for sessions recorded before this,
+from their S3 transcripts. Until it runs, those sessions have byte-range-only chunks —
+they fall back to S3 on read and contribute nothing to content search.
 
 ## Context
 

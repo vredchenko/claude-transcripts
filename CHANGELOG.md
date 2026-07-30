@@ -22,6 +22,19 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Live search indexing via a CouchDB `_changes` follower.** The webapi follows the
+  change feed and indexes `summary` / full-content `chunk` docs as they land, so a
+  session recorded by the hook — which writes straight to CouchDB, not through the
+  ingest endpoints — becomes searchable while it runs, with no manual step. Resumable
+  (a checkpoint doc stores the sequence) and best-effort, so an indexing failure can
+  never take down the webapi or block a write. Upserts only: deletes and pre-search
+  history are still reconciled by `reindex`.
+- **[ADR 0028](docs/design/decisions/0028-external-vs-bundled-meilisearch.md)
+  (open/undecided)** — records why Meilisearch is harder to run externally than
+  CouchDB or Garage: it isn't a store you point a URL at but a derived index we
+  configure, feed, name and destructively rebuild. Options laid out; decision
+  deliberately deferred.
+
 - **`reindex`** (CLI) / `POST /api/search/reindex` — rebuild both Meilisearch indexes
   from CouchDB. The indexes are derived state written only as a side effect of
   `/api/ingest/*`, so nothing previously reconciled them: history adopted before search
@@ -31,6 +44,16 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   failures.
 
 ### Fixed
+
+- **`/health` reported `degraded` on any CouchDB with credentials.** The check built a
+  URL carrying userinfo (`http://user:pass@host`), but `fetch` doesn't send userinfo —
+  CouchDB saw an anonymous request and answered 401, which the check faithfully
+  reported as "rejected the credentials". Credentials now go in an `Authorization`
+  header. This also made `cli doctor` refuse to run, since it checks health first.
+- **Long admin requests had their connection dropped after 10s.** Bun's default
+  `idleTimeout` is shorter than a full search rebuild (which grows with the corpus),
+  so the client saw a socket reset while the server completed the work normally.
+  Raised to Bun's maximum.
 
 - **Content search indexed nothing — every turn document was silently rejected.** Turn
   ids were built as `<session>:<byteStart>:<index>`, but Meilisearch only accepts

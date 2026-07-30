@@ -16,11 +16,32 @@ Use these consistently across code, config, and docs.
 Claude Code sessions. A Claude Code **hook** (writer) logs every session to
 **CouchDB + S3 (Garage)**; a **webapi** gateway serves it back; a **webui** and a
 **cli** (and AI agents) read it. Built fresh as a Bun + TypeScript monorepo.
-Homelab-agnostic and public-release-minded: no internal hostnames, IPs, secrets,
-or host-specific tooling in code/config/docs.
 
 > `docs/` holds the full technical design — tiers, architecture, ADRs, data model.
 > Treat it as the spec.
+
+## This is a public project — build for everyone
+
+This is a **public FOSS repo** with users who are not the maintainer. Everything
+committed — code, config, docs, ADRs, defaults, error messages — is read by people
+running their own instance on their own machines. So:
+
+- **Solve the general case, not the maintainer's case.** A need that only the
+  maintainer has (say, a one-off import from some predecessor project's schema, or a
+  quirk of one particular machine) does not belong in the repo. Either generalise it
+  into a feature anyone would use, or keep it out of tree.
+- **No environment specifics**: no internal hostnames, IPs, personal paths, machine
+  names, account names, or secrets in code, config, docs or fixtures. Ship sane
+  defaults and make the rest configurable.
+- **Assume the reader knows nothing about this deployment.** Docs and messages should
+  make sense to someone who just cloned the repo; don't lean on context that only
+  exists in the maintainer's head or in one instance's history.
+- **Don't assume our own topology.** Backing services may be bundled or external, on
+  any host, with or without auth ([ADR 0020](docs/design/decisions/0020-bundled-services-default-no-auth.md),
+  [ADR 0028](docs/design/decisions/0028-external-vs-bundled-meilisearch.md)).
+
+When a request is genuinely one user's need, the right move is usually to build the
+generic capability it's an instance of — and say so.
 
 ## Local development
 

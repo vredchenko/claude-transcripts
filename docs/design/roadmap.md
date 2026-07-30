@@ -8,22 +8,27 @@ below map onto Tiers 2–3. A [competitive-landscape](competitive-landscape.md)
 survey (issues #18–#30) informs the Tier-2 recall/memory direction.
 
 **Phase 1** (current, Tier 1) recreates, as a single standalone project, the
-logging + viewing that previously lived across several repos. The items below are
-intentionally not built yet (Meilisearch ships in the stack but is not wired up).
-The UI is functional but deliberately unstyled — a visual rework comes later.
+logging + viewing that previously lived across several repos. The UI is functional
+but deliberately unstyled — a visual rework comes later.
 
-The next major piece is completing the **logging rework** (#4). Two parts are
-already **done**: dropping CouchDB transcript attachments (transcripts now live in
-S3 only, [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)) and the
-**mid-flight chunking *mechanism*** — the hook flushes append-only `chunk` docs as
-a session grows (crash resilience), ingested idempotently with stable ids. But
-today a `chunk` doc holds only a **byte-range slice** into the S3 transcript
-(`byte_start` / `byte_end` / `entry_count`), not the messages themselves — so
-CouchDB still can't see individual turns. The remaining, and now next, piece is
-**full-content chunks**: parsing transcript entries into CouchDB docs that carry
-each turn's role + content, so map-reduce views can extract session features
-(speaker-split, per-turn search, analytics). Design:
-[ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md).
+The **logging rework** (#4) is now complete end to end. Transcripts live in S3 only
+([ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)); the hook flushes
+append-only `chunk` docs mid-session (crash resilience), ingested idempotently with
+stable ids; and those chunks now carry **full content** — each turn's role + text —
+not just a byte range ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)).
+That made CouchDB able to see individual turns, which is what the speaker-split views,
+per-turn search, and the chunk-first transcript read are all built on.
+
+Two consequences worth stating, because they changed how the system behaves:
+
+- **Reading a transcript no longer waits for the session to end.** `GET
+  /api/sessions/{id}/transcript` serves from the chunk docs by default and falls back
+  to the S3 blob only when that reaches further, so a live — or crashed — session is
+  readable. This narrows ADR 0014: S3 is still the durable home, no longer the read
+  path.
+- **Search is wired and populated.** Meilisearch indexes both session metadata and
+  conversation content, kept current by a CouchDB `_changes` follower, with
+  `POST /api/search/reindex` (`cli reindex`) as the reconciliation step.
 
 ## Tier 1 build (current scope)
 
@@ -50,13 +55,17 @@ done.
 - Evaluate DeltaDB-style delta granularity ([database-choice.md](database-choice.md)) (#16)
 
 **Logging & data model (Tier 1/2)**
-- **Full-content chunks** (#4) — **write path done**: the hook + `backfill` embed
+- **Full-content chunks** (#4) — **done, read and write**: the hook + `backfill` embed
   parsed per-turn `entries[]` (role + content) in `chunk` docs when
   `couchFullContentChunks` is on, validated at the webapi
   ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md),
-  [mid-flight-chunking.md](mid-flight-chunking.md)). Remaining: map-reduce views
-  over `entries[]` (speaker-split, per-turn search) and a migration to backfill
-  content chunks for already-recorded sessions from their S3 transcripts.
+  [mid-flight-chunking.md](mid-flight-chunking.md)). The views over `entries[]` all
+  exist — `speaker_split/by_role` + `by_role_time` (v4/v5) and
+  `chunks/entries_by_session` (v6, transcript order across speakers), which backs the
+  chunk-first transcript read. Remaining: a migration to rebuild content chunks for
+  sessions recorded before this, from their S3 transcripts (they currently have
+  byte-range-only chunks, so they fall back to S3 on read and contribute nothing to
+  content search).
 - Session enrichment: harness config / PROMPT / MCP / plugins / CLI version
   ([actions.md](../reference/actions.md), [hooks.md](../reference/hooks.md)) (#3)
 - Multi-user / multi-machine attribution ([tiers.md](tiers.md) → T2) (#7)
@@ -84,8 +93,9 @@ done.
 - **Speaker-split views** — **done**: `speaker_split/by_role` (v4, per-session,
   `GET /api/sessions/{id}/turns`) and `speaker_split/by_role_time` (v5, **cross-session**
   in time order, `GET /api/turns`) map over `chunk.entries[]`
-  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). Remaining: a webui
-  toggle to read one speaker inline per session, and a cross-session browser.
+  ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). The webui session
+  detail has the per-speaker toggle (Full / You / Claude). Remaining: a cross-session
+  browser over `by_role_time`.
 - **Cross-project speech-pattern analysis** *(Tier 2)* — built on `by_role_time`:
   cluster/aggregate what the user repeatedly says (recurring instructions →
   candidates for CLAUDE.md / memory) and what Claude repeatedly says (recurring
@@ -115,12 +125,18 @@ done.
 
 **Search & recall (Tier 2)**
 - Meilisearch search — **done**: `GET /api/search` returns both **session-metadata**
-  hits (cwd, model, tools, host — `sessions` index, on summary ingest) and
-  **conversation-content** hits (turn text with cropped snippets — `turns` index, on
-  chunk ingest over `chunk.entries[]`). The webui header search box shows both,
-  live + best-effort (degrades gracefully when Meili is down/disabled). Remaining:
-  typeahead ranking, filters, and a vector index for agent retrieval
-  ([database-choice.md](database-choice.md)) (#9)
+  hits (cwd, model, tools, host — `sessions` index) and **conversation-content** hits
+  (turn text with cropped snippets — `turns` index over `chunk.entries[]`). The webui
+  header search box shows both, live + best-effort (degrades gracefully when Meili is
+  down/disabled). Indexes stay current via a **CouchDB `_changes` follower**, so docs
+  written outside the ingest endpoints — the hook writes straight to CouchDB — are
+  indexed without manual intervention; `POST /api/search/reindex` (`cli reindex`)
+  rebuilds from CouchDB and is the reconciliation step for deletes and for history
+  predating search. Remaining: typeahead ranking, filters, a dedicated results page
+  (the header dropdown is capped at a handful of hits), and a vector index for agent
+  retrieval ([database-choice.md](database-choice.md)) (#9). Whether Meilisearch can
+  be **external** like CouchDB/Garage is open —
+  [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md).
 - Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10)
 
 **Webui (Tier 2)**
