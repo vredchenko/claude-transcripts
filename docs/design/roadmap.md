@@ -9,7 +9,7 @@ survey (issues #18–#30) informs the Tier-2 recall/memory direction.
 
 **Phase 1** (current, Tier 1) recreates, as a single standalone project, the
 logging + viewing that previously lived across several repos. The UI is functional
-but deliberately unstyled — a visual rework comes later.
+and themed (MUI, light/dark) but has had no visual design pass — that comes later.
 
 The **logging rework** (#4) is now complete end to end. Transcripts live in S3 only
 ([ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)); the hook flushes
@@ -38,7 +38,62 @@ The concrete Tier-1 deliverables are enumerated in
 dev automation (orval client gen), the dev full-stack compose + admin UIs, mirrored
 backing images, lockstep versioning + combined image, the CC compatibility
 generator + hook table, and the single-`main` branch model. The **e2e test suite**
-([testing.md](../develop/testing.md)) is the gate from Tier 1 into Tier 2.
+([testing.md](../develop/testing.md)) is the gate from Tier 1 into Tier 2 — built and
+passing, covering baseline / multi-chunk / subagent / crashed-session scenarios plus
+both transcript read paths.
+
+### Tier 1 — open work
+
+The near-term list, mostly surfaced by using the system rather than planned up front.
+Ordered roughly by how much they get in the way.
+
+**Install & first run** — the biggest remaining Tier-1 gap. Getting from `git clone`
+to "sessions are being logged" currently means running the stack, provisioning stores,
+generating hook config and registering the hook, with the pieces spread across
+`cli setup`, `scripts/`, and `deploy/`. It needs to be one obvious, idempotent,
+re-runnable path with a clear "is this working?" answer at the end — this is what
+[`doctor`](../operate/tools.md) checks after the fact. Public-repo critical: it's the
+first thing a new user touches ([configuration.md](../start/configuration.md)).
+
+**Ingest & data fidelity**
+- **`backfill` can't re-process an adopted session.** It skips anything that already
+  has a `summary` doc, so a session adopted with `--no-content`, or by an older CLI,
+  can't be redone — the only recovery is deleting docs by hand. Wants a `--force` /
+  re-process flag; that's also the generic answer to rebuilding byte-range-only chunks
+  into content chunks.
+- **Non-message transcript lines render blank.** Claude Code's JSONL carries entries
+  that aren't conversation turns (file-history snapshots, queue operations, system
+  meta). `buildChunkEntries` projects them to `role: "other"` with no text, so they
+  show as empty rows in the transcript view and expand to nothing useful. The fix is
+  writer-side — carry the source entry `type` into `ChunkEntry` — and only reaches
+  existing sessions once they're re-chunked (see above).
+
+**Search**
+- **Metadata search misses running sessions.** The `sessions` index is built from
+  `summary` docs, so a session that hasn't ended isn't in it — its *turns* are
+  searchable, but the session itself isn't. Fix: project summary-less sessions from
+  `session_index/aggregate` too.
+- **No dedicated results page.** The header box is a dropdown capped at a handful of
+  hits, with no paging, filters, or ranking controls — fine for "jump to that
+  session", not for exploring the corpus.
+- **[ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md) is open** — whether
+  Meilisearch can live outside the bundled stack the way CouchDB and Garage can.
+
+**Quality & debt**
+- **The webui typechecks against the wrong React types.** `packages/webui` asks for
+  `@types/react@^19`, `packages/cli` (Ink) pins `^18.3.12`, and the workspace hoists a
+  single copy — so the webui is checked against React 18 types and reports 3 errors
+  (React 19's `ReactNode` admits `bigint`, 18's doesn't). Harmless at runtime, but it
+  means `typecheck` is never clean, which is how a real error would hide.
+- **The webui API client is hand-maintained, contradicting
+  [ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md).**
+  `gen:clients` emits an *axios* client for the webui that doesn't match the fetch
+  transport in use and wouldn't compile, so the committed file is written by hand and
+  regeneration would destroy it. Either reconcile orval (`httpClient: "fetch"`) or
+  amend the ADR — right now the stated contract and the code disagree.
+- **The e2e suite leaves fixtures behind.** It writes synthetic sessions into whatever
+  store it points at and never cleans up, so running it against a real instance
+  pollutes real history (and the search index) until they're deleted by hand.
 
 ## Future scope → captured in docs
 
@@ -99,7 +154,8 @@ done.
   in time order, `GET /api/turns`) map over `chunk.entries[]`
   ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). The webui session
   detail has the per-speaker toggle (Full / You / Claude). Remaining: a cross-session
-  browser over `by_role_time`.
+  browser over `by_role_time` (the API is live at `GET /api/turns`; nothing in the
+  webui reads it yet).
 - **Cross-project speech-pattern analysis** *(Tier 2)* — built on `by_role_time`:
   cluster/aggregate what the user repeatedly says (recurring instructions →
   candidates for CLAUDE.md / memory) and what Claude repeatedly says (recurring
@@ -109,23 +165,32 @@ done.
   event), compute *active* duration by summing only intervals where something was
   happening (gaps beyond an idle threshold subtracted). Sessions left running in
   tmux otherwise inflate duration. Independent of full-content chunks (uses the
-  existing per-event timestamps). *First cut landing on the session detail; the
-  session list stays wall-clock for now at Tier-1 volumes.*
+  existing per-event timestamps). **Done**: `activeMs` is computed per session and
+  shown on the session detail; the list stays wall-clock at Tier-1 volumes, since it
+  needs a per-session scan.
 - **Combined-prompt provenance** *(nice-to-have, Tier 2/3)* — for each session,
   record and visualise the effective combined prompt (system prompt + CLAUDE.md
   layers + memory + appended instructions) so it's clear which instructions, and
   from where, applied to every message.
-- **Self-built CouchDB migrations** — up/down + views + export/import bundles
-  ([migrations.md](../operate/migrations.md), [ADR 0021](decisions/0021-self-built-couchdb-migrations.md))
+- **Self-built CouchDB migrations** — **done** for schema/views: a versioned up/down
+  engine with a marker doc, driven from the CLI and `/api/migrate/*`; seven migrations
+  applied to date ([migrations.md](../operate/migrations.md),
+  [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)). Remaining: the
+  export/import **bundle** format (dump + version + migrate-forward on import).
 
 **Ingest & lifecycle (Tier 1/2)**
-- `backfill` — "adopt this machine's history" as first-class records
-  (summary + per-event docs, planned chunks) ([tools.md](../operate/tools.md)) (#6)
+- `backfill` — **done**: adopts this machine's history as first-class records
+  (summary + per-event docs + full-content chunk docs, transcript to S3), delivered
+  through the webapi's ingest routes so it lands indexed
+  ([tools.md](../operate/tools.md)) (#6). Remaining: a re-process path — see
+  [Tier 1 — open work](#tier-1--open-work).
 - Full Claude Code hook-type coverage + drift check ([hooks.md](../reference/hooks.md), #5/#13)
 
 **Quality (Tier 1 → Tier 2 gate)**
-- **End-to-end test suite** faking a CC session and driving the system e2e
-  ([testing.md](../develop/testing.md))
+- **End-to-end test suite** — **done**: fakes CC sessions and drives the whole
+  write→store→read path through the real gateway, asserting rollups, token usage,
+  status, and both transcript sources ([testing.md](../develop/testing.md)). Remaining:
+  fixture teardown — see [Tier 1 — open work](#tier-1--open-work).
 
 **Search & recall (Tier 2)**
 - Meilisearch search — **done**: `GET /api/search` returns both **session-metadata**
@@ -136,16 +201,18 @@ done.
   written outside the ingest endpoints — the hook writes straight to CouchDB — are
   indexed without manual intervention; `POST /api/search/reindex` (`cli reindex`)
   rebuilds from CouchDB and is the reconciliation step for deletes and for history
-  predating search. Remaining: typeahead ranking, filters, a dedicated results page
-  (the header dropdown is capped at a handful of hits), and a vector index for agent
-  retrieval ([database-choice.md](database-choice.md)) (#9). Whether Meilisearch can
-  be **external** like CouchDB/Garage is open —
-  [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md).
+  predating search. Remaining: typeahead ranking, filters, a dedicated results page,
+  coverage for running sessions, and a vector index for agent retrieval
+  ([database-choice.md](database-choice.md)) (#9) — the near-term ones are in
+  [Tier 1 — open work](#tier-1--open-work); whether Meilisearch may live **outside**
+  the bundled stack is [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md).
 - Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10)
 
 **Webui (Tier 2)**
 - Configurable session-list columns + virtual scroll (#8)
-- Config-driven services menu, fed by the `/` manifest ([routes.md](../reference/routes.md)) (#14)
+- Config-driven services menu — **done**: `servicesMenu` flows from `config/` through
+  the app model into the `/` manifest and the webui's Links menu, so admin-UI links
+  follow a deployment's real hosts/ports ([routes.md](../reference/routes.md)) (#14)
 - **Claude Code statusline indicator** — show a statusline in Claude Code when the
   external transcripts store is connected and logging, giving live confirmation the
   hook is wired.
