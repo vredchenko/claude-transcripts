@@ -56,6 +56,34 @@ async function resolvePortBase(base: number, span: number): Promise<number | nul
   return null;
 }
 
+/**
+ * Compare the running app against the CLI that installed it.
+ *
+ * Components are versioned in lockstep (ADR 0023), so a mismatch means the image and
+ * the CLI disagree about the schema, the API contract, or both — and that failure is
+ * silent by nature: everything starts, and only some later read behaves oddly. A
+ * deliberate pin is legitimate, so this warns rather than fails.
+ */
+async function warnOnVersionSkew(env: EnvMap): Promise<void> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${env.WEBAPI_PORT}/health`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    const body = (await res.json()) as { version?: string };
+    const running = body.version ?? "unknown";
+    // A `main` image reports "<last release>+<sha>", which never equals a release
+    // version — so only compare when the CLI itself is a release.
+    if (VERSION !== "0.0.0-dev" && running !== VERSION) {
+      console.log(`  ! app image reports ${running}, but this CLI is ${VERSION}`);
+      console.log("    they are versioned in lockstep — pin APP_TAG in the instance env");
+    } else {
+      console.log(`  app image ${running} (tag ${env.APP_TAG})`);
+    }
+  } catch {
+    // The health check already passed; this is extra information, not a gate.
+  }
+}
+
 export async function runInstall(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const noHook = options["no-hook"] === true;
@@ -99,7 +127,12 @@ export async function runInstall(argv: string[]): Promise<number> {
   const firstRun = !existsSync(paths.instanceEnv);
   let env: EnvMap = loadOrCreateInstanceEnv(paths.instanceEnv, {
     portBase,
-    appTag: VERSION === "0.0.0-dev" ? "latest" : VERSION,
+    // Lockstep versioning (ADR 0023) means the CLI and the app image have to move
+    // together. A released CLI pins its exact version; an unreleased one tracks
+    // `main`, because `latest` is the newest *release* and would pair a dev CLI with
+    // an older app — which is how an install ended up running schema v5 against a
+    // v7 CLI.
+    appTag: VERSION === "0.0.0-dev" ? "main" : VERSION,
     meiliMasterKey: meiliKey,
   });
   console.log(`  ${firstRun ? "generated" : "reused"} ${paths.instanceEnv}`);
@@ -170,6 +203,7 @@ export async function runInstall(argv: string[]): Promise<number> {
       return abort("the webapi did not become healthy.", "claude-transcripts stack logs --app");
     }
     console.log(`  ✓ webapi (${(health.waitedMs / 1000).toFixed(1)}s)`);
+    await warnOnVersionSkew(env);
   }
 
   // ── 6. Hook ───────────────────────────────────────────────────────────────

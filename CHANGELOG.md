@@ -92,6 +92,16 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **No app image tracked `main`, so an install could only get a released one.**
+  `latest` correctly means "newest release", but with nothing published between
+  releases the app image sat at schema v5 while `main` reached v7 — pairing a current
+  CLI with a months-old app, which breaks lockstep versioning
+  ([ADR 0023](docs/design/decisions/0023-lockstep-versioning-and-combined-image.md))
+  silently, since everything starts and only some later read misbehaves. Every merge
+  to `main` now publishes `:main`; `latest` still moves only on a release. `install`
+  pins the image to the CLI's own version when released and to `main` when not, then
+  reports the version the running app announces so skew is visible.
+
 - **`/health` and the read-only `/api/couch` proxy both 401'd against an authenticated
   CouchDB.** Each built a URL carrying userinfo (`http://user:pass@host`), but `fetch`
   doesn't send userinfo — CouchDB saw an anonymous request and answered 401, which

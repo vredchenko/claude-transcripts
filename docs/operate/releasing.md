@@ -18,6 +18,31 @@ the zero-dependency option (`curl` the one for your platform from the Release); 
 **npm** package is for bun users (`bunx @claude-transcripts/cli`, or a global install
 with bun on `PATH`).
 
+### App image tags
+
+| Tag | Means | Pushed by |
+|-----|-------|-----------|
+| `vX.Y.Z` | that exact release | a `v*.*.*` tag |
+| `latest` | the **newest release** | a `v*.*.*` tag |
+| `main` | the **tip of `main`**, rebuilt on every merge | a push to `main` |
+| `<sha>` | one specific commit | any of the above, and manual dispatch |
+
+`latest` deliberately tracks releases, not `main` — `install` uses it, and pointing it
+at unreleased code would hand users something untested. But that leaves a gap the
+`main` tag fills: between releases there would otherwise be **no image of the current
+code at all**. After 0.0.1 the app image sat at schema v5 while `main` reached v7, so
+an install could only pair a current CLI with a months-old app — which breaks the
+lockstep-versioning invariant ([ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md))
+silently, since everything starts and only some later read misbehaves.
+
+Accordingly `install` pins the app image to the CLI's **own** version when the CLI is
+a release, and to `main` when it isn't, then reports the version the running app
+actually announces so a mismatch is visible rather than inferred.
+
+Building on every merge to `main` also means the image vulnerability scans (grype +
+trivy, failing on HIGH) now run per-merge instead of only at release — earlier
+warning, at the cost of a noisier signal when a base image picks up a CVE.
+
 ## Cutting a release
 
 ```bash

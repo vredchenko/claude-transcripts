@@ -1,11 +1,21 @@
 name: publish-image
-# Tag-driven release of the combined app image (webapi + prebuilt webui SPA) to the
-# GitHub Container Registry (GHCR). Push a vMAJOR.MINOR.PATCH tag to publish; a
-# manual dispatch builds a :<sha> only. Auth uses the built-in GITHUB_TOKEN — no
-# committed secrets. See ADR 0012.
+# Publishes the combined app image (webapi + prebuilt webui SPA) to GHCR. Auth uses
+# the built-in GITHUB_TOKEN — no committed secrets. See ADR 0012.
+#
+# Two moving tags, with deliberately different meanings:
+#   :latest — the newest RELEASE (pushed only by a vMAJOR.MINOR.PATCH tag)
+#   :main   — the tip of main, rebuilt on every merge
+#
+# Both exist because they answer different questions. `latest` must stay pinned to a
+# release, or `install` would hand users untested code. But without `main`, there was
+# no container image of the current code at all: after 0.0.1 the app image sat at
+# schema v5 while main moved to v7, so an install could only get an image well behind
+# the CLI driving it. Lockstep versioning (ADR 0023) means the two have to move
+# together, and that needs an image that tracks main.
 on:
   push:
     tags: ["v*.*.*"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -27,13 +37,23 @@ jobs:
           SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           # GHCR requires a lowercase path; derive it from <owner>/<repo>.
           REPO="ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')-app"
-          if [ "${{ github.event_name }}" = "push" ]; then
-            VERSION="${{ github.ref_name }}"
-            TAGS="$REPO:$VERSION $REPO:latest $REPO:$SHA"
-          else
-            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)+$SHA"
-            TAGS="$REPO:$SHA"
-          fi
+          case "${{ github.ref }}" in
+            refs/tags/v*)
+              # A release: pin the version and move `latest` onto it.
+              VERSION="${{ github.ref_name }}"
+              TAGS="$REPO:$VERSION $REPO:latest $REPO:$SHA"
+              ;;
+            refs/heads/main)
+              # The tip of main. Versioned as "<last release>+<sha>" so anything
+              # running it reports a version that can't be mistaken for a release.
+              VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)+$SHA"
+              TAGS="$REPO:main $REPO:$SHA"
+              ;;
+            *)
+              VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)+$SHA"
+              TAGS="$REPO:$SHA"
+              ;;
+          esac
           echo "list=$TAGS" >> "$GITHUB_OUTPUT"
           echo "scan=$REPO:$SHA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
