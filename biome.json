@@ -7,7 +7,16 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**/*", "!**/node_modules", "!**/dist", "!**/build", "!**/.claude"]
+    "includes": [
+      "**/*",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/.claude",
+      "// Inlined deployment assets: the content is YAML/JSON carrying `${VAR}` compose",
+      "// placeholders, so lint rules about source code don't apply to it.",
+      "!**/assets.generated.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

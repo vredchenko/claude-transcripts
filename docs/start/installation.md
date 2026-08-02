@@ -7,6 +7,45 @@ app, and the hook that records your sessions.
 > clean machine yet. Expect rough edges, and treat anything you store as
 > disposable. See [the project status](../README.md).
 
+## Quick install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/install.sh | sh
+```
+
+That fetches the release binary for your platform, verifies its checksum, and runs
+`claude-transcripts install`, which does everything below for you: generates this
+instance's secrets and ports, starts the backing services, provisions the stores,
+starts the app, and registers the hook with Claude Code. It needs **Docker** and
+**Claude Code** — nothing else, not even Bun.
+
+Already have the binary? Just run:
+
+```sh
+claude-transcripts install      # idempotent — safe to re-run
+claude-transcripts doctor       # verify the whole write→read path
+```
+
+Useful flags: `--port-base N` (move the port block), `--meili-key` (turn on
+Meilisearch auth), `--no-hook` (set up the stores but don't register with Claude
+Code), `--no-app` (run the webapi yourself). Removing it again:
+
+```sh
+claude-transcripts uninstall            # keeps your recorded history
+claude-transcripts uninstall --purge    # deletes it too (asks first)
+```
+
+Install is a composition, so any phase can be re-run on its own — `stack up`,
+`provision`, `hook install` — and a failure tells you which one resumes from there.
+The design, including the edge cases it handles, is in
+[installation.md (design)](../design/installation.md).
+
+**Open Claude Code sessions won't be recorded until you restart them**: Claude Code
+reads its hook configuration when a session starts.
+
+The rest of this page covers doing it by hand — useful for a custom topology, for
+contributing, or for understanding what the one command actually did.
+
 ## What you are installing
 
 | Piece | Required? | What it does |
@@ -20,8 +59,10 @@ app, and the hook that records your sessions.
 
 ## Prerequisites
 
-[Docker](https://docs.docker.com/get-docker/) with Compose, [Bun](https://bun.sh)
-≥ 1.1, `git`, `openssl`, and [Claude Code](https://claude.com/claude-code) itself.
+For the quick install: [Docker](https://docs.docker.com/get-docker/) with Compose v2,
+and [Claude Code](https://claude.com/claude-code). The binary carries everything else.
+
+For the manual path below, additionally: [Bun](https://bun.sh) ≥ 1.1 and `git`.
 
 ## Choose a topology
 
