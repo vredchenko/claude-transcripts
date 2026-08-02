@@ -22,6 +22,19 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`export` — dump an instance to a portable bundle**
+  ([bundles.md](docs/design/bundles.md)). A bundle is a directory carrying the CouchDB
+  docs (`_id` preserved, `_rev` stripped), the S3 transcripts byte-for-byte, and a
+  manifest recording the **schema version** it was taken at — which is what will let
+  `import` migrate older data forward. It carries only what can't be recomputed:
+  design docs, the schema marker, the search checkpoint, the search indexes and the
+  instance env are all excluded. Everything streams, so a corpus far larger than
+  memory exports fine, and the manifest is written last so an interrupted export is
+  visibly incomplete rather than quietly short. `--no-blobs` gives a bundle roughly a
+  tenth the size that still restores search and the chunk-first transcript read;
+  `--session` / `--since` narrow the selection. Bundles are 0600 in a 0700 directory —
+  a bundle is, in full, everything ever typed into Claude Code on that machine.
+
 - **One-command install.** `curl … | sh` fetches the release binary, verifies its
   checksum and runs `claude-transcripts install`, which generates the instance's
   secrets and ports, starts the backing services, provisions CouchDB and Garage,
@@ -67,11 +80,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **`/health` reported `degraded` on any CouchDB with credentials.** The check built a
-  URL carrying userinfo (`http://user:pass@host`), but `fetch` doesn't send userinfo —
-  CouchDB saw an anonymous request and answered 401, which the check faithfully
-  reported as "rejected the credentials". Credentials now go in an `Authorization`
-  header. This also made `cli doctor` refuse to run, since it checks health first.
+- **`/health` and the read-only `/api/couch` proxy both 401'd against an authenticated
+  CouchDB.** Each built a URL carrying userinfo (`http://user:pass@host`), but `fetch`
+  doesn't send userinfo — CouchDB saw an anonymous request and answered 401, which
+  `/health` faithfully reported as "rejected the credentials" while the proxy rejected
+  every read. Having hit the same trap twice, the conversion now lives in one place
+  (`couchFetch`). This had also been blocking `cli doctor`, which checks health first.
 - **Long admin requests had their connection dropped after 10s.** Bun's default
   `idleTimeout` is shorter than a full search rebuild (which grows with the corpus),
   so the client saw a socket reset while the server completed the work normally.

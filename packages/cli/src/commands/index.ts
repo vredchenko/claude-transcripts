@@ -9,6 +9,7 @@
  */
 import { runBackfill } from "./backfill";
 import { runDoctor } from "./doctor";
+import { runExport } from "./export";
 import { runHook } from "./hook";
 import { runInstall } from "./install";
 import { runMigrate } from "./migrate";
@@ -27,6 +28,7 @@ export const COMMANDS: Record<string, CommandRunner> = {
   stack: runStack,
   provision: runProvision,
   hook: runHook,
+  export: runExport,
   setup: runSetup,
   backfill: runBackfill,
   migrate: runMigrate,

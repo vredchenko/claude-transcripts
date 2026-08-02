@@ -10,6 +10,7 @@ import { modelRoutes } from "./routes/model";
 import { proxyRoutes } from "./routes/proxy";
 import { searchRoutes } from "./routes/search";
 import { sessionRoutes } from "./routes/sessions";
+import { couchFetch } from "./storage/couch";
 
 /** Store status for `/health`: is the sessions database actually there, now? */
 async function checkCouch(ctx: AppContext) {
@@ -22,21 +23,8 @@ async function checkCouch(ctx: AppContext) {
     ...(ctx.boot.error ? { provisioningError: ctx.boot.error } : {}),
   };
   try {
-    // `ctx.couch.url` carries credentials as URL userinfo (nano reads them), but
-    // `fetch` does NOT send userinfo — CouchDB would see an anonymous request and
-    // answer 401, making every authenticated deployment look permanently degraded.
-    // So strip them off the URL and send them as a Basic header instead.
-    const url = new URL(`${ctx.couch.url}/${encodeURIComponent(database)}`);
-    const { username, password } = url;
-    url.username = "";
-    url.password = "";
-    const res = await fetch(url, {
+    const res = await couchFetch(ctx.couch.url, `/${encodeURIComponent(database)}`, {
       method: "HEAD",
-      headers: username
-        ? {
-            authorization: `Basic ${btoa(`${decodeURIComponent(username)}:${decodeURIComponent(password)}`)}`,
-          }
-        : {},
       signal: AbortSignal.timeout(2000),
     });
     if (res.ok) return { ok: true, ...base };

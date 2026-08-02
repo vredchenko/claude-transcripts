@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { bucketName } from "../config";
 import type { AppContext } from "../context";
+import { couchFetch } from "../storage/couch";
 
 /**
  * Read-only transparent proxies — CouchDB's HTTP API and S3 object reads are
@@ -18,8 +19,10 @@ export function proxyRoutes(ctx: AppContext) {
       return c.json({ error: "Read-only proxy: writes go through /api endpoints" }, 405);
     }
     const path = c.req.path.replace(/^\/api\/couch/, "");
-    const target = `${ctx.couch.url}${path}${new URL(c.req.url).search}`;
-    const res = await fetch(target, {
+    // `couchFetch` moves the URL's credentials into a header — `fetch` won't send
+    // userinfo, so passing ctx.couch.url straight through proxies an ANONYMOUS
+    // request and any authenticated CouchDB answers 401.
+    const res = await couchFetch(ctx.couch.url, `${path}${new URL(c.req.url).search}`, {
       method: c.req.method,
       headers: { accept: "application/json" },
     });
