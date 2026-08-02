@@ -8,6 +8,43 @@ import type { CliSpec } from "./types";
 export const CLI_SPEC: CliSpec = {
   commands: [
     {
+      name: "install",
+      summary: "Set up everything: stores, app, and the Claude Code hook",
+      args: [
+        { name: "--port-base", description: "first port of the block (default 7650)" },
+        { name: "--meili-key", description: "generate a Meilisearch master key" },
+        { name: "--no-hook", description: "skip Claude Code registration" },
+        { name: "--no-app", description: "skip the app container (run the webapi yourself)" },
+        { name: "--yes", description: "no prompts; take documented defaults" },
+      ],
+    },
+    {
+      name: "uninstall",
+      summary: "Remove the instance (history is kept unless --purge)",
+      args: [
+        { name: "--purge", description: "also delete recorded history (destructive)" },
+        { name: "--yes", description: "skip the confirmation prompt" },
+      ],
+    },
+    {
+      name: "stack",
+      summary: "Control the container stack",
+      args: [
+        { name: "action", description: "up | down | restart | logs | ps" },
+        { name: "--app", description: "include the app container" },
+        { name: "--volumes", description: "with `down`: delete the data volumes too" },
+      ],
+    },
+    {
+      name: "provision",
+      summary: "Create the CouchDB databases and the Garage bucket + key",
+    },
+    {
+      name: "hook",
+      summary: "The Claude Code hook, and its registration",
+      args: [{ name: "action", description: "run | install | uninstall | status" }],
+    },
+    {
       name: "sessions",
       summary: "List / inspect sessions (via the webapi)",
       args: [

@@ -9,14 +9,24 @@
  */
 import { runBackfill } from "./backfill";
 import { runDoctor } from "./doctor";
+import { runHook } from "./hook";
+import { runInstall } from "./install";
 import { runMigrate } from "./migrate";
+import { runProvision } from "./provision";
 import { runReindex } from "./reindex";
 import { runSessions } from "./sessions";
 import { runSetup } from "./setup";
+import { runStack } from "./stack";
+import { runUninstall } from "./uninstall";
 
 export type CommandRunner = (argv: string[]) => Promise<number>;
 
 export const COMMANDS: Record<string, CommandRunner> = {
+  install: runInstall,
+  uninstall: runUninstall,
+  stack: runStack,
+  provision: runProvision,
+  hook: runHook,
   setup: runSetup,
   backfill: runBackfill,
   migrate: runMigrate,

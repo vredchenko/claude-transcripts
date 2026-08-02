@@ -22,6 +22,28 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **One-command install.** `curl … | sh` fetches the release binary, verifies its
+  checksum and runs `claude-transcripts install`, which generates the instance's
+  secrets and ports, starts the backing services, provisions CouchDB and Garage,
+  starts the app, registers the hook, and tells you how to verify it. Every phase is
+  also its own command (`stack`, `provision`, `hook install`), each idempotent, and a
+  failure names the one command that resumes from it. Preflight refuses to change
+  anything unless the install can actually work — and distinguishes failures that look
+  alike but need different fixes, like a Docker daemon that isn't running versus a
+  socket you lack permission for. Also `uninstall`, which keeps recorded history
+  unless `--purge`. Design: [installation.md](docs/design/installation.md).
+
+- **The CLI is now the hook.** Registration points Claude Code at
+  `claude-transcripts hook run` instead of `bun run <repo>/hooks/scripts/dispatch.ts`,
+  so a user needs neither Bun nor a repo checkout, hook behaviour upgrades atomically
+  with the binary, and each event starts faster (nothing to transpile). Registration
+  merges into `~/.claude/settings.json` and never disturbs another tool's hooks. The
+  standalone plugin under `hooks/` is unchanged for contributors.
+
+- **Deployment assets are embedded in the binary** (`bun run gen:assets`) and written
+  out at install time, so there's no second download and no way for the compose files
+  to drift from the code that drives them.
+
 - **Live search indexing via a CouchDB `_changes` follower.** The webapi follows the
   change feed and indexes `summary` / full-content `chunk` docs as they land, so a
   session recorded by the hook — which writes straight to CouchDB, not through the
