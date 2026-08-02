@@ -26,6 +26,10 @@ const ASSETS: { key: string; from: string; to: string }[] = [
     from: "deploy/docker-compose.upstream.yml",
     to: "deploy/docker-compose.upstream.yml",
   },
+  // Bind-mounted read-only into the Garage container. Secret-free by design (its
+  // secrets arrive as env vars), so it travels with the compose files — without it
+  // Garage has no config and won't start.
+  { key: "garageToml", from: "deploy/garage.toml", to: "deploy/garage.toml" },
   { key: "appConfig", from: "config/config.template.json", to: "config/app.json" },
 ];
 

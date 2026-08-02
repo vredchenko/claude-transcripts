@@ -13,7 +13,7 @@
 import { existsSync } from "node:fs";
 import { loadAppConfig } from "../lib/app-config";
 import { parseFlags, strOpt } from "../lib/args";
-import { writeAssets, writeVersionStamp } from "../lib/assets";
+import { linkInstanceEnv, writeAssets, writeVersionStamp } from "../lib/assets";
 import { composeUp, healthTargets, serviceLogs, waitForHealth } from "../lib/compose";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
 import {
@@ -104,6 +104,8 @@ export async function runInstall(argv: string[]): Promise<number> {
   });
   console.log(`  ${firstRun ? "generated" : "reused"} ${paths.instanceEnv}`);
   const written = writeAssets(paths);
+  // The app service reads `env_file: ../.env` relative to the compose file.
+  linkInstanceEnv(paths);
   writeVersionStamp(paths, VERSION);
   console.log(
     `  assets: ${written.filter((w) => w.changed).length} written, ${written.length} total`,
