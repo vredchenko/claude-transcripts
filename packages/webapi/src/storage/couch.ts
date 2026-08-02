@@ -28,3 +28,31 @@ export function makeCouch(config: Config): CouchHandles {
     url,
   };
 }
+
+/**
+ * `fetch` against CouchDB, with credentials sent as a header.
+ *
+ * `CouchHandles.url` carries credentials as URL userinfo because that's what nano
+ * reads — but **`fetch` does not send userinfo**. Passing that URL straight to `fetch`
+ * produces an anonymous request, and an authenticated CouchDB answers 401. That has
+ * already bitten twice (`/health` reporting every deployment as degraded, and the
+ * read-only `/api/couch` proxy rejecting every request), so the conversion lives here
+ * once instead of at each call site.
+ */
+export async function couchFetch(
+  couchUrl: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const url = new URL(`${couchUrl}${path}`);
+  const { username, password } = url;
+  url.username = "";
+  url.password = "";
+  // `Headers` normalises every HeadersInit shape the caller might pass.
+  const headers = new Headers(init.headers);
+  if (username) {
+    const creds = `${decodeURIComponent(username)}:${decodeURIComponent(password)}`;
+    headers.set("authorization", `Basic ${btoa(creds)}`);
+  }
+  return fetch(url, { ...init, headers });
+}

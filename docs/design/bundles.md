@@ -1,7 +1,8 @@
 # Export / import bundles — design
 
-**Status: design, not built.** Specifies the portable bundle format and the
-`export`/`import` round-trip before any of it is written.
+**Status: `export` built, `import` next.** The format below is implemented and
+verified against a real instance (7,135 docs / 43 blobs / 117 MB, checksums
+independently confirmed). `import` is designed here but not yet written.
 
 The migration engine has carried a promise since 0.0.1 — "dump data + version, import
 and migrate forward" ([migrations.md](../operate/migrations.md)) — that was never

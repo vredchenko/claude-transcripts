@@ -1,7 +1,9 @@
 # Data & schema migrations
 
-> **Status: engine built (up/down/status + boot auto-apply); export/import bundle
-> round-trip still to come.** Decision recorded in
+> **Status: engine built (up/down/status + boot auto-apply); `export` built,
+> `import` next.** The bundle format is specified and implemented in
+> [bundles.md](../design/bundles.md); a bundle records the schema version it was taken
+> at, which is what lets `import` migrate older data forward. Decision recorded in
 > [ADR 0021](../design/decisions/0021-self-built-couchdb-migrations.md).
 
 CouchDB has no modern migrations framework, so we build our **own** — a versioned,

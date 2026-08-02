@@ -70,7 +70,13 @@ export const CLI_SPEC: CliSpec = {
     {
       name: "export",
       summary: "Export session data to a portable bundle",
-      args: [{ name: "path", required: true, description: "destination path" }],
+      args: [
+        { name: "dir", required: true, description: "destination directory" },
+        { name: "--since", description: "only docs at/after this ISO timestamp" },
+        { name: "--session", description: "only this session id" },
+        { name: "--no-blobs", description: "skip S3 transcripts (~1/10th the size)" },
+        { name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" },
+      ],
     },
     {
       name: "import",
