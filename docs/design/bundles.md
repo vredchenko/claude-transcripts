@@ -1,8 +1,14 @@
 # Export / import bundles — design
 
-**Status: `export` built, `import` next.** The format below is implemented and
-verified against a real instance (7,135 docs / 43 blobs / 117 MB, checksums
-independently confirmed). `import` is designed here but not yet written.
+**Status: built.** Both halves are implemented and verified against a real instance
+(7,135 docs / 43 blobs / 117 MB). A session was destroyed — CouchDB docs and S3 object
+— and restored from a bundle with every detail field, token count and transcript entry
+identical; re-importing the full bundle wrote zero duplicate docs.
+
+One behaviour worth knowing: import re-uploads every blob, even one already present
+with identical bytes, because it doesn't compare before writing. Correct, but it makes
+a redundant restore slower than it needs to be (16s for 102 MB here) — skipping
+unchanged objects is an easy improvement when it matters.
 
 The migration engine has carried a promise since 0.0.1 — "dump data + version, import
 and migrate forward" ([migrations.md](../operate/migrations.md)) — that was never

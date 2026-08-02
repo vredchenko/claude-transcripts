@@ -80,8 +80,13 @@ export const CLI_SPEC: CliSpec = {
     },
     {
       name: "import",
-      summary: "Import session data from a portable bundle",
-      args: [{ name: "path", required: true, description: "bundle path" }],
+      summary: "Restore session data from a portable bundle",
+      args: [
+        { name: "dir", required: true, description: "bundle directory" },
+        { name: "--dry-run", description: "verify the bundle without writing" },
+        { name: "--no-blobs", description: "skip transcripts; restore docs only" },
+        { name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" },
+      ],
     },
     {
       name: "backfill",
