@@ -8,7 +8,15 @@
  * that drives them. Anything a user is meant to customise lives in the instance env or
  * the app config, not here.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { EMBEDDED_ASSETS } from "./assets.generated";
 import type { InstallPaths } from "./paths";
@@ -46,6 +54,27 @@ export function writeAssets(paths: InstallPaths): WrittenAsset[] {
     out.push({ path: target, changed: true });
   }
   return out;
+}
+
+/**
+ * Link `<dataDir>/.env` to the instance env.
+ *
+ * The compose stack reads the environment two different ways: `--env-file` supplies
+ * variable *substitution* for the compose file itself, but the app service also has
+ * `env_file: ../.env`, which is what populates the container's own environment —
+ * resolved relative to the compose file, so `<dataDir>/.env`. A symlink satisfies both
+ * from the one real file, instead of copying secrets to a second location that could
+ * then drift.
+ */
+export function linkInstanceEnv(paths: InstallPaths): void {
+  const link = join(paths.dataDir, ".env");
+  try {
+    if (lstatSync(link, { throwIfNoEntry: false })) unlinkSync(link);
+  } catch {
+    // not there, or not removable — symlinkSync below will report if it matters
+  }
+  mkdirSync(paths.dataDir, { recursive: true });
+  symlinkSync(paths.instanceEnv, link);
 }
 
 /** Record which version the written-out assets belong to. */

@@ -115,6 +115,12 @@ services:
       # Inside the compose network the backends resolve to service names, not the
       # host's localhost ports. config/ + secrets stay shared; only endpoints differ.
       - WEBAPI_HOST=0.0.0.0
+      # The port INSIDE the container is always 7650 — `ports:` below maps the host's
+      # ${WEBAPI_PORT} onto it. Without pinning this, `env_file` hands the app the
+      # host-side port and it binds there instead, so nothing answers on 7650 and the
+      # published port leads nowhere. Invisible whenever the host port happens to be
+      # 7650; breaks the moment an install shifts the block.
+      - WEBAPI_PORT=7650
       - COUCHDB_URL=http://couchdb:5984
       - COUCHDB_HOST=couchdb
       - COUCHDB_PORT=5984
