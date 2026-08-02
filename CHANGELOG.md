@@ -22,6 +22,16 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`import` — restore a bundle into an instance.** Verifies the manifest, format and
+  every checksum *before* writing anything, so a truncated bundle is refused rather
+  than half-restored; refuses a bundle from a newer schema than the target, because
+  migrations only run forward. Writes through `/api/ingest/*`, streams transcripts back
+  without buffering, and rebuilds the search index at the end. Idempotent: re-importing
+  the full 7,135-doc bundle writes zero duplicate docs, because every doc carries its
+  source `_id`. Verified by destroying a session outright — CouchDB docs and S3 object
+  — and restoring it with every detail field, token count and transcript entry
+  identical.
+
 - **`export` — dump an instance to a portable bundle**
   ([bundles.md](docs/design/bundles.md)). A bundle is a directory carrying the CouchDB
   docs (`_id` preserved, `_rev` stripped), the S3 transcripts byte-for-byte, and a
@@ -34,6 +44,8 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   tenth the size that still restores search and the chunk-first transcript read;
   `--session` / `--since` narrow the selection. Bundles are 0600 in a 0700 directory —
   a bundle is, in full, everything ever typed into Claude Code on that machine.
+  Together with `import`, this is the dump → replace → restore path: an instance can
+  now be torn down and rebuilt without losing its history.
 
 - **One-command install.** `curl … | sh` fetches the release binary, verifies its
   checksum and runs `claude-transcripts install`, which generates the instance's

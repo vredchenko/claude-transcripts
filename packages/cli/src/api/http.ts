@@ -66,6 +66,30 @@ export async function exists(path: string): Promise<boolean> {
   return res.ok;
 }
 
+/**
+ * Stream a file up as the request body, without reading it into memory.
+ *
+ * Transcripts dominate a bundle (~100MB across 43 sessions on a real instance), so a
+ * restore that buffered each one would scale with the largest session rather than with
+ * nothing. `duplex: "half"` is required whenever the body is a stream.
+ */
+export async function putStream(
+  path: string,
+  filePath: string,
+  contentType: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PUT",
+    headers: { "content-type": contentType },
+    body: Bun.file(filePath).stream(),
+    // Required whenever the body is a stream rather than a buffer.
+    duplex: "half",
+  });
+  if (!res.ok) {
+    throw new Error(`PUT ${path} → ${res.status} ${res.statusText}${await errorDetail(res)}`);
+  }
+}
+
 /** Upload a raw body (the transcript blob — not part of the typed JSON client). */
 export async function putRaw(path: string, body: Uint8Array, contentType: string): Promise<void> {
   const res = await fetch(`${BASE}${path}`, {
