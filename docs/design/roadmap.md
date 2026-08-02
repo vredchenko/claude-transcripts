@@ -47,6 +47,16 @@ both transcript read paths.
 The near-term list, mostly surfaced by using the system rather than planned up front.
 Ordered roughly by how much they get in the way.
 
+**Export / import bundles — next up.** The migration engine is built, but the
+`export`/`import` round-trip it was always meant to carry isn't
+([migrations.md](../operate/migrations.md)). It's the prerequisite for everything
+else here: with it, an existing instance can be dumped, torn down, replaced with a
+clean install, and restored — without it, adopting the new install path means losing
+whatever history a machine has already accumulated. A bundle carries the data **plus
+its schema version**, and import migrates it forward to the current one, so a dump
+taken today still restores after later migrations. Ranks ahead of `upgrade` for that
+reason: being able to move data off an instance is what makes replacing it safe.
+
 **Install & first run** — the biggest remaining Tier-1 gap. Getting from `git clone`
 to "sessions are being logged" currently means running the stack, provisioning stores,
 generating hook config and registering the hook, with the pieces spread across
@@ -94,6 +104,14 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
 - **The e2e suite leaves fixtures behind.** It writes synthetic sessions into whatever
   store it points at and never cleans up, so running it against a real instance
   pollutes real history (and the search index) until they're deleted by hand.
+- **The hook exists twice.** `sumTranscriptTokens` (and the chunking helpers) are kept
+  **byte-identical** between `shared` and `hooks/` for one reason: the standalone
+  plugin can't resolve the workspace at install time. That stopped being the whole
+  story once the CLI became the hook — an installed binary *can* resolve it, and the
+  CLI's hook path imports `shared` directly. The duplication now only serves the
+  plugin artifact. Consolidating it — most likely by having the plugin exec the
+  installed CLI, leaving one implementation — would retire the invariant and the
+  drift risk that comes with any "keep these two files identical" rule.
 
 ## Future scope → captured in docs
 
@@ -176,7 +194,8 @@ done.
   engine with a marker doc, driven from the CLI and `/api/migrate/*`; seven migrations
   applied to date ([migrations.md](../operate/migrations.md),
   [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)). Remaining: the
-  export/import **bundle** format (dump + version + migrate-forward on import).
+  export/import **bundle** format (dump + version + migrate-forward on import) — now
+  the next piece of work, see [Tier 1 — open work](#tier-1--open-work).
 
 **Ingest & lifecycle (Tier 1/2)**
 - `backfill` — **done**: adopts this machine's history as first-class records
