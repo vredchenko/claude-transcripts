@@ -97,6 +97,21 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   comments in the generated file — those were being destroyed on every regeneration,
   which is how the `WEBAPI_PORT` pin was lost in the first place.
 
+- **A dedicated search results page (`/search`).** The header box is a dropdown capped
+  at a handful of hits with no paging or filters — right for "jump to that session",
+  useless for "what's in this corpus?". The new page pages through results (20 per
+  index), filters by project / model / host / provenance, and shows approximate match
+  counts. Its entire state lives in the query string, so a result set is linkable and
+  the back button steps through filters and pages; the dropdown now links through to it,
+  and Enter opens it.
+
+  `GET /api/search` grew what that needs: `offset`, the filter parameters, `totals`
+  (estimated per index — Meilisearch stops counting early on a large corpus, so the page
+  says "about"), and `facets` — the available filter values, computed over the whole
+  corpus rather than the current page, so the controls don't shrink as you use them.
+  `cwd` became a filterable attribute on the sessions index, which existing deployments
+  pick up on their next boot or `reindex`.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

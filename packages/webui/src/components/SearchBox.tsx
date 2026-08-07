@@ -46,6 +46,12 @@ export function SearchBox() {
     navigate({ to: "/sessions/$id", params: { id: sessionId } });
   };
 
+  /** Hand the query to the results page — this dropdown is capped and unfiltered. */
+  const seeAll = () => {
+    setOpen(false);
+    navigate({ to: "/search", search: { q: debounced } });
+  };
+
   return (
     <ClickAwayListener onClickAway={() => setOpen(false)}>
       <Box ref={anchorRef} sx={{ width: "100%", maxWidth: 420, position: "relative" }}>
@@ -57,6 +63,9 @@ export function SearchBox() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && debounced) seeAll();
+          }}
           placeholder="Search sessions…"
           inputProps={{ "aria-label": "Search sessions" }}
           InputProps={{
@@ -119,6 +128,15 @@ export function SearchBox() {
                     />
                   </ListItemButton>
                 ))}
+                <ListItemButton onClick={seeAll} sx={{ borderTop: 1, borderColor: "divider" }}>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" color="primary">
+                        See all results for “{debounced}” →
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
               </List>
             )}
           </Paper>
