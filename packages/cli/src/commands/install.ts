@@ -11,6 +11,7 @@
  * resumes from it. See docs/design/installation.md.
  */
 import { existsSync } from "node:fs";
+import { searchReindex } from "../api/generated";
 import { loadAppConfig } from "../lib/app-config";
 import { parseFlags, strOpt } from "../lib/args";
 import { linkInstanceEnv, writeAssets, writeVersionStamp } from "../lib/assets";
@@ -84,6 +85,30 @@ async function warnOnVersionSkew(env: EnvMap): Promise<void> {
   }
 }
 
+/**
+ * Create the search indexes and fill them from CouchDB.
+ *
+ * Best-effort by design: search is an optional feature, so an engine that's off or
+ * unreachable must not fail an install that is otherwise fine. It says what happened
+ * and names the command to retry with.
+ */
+async function setUpSearch(): Promise<void> {
+  try {
+    const res = await searchReindex();
+    if (!res.enabled) {
+      console.log("  – search is off (features.meilisearch false, or MEILI_HOST unset)");
+      return;
+    }
+    console.log(`  ✓ indexed ${res.sessions.indexed} session(s), ${res.turns.indexed} turn(s)`);
+    if (res.failures.length) {
+      for (const f of res.failures.slice(0, 3)) console.log(`  ! ${f}`);
+    }
+  } catch (err) {
+    console.log(`  – search not indexed (${(err as Error).message})`);
+    console.log("    retry with `claude-transcripts reindex` once Meilisearch is reachable.");
+  }
+}
+
 export async function runInstall(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const noHook = options["no-hook"] === true;
@@ -91,7 +116,7 @@ export async function runInstall(argv: string[]): Promise<number> {
   const meiliKey = options["meili-key"] === true;
   const portBaseOpt = strOpt(options, "port-base");
   const paths = installPaths();
-  const TOTAL = 7;
+  const TOTAL = 8;
 
   console.log(`claude-transcripts install (${VERSION})`);
   console.log(`  config  ${paths.configDir}`);
@@ -216,9 +241,24 @@ export async function runInstall(argv: string[]): Promise<number> {
     await runHook(["install"]);
   }
 
-  // ── 7. Verify ─────────────────────────────────────────────────────────────
-  step(7, TOTAL, "Verify");
-  console.log("  run `claude-transcripts doctor` to exercise the whole write→read path.");
+  // ── 7. Search ─────────────────────────────────────────────────────────────
+  // Through the webapi, and only once it's up: the indexes and their settings are the
+  // webapi's to own (ADR 0016), and `reindex` both creates them and fills them.
+  //
+  // Filling them matters on an install that isn't starting from nothing — a restored
+  // bundle, a reused CouchDB volume, an upgrade that renamed the indexes. The change
+  // follower starts at *now*, so anything already in CouchDB would otherwise stay
+  // unfindable until someone discovered `reindex` for themselves.
+  step(7, TOTAL, "Search");
+  if (noApp) {
+    console.log("  --no-app: skipped (needs the webapi; run `claude-transcripts reindex` later)");
+  } else {
+    await setUpSearch();
+  }
+
+  // ── 8. Verify ─────────────────────────────────────────────────────────────
+  step(8, TOTAL, "Verify");
+  console.log("  run `claude-transcripts doctor` to exercise the whole write→read→search path.");
 
   console.log("\ninstall: done.");
   console.log(`  UI       http://127.0.0.1:${env.WEBAPI_PORT}/app`);

@@ -27,6 +27,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveCouchUrl } from "@claude-transcripts/shared";
+import { searchReindex } from "../api/generated";
 import { parseFlags } from "../lib/args";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
@@ -224,6 +225,28 @@ function reportExisting(): void {
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Say where search stands, and what to run if it isn't ready.
+ *
+ * `setup` configures the host side; the indexes are the webapi's. So this reports
+ * rather than provisions — and tells the user the one command that fixes it, instead
+ * of leaving them to discover `reindex` when a search comes back empty.
+ */
+async function reportSearch(): Promise<void> {
+  try {
+    const res = await searchReindex();
+    if (!res.enabled) {
+      console.log("  – search off (features.meilisearch false, or MEILI_HOST unset)");
+      return;
+    }
+    console.log(
+      `  ✓ search indexed ${res.sessions.indexed} session(s), ${res.turns.indexed} turn(s)`,
+    );
+  } catch {
+    console.log("  – search not indexed (webapi unreachable) — run `claude-transcripts reindex`");
+  }
+}
+
 export async function runSetup(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const check = options.check === true;
@@ -255,9 +278,13 @@ export async function runSetup(argv: string[]): Promise<number> {
   writeHookConfig(hookConfig);
   console.log(`  wrote hook config → ${HOOK_CONFIG_PATH} (mode 600)`);
 
-  // 2. provision stores (Meilisearch intentionally skipped)
+  // 2. provision stores. Meilisearch is not provisioned here: its indexes and their
+  // settings belong to the webapi (ADR 0016), which creates them at boot and fills
+  // them on `reindex`. `setup` is the host-side path and may run with no app up, so it
+  // reports search rather than configuring it.
   const couchOk = await provisionCouch(couch, false);
   await probeGarage(hookConfig.blob);
+  await reportSearch();
 
   // 3. register the hook
   if (noHook) {
@@ -268,6 +295,6 @@ export async function runSetup(argv: string[]): Promise<number> {
     registerGlobal(false);
   }
 
-  console.log("setup: done. Verify with `claude-transcripts setup --check`.");
+  console.log("setup: done. Verify with `claude-transcripts doctor` (write→read→search).");
   return couchOk ? 0 : 1;
 }
