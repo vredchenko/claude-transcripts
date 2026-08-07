@@ -163,6 +163,36 @@ export class Meili {
   }
 
   /**
+   * Remove documents from an index.
+   *
+   * Search is derived, so deletions have always been reconcilable by `reindex` — but
+   * only by rebuilding *everything*, which is a poor answer for "this one session went
+   * away". Removing a session's entries directly is what lets a fixture, or a
+   * re-processed session, clean up after itself.
+   *
+   * `filter` uses the index's filterable attributes; `ids` deletes by primary key.
+   * Best-effort like every other call here — a disabled or unreachable engine leaves
+   * the index stale, and `reindex` remains the backstop.
+   */
+  async deleteDocs(
+    uid: string,
+    target: { ids?: string[]; filter?: string },
+  ): Promise<number | null> {
+    const res = target.filter
+      ? await this.req("POST", `/indexes/${uid}/documents/delete`, { filter: target.filter })
+      : target.ids?.length
+        ? await this.req("POST", `/indexes/${uid}/documents/delete-batch`, target.ids)
+        : null;
+    if (!res?.ok) return null;
+    try {
+      const json = (await res.json()) as { taskUid?: number };
+      return typeof json.taskUid === "number" ? json.taskUid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * The distinct values of a filterable attribute, for building filter controls.
    *
    * Meilisearch returns these from a normal search with `facets`, so this is one empty

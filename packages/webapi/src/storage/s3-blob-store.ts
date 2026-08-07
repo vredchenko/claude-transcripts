@@ -41,4 +41,15 @@ export class S3BlobStore implements BlobStore {
       .file(key, { bucket })
       .write(body, contentType ? { type: contentType } : undefined);
   }
+
+  async remove(bucket: string, key: string): Promise<void> {
+    // Absent is success: the caller wanted it gone, and it is.
+    try {
+      await this.client.file(key, { bucket }).delete();
+    } catch (err) {
+      const status = (err as { code?: string })?.code;
+      if (status === "NoSuchKey" || status === "ERR_S3_FILE_NOT_FOUND") return;
+      throw err;
+    }
+  }
 }

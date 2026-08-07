@@ -164,6 +164,7 @@ export type SessionResetResultDeleted = {
   summary: number;
   events: number;
   chunks: number;
+  blobs: number;
 };
 
 export interface SessionResetResult {
@@ -500,6 +501,18 @@ export type IngestTranscript400 = {
 export type IngestTranscript500 = {
   error: string;
 };
+
+export type ResetSessionParams = {
+  blobs?: ResetSessionBlobs;
+};
+
+export type ResetSessionBlobs = (typeof ResetSessionBlobs)[keyof typeof ResetSessionBlobs];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ResetSessionBlobs = {
+  true: "true",
+  false: "false",
+} as const;
 
 export type ResetSession400 = {
   error: string;
@@ -1232,15 +1245,28 @@ export const useIngestTranscript = <
 /**
  * @summary Delete a session's summary/event/chunk docs so it can be re-ingested
  */
-export const getResetSessionUrl = (id: string) => {
-  return `/api/ingest/${id}`;
+export const getResetSessionUrl = (id: string, params?: ResetSessionParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ingest/${id}?${stringifiedParams}`
+    : `/api/ingest/${id}`;
 };
 
 export const resetSession = async (
   id: string,
+  params?: ResetSessionParams,
   options?: RequestInit,
 ): Promise<SessionResetResult> => {
-  return customFetch<SessionResetResult>(getResetSessionUrl(id), {
+  return customFetch<SessionResetResult>(getResetSessionUrl(id, params), {
     ...options,
     method: "DELETE",
   });
@@ -1253,14 +1279,14 @@ export const getResetSessionMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof resetSession>>,
     TError,
-    { id: string },
+    { id: string; params?: ResetSessionParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof resetSession>>,
   TError,
-  { id: string },
+  { id: string; params?: ResetSessionParams },
   TContext
 > => {
   const mutationKey = ["resetSession"];
@@ -1270,12 +1296,13 @@ export const getResetSessionMutationOptions = <
       : { ...options, mutation: { ...options.mutation, mutationKey } }
     : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetSession>>, { id: string }> = (
-    props,
-  ) => {
-    const { id } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetSession>>,
+    { id: string; params?: ResetSessionParams }
+  > = (props) => {
+    const { id, params } = props ?? {};
 
-    return resetSession(id, requestOptions);
+    return resetSession(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1295,14 +1322,14 @@ export const useResetSession = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof resetSession>>,
     TError,
-    { id: string },
+    { id: string; params?: ResetSessionParams },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof resetSession>>,
   TError,
-  { id: string },
+  { id: string; params?: ResetSessionParams },
   TContext
 > => {
   const mutationOptions = getResetSessionMutationOptions(options);

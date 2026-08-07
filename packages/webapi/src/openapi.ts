@@ -26,6 +26,7 @@ const specBlob: BlobStore = {
   async put() {
     /* no-op */
   },
+  async remove() {},
 };
 
 export function buildOpenApiDocument(): unknown {

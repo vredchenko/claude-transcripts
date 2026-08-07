@@ -8,11 +8,16 @@
  *
  *   claude-transcripts doctor [--webapi <url>]
  *
- * It writes one real (append-only) session tagged `source: "doctor"` with a
- * `doctor-<ts>` id — a harmless diagnostic record (there is no delete endpoint yet).
+ * It writes one real session tagged `source: "doctor"` with a `doctor-<ts>` id, and
+ * **removes it again** — a smoke test that leaves a trail in real history is one people
+ * learn not to run. `--keep` leaves it for inspection.
+ *
+ * Search is checked too, when the feature is on: a corpus you can't search is a broken
+ * install even if every write succeeded, and the failure otherwise surfaces the first
+ * time a user searches rather than at setup.
  */
 import { hostname } from "node:os";
-import { getSession, getSessionTranscript } from "../api/generated";
+import { getSession, getSessionTranscript, resetSession, search } from "../api/generated";
 import { webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 import { buildChunkDocs, buildEventDocs, buildSummaryDoc } from "../lib/session-docs";
@@ -105,9 +110,53 @@ function startedSuffix(health: HealthResponse): string {
   return health.startedAt ? ` (up since ${health.startedAt})` : "";
 }
 
+/**
+ * Wait for the synthetic session to appear in search.
+ *
+ * Indexing is asynchronous — the webapi follows CouchDB's `_changes` feed — so a check
+ * that asserts immediately would fail on a healthy install. Polls for up to ~10s and
+ * reports `"disabled"` (a skip, not a failure) when search isn't switched on.
+ */
+async function pollForSearchHit(sessionId: string): Promise<boolean | "disabled"> {
+  const deadline = Date.now() + 10_000;
+  let sawEnabled = false;
+  while (Date.now() < deadline) {
+    const res = await search({ q: sessionId, limit: 20 });
+    if (!res.enabled) return "disabled";
+    sawEnabled = true;
+    if (res.hits.some((h) => h.sessionId === sessionId)) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return sawEnabled ? false : "disabled";
+}
+
+/**
+ * Delete the session doctor just created.
+ *
+ * `blobs=true` because the transcript is a fixture too — a reset keeps the blob by
+ * default (that's right for re-ingest, wrong for a smoke test). Never throws: failing
+ * to clean up must not turn a passing diagnosis into a failing one, so it reports and
+ * leaves the id.
+ */
+async function cleanUp(sessionId: string): Promise<void> {
+  try {
+    const res = await resetSession(sessionId, { blobs: "true" });
+    const d = res.deleted;
+    console.log(
+      `doctor: cleaned up ${sessionId} (${d.summary} summary, ${d.events} events, ` +
+        `${d.chunks} chunks, ${d.blobs} blob)`,
+    );
+  } catch (err) {
+    console.error(`doctor: could not clean up ${sessionId} — ${(err as Error).message}`);
+    console.error(`doctor: remove it by hand if it matters: DELETE /api/ingest/${sessionId}`);
+  }
+}
+
 export async function runDoctor(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const sink = makeSink({ dryRun: false, webapiUrl: strOpt(options, "webapi") });
+  // `--keep` leaves the session behind, for when a failure needs inspecting.
+  const keep = options.keep === true;
 
   const sessionId = `doctor-${Date.now()}`;
   const host = hostname();
@@ -154,6 +203,9 @@ export async function runDoctor(argv: string[]): Promise<number> {
     console.error(
       `doctor: is the webapi reachable at ${webapiUrl()} with the sessions DB + bucket provisioned?`,
     );
+    // A partial write still left docs behind — clear them rather than leaving a
+    // half-written session that later reads as `incomplete`.
+    if (!keep) await cleanUp(sessionId);
     return 1;
   }
 
@@ -173,13 +225,45 @@ export async function runDoctor(argv: string[]): Promise<number> {
     checks.push(eq("transcript entries", transcript.totalCount, expectedLines));
   } catch (err) {
     console.error(`doctor: READ FAILED — ${(err as Error).message}`);
+    if (!keep) await cleanUp(sessionId);
     return 1;
+  }
+
+  // ── Search ───────────────────────────────────────────────────────────────────
+  // Indexing is asynchronous (the webapi follows CouchDB's change feed), so poll
+  // briefly rather than asserting immediately — and treat "search is off" as a skip,
+  // not a failure, because it's an optional feature.
+  try {
+    const found = await pollForSearchHit(sessionId);
+    if (found === "disabled") {
+      console.log("  – search — skipped (Meilisearch disabled or unconfigured)");
+    } else {
+      checks.push({
+        name: "session is searchable",
+        ok: found,
+        detail: found ? undefined : "not indexed within 10s — is Meilisearch reachable?",
+      });
+    }
+  } catch (err) {
+    checks.push({
+      name: "session is searchable",
+      ok: false,
+      detail: (err as Error).message,
+    });
   }
 
   for (const c of checks) {
     console.log(`  ${c.ok ? "✓" : "✗"} ${c.name}${c.detail ? ` — ${c.detail}` : ""}`);
   }
   const failed = checks.filter((c) => !c.ok).length;
+  // Clean up whether or not the checks passed: a failed run is exactly when someone
+  // re-runs, and a leftover session would then collide with the next one's id-based
+  // assertions — quite apart from leaving debris in real history.
+  if (keep) {
+    console.log(`doctor: --keep — left ${sessionId} in place`);
+  } else {
+    await cleanUp(sessionId);
+  }
   if (failed > 0) {
     console.error(`doctor: ${failed}/${checks.length} check(s) FAILED`);
     return 1;

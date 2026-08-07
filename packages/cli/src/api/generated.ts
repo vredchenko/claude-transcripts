@@ -152,6 +152,7 @@ export type SessionResetResultDeleted = {
   summary: number;
   events: number;
   chunks: number;
+  blobs: number;
 };
 
 export interface SessionResetResult {
@@ -489,6 +490,18 @@ export type IngestTranscript500 = {
   error: string;
 };
 
+export type ResetSessionParams = {
+  blobs?: ResetSessionBlobs;
+};
+
+export type ResetSessionBlobs = (typeof ResetSessionBlobs)[keyof typeof ResetSessionBlobs];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ResetSessionBlobs = {
+  true: "true",
+  false: "false",
+} as const;
+
 export type ResetSession400 = {
   error: string;
 };
@@ -706,15 +719,28 @@ export const ingestTranscript = async (
 /**
  * @summary Delete a session's summary/event/chunk docs so it can be re-ingested
  */
-export const getResetSessionUrl = (id: string) => {
-  return `/api/ingest/${id}`;
+export const getResetSessionUrl = (id: string, params?: ResetSessionParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ingest/${id}?${stringifiedParams}`
+    : `/api/ingest/${id}`;
 };
 
 export const resetSession = async (
   id: string,
+  params?: ResetSessionParams,
   options?: RequestInit,
 ): Promise<SessionResetResult> => {
-  return customFetch<SessionResetResult>(getResetSessionUrl(id), {
+  return customFetch<SessionResetResult>(getResetSessionUrl(id, params), {
     ...options,
     method: "DELETE",
   });

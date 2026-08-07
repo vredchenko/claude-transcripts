@@ -139,9 +139,13 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
   consumer handles both. Converging them means a view migration (emit the field only
   when present) — small, but it changes a design doc, so it wants its own change rather
   than riding along with something else.
-- **The e2e suite leaves fixtures behind.** It writes synthetic sessions into whatever
-  store it points at and never cleans up, so running it against a real instance
-  pollutes real history (and the search index) until they're deleted by hand.
+- **The e2e suite leaves fixtures behind — fixed.** Every session it creates is now
+  deleted in `afterAll`, blob included, so pointing it at a real instance no longer
+  costs you a hand-cleanup. `doctor` does the same for its synthetic session. Both take
+  an escape hatch (`CT_KEEP_FIXTURES=1`, `doctor --keep`) for when a failure needs
+  inspecting. The delete path is the reset endpoint added for `backfill --force`, now
+  extended to drop the session's search entries and — only when asked — its transcript
+  blob.
 - **The hook exists twice — fixed.** `sumTranscriptTokens` and the chunking helpers
   were kept **byte-identical** between `shared` and `hooks/` for one reason: a plugin
   directory can't resolve the workspace. That stopped being true once the CLI became
