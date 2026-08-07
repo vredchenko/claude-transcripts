@@ -115,8 +115,11 @@ export const CLI_SPEC: CliSpec = {
     },
     {
       name: "doctor",
-      summary: "Smoke-test the write/read path end-to-end",
-      args: [{ name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" }],
+      summary: "Smoke-test the write/read/search path end-to-end",
+      args: [
+        { name: "--keep", description: "leave the synthetic session behind for inspection" },
+        { name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" },
+      ],
     },
   ],
 };

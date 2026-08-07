@@ -112,6 +112,25 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   `cwd` became a filterable attribute on the sessions index, which existing deployments
   pick up on their next boot or `reindex`.
 
+- **Test fixtures clean up after themselves.** The e2e suite wrote synthetic sessions
+  into whatever store it pointed at and never removed them, so running it against a real
+  instance meant polluting real history and the search index until you deleted docs by
+  hand — a bad property for the suite that exists to tell you the thing works. Every
+  session it creates is now deleted in `afterAll` (blob included), and `doctor` removes
+  its synthetic session too. `CT_KEEP_FIXTURES=1` and `doctor --keep` leave them when a
+  failure needs inspecting.
+
+  Cleanup runs even when tests fail — a failed run is exactly when you re-run, and stale
+  fixtures would then collide with the next run's assertions. Failures to clean up are
+  reported with the ids, never thrown: turning a red suite a different shade of red
+  helps nobody.
+
+  `DELETE /api/ingest/{id}` grew what that needs: it now removes the session's **search
+  entries** (previously only `reindex` could, by rebuilding everything), and takes
+  `?blobs=true` to delete the transcript. Blob deletion stays opt-in because the
+  transcript is the one part of a session that isn't derived — `backfill --force` must
+  keep it.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

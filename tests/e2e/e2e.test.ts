@@ -11,10 +11,17 @@
  * when the webapi is unreachable, so it's safe anywhere; CI runs it against the dev
  * stack. Point it elsewhere with `CT_WEBAPI_URL`.
  *
+ * **It cleans up after itself.** Every session it creates is deleted in `afterAll`,
+ * blob included — otherwise a run against a real instance leaves synthetic sessions in
+ * real history and in the search index, and the only way out is deleting docs by hand.
+ * That was the reason to think twice before pointing this at anything you cared about,
+ * which is a bad property for the suite that's meant to tell you the thing works.
+ * `CT_KEEP_FIXTURES=1` keeps them, for when a failure needs inspecting.
+ *
  *   bun run stack:up && bun run dev:webapi   # in one shell
  *   bun run test:e2e                          # in another
  */
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { type SynthSession, synthSession } from "./synth";
 
 const BASE = (process.env.CT_WEBAPI_URL ?? "http://127.0.0.1:7650").replace(/\/$/, "");
@@ -53,8 +60,16 @@ async function getJson(path: string): Promise<any> {
   return res.json();
 }
 
+/**
+ * Sessions this run created, in creation order — everything `afterAll` must remove.
+ * Recorded at ingest rather than declared up front so a scenario added later can't
+ * forget to register its fixture.
+ */
+const created = new Set<string>();
+
 /** Drive the write path exactly as the host-side CLI/hook would. */
 async function ingest(s: SynthSession): Promise<void> {
+  created.add(s.sessionId);
   await postJson("/api/ingest/summary", s.summaryDoc);
   await postJson("/api/ingest/events", { docs: s.eventDocs });
   await postJson("/api/ingest/chunks", { docs: s.chunkDocs });
@@ -110,6 +125,43 @@ const incomplete = synthSession({
   errors: 0,
 });
 
+/**
+ * Remove every session this run created, blob included.
+ *
+ * Runs even when a test failed — a failing suite is exactly when you'd re-run against
+ * the same store, and stale fixtures would then collide with the new run's assertions.
+ * Set `CT_KEEP_FIXTURES=1` to leave them for inspection.
+ *
+ * Failures here are reported, not thrown: cleanup that turns a red test suite into a
+ * differently-red one helps nobody, and the ids are printed so it can be finished by
+ * hand.
+ */
+afterAll(async () => {
+  if (!UP || created.size === 0) return;
+  if (process.env.CT_KEEP_FIXTURES === "1") {
+    console.warn(`[e2e] CT_KEEP_FIXTURES=1 — leaving ${created.size} session(s):`);
+    for (const id of created) console.warn(`  ${id}`);
+    return;
+  }
+  const stuck: string[] = [];
+  for (const id of created) {
+    try {
+      // `blobs=true`: the transcript is the one thing a reset keeps by default, and a
+      // fixture that leaves its blob behind hasn't cleaned up.
+      const res = await fetch(`${BASE}/api/ingest/${encodeURIComponent(id)}?blobs=true`, {
+        method: "DELETE",
+      });
+      if (!res.ok) stuck.push(id);
+    } catch {
+      stuck.push(id);
+    }
+  }
+  if (stuck.length) {
+    console.error(`[e2e] could not clean up ${stuck.length} session(s) — remove by hand:`);
+    for (const id of stuck) console.error(`  claude-transcripts sessions ${id}`);
+  }
+});
+
 describe("e2e: synthesized session round-trips", () => {
   it("baseline session", async () => {
     await ingest(baseline);
@@ -131,6 +183,7 @@ describe("e2e: synthesized session round-trips", () => {
 
   it("incomplete session (events + transcript, no summary) is surfaced", async () => {
     // Write the event markers + transcript, but deliberately NOT the summary doc.
+    created.add(incomplete.sessionId); // ingested by hand here, so register it by hand
     await postJson("/api/ingest/events", { docs: incomplete.eventDocs });
     const res = await fetch(`${BASE}/api/ingest/${incomplete.sessionId}/transcript`, {
       method: "PUT",

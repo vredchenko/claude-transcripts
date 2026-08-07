@@ -3,6 +3,7 @@ import { bucketName, indexName } from "../config";
 import type { AppContext } from "../context";
 import {
   SESSIONS_INDEX_KEY,
+  searchDocId,
   TURNS_INDEX_KEY,
   toSessionSearchDoc,
   toTurnSearchDocs,
@@ -181,7 +182,13 @@ const ResetResultSchema = z
   .object({
     ok: z.boolean(),
     id: z.string(),
-    deleted: z.object({ summary: z.number(), events: z.number(), chunks: z.number() }),
+    deleted: z.object({
+      summary: z.number(),
+      events: z.number(),
+      chunks: z.number(),
+      /** 1 when the transcript blob was removed too (only with `?blobs=true`). */
+      blobs: z.number(),
+    }),
   })
   .openapi("SessionResetResult");
 
@@ -203,7 +210,18 @@ const resetRoute = createRoute({
   path: "/ingest/{id}",
   operationId: "resetSession",
   summary: "Delete a session's summary/event/chunk docs so it can be re-ingested",
-  request: { params: z.object({ id: z.string() }) },
+  request: {
+    params: z.object({ id: z.string() }),
+    query: z.object({
+      /**
+       * Also delete the S3 transcript. Off by default: the blob is the one part of a
+       * session that isn't derived, and re-ingest overwrites it anyway — so
+       * `backfill --force` must not lose it. Tests and other throwaway fixtures want
+       * the session gone entirely, and ask for it explicitly.
+       */
+      blobs: z.enum(["true", "false"]).optional(),
+    }),
+  },
   responses: {
     200: {
       content: { "application/json": { schema: ResetResultSchema } },
@@ -315,14 +333,40 @@ export function ingestRoutes(ctx: AppContext) {
       await db.bulk({ docs: doomed.map((d) => ({ ...d, _deleted: true })) });
     }
 
-    // The search indexes still hold this session. Re-ingest overwrites the entries it
-    // regenerates, but anything the new run doesn't produce (turns from chunks that no
-    // longer exist) lingers until `reindex` — which is the documented reconciliation
-    // step for deletes (ADR 0009), and what the CLI runs after a forced backfill.
+    // Drop this session from search too. Re-ingest would overwrite the entries it
+    // regenerates, but not the ones it no longer produces — turns from chunks that
+    // stopped existing — and a fixture that deletes itself must not stay findable.
+    // Best-effort: a disabled or unreachable engine leaves the index stale, and
+    // `reindex` is still the backstop (ADR 0009).
+    await Promise.allSettled([
+      ctx.meili.deleteDocs(indexName(ctx.config, SESSIONS_INDEX_KEY), {
+        ids: [searchDocId(id)],
+      }),
+      ctx.meili.deleteDocs(indexName(ctx.config, TURNS_INDEX_KEY), {
+        filter: `sessionId = ${JSON.stringify(id)}`,
+      }),
+    ]);
+
+    // The transcript blob is not derived, so it goes only when asked for.
+    let blobs = 0;
+    if (c.req.query("blobs") === "true") {
+      try {
+        await ctx.blob.remove(bucketName(ctx.config, "sessions"), `${id}/transcript.jsonl`);
+        blobs = 1;
+      } catch (err) {
+        console.error(`[ingest] removing the transcript for ${id} failed (continuing):`, err);
+      }
+    }
+
     return c.json({
       ok: true,
       id,
-      deleted: { summary: summary ? 1 : 0, events: events.length, chunks: chunks.length },
+      deleted: {
+        summary: summary ? 1 : 0,
+        events: events.length,
+        chunks: chunks.length,
+        blobs,
+      },
     });
   });
 
