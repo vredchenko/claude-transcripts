@@ -12,13 +12,28 @@
  * GET have no place in the typed JSON client). The `SessionSink` interface keeps
  * the destination swappable — e.g. a future direct-backend `HostSink`.
  */
-import { ingestChunks, ingestEvents, ingestSummary } from "../api/generated";
+import { ingestChunks, ingestEvents, ingestSummary, resetSession } from "../api/generated";
 import { exists, putRaw, setWebapiUrl, webapiUrl } from "../api/http";
 import type { ChunkDoc, EventDoc, SummaryDoc } from "./session-docs";
+
+/** What a reset removed, for reporting. */
+export interface ResetCounts {
+  summary: number;
+  events: number;
+  chunks: number;
+}
 
 export interface SessionSink {
   /** Already ingested? (idempotency — skip work already done.) */
   hasSummary(sessionId: string): Promise<boolean>;
+  /**
+   * Drop a session's derived docs so it can be ingested again.
+   *
+   * Needed because re-ingesting over the top doesn't replace: events would duplicate
+   * (CouchDB-assigned ids) and chunks are keyed by byte offset, so re-chunking leaves
+   * the old ones behind. The S3 transcript is untouched — re-ingest overwrites it.
+   */
+  resetSession(sessionId: string): Promise<ResetCounts>;
   putSummary(doc: SummaryDoc): Promise<void>;
   putEvents(docs: EventDoc[]): Promise<void>;
   putChunks(docs: ChunkDoc[]): Promise<void>;
@@ -32,6 +47,10 @@ export class DryRunSink implements SessionSink {
   readonly label = "dry-run";
   async hasSummary(): Promise<boolean> {
     return false;
+  }
+  async resetSession(sessionId: string): Promise<ResetCounts> {
+    console.log(`  [dry-run] DELETE ${sessionId}  (summary + event + chunk docs)`);
+    return { summary: 0, events: 0, chunks: 0 };
   }
   async putSummary(doc: SummaryDoc): Promise<void> {
     const tools = Object.keys(doc.tool_counts).length;
@@ -60,6 +79,10 @@ export class WebapiSink implements SessionSink {
   readonly label = webapiUrl();
   async hasSummary(sessionId: string): Promise<boolean> {
     return exists(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  }
+  async resetSession(sessionId: string): Promise<ResetCounts> {
+    const res = await resetSession(sessionId);
+    return res.deleted;
   }
   async putSummary(doc: SummaryDoc): Promise<void> {
     await ingestSummary(doc);

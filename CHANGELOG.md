@@ -8,6 +8,24 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`backfill --force` — re-process a session that was already adopted.** Previously
+  `backfill` skipped anything with a summary doc, which made repeat runs cheap and some
+  sessions permanently un-fixable: one adopted with `--no-content`, or by a CLI old
+  enough to write byte-range-only chunks, had no route back to full-content chunks
+  except deleting its documents by hand. `--force` re-processes instead of skipping, and
+  `--session <id>` narrows it to one session rather than a whole machine's history.
+
+  It deletes the session's derived docs first (`DELETE /api/ingest/{id}`, new) — not an
+  optimisation but a correctness requirement, because re-ingesting over the top doesn't
+  replace: event docs get CouchDB-assigned ids and would duplicate, and chunk ids are
+  keyed by byte offset, so a session re-chunked at different boundaries would keep its
+  old chunks alongside the new and read back doubled. Never deleted: the S3 transcript
+  (overwritten) and the on-disk JSONL, so an interrupted forced run is incomplete but
+  always recoverable by re-running. Search entries for chunks that no longer exist
+  survive until a rebuild, so a forced run ends by telling you to run `reindex`.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

@@ -1,5 +1,6 @@
 import { CLI_SPEC } from "@claude-transcripts/shared";
 import { Box, Text } from "ink";
+import { COMMANDS } from "./commands";
 
 /** Render command usage from a CLI command spec entry. */
 function usage(name: string, args?: { name: string; required?: boolean }[]): string {
@@ -28,9 +29,12 @@ export function App({ command }: { command?: string; args: string[] }) {
               {a.description ?? ""}
             </Text>
           ))}
-          <Box marginTop={1}>
-            <Text color="gray">(not implemented yet)</Text>
-          </Box>
+          {/* Only say this when it's true — the registry is the fact, not the spec. */}
+          {COMMANDS[cmd.name] ? null : (
+            <Box marginTop={1}>
+              <Text color="gray">(not implemented yet)</Text>
+            </Box>
+          )}
         </Box>
       ) : (
         <Box marginTop={1} flexDirection="column">

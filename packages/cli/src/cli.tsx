@@ -17,7 +17,13 @@ import { COMMANDS } from "./commands";
 
 const [, , command, ...args] = process.argv;
 
-const runner = command ? COMMANDS[command] : undefined;
+// `--help` is handled here, before dispatch, because the commands don't parse it and
+// their flag parser treats any unknown `--flag` as a harmless boolean. That meant
+// `backfill --help` *ran the backfill* — asking a write command for usage and having it
+// write instead. Intercepting turns it into the help screen for that command.
+const wantsHelp = args.includes("--help") || args.includes("-h");
+
+const runner = command && !wantsHelp ? COMMANDS[command] : undefined;
 if (runner) {
   process.exit(await runner(args));
 } else {

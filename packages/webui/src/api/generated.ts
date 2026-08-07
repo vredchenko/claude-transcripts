@@ -158,6 +158,18 @@ export interface CrossSessionTurnsResponse {
   role: CrossSessionTurnsResponseRole;
 }
 
+export type SessionResetResultDeleted = {
+  summary: number;
+  events: number;
+  chunks: number;
+};
+
+export interface SessionResetResult {
+  ok: boolean;
+  id: string;
+  deleted: SessionResetResultDeleted;
+}
+
 export interface SearchHit {
   sessionId: string;
   timestamp?: string;
@@ -470,6 +482,14 @@ export type IngestTranscript400 = {
 };
 
 export type IngestTranscript500 = {
+  error: string;
+};
+
+export type ResetSession400 = {
+  error: string;
+};
+
+export type ResetSession500 = {
   error: string;
 };
 
@@ -1180,6 +1200,87 @@ export const useIngestTranscript = <
   TContext
 > => {
   const mutationOptions = getIngestTranscriptMutationOptions(options);
+
+  return useMutation(mutationOptions);
+};
+
+/**
+ * @summary Delete a session's summary/event/chunk docs so it can be re-ingested
+ */
+export const getResetSessionUrl = (id: string) => {
+  return `/api/ingest/${id}`;
+};
+
+export const resetSession = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SessionResetResult> => {
+  return customFetch<SessionResetResult>(getResetSessionUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getResetSessionMutationOptions = <
+  TError = ErrorType<ResetSession400 | ResetSession500>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetSession>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetSession>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["resetSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetSession>>, { id: string }> = (
+    props,
+  ) => {
+    const { id } = props ?? {};
+
+    return resetSession(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetSessionMutationResult = NonNullable<Awaited<ReturnType<typeof resetSession>>>;
+
+export type ResetSessionMutationError = ErrorType<ResetSession400 | ResetSession500>;
+
+/**
+ * @summary Delete a session's summary/event/chunk docs so it can be re-ingested
+ */
+export const useResetSession = <
+  TError = ErrorType<ResetSession400 | ResetSession500>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetSession>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resetSession>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationOptions = getResetSessionMutationOptions(options);
 
   return useMutation(mutationOptions);
 };
