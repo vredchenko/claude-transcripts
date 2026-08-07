@@ -8,6 +8,24 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`typecheck` no longer depends on which copy of `@types/react` gets hoisted.** The
+  CLI pinned `@types/react@^18.3.12` for Ink 5 while the webui asked for `^19`, and the
+  workspace hoists one copy to the root — so MUI and Emotion (also hoisted) resolved
+  whichever major won, while the webui's own code resolved its nested one. When those
+  disagreed, three errors appeared, because React 19's `ReactNode` admits `bigint` and
+  18's doesn't.
+
+  Which way it fell was **not stable across machines**: with the same lockfile, CI
+  resolved it green while a clean `bun install --frozen-lockfile` locally resolved it
+  red. A gate whose answer depends on the resolver is worse than one that always fails
+  — a green CI said nothing about the maintainer's checkout, and vice versa.
+
+  Fixed by removing the split rather than arranging around it: **Ink 5 → 6** takes React
+  19, so the monorepo runs one React version and hoist order can't decide anything.
+  Deliberately *not* Ink 7 — it renders nothing when stdout isn't a TTY, which would
+  make `claude-transcripts | grep` and any captured help output silently empty.
 ### Changed
 
 - **BREAKING — `GET /api/sessions/{id}/transcript` now returns
