@@ -75,6 +75,28 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   in Meilisearch is authoritative, so there's no data migration — and may then delete the
   two old indexes.
 
+- **`bun run gen:all` no longer reverts shipped fixes or leaves the tree dirty.** The
+  documented "regenerate everything" command had four problems, the first of which had
+  already bitten:
+
+  - **It dropped `WEBAPI_PORT=7650` from the app service**, silently undoing the fix
+    that made the app container bind its own port. The pin lived in the committed
+    compose file as a hand-edit; the model never carried it, so the generator couldn't
+    emit it. Now in `services.ts`, where it survives regeneration.
+  - **`gen:assets` ran before `gen:compose`**, so the assets embedded the *previous*
+    compose file and the tree only converged on a second run. Reordered.
+  - **`gen-hook-events` wrote `docs/hook-events.md`** while its own docstring and log
+    line said `docs/reference/hook-events.md` — leaving a stray file and a stale
+    committed one.
+  - **`regenerate-compatibility` dropped an untracked `compatibility.json`** at the repo
+    root on every run, stamped with the current time. It's a placeholder until the
+    generator is wired to a real source, so it's gitignored rather than committed to
+    churn.
+
+  The compose generator's header now carries the explanations that used to be inline
+  comments in the generated file — those were being destroyed on every regeneration,
+  which is how the `WEBAPI_PORT` pin was lost in the first place.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

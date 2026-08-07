@@ -26,7 +26,7 @@
     "gen:mock": "bun run scripts/regenerate-mock-fixtures.ts",
     "gen:compose": "bun run scripts/gen-compose.ts",
     "gen:compose-override": "bun run scripts/gen-compose-override.ts",
-    "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:assets && bun run gen:compose && bun run gen:compose-override && bun run gen:compat",
+    "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:compose && bun run gen:compose-override && bun run gen:assets && bun run gen:compat",
     "stack:up": "bun run scripts/stack.ts up",
     "stack:up:upstream": "bun run scripts/stack.ts up --upstream",
     "stack:up:local": "bun run scripts/stack.ts up --build --upstream",
