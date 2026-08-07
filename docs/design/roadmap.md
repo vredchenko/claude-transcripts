@@ -70,17 +70,21 @@ re-runnable path with a clear "is this working?" answer at the end — this is w
 first thing a new user touches ([configuration.md](../start/configuration.md)).
 
 **Ingest & data fidelity**
-- **`backfill` can't re-process an adopted session.** It skips anything that already
-  has a `summary` doc, so a session adopted with `--no-content`, or by an older CLI,
-  can't be redone — the only recovery is deleting docs by hand. Wants a `--force` /
-  re-process flag; that's also the generic answer to rebuilding byte-range-only chunks
-  into content chunks.
+- **`backfill` can't re-process an adopted session — fixed.** `--force` (optionally
+  narrowed by `--session <id>`) re-processes instead of skipping, which is how a session
+  adopted with `--no-content`, or by a CLI old enough to write byte-range-only chunks,
+  gets rebuilt into full-content chunks. It deletes the session's derived docs first,
+  because re-ingesting over the top doesn't replace them: event ids are CouchDB-assigned
+  so they'd duplicate, and chunk ids are keyed by byte offset so re-chunking would leave
+  the old ones behind. The S3 transcript is only ever overwritten, never deleted, so an
+  interrupted run is always recoverable by re-running.
 - **Non-message transcript lines render blank.** Claude Code's JSONL carries entries
   that aren't conversation turns (file-history snapshots, queue operations, system
   meta). `buildChunkEntries` projects them to `role: "other"` with no text, so they
   show as empty rows in the transcript view and expand to nothing useful. The fix is
-  writer-side — carry the source entry `type` into `ChunkEntry` — and only reaches
-  existing sessions once they're re-chunked (see above).
+  writer-side — carry the source entry `type` into `ChunkEntry` — and reaches existing
+  sessions only once they're re-chunked, which `backfill --force` (above) now makes
+  possible. So this is the remaining half: the writer change itself.
 
 **Search**
 - **Metadata search misses running sessions.** The `sessions` index is built from

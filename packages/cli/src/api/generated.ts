@@ -146,6 +146,18 @@ export interface CrossSessionTurnsResponse {
   role: CrossSessionTurnsResponseRole;
 }
 
+export type SessionResetResultDeleted = {
+  summary: number;
+  events: number;
+  chunks: number;
+};
+
+export interface SessionResetResult {
+  ok: boolean;
+  id: string;
+  deleted: SessionResetResultDeleted;
+}
+
 export interface SearchHit {
   sessionId: string;
   timestamp?: string;
@@ -461,6 +473,14 @@ export type IngestTranscript500 = {
   error: string;
 };
 
+export type ResetSession400 = {
+  error: string;
+};
+
+export type ResetSession500 = {
+  error: string;
+};
+
 export type SearchParams = {
   q?: string;
   /**
@@ -655,6 +675,23 @@ export const ingestTranscript = async (
   return customFetch<IngestTranscript200>(getIngestTranscriptUrl(id), {
     ...options,
     method: "PUT",
+  });
+};
+
+/**
+ * @summary Delete a session's summary/event/chunk docs so it can be re-ingested
+ */
+export const getResetSessionUrl = (id: string) => {
+  return `/api/ingest/${id}`;
+};
+
+export const resetSession = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SessionResetResult> => {
+  return customFetch<SessionResetResult>(getResetSessionUrl(id), {
+    ...options,
+    method: "DELETE",
   });
 };
 

@@ -15,10 +15,11 @@ import { validationHook } from "./validation";
  * (backfill, packages/cli) reads local transcripts the container can't see
  * and delivers the derived docs + blob to these endpoints.
  *
- *   POST /api/ingest/summary          idempotent upsert of a summary:<id> doc
- *   POST /api/ingest/events           bulk-insert append-only event docs
- *   POST /api/ingest/chunks           bulk-insert chunk docs (stable ids; idempotent)
- *   PUT  /api/ingest/{id}/transcript  store the transcript blob in S3 (ADR 0014)
+ *   POST   /api/ingest/summary          idempotent upsert of a summary:<id> doc
+ *   POST   /api/ingest/events           bulk-insert append-only event docs
+ *   POST   /api/ingest/chunks           bulk-insert chunk docs (stable ids; idempotent)
+ *   PUT    /api/ingest/{id}/transcript  store the transcript blob in S3 (ADR 0014)
+ *   DELETE /api/ingest/{id}             drop a session's derived docs, to re-ingest it
  *
  * TODO(#6): promote these doc schemas to a shared @claude-transcripts/shared module (with the
  * hook) so the hook, webapi, and CLI validate against ONE definition.
@@ -176,6 +177,43 @@ const transcriptRoute = createRoute({
   },
 });
 
+const ResetResultSchema = z
+  .object({
+    ok: z.boolean(),
+    id: z.string(),
+    deleted: z.object({ summary: z.number(), events: z.number(), chunks: z.number() }),
+  })
+  .openapi("SessionResetResult");
+
+/**
+ * Delete a session's derived documents so it can be ingested again from scratch.
+ *
+ * Re-ingesting over the top does **not** work, which is the whole reason this exists:
+ * a summary upserts, but event docs get CouchDB-assigned ids and would duplicate, and
+ * chunk ids are keyed by byte offset — so a session re-chunked differently (say
+ * byte-range-only chunks rebuilt with full content, or a different `--chunk-size`)
+ * would leave the old chunks in place alongside the new ones and read back doubled.
+ *
+ * Deliberately narrow: it removes only what can be regenerated from the transcript.
+ * The S3 blob stays (re-ingest overwrites it, and it's the durable original — ADR
+ * 0014), so a reset can never lose the one thing that isn't derived.
+ */
+const resetRoute = createRoute({
+  method: "delete",
+  path: "/ingest/{id}",
+  operationId: "resetSession",
+  summary: "Delete a session's summary/event/chunk docs so it can be re-ingested",
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: {
+      content: { "application/json": { schema: ResetResultSchema } },
+      description: "Deleted",
+    },
+    400: { content: { "application/json": { schema: ErrorSchema } }, description: "Bad request" },
+    500: { content: { "application/json": { schema: ErrorSchema } }, description: "Error" },
+  },
+});
+
 export function ingestRoutes(ctx: AppContext) {
   // Loose-typed (matches sessions.ts) so CouchDB's `any` docs don't fight the types.
   const app = new OpenAPIHono({ defaultHook: validationHook });
@@ -237,6 +275,53 @@ export function ingestRoutes(ctx: AppContext) {
       "application/x-ndjson",
     );
     return c.json({ ok: true, id, bytes: text.length });
+  });
+
+  route.openapi(resetRoute, async (c: any) => {
+    const id = c.req.param("id");
+    const db = ctx.couch.db("sessions");
+
+    /** Every doc a `<design>/by_session` view emits for this session, with its rev. */
+    const idsFrom = async (design: string): Promise<{ _id: string; _rev: string }[]> => {
+      const res = await db.view(design, "by_session", {
+        startkey: [id],
+        endkey: [id, {}],
+        reduce: false,
+        include_docs: true,
+      });
+      return (res.rows as any[])
+        .map((r) => r.doc)
+        .filter((d) => d?._id && d?._rev)
+        .map((d) => ({ _id: d._id, _rev: d._rev }));
+    };
+
+    const [events, chunks] = await Promise.all([idsFrom("events"), idsFrom("chunks")]);
+
+    const summaryId = `summary:${id}`;
+    let summary: { _id: string; _rev: string } | null = null;
+    try {
+      const doc = (await db.get(summaryId)) as { _id: string; _rev: string };
+      summary = { _id: doc._id, _rev: doc._rev };
+    } catch (err: any) {
+      // A session with no summary (still running, or crashed before SessionEnd) is a
+      // normal thing to reset — only a real failure should surface.
+      if (err?.statusCode !== 404) throw err;
+    }
+
+    const doomed = [...events, ...chunks, ...(summary ? [summary] : [])];
+    if (doomed.length) {
+      await db.bulk({ docs: doomed.map((d) => ({ ...d, _deleted: true })) });
+    }
+
+    // The search indexes still hold this session. Re-ingest overwrites the entries it
+    // regenerates, but anything the new run doesn't produce (turns from chunks that no
+    // longer exist) lingers until `reindex` — which is the documented reconciliation
+    // step for deletes (ADR 0009), and what the CLI runs after a forced backfill.
+    return c.json({
+      ok: true,
+      id,
+      deleted: { summary: summary ? 1 : 0, events: events.length, chunks: chunks.length },
+    });
   });
 
   return app;
