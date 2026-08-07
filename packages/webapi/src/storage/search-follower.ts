@@ -13,10 +13,12 @@
  * stays the reconciliation step for deletes and for history written before search
  * existed. Everything is best-effort — a failure here must never take down the webapi.
  */
+
+import { indexName } from "../config";
 import type { AppContext } from "../context";
 import {
-  SESSIONS_INDEX,
-  TURNS_INDEX,
+  SESSIONS_INDEX_KEY,
+  TURNS_INDEX_KEY,
   toRunningSessionSearchDoc,
   toSessionSearchDoc,
   toTurnSearchDocs,
@@ -123,8 +125,10 @@ export function startSearchFollower(ctx: AppContext): SearchFollower | null {
           }
         }
 
-        if (sessionDocs.length) await ctx.meili.index(SESSIONS_INDEX, sessionDocs);
-        if (turnDocs.length) await ctx.meili.index(TURNS_INDEX, turnDocs);
+        if (sessionDocs.length)
+          await ctx.meili.index(indexName(ctx.config, SESSIONS_INDEX_KEY), sessionDocs);
+        if (turnDocs.length)
+          await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), turnDocs);
 
         const last = batch[batch.length - 1];
         if (last?.seq) await writeCheckpoint(db, String(last.seq));

@@ -29,6 +29,12 @@ export interface AppConfigFile {
   couchdb: { databases: Record<string, string> };
   /** logical key → S3 bucket name (multi-bucket by design) */
   s3: { buckets: Record<string, string> };
+  /**
+   * logical key → Meilisearch index name. Namespaced like the databases and buckets
+   * above, so a deployment pointed at a shared Meilisearch can't collide with another
+   * one — or have its indexes cleared by someone else's rebuild (ADR 0028).
+   */
+  meilisearch?: { indexes: Record<string, string> };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
   userSettings?: Record<string, unknown>;

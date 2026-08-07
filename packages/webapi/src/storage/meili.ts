@@ -161,7 +161,13 @@ export function searchDocId(...parts: (string | number)[]): string {
 }
 
 /** The Meilisearch index holding one document per session (metadata search). */
-export const SESSIONS_INDEX = "sessions";
+/**
+ * Logical index keys. The *names* live in `config/` (`meilisearch.indexes`) and are
+ * resolved with `indexName()` — namespaced like the databases and buckets, so a
+ * deployment pointed at a shared Meilisearch can neither collide with another one nor
+ * have its indexes cleared by someone else's rebuild (ADR 0028).
+ */
+export const SESSIONS_INDEX_KEY = "sessions";
 
 /** Index settings for the sessions index. */
 export const SESSIONS_INDEX_SETTINGS: IndexSettings = {
@@ -189,7 +195,7 @@ export function toSessionSearchDoc(doc: any): Record<string, unknown> {
 }
 
 /** The Meilisearch index holding one document per conversation turn (content search). */
-export const TURNS_INDEX = "turns";
+export const TURNS_INDEX_KEY = "turns";
 
 export const TURNS_INDEX_SETTINGS: IndexSettings = {
   primaryKey: "id",

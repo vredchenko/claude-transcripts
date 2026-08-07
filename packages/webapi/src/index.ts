@@ -3,16 +3,16 @@
  * schema, and serves the app. Bun serves the default export's `fetch`.
  */
 import { buildAppModel } from "@claude-transcripts/shared";
-import { loadAppConfigFile, loadConfig } from "./config";
+import { indexName, loadAppConfigFile, loadConfig } from "./config";
 import type { AppContext, BootStatus } from "./context";
 import { buildServer } from "./server";
 import { makeCouch } from "./storage/couch";
 import { ensureCouchDbs } from "./storage/ensure";
 import {
   Meili,
-  SESSIONS_INDEX,
+  SESSIONS_INDEX_KEY,
   SESSIONS_INDEX_SETTINGS,
-  TURNS_INDEX,
+  TURNS_INDEX_KEY,
   TURNS_INDEX_SETTINGS,
 } from "./storage/meili";
 import { S3BlobStore } from "./storage/s3-blob-store";
@@ -40,8 +40,10 @@ await ensureCouchDbs(couch, config)
     console.error("ensureCouchDbs failed (continuing):", err);
   });
 // Ensure the search indexes (best-effort; no-op when Meili is disabled/unreachable).
-await meili.ensureIndex(SESSIONS_INDEX, SESSIONS_INDEX_SETTINGS).catch(() => {});
-await meili.ensureIndex(TURNS_INDEX, TURNS_INDEX_SETTINGS).catch(() => {});
+await meili
+  .ensureIndex(indexName(config, SESSIONS_INDEX_KEY), SESSIONS_INDEX_SETTINGS)
+  .catch(() => {});
+await meili.ensureIndex(indexName(config, TURNS_INDEX_KEY), TURNS_INDEX_SETTINGS).catch(() => {});
 
 // Follow CouchDB's change feed so docs written outside the ingest endpoints — the
 // hook writes straight to CouchDB — reach the index without a manual reindex.

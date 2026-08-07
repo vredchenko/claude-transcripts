@@ -1,9 +1,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { bucketName } from "../config";
+import { bucketName, indexName } from "../config";
 import type { AppContext } from "../context";
 import {
-  SESSIONS_INDEX,
-  TURNS_INDEX,
+  SESSIONS_INDEX_KEY,
+  TURNS_INDEX_KEY,
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "../storage/meili";
@@ -235,7 +235,9 @@ export function ingestRoutes(ctx: AppContext) {
     }
     await db.insert(rev ? { ...doc, _id: id, _rev: rev } : { ...doc, _id: id });
     // Index the session for full-text search (best-effort; no-ops when disabled).
-    await ctx.meili.index(SESSIONS_INDEX, [toSessionSearchDoc(doc)]).catch(() => {});
+    await ctx.meili
+      .index(indexName(ctx.config, SESSIONS_INDEX_KEY), [toSessionSearchDoc(doc)])
+      .catch(() => {});
     return c.json({ ok: true, id, updated: rev !== undefined });
   });
 
@@ -258,7 +260,7 @@ export function ingestRoutes(ctx: AppContext) {
     // Index the parsed turns for full-text content search (best-effort; content
     // chunks only — byte-range-only chunks yield no turn docs).
     const turnDocs = docs.flatMap((d: any) => toTurnSearchDocs(d));
-    await ctx.meili.index(TURNS_INDEX, turnDocs).catch(() => {});
+    await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), turnDocs).catch(() => {});
     return c.json({ ok: true, inserted });
   });
 
