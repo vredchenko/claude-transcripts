@@ -90,11 +90,17 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
   Meilisearch can live outside the bundled stack the way CouchDB and Garage can.
 
 **Quality & debt**
-- **The webui typechecks against the wrong React types.** `packages/webui` asks for
-  `@types/react@^19`, `packages/cli` (Ink) pins `^18.3.12`, and the workspace hoists a
-  single copy — so the webui is checked against React 18 types and reports 3 errors
-  (React 19's `ReactNode` admits `bigint`, 18's doesn't). Harmless at runtime, but it
-  means `typecheck` is never clean, which is how a real error would hide.
+- **The webui typechecks against the wrong React types — fixed.** `packages/cli` (Ink 5)
+  pinned `@types/react@^18.3.12` while `packages/webui` asked for `^19`, and the
+  workspace hoists one copy — so MUI and Emotion resolved whichever major won the hoist
+  while the webui's own code resolved its nested one, and the two `ReactNode`s disagree
+  about `bigint`. Worth recording precisely, because it isn't "the gate was red": with
+  the *same lockfile*, CI resolved it green while a clean local
+  `bun install --frozen-lockfile` resolved it red. A check whose answer depends on the
+  resolver tells you nothing either way. The fix was to stop having two React majors:
+  Ink 6 takes React 19, so hoist order can no longer decide anything. (Ink 7 was the
+  obvious jump and is wrong here — it renders nothing when stdout isn't a TTY, so
+  `claude-transcripts | grep` would silently print an empty help screen.)
 - **The webui API client is hand-maintained, contradicting
   [ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md).**
   `gen:clients` emits an *axios* client for the webui that doesn't match the fetch
