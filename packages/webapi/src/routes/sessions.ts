@@ -8,114 +8,149 @@ import {
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, idleThresholdMs, liveWindowMs } from "../config";
 import type { AppContext } from "../context";
+import { validationHook } from "./validation";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
+//
+// Every schema a consumer sees is registered as a **named component** via
+// `.openapi("Name")`. That name is the one thing the generated clients inherit: without
+// it the spec inlines each schema at its use site and orval has nothing to call the
+// type but the route it appeared in — `ListSessions200SessionsItemStatus` rather than
+// `SessionStatus`. Since the generated clients are the contract consumers actually read
+// ([ADR 0019](../../../../docs/design/decisions/0019-openapi-source-of-truth-generated-clients.md)),
+// naming here is what makes generation usable rather than something to hand-write around.
 
-const ErrorSchema = z.object({ error: z.string() });
+const ErrorSchema = z.object({ error: z.string() }).openapi("ApiError");
 
-const TokenUsageSchema = z.object({
-  input: z.number(),
-  output: z.number(),
-  cacheCreation: z.number(),
-  cacheRead: z.number(),
-  total: z.number(),
-  messages: z.number(),
-});
+const TokenUsageSchema = z
+  .object({
+    input: z.number(),
+    output: z.number(),
+    cacheCreation: z.number(),
+    cacheRead: z.number(),
+    total: z.number(),
+    messages: z.number(),
+  })
+  .openapi("TokenUsage");
 
-const SessionStatusSchema = z.enum(["ended", "running", "incomplete"]);
+const SessionStatusSchema = z.enum(["ended", "running", "incomplete"]).openapi("SessionStatus");
 
-const SessionSummarySchema = z.object({
-  sessionId: z.string(),
-  timestamp: z.string(),
-  startTimestamp: z.string().optional(),
-  durationMs: z.number().optional(),
-  activeMs: z.number().optional(),
-  model: z.string().optional(),
-  cwd: z.string(),
-  hostname: z.string(),
-  eventCount: z.number(),
-  promptCount: z.number(),
-  errorCount: z.number(),
-  toolCounts: z.record(z.string(), z.number()),
-  endReason: z.string(),
-  hasTranscript: z.boolean(),
-  transcriptSize: z.number().optional(),
-  status: SessionStatusSchema,
-  lastActivity: z.string().optional(),
-  tokenUsage: TokenUsageSchema.optional(),
-  source: z.string().optional(),
-});
+const SessionSummarySchema = z
+  .object({
+    sessionId: z.string(),
+    timestamp: z.string(),
+    startTimestamp: z.string().optional(),
+    durationMs: z.number().optional(),
+    activeMs: z.number().optional(),
+    model: z.string().optional(),
+    cwd: z.string(),
+    hostname: z.string(),
+    eventCount: z.number(),
+    promptCount: z.number(),
+    errorCount: z.number(),
+    toolCounts: z.record(z.string(), z.number()),
+    endReason: z.string(),
+    hasTranscript: z.boolean(),
+    transcriptSize: z.number().optional(),
+    status: SessionStatusSchema,
+    lastActivity: z.string().optional(),
+    tokenUsage: TokenUsageSchema.optional(),
+    source: z.string().optional(),
+  })
+  .openapi("SessionSummary");
 
-const SessionsResponseSchema = z.object({
-  sessions: z.array(SessionSummarySchema),
-  totalCount: z.number(),
-});
+const SessionsResponseSchema = z
+  .object({
+    sessions: z.array(SessionSummarySchema),
+    totalCount: z.number(),
+  })
+  .openapi("SessionsResponse");
 
-const SpeakerRoleSchema = z.enum(["user", "assistant", "tool_result", "system", "other"]);
+const SpeakerRoleSchema = z
+  .enum(["user", "assistant", "tool_result", "system", "other"])
+  .openapi("SpeakerRole");
+
+/** A tool invocation referenced from a turn. Shared by transcript entries and turns. */
+const ToolUseSchema = z
+  .object({ name: z.string(), id: z.string().optional() })
+  .openapi("ToolUseRef");
 
 /**
  * One turn of a transcript — the pruned `ChunkEntry` projection (ADR 0027), which is
- * what a `chunk` doc stores. Both transcript sources normalise to this shape, so the
- * response doesn't change form depending on where it was served from. Raw, byte-exact
- * JSONL is still reachable through the read-only S3 proxy for consumers that need it.
+ * what a `chunk` doc stores. Both transcript sources carry the same *fields*, so a
+ * reader doesn't branch on `source`; they differ only in how they spell an absent
+ * optional (see the note on `toolUses`). Raw, byte-exact JSONL is still reachable
+ * through the read-only S3 proxy for consumers that need it.
  */
-const TranscriptEntrySchema = z.object({
-  role: SpeakerRoleSchema,
-  timestamp: z.string().optional(),
-  text: z.string().optional(),
-  toolUses: z
-    .array(z.object({ name: z.string(), id: z.string().optional() }))
-    .nullable()
-    .optional(),
-  toolUseId: z.string().nullable().optional(),
-  isError: z.boolean().optional(),
-  isSidechain: z.boolean().optional(),
-});
+const TranscriptEntrySchema = z
+  .object({
+    role: SpeakerRoleSchema,
+    timestamp: z.string().optional(),
+    text: z.string().optional(),
+    // Nullable because the two sources genuinely differ, and the spec has to admit it:
+    // the `chunks/entries_by_session` view emits `toolUses: e.toolUses || null`, while
+    // the S3 path runs `buildChunkEntries` and omits the field instead. Absent and null
+    // mean the same thing to a reader, so this is a wart rather than a bug — but
+    // declaring only one of them would misdescribe half the responses. Converging the
+    // two (a view migration) is tracked in the roadmap.
+    toolUses: z.array(ToolUseSchema).nullable().optional(),
+    toolUseId: z.string().nullable().optional(),
+    isError: z.boolean().optional(),
+    isSidechain: z.boolean().optional(),
+  })
+  .openapi("TranscriptEntry");
 
-const TranscriptResponseSchema = z.object({
-  entries: z.array(TranscriptEntrySchema),
-  totalCount: z.number(),
-  hasMore: z.boolean(),
-  /** Which store served this page — `chunks` (CouchDB) or `s3`. */
-  source: z.enum(["chunks", "s3"]),
-  /** How many transcript bytes the serving source covers (diagnostics). */
-  byteCoverage: z.number(),
-});
+const TranscriptResponseSchema = z
+  .object({
+    entries: z.array(TranscriptEntrySchema),
+    totalCount: z.number(),
+    hasMore: z.boolean(),
+    /** Which store served this page — `chunks` (CouchDB) or `s3`. */
+    source: z.enum(["chunks", "s3"]).openapi("TranscriptSource"),
+    /** How many transcript bytes the serving source covers (diagnostics). */
+    byteCoverage: z.number(),
+  })
+  .openapi("TranscriptResponse");
 
-const SpeakerTurnSchema = z.object({
-  role: SpeakerRoleSchema,
-  timestamp: z.string(),
-  text: z.string(),
-  toolUses: z
-    .array(z.object({ name: z.string(), id: z.string().optional() }))
-    .nullable()
-    .optional(),
-  toolUseId: z.string().nullable().optional(),
-  isError: z.boolean().optional(),
-});
+const SpeakerTurnSchema = z
+  .object({
+    role: SpeakerRoleSchema,
+    timestamp: z.string(),
+    text: z.string(),
+    toolUses: z.array(ToolUseSchema).nullable().optional(),
+    toolUseId: z.string().nullable().optional(),
+    isError: z.boolean().optional(),
+  })
+  .openapi("SpeakerTurn");
 
-const TurnsResponseSchema = z.object({
-  turns: z.array(SpeakerTurnSchema),
-  totalCount: z.number(),
-  hasMore: z.boolean(),
-  role: SpeakerRoleSchema.nullable(),
-});
+const TurnsResponseSchema = z
+  .object({
+    turns: z.array(SpeakerTurnSchema),
+    totalCount: z.number(),
+    hasMore: z.boolean(),
+    role: SpeakerRoleSchema.nullable(),
+  })
+  .openapi("SessionTurnsResponse");
 
 // A turn from the CROSS-session view (`by_role_time`) — carries its session/project
 // context so turns stay attributable when read across all sessions.
-const CrossSessionTurnSchema = z.object({
-  sessionId: z.string(),
-  cwd: z.string(),
-  role: SpeakerRoleSchema,
-  timestamp: z.string(),
-  text: z.string(),
-});
+const CrossSessionTurnSchema = z
+  .object({
+    sessionId: z.string(),
+    cwd: z.string(),
+    role: SpeakerRoleSchema,
+    timestamp: z.string(),
+    text: z.string(),
+  })
+  .openapi("CrossSessionTurn");
 
-const CrossSessionTurnsResponseSchema = z.object({
-  turns: z.array(CrossSessionTurnSchema),
-  hasMore: z.boolean(),
-  role: SpeakerRoleSchema.nullable(),
-});
+const CrossSessionTurnsResponseSchema = z
+  .object({
+    turns: z.array(CrossSessionTurnSchema),
+    hasMore: z.boolean(),
+    role: SpeakerRoleSchema.nullable(),
+  })
+  .openapi("CrossSessionTurnsResponse");
 
 // ── Mapping ───────────────────────────────────────────────────────────────────
 
@@ -308,11 +343,15 @@ const listRoute = createRoute({
   operationId: "listSessions",
   request: {
     query: z.object({
-      limit: z.string().optional(),
-      skip: z.string().optional(),
+      limit: z.coerce.number().int().nonnegative().optional(),
+      skip: z.coerce.number().int().nonnegative().optional(),
     }),
   },
   responses: {
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid request",
+    },
     200: {
       content: { "application/json": { schema: SessionsResponseSchema } },
       description: "Sessions",
@@ -327,6 +366,10 @@ const detailRoute = createRoute({
   operationId: "getSession",
   request: { params: z.object({ id: z.string() }) },
   responses: {
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid request",
+    },
     200: {
       content: { "application/json": { schema: SessionSummarySchema } },
       description: "Session",
@@ -341,9 +384,16 @@ const transcriptRoute = createRoute({
   operationId: "getSessionTranscript",
   request: {
     params: z.object({ id: z.string() }),
-    query: z.object({ limit: z.string().optional(), offset: z.string().optional() }),
+    query: z.object({
+      limit: z.coerce.number().int().nonnegative().optional(),
+      offset: z.coerce.number().int().nonnegative().optional(),
+    }),
   },
   responses: {
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid request",
+    },
     200: {
       content: { "application/json": { schema: TranscriptResponseSchema } },
       description: "Transcript",
@@ -364,11 +414,15 @@ const turnsRoute = createRoute({
     params: z.object({ id: z.string() }),
     query: z.object({
       role: SpeakerRoleSchema.optional(),
-      limit: z.string().optional(),
-      offset: z.string().optional(),
+      limit: z.coerce.number().int().nonnegative().optional(),
+      offset: z.coerce.number().int().nonnegative().optional(),
     }),
   },
   responses: {
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid request",
+    },
     200: {
       content: { "application/json": { schema: TurnsResponseSchema } },
       description: "Turns (speaker-split)",
@@ -386,11 +440,15 @@ const crossTurnsRoute = createRoute({
       role: SpeakerRoleSchema.optional(),
       from: z.string().optional(),
       to: z.string().optional(),
-      limit: z.string().optional(),
-      skip: z.string().optional(),
+      limit: z.coerce.number().int().nonnegative().optional(),
+      skip: z.coerce.number().int().nonnegative().optional(),
     }),
   },
   responses: {
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid request",
+    },
     200: {
       content: { "application/json": { schema: CrossSessionTurnsResponseSchema } },
       description: "Cross-session turns (time-ordered)",
@@ -401,7 +459,7 @@ const crossTurnsRoute = createRoute({
 
 export function sessionRoutes(ctx: AppContext) {
   // Loosely typed so CouchDB's `any` docs don't fight the OpenAPI return types.
-  const app = new OpenAPIHono();
+  const app = new OpenAPIHono({ defaultHook: validationHook });
   const route = app as unknown as {
     openapi: (r: unknown, h: (c: any) => unknown) => void;
   };

@@ -8,6 +8,33 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The OpenAPI spec names its schemas, and both API clients are generated again.**
+  The webui's client was hand-written despite being called `generated.ts`, contradicting
+  [ADR 0019](docs/design/decisions/0019-openapi-source-of-truth-generated-clients.md) —
+  `gen:clients` would have overwritten it with something that didn't compile. The cause
+  wasn't the transport, it was that **every schema was inlined**: orval could only name
+  a type after the route it appeared in, so `SessionStatus` came out as
+  `ListSessions200SessionsItemStatus` and hand-writing genuinely read better.
+  Response schemas are now registered as named components, so generated types carry
+  their real names, and orval emits the webui client (react-query over `fetch`, with a
+  mutator that unwraps responses and throws on non-2xx so react-query sees failures).
+  `gen:clients` also formats its output, so generated code passes `lint` without being
+  hand-edited or exempted.
+
+- **Numeric query parameters are declared as integers.** `limit`, `skip` and `offset`
+  were typed `string` in the spec while every handler did `Number(...)` — so clients
+  had to pass strings for values that are plainly numbers. They're now `integer`
+  (coerced, minimum 0). One behaviour change falls out: a malformed value like
+  `?limit=abc` returns **400** instead of being silently treated as an empty page.
+
+- **Request-validation failures match the API's error shape.** A failed query/body
+  validation returned a raw serialised `ZodError` — a shape nothing else in the API
+  uses and the spec never described. It now returns `{ error: "invalid request — limit:
+  Expected number, received nan" }` with the 400 declared on the affected routes, so a
+  client that can read one error can read all of them.
+
 ### Fixed
 
 - **`typecheck` no longer depends on which copy of `@types/react` gets hoisted.** The

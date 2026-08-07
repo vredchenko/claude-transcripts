@@ -68,6 +68,7 @@ packages/webui/
     ├── transcript-entry.ts    # raw JSONL entry → compact EntryView
     ├── api/
     │   ├── generated.ts       # orval snapshot: types + fetchers + query hooks
+    │   ├── http.ts            # orval mutator: unwrap + throw on non-2xx
     │   └── model.ts           # hand-written GET /api/model hook (header title/version)
     ├── routes/
     │   ├── root.tsx           # RootLayout app shell (Header + Outlet)
@@ -104,24 +105,31 @@ and `/sessions/$id` → `SessionDetailPage`. The router is created with
 ## API layer (`api/generated.ts`)
 
 The generated snapshot is the single source of client types and data hooks. It
-is overwritten by `bun run gen:clients` — **do not edit by hand**. Because the
-webui is served same-origin under `/app` with `/api` proxied to the webapi, the
-transport is a plain `fetch` against a `/api` base (no mutator, unlike the
-off-origin CLI client). Non-2xx responses throw an `Error` carrying the status
-line plus any `{ error }` detail from the JSON body.
+is overwritten by `bun run gen:clients` — **do not edit by hand**. Transport lives in
+`api/http.ts`, the orval **mutator**: it unwraps orval's `{data, status, headers}`
+envelope and throws an `ApiRequestError` (message + `status`) on a non-2xx, so
+react-query's `isError`/`error` work as they should. Requests are same-origin — the
+webui is served under `/app` with `/api` proxied to the webapi — so nothing is
+prepended to the spec's own `/api/...` paths.
 
 It exports:
 
-- **Types** inlined from the spec — `TokenUsage`, `SessionStatus`
-  (`ended | running | incomplete`), `SessionSummary`, `SessionsResponse`,
-  `TranscriptResponse`, and the param shapes.
-- **Fetchers** — `listSessions`, `getSession`, `getSessionTranscript`.
-- **Query keys** — `queryKeys.sessions/session/transcript`.
+- **Types**, named after the spec's component schemas — `TokenUsage`,
+  `SessionStatus` (`ended | running | incomplete`), `SessionSummary`,
+  `SessionsResponse`, `TranscriptEntry`, `TranscriptResponse`, `SpeakerTurn`,
+  `SearchResponse`, `ApiError`, and the param shapes.
+- **Fetchers** — `listSessions`, `getSession`, `getSessionTranscript`, …
+- **Query-key helpers** — `getListSessionsQueryKey(params)` and friends. Use these
+  when passing `queryKey` explicitly; inventing a key splits the cache from every
+  other caller of the same route.
 - **React Query hooks** (consumed by the views):
   - `useListSessions({ limit, skip })` → `GET /api/sessions` — the list.
   - `useGetSession(id)` → `GET /api/sessions/{id}` — detail (disabled until `id`).
   - `useGetSessionTranscript(id, { limit, offset })` →
     `GET /api/sessions/{id}/transcript` — paged for the viewer's "Load more".
+
+Hook options are nested: react-query options go under `query`, per-call fetch options
+under `request` — `useListSessions(params, { query: { placeholderData: … } })`.
 
 All requests are relative (`/api/...`); in dev Vite proxies them to the webapi.
 

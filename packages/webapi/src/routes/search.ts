@@ -9,8 +9,9 @@ import {
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "../storage/meili";
+import { validationHook } from "./validation";
 
-const ErrorSchema = z.object({ error: z.string() });
+const ErrorSchema = z.object({ error: z.string() }).openapi("ApiError");
 
 /** Documents per Meilisearch request — keeps a big rebuild off one huge payload. */
 const BATCH = 1000;
@@ -47,34 +48,45 @@ const SearchHitSchema = z
     source: z.string().optional(),
     tools: z.array(z.string()).optional(),
   })
-  .passthrough();
+  .passthrough()
+  .openapi("SearchHit");
 
 /** A conversation-content match — one turn, with a cropped snippet around the hit. */
-const TurnHitSchema = z.object({
-  sessionId: z.string(),
-  role: z.string(),
-  snippet: z.string(),
-  timestamp: z.string().optional(),
-  cwd: z.string().optional(),
-});
+const TurnHitSchema = z
+  .object({
+    sessionId: z.string(),
+    role: z.string(),
+    snippet: z.string(),
+    timestamp: z.string().optional(),
+    cwd: z.string().optional(),
+  })
+  .openapi("TurnHit");
 
-const SearchResponseSchema = z.object({
-  /** Session-metadata matches (cwd/model/tools/host). */
-  hits: z.array(SearchHitSchema),
-  /** Conversation-content matches (turn text; content chunks only). */
-  turns: z.array(TurnHitSchema),
-  query: z.string(),
-  /** false when Meilisearch is disabled/unconfigured — the UI can say so. */
-  enabled: z.boolean(),
-});
+const SearchResponseSchema = z
+  .object({
+    /** Session-metadata matches (cwd/model/tools/host). */
+    hits: z.array(SearchHitSchema),
+    /** Conversation-content matches (turn text; content chunks only). */
+    turns: z.array(TurnHitSchema),
+    query: z.string(),
+    /** false when Meilisearch is disabled/unconfigured — the UI can say so. */
+    enabled: z.boolean(),
+  })
+  .openapi("SearchResponse");
 
-const ReindexResultSchema = z.object({
-  enabled: z.boolean(),
-  sessions: z.object({ scanned: z.number(), indexed: z.number() }),
-  turns: z.object({ scanned: z.number(), indexed: z.number() }),
-  /** Distinct Meilisearch task errors, if any — empty on a clean rebuild. */
-  failures: z.array(z.string()),
-});
+const IndexCountsSchema = z
+  .object({ scanned: z.number(), indexed: z.number() })
+  .openapi("IndexCounts");
+
+const ReindexResultSchema = z
+  .object({
+    enabled: z.boolean(),
+    sessions: IndexCountsSchema,
+    turns: IndexCountsSchema,
+    /** Distinct Meilisearch task errors, if any — empty on a clean rebuild. */
+    failures: z.array(z.string()),
+  })
+  .openapi("ReindexResult");
 
 const reindexRoute = createRoute({
   method: "post",
@@ -93,8 +105,17 @@ const searchRoute = createRoute({
   method: "get",
   path: "/search",
   operationId: "search",
-  request: { query: z.object({ q: z.string().optional(), limit: z.string().optional() }) },
+  request: {
+    query: z.object({
+      q: z.string().optional(),
+      limit: z.coerce.number().int().nonnegative().optional(),
+    }),
+  },
   responses: {
+    400: {
+      content: { "application/json": { schema: ErrorSchema } },
+      description: "Invalid request",
+    },
     200: {
       content: { "application/json": { schema: SearchResponseSchema } },
       description: "Search results",
@@ -109,7 +130,7 @@ const searchRoute = createRoute({
  * unreachable, so the UI degrades gracefully rather than erroring.
  */
 export function searchRoutes(ctx: AppContext) {
-  const app = new OpenAPIHono();
+  const app = new OpenAPIHono({ defaultHook: validationHook });
   const route = app as unknown as {
     openapi: (r: unknown, h: (c: any) => unknown) => void;
   };

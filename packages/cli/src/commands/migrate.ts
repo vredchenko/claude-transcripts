@@ -9,12 +9,12 @@
  *   claude-transcripts migrate down [--steps <n>]    [--dry-run]
  *   (all accept --webapi <url>)
  */
-import type { MigrationRunResponse } from "../api/generated";
+import type { MigrationRunResult } from "../api/generated";
 import { migrateDown, migrateStatus, migrateUp } from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 
-function printRun(result: MigrationRunResponse): void {
+function printRun(result: MigrationRunResult): void {
   for (const line of result.log) console.log(`  ${line}`);
   if (result.applied.length === 0) {
     console.log(

@@ -7,8 +7,13 @@
  *   claude-transcripts sessions <id>            # detail + transcript preview
  *   (both accept --limit <n> and --webapi <url>)
  */
-import type { ChunkEntry, SessionSummary } from "@claude-transcripts/shared";
-import { getSession, getSessionTranscript, listSessions } from "../api/generated";
+import {
+  getSession,
+  getSessionTranscript,
+  listSessions,
+  type SessionSummary,
+  type TranscriptEntry,
+} from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 
@@ -87,7 +92,10 @@ async function showList(limit: number): Promise<number> {
  * Compact one-line description of a transcript turn. The webapi normalises both of its
  * sources (CouchDB chunks, S3 blob) to this shape, so there's no raw JSONL to unpick.
  */
-function entryLine(entry: ChunkEntry, i: number): string {
+// Typed against the *response* contract, not the writer's `ChunkEntry`: what comes back
+// is whatever the transcript endpoint sends, and the two differ (the chunks view nulls
+// absent fields where `buildChunkEntries` omits them).
+function entryLine(entry: TranscriptEntry, i: number): string {
   const tools = (entry.toolUses ?? []).map((t) => `⚙ ${t.name}`).join(" ");
   const text = entry.text ?? "";
   const preview = (text && tools ? `${text} ${tools}` : text || tools)

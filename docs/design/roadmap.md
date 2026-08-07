@@ -106,11 +106,21 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
   obvious jump and is wrong here — it renders nothing when stdout isn't a TTY, so
   `claude-transcripts | grep` would silently print an empty help screen.)
 - **The webui API client is hand-maintained, contradicting
-  [ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md).**
-  `gen:clients` emits an *axios* client for the webui that doesn't match the fetch
-  transport in use and wouldn't compile, so the committed file is written by hand and
-  regeneration would destroy it. Either reconcile orval (`httpClient: "fetch"`) or
-  amend the ADR — right now the stated contract and the code disagree.
+  [ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md) — fixed.**
+  Orval now emits the webui's client too (`httpClient: "fetch"` + a mutator), so both
+  consumers are faithful generated output and `gen:clients` no longer destroys work.
+  The blocker wasn't really the transport: the spec **inlined every schema**, so
+  generated types were named after the route they appeared in
+  (`ListSessions200SessionsItemStatus`), which is why hand-writing looked preferable.
+  Registering the schemas as named components fixed the cause. Details in
+  [dev-automation.md](../develop/dev-automation.md#client-generation-orval).
+- **A transcript entry's absent fields are spelled two ways.** The
+  `chunks/entries_by_session` view emits `toolUses: e.toolUses || null`, while the S3
+  path builds entries with `buildChunkEntries`, which omits the field. Same meaning,
+  two encodings, so `TranscriptEntry` has to declare `null | undefined` and every
+  consumer handles both. Converging them means a view migration (emit the field only
+  when present) — small, but it changes a design doc, so it wants its own change rather
+  than riding along with something else.
 - **The e2e suite leaves fixtures behind.** It writes synthetic sessions into whatever
   store it points at and never cleans up, so running it against a real instance
   pollutes real history (and the search index) until they're deleted by hand.

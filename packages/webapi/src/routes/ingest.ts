@@ -7,6 +7,7 @@ import {
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "../storage/meili";
+import { validationHook } from "./validation";
 
 /**
  * Ingest — the curated WRITE surface of the gateway (ADR 0016). Reads are proxied;
@@ -177,7 +178,7 @@ const transcriptRoute = createRoute({
 
 export function ingestRoutes(ctx: AppContext) {
   // Loose-typed (matches sessions.ts) so CouchDB's `any` docs don't fight the types.
-  const app = new OpenAPIHono();
+  const app = new OpenAPIHono({ defaultHook: validationHook });
   const route = app as unknown as {
     openapi: (r: unknown, h: (c: any) => unknown) => void;
   };
