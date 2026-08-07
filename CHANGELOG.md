@@ -6,7 +6,7 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [0.0.2] — 2026-08-07
+## [0.0.3] — 2026-08-08
 
 The **Tier 1 release candidate**. 0.0.1 was the Tier-1 system standing up end to end;
 this is the release where the parts that were merely present became dependable — the
@@ -268,6 +268,19 @@ accumulate history you'd mind losing.
 
 ### Fixed
 
+- **The docs site's internal links are checked in CI.** `v0.0.2` was tagged and then
+  its app image failed to build: the docs site is compiled into the image and fails on a
+  broken internal link, and there were four — all in `docs/reference/hook-events.md`,
+  which is generated. Fixing that generator's output path earlier in this release meant
+  the file landed a directory deeper than its link templates assumed, and the committed
+  copy had been stale long enough to hide it.
+
+  The links are now relative to where the file actually goes. More usefully, `ci.yml`
+  now runs `bun run build:docs`: it previously ran lint, typecheck, build and test, none
+  of which touch the docs, so the first sign of a broken link was a release image
+  refusing to build — after the tag was pushed and after the CLI binaries had already
+  been published against it.
+
 - **`typecheck` no longer depends on which copy of `@types/react` gets hoisted.** The
   CLI pinned `@types/react@^18.3.12` for Ink 5 while the webui asked for `^19`, and the
   workspace hoists one copy to the root — so MUI and Emotion (also hoisted) resolved
@@ -364,6 +377,14 @@ accumulate history you'd mind losing.
   `EUNSUPPORTEDPROTOCOL`. The published manifest is now assembled with `jq` and
   `npm publish` runs inside `packages/cli`, so npm never walks the workspace. The
   publish call itself stays unverified while `NPM_TOKEN` is unset.
+
+## [0.0.2] — never published
+
+Tagged, then abandoned: the app image failed to build (a broken internal doc link, fixed
+in 0.0.3), so the tag published CLI binaries that pin an image which does not exist.
+`latest` never moved onto it. The tag and its GitHub Release are kept, marked, and
+superseded by 0.0.3 — which is the same code plus the fix. Nothing here was released
+twice; 0.0.3 carries the whole changelog above.
 
 ## [0.0.1] — 2026-07-29
 
@@ -475,5 +496,6 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.3
 [0.0.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.2
 [0.0.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.1
