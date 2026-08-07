@@ -6,7 +6,19 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.2] — 2026-08-07
+
+The **Tier 1 release candidate**. 0.0.1 was the Tier-1 system standing up end to end;
+this is the release where the parts that were merely present became dependable — the
+lifecycle operations you need to trust it with real history (`export`/`import`,
+`backfill --force`), one-command install, search that finds running sessions and can be
+explored rather than only jumped through, and a build where `typecheck`, `lint` and
+`gen:all` mean what they say.
+
+Still Tier 1, so still: single machine, single user, **no authentication anywhere**.
+Run it on localhost or a private network. What's new here is that the corpus is
+portable, re-processable, and searchable — the properties that make it safe to
+accumulate history you'd mind losing.
 
 ### Added
 
@@ -147,94 +159,6 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   Both are best-effort: search is optional, so an engine that's off or unreachable
   reports and moves on rather than failing an install that's otherwise fine.
 
-### Changed
-
-- **The OpenAPI spec names its schemas, and both API clients are generated again.**
-  The webui's client was hand-written despite being called `generated.ts`, contradicting
-  [ADR 0019](docs/design/decisions/0019-openapi-source-of-truth-generated-clients.md) —
-  `gen:clients` would have overwritten it with something that didn't compile. The cause
-  wasn't the transport, it was that **every schema was inlined**: orval could only name
-  a type after the route it appeared in, so `SessionStatus` came out as
-  `ListSessions200SessionsItemStatus` and hand-writing genuinely read better.
-  Response schemas are now registered as named components, so generated types carry
-  their real names, and orval emits the webui client (react-query over `fetch`, with a
-  mutator that unwraps responses and throws on non-2xx so react-query sees failures).
-  `gen:clients` also formats its output, so generated code passes `lint` without being
-  hand-edited or exempted.
-
-- **Numeric query parameters are declared as integers.** `limit`, `skip` and `offset`
-  were typed `string` in the spec while every handler did `Number(...)` — so clients
-  had to pass strings for values that are plainly numbers. They're now `integer`
-  (coerced, minimum 0). One behaviour change falls out: a malformed value like
-  `?limit=abc` returns **400** instead of being silently treated as an empty page.
-
-- **Request-validation failures match the API's error shape.** A failed query/body
-  validation returned a raw serialised `ZodError` — a shape nothing else in the API
-  uses and the spec never described. It now returns `{ error: "invalid request — limit:
-  Expected number, received nan" }` with the 400 declared on the affected routes, so a
-  client that can read one error can read all of them.
-
-### Fixed
-
-- **`typecheck` no longer depends on which copy of `@types/react` gets hoisted.** The
-  CLI pinned `@types/react@^18.3.12` for Ink 5 while the webui asked for `^19`, and the
-  workspace hoists one copy to the root — so MUI and Emotion (also hoisted) resolved
-  whichever major won, while the webui's own code resolved its nested one. When those
-  disagreed, three errors appeared, because React 19's `ReactNode` admits `bigint` and
-  18's doesn't.
-
-  Which way it fell was **not stable across machines**: with the same lockfile, CI
-  resolved it green while a clean `bun install --frozen-lockfile` locally resolved it
-  red. A gate whose answer depends on the resolver is worse than one that always fails
-  — a green CI said nothing about the maintainer's checkout, and vice versa.
-
-  Fixed by removing the split rather than arranging around it: **Ink 5 → 6** takes React
-  19, so the monorepo runs one React version and hoist order can't decide anything.
-  Deliberately *not* Ink 7 — it renders nothing when stdout isn't a TTY, which would
-  make `claude-transcripts | grep` and any captured help output silently empty.
-
-- **`import` no longer trusts "the bundle is older, so it's fine".** Restoring an old
-  bundle into a newer instance is safe only while the migrations in between are
-  view-only — CouchDB rebuilds views over the restored docs, so nothing needs migrating
-  forward. A migration that reshapes *documents* breaks that silently: the marker is
-  per-database, so the target already counts the transform as applied, `migrate up` finds
-  nothing pending, and the restored docs keep their old shape permanently. Migrations can
-  now declare `transformsDocs`, and import refuses any bundle whose version gap contains
-  one, naming them. No migration sets it today — every one is view-only, and a test
-  asserts that — so nothing changes in practice; the trap is armed rather than sprung
-  later. The scoped replay that would lift the refusal waits for the first document
-  migration, since until one exists there is nothing to test a replay against.
-  [ADR 0021](docs/design/decisions/0021-self-built-couchdb-migrations.md) is amended
-  accordingly: import **verifies** rather than migrates forward.
-
-- **`import` gave the wrong fix for a bundle from a newer schema.** It compared only
-  against the instance's applied version and always advised `migrate up` — useless when
-  the *build* is the thing that's too old, since `migrate up` reaches its own ceiling and
-  fails identically. It now distinguishes an instance behind its own build (run
-  `migrate up`) from a build that has never heard of that schema (upgrade the app).
-
-- **`import` refused bundles written by older CLIs.** The format check rejected any
-  version that wasn't an exact match, defeating the reason `format` is versioned
-  separately from the app: a bundle outlives the release that wrote it. Only a format
-  from the future is refused now.
-
-- **`import` treated an unreachable webapi as a pristine instance.** A failed status
-  read returned v0, which is a real version — so the version comparison took a branch it
-  had no evidence for. It now fails up front, naming the URL.
-
-### Changed
-
-- **BREAKING — `GET /api/sessions/{id}/transcript` now returns
-  `{ entries, totalCount, hasMore, source, byteCoverage }`**; the `messages` array of
-  raw Claude Code JSONL is gone. Chunk docs store pruned per-turn entries rather than
-  raw bytes, so reading them first is necessarily a fidelity change; both sources
-  normalise through `buildChunkEntries`, so the shape never varies with `source`.
-  Byte-exact JSONL stays available via the read-only S3 proxy
-  (`/api/s3/sessions/<id>/transcript.jsonl`). This narrows
-  [ADR 0014](docs/design/decisions/0014-transcripts-live-in-s3-only.md): S3 is still
-  the durable home, but no longer the read path.
-
-### Added
 
 - **`import` — restore a bundle into an instance.** Verifies the manifest, format and
   every checksum *before* writing anything, so a truncated bundle is refused rather
@@ -304,7 +228,92 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   ingest hot path it waits on Meilisearch's asynchronous validation and reports
   failures.
 
+### Changed
+
+- **The OpenAPI spec names its schemas, and both API clients are generated again.**
+  The webui's client was hand-written despite being called `generated.ts`, contradicting
+  [ADR 0019](docs/design/decisions/0019-openapi-source-of-truth-generated-clients.md) —
+  `gen:clients` would have overwritten it with something that didn't compile. The cause
+  wasn't the transport, it was that **every schema was inlined**: orval could only name
+  a type after the route it appeared in, so `SessionStatus` came out as
+  `ListSessions200SessionsItemStatus` and hand-writing genuinely read better.
+  Response schemas are now registered as named components, so generated types carry
+  their real names, and orval emits the webui client (react-query over `fetch`, with a
+  mutator that unwraps responses and throws on non-2xx so react-query sees failures).
+  `gen:clients` also formats its output, so generated code passes `lint` without being
+  hand-edited or exempted.
+
+- **Numeric query parameters are declared as integers.** `limit`, `skip` and `offset`
+  were typed `string` in the spec while every handler did `Number(...)` — so clients
+  had to pass strings for values that are plainly numbers. They're now `integer`
+  (coerced, minimum 0). One behaviour change falls out: a malformed value like
+  `?limit=abc` returns **400** instead of being silently treated as an empty page.
+
+- **Request-validation failures match the API's error shape.** A failed query/body
+  validation returned a raw serialised `ZodError` — a shape nothing else in the API
+  uses and the spec never described. It now returns `{ error: "invalid request — limit:
+  Expected number, received nan" }` with the 400 declared on the affected routes, so a
+  client that can read one error can read all of them.
+
+
+- **BREAKING — `GET /api/sessions/{id}/transcript` now returns
+  `{ entries, totalCount, hasMore, source, byteCoverage }`**; the `messages` array of
+  raw Claude Code JSONL is gone. Chunk docs store pruned per-turn entries rather than
+  raw bytes, so reading them first is necessarily a fidelity change; both sources
+  normalise through `buildChunkEntries`, so the shape never varies with `source`.
+  Byte-exact JSONL stays available via the read-only S3 proxy
+  (`/api/s3/sessions/<id>/transcript.jsonl`). This narrows
+  [ADR 0014](docs/design/decisions/0014-transcripts-live-in-s3-only.md): S3 is still
+  the durable home, but no longer the read path.
+
 ### Fixed
+
+- **`typecheck` no longer depends on which copy of `@types/react` gets hoisted.** The
+  CLI pinned `@types/react@^18.3.12` for Ink 5 while the webui asked for `^19`, and the
+  workspace hoists one copy to the root — so MUI and Emotion (also hoisted) resolved
+  whichever major won, while the webui's own code resolved its nested one. When those
+  disagreed, three errors appeared, because React 19's `ReactNode` admits `bigint` and
+  18's doesn't.
+
+  Which way it fell was **not stable across machines**: with the same lockfile, CI
+  resolved it green while a clean `bun install --frozen-lockfile` locally resolved it
+  red. A gate whose answer depends on the resolver is worse than one that always fails
+  — a green CI said nothing about the maintainer's checkout, and vice versa.
+
+  Fixed by removing the split rather than arranging around it: **Ink 5 → 6** takes React
+  19, so the monorepo runs one React version and hoist order can't decide anything.
+  Deliberately *not* Ink 7 — it renders nothing when stdout isn't a TTY, which would
+  make `claude-transcripts | grep` and any captured help output silently empty.
+
+- **`import` no longer trusts "the bundle is older, so it's fine".** Restoring an old
+  bundle into a newer instance is safe only while the migrations in between are
+  view-only — CouchDB rebuilds views over the restored docs, so nothing needs migrating
+  forward. A migration that reshapes *documents* breaks that silently: the marker is
+  per-database, so the target already counts the transform as applied, `migrate up` finds
+  nothing pending, and the restored docs keep their old shape permanently. Migrations can
+  now declare `transformsDocs`, and import refuses any bundle whose version gap contains
+  one, naming them. No migration sets it today — every one is view-only, and a test
+  asserts that — so nothing changes in practice; the trap is armed rather than sprung
+  later. The scoped replay that would lift the refusal waits for the first document
+  migration, since until one exists there is nothing to test a replay against.
+  [ADR 0021](docs/design/decisions/0021-self-built-couchdb-migrations.md) is amended
+  accordingly: import **verifies** rather than migrates forward.
+
+- **`import` gave the wrong fix for a bundle from a newer schema.** It compared only
+  against the instance's applied version and always advised `migrate up` — useless when
+  the *build* is the thing that's too old, since `migrate up` reaches its own ceiling and
+  fails identically. It now distinguishes an instance behind its own build (run
+  `migrate up`) from a build that has never heard of that schema (upgrade the app).
+
+- **`import` refused bundles written by older CLIs.** The format check rejected any
+  version that wasn't an exact match, defeating the reason `format` is versioned
+  separately from the app: a bundle outlives the release that wrote it. Only a format
+  from the future is refused now.
+
+- **`import` treated an unreachable webapi as a pristine instance.** A failed status
+  read returned v0, which is a real version — so the version comparison took a branch it
+  had no evidence for. It now fails up front, naming the URL.
+
 
 - **No app image tracked `main`, so an install could only get a released one.**
   `latest` correctly means "newest release", but with nothing published between
@@ -466,4 +475,5 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.2
 [0.0.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.1

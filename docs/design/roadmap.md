@@ -44,6 +44,13 @@ both transcript read paths.
 
 ### Tier 1 — open work
 
+**Cleared as of 0.0.2**, the Tier-1 release candidate. The list below is kept with its
+outcomes rather than deleted: what turned out to be wrong about each item is usually
+more useful than the fact it's fixed. Two things remain, both deliberately deferred and
+neither Tier-1 blocking — a transcript entry's two spellings for an absent field (needs
+a view migration, wants its own change), and the scoped replay `import` would need to
+carry a bundle across a document-transforming migration (untestable until one exists).
+
 The near-term list, mostly surfaced by using the system rather than planned up front.
 Ordered roughly by how much they get in the way.
 
@@ -61,13 +68,13 @@ are view-only — so import refuses that case (`transformsDocs`) rather than imp
 scoped replay that could not be tested against anything. The replay is work for whenever
 the first document migration is written.
 
-**Install & first run** — the biggest remaining Tier-1 gap. Getting from `git clone`
-to "sessions are being logged" currently means running the stack, provisioning stores,
-generating hook config and registering the hook, with the pieces spread across
-`cli setup`, `scripts/`, and `deploy/`. It needs to be one obvious, idempotent,
-re-runnable path with a clear "is this working?" answer at the end — this is what
-[`doctor`](../operate/tools.md) checks after the fact. Public-repo critical: it's the
-first thing a new user touches ([configuration.md](../start/configuration.md)).
+**Install & first run — done.** Getting from nothing to "sessions are being logged" is
+one command: `curl … | sh` fetches the binary and runs `claude-transcripts install`,
+which generates the instance's secrets and ports, starts the stack, provisions CouchDB
+and Garage, starts the app, sets up search, and registers the hook — idempotent, with
+every phase also available on its own. `doctor` answers "is this working?" afterwards by
+driving a real session through write → read → search and cleaning up after itself
+([installation.md](installation.md)).
 
 **Ingest & data fidelity**
 - **`backfill` can't re-process an adopted session — fixed.** `--force` (optionally
