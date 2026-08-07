@@ -143,6 +143,12 @@ export const SERVICES: ServiceDef[] = [
       // Inside the compose network backends resolve to service names, not the
       // host's localhost ports. config/ + secrets stay shared; only endpoints differ.
       WEBAPI_HOST: "0.0.0.0",
+      // The port INSIDE the container is always 7650; `ports:` maps the host's
+      // ${WEBAPI_PORT} onto it. Without pinning this, `env_file` hands the app the
+      // HOST-side port and it binds there instead, so nothing answers on 7650 and the
+      // published port leads nowhere. Invisible whenever the host port happens to be
+      // 7650 — which is why it survived until an install shifted the block.
+      WEBAPI_PORT: "7650",
       // COUCHDB_URL wins over HOST/PORT, so it must be pinned here too — otherwise
       // a `.env` set for an external CouchDB would leak into the bundled app.
       COUCHDB_URL: "http://couchdb:5984",

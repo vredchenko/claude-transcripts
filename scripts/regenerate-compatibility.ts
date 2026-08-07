@@ -9,6 +9,7 @@
  * `earliestCompatible` / `latestCompatible` come from the (future) version test
  * automation, not from here.
  */
+import { join } from "node:path";
 
 // TODO: scrape/query the external Claude Code source of truth (published hooks
 // docs / release metadata), build the per-version hook lists, and write
@@ -23,5 +24,8 @@ const compatibility = {
   },
 };
 
-await Bun.write("compatibility.json", `${JSON.stringify(compatibility, null, 2)}\n`);
+await Bun.write(
+  join(import.meta.dir, "..", "compatibility.json"),
+  `${JSON.stringify(compatibility, null, 2)}\n`,
+);
 console.log("[compat] wrote compatibility.json (placeholder — generator not yet wired)");

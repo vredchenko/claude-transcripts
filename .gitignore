@@ -27,3 +27,8 @@ openapi.json
 
 # Local hook config / scratch
 hooks/.config/
+
+# Placeholder output of scripts/regenerate-compatibility.ts. The generator isn't wired
+# to a real Claude Code source yet and stamps `generatedAt`, so committing it would
+# churn on every `gen:all`. Track it once the generator produces something stable.
+compatibility.json
