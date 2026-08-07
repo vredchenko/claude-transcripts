@@ -59,10 +59,16 @@ compatibility matrix). Generated files are committed — regenerate, don't hand-
 
 ## Contributing
 
-- **Git** — `origin` is `github.com:vredchenko/claude-transcripts`. Commit and push
-  only when asked; work on a `feat/*` / `fix/*` / `chore/*` branch and merge via PR
-  (**rebase only** — the repo has merge- and squash-commits disabled).
+- **Git** — `origin` is `github.com:vredchenko/claude-transcripts`. Work on a
+  `feat/*` / `fix/*` / `chore/*` branch and merge via PR (**rebase only** — the repo
+  has merge- and squash-commits disabled). Committing, pushing a branch and opening a
+  PR need no separate say-so: the repo is public and every branch is reviewable, so
+  the PR *is* the checkpoint. Never push to `main` directly.
+- **One PR per change.** A branch that fixes two unrelated things should be two
+  branches. Reviewers read a diff, not a session transcript.
 - **CI is the gate**: let `ci.yml` go green on the PR before merging.
+- Verify locally first — `bun run typecheck && bun run lint && bun test` — rather
+  than using CI to find out.
 
 ## Repo structure
 
