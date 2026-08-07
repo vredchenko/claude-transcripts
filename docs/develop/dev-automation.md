@@ -39,17 +39,27 @@ source of truth. `bun run gen:clients` (`regenerate-api-clients`) runs in two st
 2. **Run [orval](https://orval.dev)** over that spec (`orval.config.ts`) to emit:
    - the **CLI**'s client → `packages/cli/src/api/generated.ts` (fetch client; a
      hand-written **mutator**, `src/api/http.ts`, injects the off-origin base URL),
-   - the **webui** SPA's client → `packages/webui/src/api/generated.ts` (react-query).
+   - the **webui** SPA's client → `packages/webui/src/api/generated.ts` (react-query
+     over `fetch`; its own **mutator**, `src/api/http.ts`, unwraps responses and
+     throws on non-2xx so react-query sees failures).
+3. **Format the emitted files with Biome**, so generated code passes `lint` without
+   anyone hand-editing it. Deterministic — regeneration is byte-identical.
 
-> **Known divergence (to reconcile).** The committed clients are currently
-> **hand-maintained**, not faithful orval output: the webui `generated.ts` is a clean
-> hand-written `fetch` client, but `orval.config.ts` (webui, no mutator) emits an
-> **axios** client — and axios isn't a webui dependency — so `bun run gen:clients`
-> would overwrite it with something that won't compile. Until orval is made
-> authoritative for the webui (switch to `httpClient: "fetch"` + migrate the consumer
-> call sites), **extend the webui client by hand** in its existing style. The CLI
-> client (with its `customFetch` mutator) is closer to orval's output but is likewise
-> hand-simplified today.
+Both clients are now **faithful orval output**: `bun run gen:clients` overwrites them
+and nothing is hand-maintained. Getting there needed three things, worth knowing before
+touching the config:
+
+- **Named component schemas.** Response schemas are registered with
+  `.openapi("Name")` in the route modules. Without a name the spec inlines a schema at
+  each use site, and orval can only name the resulting type after the route it appeared
+  in — `ListSessions200SessionsItemStatus` instead of `SessionStatus`. Naming is what
+  makes generated output readable enough to consume directly.
+- **`includeHttpResponseReturnType: false`.** Both mutators return the response body,
+  so without this the generated types describe a `{data, status, headers}` envelope
+  that has already been unwrapped, and every call site reads `.data.data`.
+- **An `ErrorType` export from each mutator.** Orval otherwise types errors from the
+  route's *error response schema* (`ApiError`), but callers catch what the mutator
+  **throws**. Exporting `ErrorType` makes react-query's `error` an actual `Error`.
 
 Both consumers share one typed boundary against the same OpenAPI contract
 ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)).

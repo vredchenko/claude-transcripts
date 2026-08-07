@@ -10,7 +10,11 @@ import {
   useTheme,
 } from "@mui/material";
 import { useState } from "react";
-import { type TranscriptEntry, useGetSessionTranscript } from "../api/generated";
+import {
+  getGetSessionTranscriptQueryKey,
+  type TranscriptEntry,
+  useGetSessionTranscript,
+} from "../api/generated";
 import { formatCount } from "../format";
 import { codeBg, MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
@@ -89,10 +93,16 @@ function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
  */
 export function TranscriptView({ sessionId }: { sessionId: string }) {
   const [limit, setLimit] = useState(PAGE);
+  const params = { offset: 0, limit };
   const { data, isPending, isError, error, isPlaceholderData } = useGetSessionTranscript(
     sessionId,
-    { offset: 0, limit },
-    { placeholderData: (prev) => prev },
+    params,
+    {
+      query: {
+        queryKey: getGetSessionTranscriptQueryKey(sessionId, params),
+        placeholderData: (prev) => prev,
+      },
+    },
   );
 
   if (isPending) return <Loading label="Loading transcript…" />;

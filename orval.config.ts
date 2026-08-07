@@ -12,7 +12,20 @@ export default defineConfig({
       mode: "single",
       target: "packages/webui/src/api/generated.ts",
       client: "react-query",
-      baseUrl: "/api",
+      httpClient: "fetch",
+      // No `baseUrl`: the spec's paths already start with `/api`, and the webui is
+      // served same-origin with `/api` proxied to the webapi — setting one produces
+      // `/api/api/...`.
+      override: {
+        // Same arrangement as the CLI: the mutator owns transport (unwrapping orval's
+        // `{data, status, headers}` envelope and throwing on non-2xx so react-query can
+        // see failures), leaving the generated file to describe only the contract.
+        mutator: { path: "packages/webui/src/api/http.ts", name: "customFetch" },
+        // Return the response body, not `{data, status, headers}` — otherwise the
+        // generated types describe an envelope the mutator has already unwrapped, and
+        // every consumer reads `.data.data`.
+        fetch: { includeHttpResponseReturnType: false },
+      },
     },
   },
   cli: {
@@ -25,6 +38,9 @@ export default defineConfig({
       // off-origin, unlike the webui) + unwraps responses. Hand-written, idiomatic.
       override: {
         mutator: { path: "packages/cli/src/api/http.ts", name: "customFetch" },
+        // As for the webui: the mutator already returns the body, so the generated
+        // types must not also describe the `{data, status, headers}` envelope.
+        fetch: { includeHttpResponseReturnType: false },
       },
     },
   },

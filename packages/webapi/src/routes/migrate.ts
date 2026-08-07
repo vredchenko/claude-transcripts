@@ -8,26 +8,35 @@ import { migrateDown, migrateStatus, migrateUp } from "@claude-transcripts/share
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { AppContext } from "../context";
 import { makeMigrationContext } from "../storage/migrations";
+import { validationHook } from "./validation";
 
-const StepSchema = z.object({ id: z.number(), name: z.string() });
+const StepSchema = z.object({ id: z.number(), name: z.string() }).openapi("MigrationStep");
 
-const StatusSchema = z.object({
-  currentVersion: z.number(),
-  latestVersion: z.number(),
-  pending: z.array(StepSchema),
-  history: z.array(z.object({ id: z.number(), name: z.string(), at: z.string() })),
-});
+const AppliedSchema = z
+  .object({ id: z.number(), name: z.string(), at: z.string() })
+  .openapi("AppliedMigration");
 
-const RunResultSchema = z.object({
-  direction: z.enum(["up", "down"]),
-  fromVersion: z.number(),
-  toVersion: z.number(),
-  applied: z.array(StepSchema),
-  dryRun: z.boolean(),
-  log: z.array(z.string()),
-});
+const StatusSchema = z
+  .object({
+    currentVersion: z.number(),
+    latestVersion: z.number(),
+    pending: z.array(StepSchema),
+    history: z.array(AppliedSchema),
+  })
+  .openapi("MigrationStatus");
 
-const ErrorSchema = z.object({ error: z.string() });
+const RunResultSchema = z
+  .object({
+    direction: z.enum(["up", "down"]).openapi("MigrationDirection"),
+    fromVersion: z.number(),
+    toVersion: z.number(),
+    applied: z.array(StepSchema),
+    dryRun: z.boolean(),
+    log: z.array(z.string()),
+  })
+  .openapi("MigrationRunResult");
+
+const ErrorSchema = z.object({ error: z.string() }).openapi("ApiError");
 
 const UpBodySchema = z.object({ to: z.number().optional(), dryRun: z.boolean().optional() });
 const DownBodySchema = z.object({ steps: z.number().optional(), dryRun: z.boolean().optional() });
@@ -75,7 +84,7 @@ const downRoute = createRoute({
 });
 
 export function migrateRoutes(ctx: AppContext) {
-  const app = new OpenAPIHono();
+  const app = new OpenAPIHono({ defaultHook: validationHook });
   const route = app as unknown as {
     openapi: (r: unknown, h: (c: any) => unknown) => void;
   };

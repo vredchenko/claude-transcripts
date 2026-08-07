@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { type SessionSummary, useListSessions } from "../api/generated";
+import { getListSessionsQueryKey, type SessionSummary, useListSessions } from "../api/generated";
 import { SourceChip } from "../components/SourceChip";
 import { StatusChip } from "../components/StatusChip";
 import { EmptyState, ErrorState, Loading } from "../components/states";
@@ -72,10 +72,18 @@ function SessionRow({ s }: { s: SessionSummary }) {
 /** Root route: the paginated session list. */
 export function SessionsListPage() {
   const [skip, setSkip] = useState(0);
-  const { data, isPending, isError, error, isPlaceholderData } = useListSessions(
-    { limit: PAGE, skip },
-    { placeholderData: (prev) => prev },
-  );
+  const params = { limit: PAGE, skip };
+  const { data, isPending, isError, error, isPlaceholderData } = useListSessions(params, {
+    // The generated hooks keep react-query options under `query`, leaving the sibling
+    // `request` slot for per-call fetch options. `queryKey` is typed as required even
+    // though the generated hook defaults it, so it's passed through the generated
+    // helper rather than spelled out — an invented key here would silently split the
+    // cache from every other caller of this route.
+    query: {
+      queryKey: getListSessionsQueryKey(params),
+      placeholderData: (prev) => prev,
+    },
+  });
 
   if (isPending) return <Loading label="Loading sessions…" />;
   if (isError) return <ErrorState error={error} />;
