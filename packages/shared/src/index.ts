@@ -266,6 +266,19 @@ export interface ChunkEntry {
   isError?: boolean;
   /** A subagent sub-transcript line. */
   isSidechain?: boolean;
+  /**
+   * For a line that isn't a conversation turn: what it actually is.
+   *
+   * Claude Code's JSONL carries far more than user/assistant messages — attachments,
+   * file-history snapshots, queue operations, mode changes, titles. In a real corpus
+   * `attachment` alone outnumbers user turns. All of it lands in `role: "other"` (or
+   * `"system"`), and without this a reader has a row it can only render blank.
+   *
+   * The source `type`, refined by the entry's own subtype where it has one:
+   * `"attachment:hook_success"`, `"system:turn_duration"`, `"file-history-snapshot"`.
+   * Absent on real conversation turns, whose `role` already says everything.
+   */
+  kind?: string;
 }
 
 /** Flatten a message/tool_result content field to text (`onlyType` filters items). */
@@ -329,12 +342,62 @@ function projectChunkEntry(doc: any): ChunkEntry {
     return entry;
   }
 
+  // Everything that isn't a conversation turn. Keep the coarse role (so existing
+  // readers and the speaker-split views are unaffected) but say what the line was,
+  // and give it a one-line summary — otherwise it renders as an empty row, which is
+  // what a large fraction of a real transcript used to look like.
   const entry: ChunkEntry = { role: type === "system" ? "system" : "other" };
   if (timestamp) entry.timestamp = timestamp;
-  const text = flattenEntryText(content, "text");
+  const text = flattenEntryText(content, "text") || summariseNonMessage(doc, type);
   if (text) entry.text = text;
+  entry.kind = nonMessageKind(doc, type);
   if (sidechain) entry.isSidechain = true;
   return entry;
+}
+
+/** `<type>` refined by the entry's own subtype, e.g. `attachment:hook_success`. */
+function nonMessageKind(doc: any, type: string): string {
+  if (type === "attachment") {
+    const sub = doc?.attachment?.type;
+    return typeof sub === "string" && sub ? `attachment:${sub}` : "attachment";
+  }
+  if (type === "system") {
+    const sub = doc?.subtype;
+    return typeof sub === "string" && sub ? `system:${sub}` : "system";
+  }
+  return type;
+}
+
+/**
+ * A short, human-readable summary of a non-conversation line.
+ *
+ * Deliberately shallow: read the one obvious field each entry type carries and stop.
+ * These lines are context, not content — enough to see what happened when scrolling a
+ * transcript, not a second rendering of the session.
+ */
+function summariseNonMessage(doc: any, type: string): string {
+  const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+  switch (type) {
+    case "last-prompt":
+      return str(doc?.lastPrompt);
+    case "ai-title":
+      return str(doc?.aiTitle);
+    case "mode":
+      return str(doc?.mode);
+    case "permission-mode":
+      return str(doc?.permissionMode);
+    case "pr-link": {
+      const n = typeof doc?.prNumber === "number" ? `#${doc.prNumber}` : "";
+      return [n, str(doc?.prUrl)].filter(Boolean).join(" ");
+    }
+    case "queue-operation":
+      return [str(doc?.operation), str(doc?.content)].filter(Boolean).join(": ");
+    case "file-history-snapshot":
+    case "file-history-delta":
+      return str(doc?.trackingPath);
+    default:
+      return "";
+  }
 }
 
 /**

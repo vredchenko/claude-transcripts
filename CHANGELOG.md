@@ -26,6 +26,27 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   always recoverable by re-running. Search entries for chunks that no longer exist
   survive until a rebuild, so a forced run ends by telling you to run `reindex`.
 
+- **Non-message transcript lines no longer render blank.** Claude Code's JSONL carries
+  far more than user and assistant messages — attachments, file-history snapshots,
+  queue operations, mode changes, titles. Over a real corpus that's **36% of all
+  entries** (2,183 of 6,103), with `attachment` alone outnumbering user turns, and every
+  one of them projected to `role: "other"` with no text: an empty row that expanded to
+  nothing useful.
+
+  `ChunkEntry` now carries **`kind`** — the source entry type refined by its own subtype
+  (`attachment:hook_success`, `system:turn_duration`, `file-history-snapshot`) — plus a
+  one-line summary read from whichever field that type actually carries. On the same
+  corpus every one of those rows is now labelled, and half also carry readable text. The
+  webui labels rows by `kind` and colours them by family.
+
+  Search still indexes **conversation turns only**. These lines are context, not
+  content; indexing them would bury real matches under a thousand identical
+  `hook_success` rows.
+
+  Reaches existing sessions when they're re-chunked (`backfill --force`). Migration v8
+  redeploys `_design/chunks` so the view emits `kind`; older chunks emit `null` and need
+  no rewriting — it's view-only, like every migration so far.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**
@@ -79,7 +100,7 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   per-database, so the target already counts the transform as applied, `migrate up` finds
   nothing pending, and the restored docs keep their old shape permanently. Migrations can
   now declare `transformsDocs`, and import refuses any bundle whose version gap contains
-  one, naming them. No migration sets it today — all seven are view-only, and a test
+  one, naming them. No migration sets it today — every one is view-only, and a test
   asserts that — so nothing changes in practice; the trap is armed rather than sprung
   later. The scoped replay that would lift the refusal waits for the first document
   migration, since until one exists there is nothing to test a replay against.

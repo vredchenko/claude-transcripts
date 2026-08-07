@@ -29,6 +29,16 @@ const KIND_COLOR: Record<string, "primary" | "secondary" | "default" | "info"> =
   tool_result: "default",
 };
 
+/**
+ * Colour a row by its family, not its exact label. Non-conversation kinds are
+ * `<type>:<subtype>` (`system:turn_duration`, `attachment:hook_success`), so match on
+ * the part before the colon — otherwise every one of them falls to "default" and the
+ * eye can't group them while scrolling.
+ */
+function kindColor(kind: string): "primary" | "secondary" | "default" | "info" {
+  return KIND_COLOR[kind] ?? KIND_COLOR[kind.split(":")[0] ?? ""] ?? "default";
+}
+
 function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
   const view: EntryView = summarizeEntry(entry);
   const theme = useTheme();
@@ -41,7 +51,7 @@ function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
           <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO, width: 44 }}>
             #{index}
           </Typography>
-          <Chip size="small" color={KIND_COLOR[view.kind] ?? "default"} label={view.kind} />
+          <Chip size="small" color={kindColor(view.kind)} label={view.kind} />
           {view.sidechain && <Chip size="small" variant="outlined" label="subagent" />}
           {view.isError && <Chip size="small" color="error" label="error" />}
           <Typography

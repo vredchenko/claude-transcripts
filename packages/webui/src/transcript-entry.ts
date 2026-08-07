@@ -10,7 +10,11 @@
 import type { TranscriptEntry } from "./api/generated";
 
 export interface EntryView {
-  /** high-level kind: user / assistant / tool_result / system / other */
+  /**
+   * What to label the row: a conversation role (user / assistant / tool_result), or —
+   * for the lines that aren't turns — the entry's own kind, e.g.
+   * `attachment:hook_success`, `file-history-snapshot`.
+   */
   kind: string;
   /** short preview of the textual content, if any */
   preview: string;
@@ -32,7 +36,11 @@ export function summarizeEntry(entry: TranscriptEntry): EntryView {
   const tools = (entry.toolUses ?? []).map((t) => `⚙ ${t.name}`).join(" ");
   const text = entry.text ?? "";
   return {
-    kind: entry.role || "other",
+    // `role` is only ever "other"/"system" for lines that aren't conversation turns,
+    // and that label says nothing. `kind` carries what the line actually was, so show
+    // that instead — it's the difference between a screen of "other" rows and a
+    // readable transcript. Older entries have no `kind`; they fall back to the role.
+    kind: entry.kind || entry.role || "other",
     preview: clip(text && tools ? `${text} ${tools}` : text || tools),
     sidechain: entry.isSidechain === true,
     isError: entry.isError === true,

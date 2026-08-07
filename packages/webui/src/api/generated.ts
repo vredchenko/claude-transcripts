@@ -94,6 +94,8 @@ export interface TranscriptEntry {
   toolUseId?: string | null;
   isError?: boolean;
   isSidechain?: boolean;
+  /** @nullable */
+  kind?: string | null;
 }
 
 export type TranscriptSource = (typeof TranscriptSource)[keyof typeof TranscriptSource];

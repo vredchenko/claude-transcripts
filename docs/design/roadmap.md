@@ -56,7 +56,7 @@ import decide whether a restore is sound.
 Remaining, and deferred deliberately: import cannot yet restore a bundle **across a
 document-reshaping migration**. Migrations are recorded per database, so importing
 old-shaped docs into a database that already counts the transform as applied would leave
-two shapes behind with nothing pending to fix them. No such migration exists — all seven
+two shapes behind with nothing pending to fix them. No such migration exists — all eight
 are view-only — so import refuses that case (`transformsDocs`) rather than implementing a
 scoped replay that could not be tested against anything. The replay is work for whenever
 the first document migration is written.
@@ -78,13 +78,17 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
   so they'd duplicate, and chunk ids are keyed by byte offset so re-chunking would leave
   the old ones behind. The S3 transcript is only ever overwritten, never deleted, so an
   interrupted run is always recoverable by re-running.
-- **Non-message transcript lines render blank.** Claude Code's JSONL carries entries
-  that aren't conversation turns (file-history snapshots, queue operations, system
-  meta). `buildChunkEntries` projects them to `role: "other"` with no text, so they
-  show as empty rows in the transcript view and expand to nothing useful. The fix is
-  writer-side — carry the source entry `type` into `ChunkEntry` — and reaches existing
-  sessions only once they're re-chunked, which `backfill --force` (above) now makes
-  possible. So this is the remaining half: the writer change itself.
+- **Non-message transcript lines render blank — fixed.** Claude Code's JSONL carries
+  far more than conversation turns: attachments, file-history snapshots, queue
+  operations, mode changes, titles. Measured over a real corpus, **36% of all entries**
+  (2,183 of 6,103) were these — `attachment` alone outnumbers user turns — and every one
+  projected to `role: "other"` with no text, i.e. an empty row that expanded to nothing.
+  `ChunkEntry` now carries `kind` (the source type, refined by subtype:
+  `attachment:hook_success`, `system:turn_duration`) plus a one-line summary of the
+  field each type actually holds. On the same corpus every one of those rows is now
+  labelled and half also carry readable text. Search deliberately still indexes only
+  conversation turns — a thousand identical `hook_success` rows would bury real matches.
+  Existing sessions pick it up when re-chunked with `backfill --force`.
 
 **Search**
 - **Metadata search misses running sessions.** The `sessions` index is built from
@@ -216,7 +220,7 @@ done.
   layers + memory + appended instructions) so it's clear which instructions, and
   from where, applied to every message.
 - **Self-built CouchDB migrations** — **done** for schema/views: a versioned up/down
-  engine with a marker doc, driven from the CLI and `/api/migrate/*`; seven migrations
+  engine with a marker doc, driven from the CLI and `/api/migrate/*`; eight migrations
   applied to date ([migrations.md](../operate/migrations.md),
   [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)). The export/import
   **bundle** format is built on top of it ([bundles.md](bundles.md)). Remaining:
