@@ -131,6 +131,22 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   transcript is the one part of a session that isn't derived — `backfill --force` must
   keep it.
 
+- **`install` sets up and fills the search indexes; `doctor` checks search works.**
+  Previously a fresh install left search to look after itself — which it does for
+  *new* sessions, since the change follower and the ingest routes both index as they
+  write. It doesn't for anything already in CouchDB: the follower starts at *now*, so a
+  restored bundle, a reused volume, or an index rename left the corpus unfindable until
+  the user discovered `reindex` on their own. `install` now runs it (through the webapi,
+  once the app is up) and reports what was indexed; `setup` reports where search stands.
+
+  `doctor` gained a search check — it polls until the session it just wrote turns up in
+  search, skipping cleanly when the feature is off. A corpus you can't search is a
+  broken install even when every write succeeded, and this surfaces it at setup time
+  rather than the first time someone searches.
+
+  Both are best-effort: search is optional, so an engine that's off or unreachable
+  reports and moves on rather than failing an install that's otherwise fine.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

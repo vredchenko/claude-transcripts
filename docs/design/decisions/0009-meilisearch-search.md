@@ -75,3 +75,35 @@ coupled, optional** component.
 - Indexing must never block or break a write. That constrains the write path: it can't
   wait on Meilisearch's asynchronous validation, so index-level failures are invisible
   there by design and surface through `reindex` instead.
+
+## Where indexing happens (Tier 1)
+
+Worth stating plainly, because "search" often implies something leaving the machine and
+here it doesn't.
+
+- **Optional, on by default.** `features.meilisearch` gates it. Off means no indexing,
+  no index, and a search box that says so — the corpus is unaffected either way, since
+  everything in Meilisearch is derived from CouchDB.
+- **Local-only, like the webapi.** The bundled stack publishes Meilisearch on
+  `127.0.0.1:7656`, the same posture as the webapi's `127.0.0.1:7650` — not reachable
+  from another machine ([ADR 0020](0020-bundled-services-default-no-auth.md)).
+- **Indexed on the user's side.** The **webapi** is the only thing that writes to
+  Meilisearch: it follows CouchDB's `_changes` feed and pushes documents, and the ingest
+  routes index as they write. The webapi runs on the same machine as the data, so
+  indexing is a local read of a local store followed by a local write. The hook never
+  touches Meilisearch at all.
+- **Surfaced through the webapi and webui.** `GET /api/search` and the webui's search
+  box + `/search` page are the interfaces; the CLI drives `reindex`.
+
+### The caveat that comes with ADR 0028
+
+[ADR 0028](0028-external-vs-bundled-meilisearch.md) makes an **external** Meilisearch
+supported and safe from a *collision* standpoint. It does not make it private: the
+`turns` index holds **conversation text**. Point `MEILI_HOST` at another host and
+transcript content goes there — the one configuration in which this project's data
+leaves the machine it was recorded on.
+
+That's a legitimate thing to want and an easy thing to do by accident, so it belongs
+next to the decision that enabled it rather than only in the ADR that discussed
+namespacing. The bundled instance remains the default precisely because it has this
+property by construction.

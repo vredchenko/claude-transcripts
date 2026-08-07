@@ -181,11 +181,27 @@ bindings — all flow from `claude-transcripts.config.json` (non-secret) + `.env
 no second config source. New knobs extend this file rather than introducing
 another.
 
-## Pointing at an external Meilisearch
+## Search
+
+Optional, on by default (`features.meilisearch`), and **local-only** in the bundled
+stack: Meilisearch is published on `127.0.0.1:7656`, the same posture as the webapi.
+Indexing happens **on your machine** — the webapi follows CouchDB's change feed and
+writes to Meilisearch, both of them local; the hook never touches it. Turning the
+feature off costs you the search box and nothing else, since every index is derived
+from CouchDB and rebuildable with `claude-transcripts reindex`.
+
+`install` creates and fills the indexes for you, and `doctor` checks that a session it
+just wrote is findable — so a broken index shows up at setup rather than the first time
+you search.
+
+### Pointing at an external Meilisearch
 
 `MEILI_HOST` (and `MEILI_API_KEY`, for an instance with a master key) can point anywhere
 — but read [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md)
 first, because Meilisearch is unlike the other backing services.
+
+⚠️ **The `turns` index holds conversation text.** An external Meilisearch is the one
+configuration where this project's data leaves the machine it was recorded on.
 
 CouchDB and Garage are **stores**: point at another one and the app works. Meilisearch
 is a **derived index** this app configures, feeds, and rebuilds — and `reindex` clears
