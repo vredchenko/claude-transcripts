@@ -14,7 +14,13 @@
  * existed. Everything is best-effort — a failure here must never take down the webapi.
  */
 import type { AppContext } from "../context";
-import { SESSIONS_INDEX, TURNS_INDEX, toSessionSearchDoc, toTurnSearchDocs } from "./meili";
+import {
+  SESSIONS_INDEX,
+  TURNS_INDEX,
+  toRunningSessionSearchDoc,
+  toSessionSearchDoc,
+  toTurnSearchDocs,
+} from "./meili";
 
 /** Doc id of the resume point, so a restart doesn't replay the whole feed. */
 const CHECKPOINT_ID = "search_checkpoint";
@@ -90,6 +96,32 @@ export function startSearchFollower(ctx: AppContext): SearchFollower | null {
           .filter((d) => d.type === "summary")
           .map((d) => toSessionSearchDoc(d));
         const turnDocs = docs.filter((d) => d.type === "chunk").flatMap((d) => toTurnSearchDocs(d));
+
+        // A session becomes findable as soon as it starts, not when it ends. Event docs
+        // name the sessions that moved; re-project the ones still without a summary from
+        // the aggregate, which is the only place a running session's rollup exists.
+        //
+        // Projecting from the event doc itself would be cheaper and wrong: Meilisearch's
+        // add-or-replace would let a sparse event-shaped row overwrite the complete
+        // record an ended session already has.
+        const touched = new Set(
+          docs.filter((d) => d.type === "event" && d.session_id).map((d) => String(d.session_id)),
+        );
+        const alreadyEnded = new Set(
+          docs.filter((d) => d.type === "summary").map((d) => d.session_id),
+        );
+        const pending = [...touched].filter((id) => !alreadyEnded.has(id));
+        if (pending.length) {
+          const agg = await db.view("session_index", "aggregate", {
+            group: true,
+            reduce: true,
+            keys: pending,
+          });
+          for (const row of agg.rows as any[]) {
+            if (!row?.value || row.value.summary) continue;
+            sessionDocs.push(toRunningSessionSearchDoc(String(row.key), row.value));
+          }
+        }
 
         if (sessionDocs.length) await ctx.meili.index(SESSIONS_INDEX, sessionDocs);
         if (turnDocs.length) await ctx.meili.index(TURNS_INDEX, turnDocs);
