@@ -203,6 +203,39 @@ export const TURNS_INDEX_SETTINGS: IndexSettings = {
  * `entries[]` turn that has text. Ids are stable (`<session>:<byteStart>:<index>`)
  * so re-ingesting a chunk replaces, not duplicates. Empty for byte-range-only chunks.
  */
+/**
+ * Project a session that has **no summary doc yet** into the sessions index.
+ *
+ * The index was built from `summary` docs alone, so a session that hasn't ended simply
+ * wasn't findable — its *turns* were searchable while the session itself was not, which
+ * is exactly backwards for the case you'd search during: work in progress. A crashed
+ * session (started, never ended) was invisible for good.
+ *
+ * The `session_index/aggregate` row carries everything the index needs, accumulated
+ * from the event docs. `endReason` is deliberately empty rather than invented — the
+ * session hasn't ended — and `source` says "live", since only a live hook writes a
+ * session that has no summary yet.
+ *
+ * Ended sessions keep coming from their summary doc ({@link toSessionSearchDoc}): equal
+ * fidelity, and no risk of a partial row replacing a complete one.
+ */
+export function toRunningSessionSearchDoc(sessionId: string, agg: any): Record<string, unknown> {
+  return {
+    id: searchDocId(sessionId),
+    sessionId,
+    // Most-recent activity: what you'd sort a live session by.
+    timestamp: agg?.last || agg?.first || "",
+    cwd: agg?.cwd ?? "",
+    model: agg?.model ?? "",
+    hostname: agg?.hostname ?? "",
+    endReason: "",
+    source: "live",
+    tools: Object.keys(agg?.tools ?? {}),
+    promptCount: agg?.prompts ?? 0,
+    eventCount: agg?.events ?? 0,
+  };
+}
+
 /** Roles that represent something a person or the model actually said. */
 const CONVERSATION_ROLES = new Set(["user", "assistant", "tool_result"]);
 

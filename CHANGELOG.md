@@ -47,6 +47,18 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   redeploys `_design/chunks` so the view emits `kind`; older chunks emit `null` and need
   no rewriting — it's view-only, like every migration so far.
 
+- **Running sessions are findable in search.** The `sessions` index was built from
+  `summary` docs alone, so a session became searchable only once it *ended* — its turns
+  were searchable while the session itself was not, which is backwards for the case
+  you'd search during: work in progress. A session that crashed before `SessionEnd` was
+  invisible permanently. Summary-less sessions are now projected from
+  `session_index/aggregate`, both on `reindex` and live from the `_changes` feed, so a
+  session is findable as soon as it starts.
+
+  Ended sessions keep coming from their summary doc. Projecting them from an event doc
+  would have been cheaper and wrong: Meilisearch's add-or-replace would let a sparse,
+  event-shaped row overwrite the complete record an ended session already has.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

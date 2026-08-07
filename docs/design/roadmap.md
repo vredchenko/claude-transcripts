@@ -91,10 +91,12 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
   Existing sessions pick it up when re-chunked with `backfill --force`.
 
 **Search**
-- **Metadata search misses running sessions.** The `sessions` index is built from
-  `summary` docs, so a session that hasn't ended isn't in it — its *turns* are
-  searchable, but the session itself isn't. Fix: project summary-less sessions from
-  `session_index/aggregate` too.
+- **Metadata search misses running sessions — fixed.** The `sessions` index was built
+  from `summary` docs, so a session became findable only once it ended — and a crashed
+  one never did. Summary-less sessions are now projected from `session_index/aggregate`,
+  both on `reindex` and live off the `_changes` feed. Ended sessions keep coming from
+  their summary doc: projecting them from an event would let Meilisearch's
+  add-or-replace put a sparse row over a complete one.
 - **No dedicated results page.** The header box is a dropdown capped at a handful of
   hits, with no paging, filters, or ranking controls — fine for "jump to that
   session", not for exploring the corpus.

@@ -6,6 +6,7 @@ import {
   SESSIONS_INDEX_SETTINGS,
   TURNS_INDEX,
   TURNS_INDEX_SETTINGS,
+  toRunningSessionSearchDoc,
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "../storage/meili";
@@ -190,6 +191,20 @@ export function searchRoutes(ctx: AppContext) {
       .map((r) => r.doc)
       .filter((d) => d?.type === "summary")
       .map((d) => toSessionSearchDoc(d));
+
+    // …plus the ones with no summary yet — running, or crashed before SessionEnd.
+    // Building the index from `summary` docs alone made a session findable only after
+    // it ended, so the sessions you'd most want to search for were the missing ones.
+    // The aggregate has a row per session either way; take the rows that carry no
+    // summary, and leave the ended ones to the projection above.
+    const aggregate = await db.view("session_index", "aggregate", { group: true, reduce: true });
+    for (const row of aggregate.rows as any[]) {
+      const agg = row?.value;
+      if (!agg || agg.summary) continue;
+      // Guard against rows a stray doc could conjure: a real session has events.
+      if (!(agg.events > 0)) continue;
+      sessionDocs.push(toRunningSessionSearchDoc(String(row.key), agg));
+    }
 
     // Turns: every full-content `chunk` doc. Byte-range-only chunks project to nothing.
     const chunks = await db.view("chunks", "by_session", { include_docs: true });
