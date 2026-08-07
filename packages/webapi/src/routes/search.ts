@@ -1,10 +1,11 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { indexName } from "../config";
 import type { AppContext } from "../context";
 import {
   type IndexSettings,
-  SESSIONS_INDEX,
+  SESSIONS_INDEX_KEY,
   SESSIONS_INDEX_SETTINGS,
-  TURNS_INDEX,
+  TURNS_INDEX_KEY,
   TURNS_INDEX_SETTINGS,
   toRunningSessionSearchDoc,
   toSessionSearchDoc,
@@ -141,8 +142,8 @@ export function searchRoutes(ctx: AppContext) {
     const limit = Number(c.req.query("limit") ?? 20);
     if (!q) return c.json({ hits: [], turns: [], query: "", enabled: ctx.meili.enabled });
     const [hits, turnHits] = await Promise.all([
-      ctx.meili.search(SESSIONS_INDEX, q, { limit }),
-      ctx.meili.search(TURNS_INDEX, q, {
+      ctx.meili.search(indexName(ctx.config, SESSIONS_INDEX_KEY), q, { limit }),
+      ctx.meili.search(indexName(ctx.config, TURNS_INDEX_KEY), q, {
         limit,
         attributesToCrop: ["text"],
         cropLength: 40,
@@ -214,8 +215,8 @@ export function searchRoutes(ctx: AppContext) {
       .flatMap((d) => toTurnSearchDocs(d));
 
     const [sessions, turns] = await Promise.all([
-      rebuild(ctx, SESSIONS_INDEX, SESSIONS_INDEX_SETTINGS, sessionDocs),
-      rebuild(ctx, TURNS_INDEX, TURNS_INDEX_SETTINGS, turnDocs),
+      rebuild(ctx, indexName(ctx.config, SESSIONS_INDEX_KEY), SESSIONS_INDEX_SETTINGS, sessionDocs),
+      rebuild(ctx, indexName(ctx.config, TURNS_INDEX_KEY), TURNS_INDEX_SETTINGS, turnDocs),
     ]);
 
     return c.json({

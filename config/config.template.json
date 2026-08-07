@@ -19,6 +19,12 @@
       "sessions": "claude-transcripts-sessions"
     }
   },
+  "meilisearch": {
+    "indexes": {
+      "sessions": "claude-transcripts-sessions",
+      "turns": "claude-transcripts-turns"
+    }
+  },
   "features": {
     "s3Blobs": true,
     "midFlightChunking": true,

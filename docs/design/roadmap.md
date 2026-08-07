@@ -100,8 +100,12 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
 - **No dedicated results page.** The header box is a dropdown capped at a handful of
   hits, with no paging, filters, or ranking controls — fine for "jump to that
   session", not for exploring the corpus.
-- **[ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md) is open** — whether
-  Meilisearch can live outside the bundled stack the way CouchDB and Garage can.
+- **[ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md) — decided:** external
+  and namespaced. Meilisearch's indexes were bare `sessions` / `turns` constants while
+  every other store's names live in `config/`, so pointing `MEILI_HOST` at an existing
+  engine — which config always allowed — could have let `reindex` clear someone else's
+  index. Index names are now config, defaulting to `claude-transcripts-*`. The bundled
+  instance stays the default and the tested configuration.
 
 **Quality & debt**
 - **The webui typechecks against the wrong React types — fixed.** `packages/cli` (Ink 5)

@@ -60,7 +60,13 @@ export interface Config {
     logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
     sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
   };
-  meili: { host: string; apiKey?: string; enabled: boolean };
+  meili: {
+    host: string;
+    apiKey?: string;
+    enabled: boolean;
+    /** logical key → Meilisearch index name */
+    indexes: Record<string, string>;
+  };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
 }
@@ -101,6 +107,14 @@ export function loadConfig(): Config {
       host: env.MEILI_HOST ?? "http://127.0.0.1:7656",
       apiKey: env.MEILI_API_KEY || undefined,
       enabled: appConfig.features.meilisearch === true,
+      // Namespaced like the databases and buckets, and defaulted for configs written
+      // before this key existed — those deployments keep working and adopt the
+      // namespaced names on their next `reindex` (ADR 0028).
+      indexes: {
+        sessions: "claude-transcripts-sessions",
+        turns: "claude-transcripts-turns",
+        ...(appConfig.meilisearch?.indexes ?? {}),
+      },
     },
     features: appConfig.features,
     servicesMenu: appConfig.servicesMenu,
@@ -123,6 +137,13 @@ export function idleThresholdMs(config: Config): number {
 export function dbName(config: Config, key: string): string {
   const name = config.couchdb.databases[key];
   if (!name) throw new Error(`Unknown CouchDB database key: ${key}`);
+  return name;
+}
+
+/** Resolve a Meilisearch index name from its logical key. */
+export function indexName(config: Config, key: string): string {
+  const name = config.meili.indexes[key];
+  if (!name) throw new Error(`Unknown Meilisearch index key: ${key}`);
   return name;
 }
 

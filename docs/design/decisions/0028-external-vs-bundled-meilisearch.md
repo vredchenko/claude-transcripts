@@ -4,9 +4,9 @@ Date: 2026-07-30
 
 ## Status
 
-**Open — undecided.** Recorded now so the dilemma is written down while it's
-understood; no option is adopted yet. Today Meilisearch is bundled in `deploy/`, and
-that remains the status quo until this ADR is decided.
+**Accepted (2026-08-07): option 2, external and namespaced** — see
+[Decision](#decision). The bundled instance remains the *default* and the configuration
+we test; pointing at an external one is now safe rather than merely likely to work.
 
 ## Context
 
@@ -69,20 +69,59 @@ sources *beyond* this stack (GitHub, git history, external docs). That future ar
 
 ## Decision
 
-None yet. To decide when there's a concrete need — someone wanting to point this at an
-existing Meilisearch, or the ADR 0009 "index external sources" work starting, whichever
-comes first.
+**Adopt option 2: external, namespaced.**
 
-Deciding will need: whether per-deployment index prefixes are wanted regardless (they
-also help local dev against one shared engine); how API keys and scoped permissions fit
-the currently auth-free bundled assumption; and whether `reindex`'s clear-then-rebuild
-can stay destructive if the index might not be exclusively ours.
+What settled it wasn't the multi-tenancy question in the abstract — it was noticing an
+inconsistency the codebase already contained. CouchDB databases and S3 buckets are named
+in `config/` as keyed maps (`claude-transcripts-sessions`), deliberately, because "the
+app supports multiple databases and buckets". Meilisearch's indexes were bare
+hard-coded constants: `"sessions"` and `"turns"`.
+
+Those are the most collidable names imaginable, and `reindex` **clears the index before
+rebuilding**. Anyone who set `MEILI_HOST` to an existing Meilisearch — which the config
+has always allowed — could destroy someone else's `sessions` index by running a
+supported command. The dangerous option wasn't "go external"; it was the status quo,
+which permitted going external while quietly assuming nobody would.
+
+So the index names move into `config/` as `meilisearch.indexes`, exactly like the
+databases and buckets, defaulting to `claude-transcripts-sessions` and
+`claude-transcripts-turns`. That is the whole of option 2 that Tier 1 needs:
+
+- **Collisions become impossible by default** — the names are as namespaced as every
+  other store's, and an operator who wants different ones edits config.
+- **`reindex` can stay destructive**, because it can only clear indexes this deployment
+  named.
+- **`MEILI_API_KEY` already existed** and now means something: an external instance with
+  a master key works.
+
+Deliberately *not* adopted:
+
+- **Option 3 (bring-your-own-index)** — it makes our index settings documentation
+  normative instead of executable, and `ensureIndex` at boot is a real convenience.
+- **Option 4 (pluggable backend)** — no second backend is wanted. Building the
+  abstraction now would be paying for optionality nobody has asked for.
+
+### Migrating an existing instance
+
+Nothing in Meilisearch is authoritative, so there is no data migration. An instance
+running before this change has indexes literally named `sessions` and `turns`; after it,
+the app reads and writes the namespaced names. Run `claude-transcripts reindex` to
+populate them, then delete the two old indexes if you want the space back. A deployment
+whose `config.json` predates the `meilisearch` key gets the defaults, so it keeps
+working without being edited.
 
 ## Consequences
 
-- Until decided, treat the bundled instance as the supported configuration; external
-  Meilisearch may happen to work but isn't a promise, and the destructive rebuild makes
-  pointing at a shared instance actively unsafe today.
-- Code should avoid hard-coding the assumption that we exclusively own the engine —
-  index names already flow from constants in one module, which keeps option 2 cheap.
+- The bundled instance stays the **default and the tested configuration**. External is
+  now *safe*, not *equally exercised* — and the honest way to say that is that we test
+  what we ship.
+- Index names are configuration, so a shared engine can host several deployments, and
+  local dev can point at one engine without stepping on an install.
+- `reindex` keeps its clear-then-rebuild, which is only defensible because the uid it
+  clears is one this deployment named.
+- Still open, and deferred until someone actually needs it: **scoped API keys**. A
+  master key gives us the whole engine, which is more than we need on an instance we
+  don't own. Meilisearch supports tenant tokens; wiring them is work with no demand yet.
+- The ADR 0009 "index external sources" direction is unblocked rather than resolved —
+  namespacing is a precondition for it, not an answer to it.
 - Nothing here blocks running **CouchDB or Garage** externally; that stays supported.

@@ -59,6 +59,22 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   would have been cheaper and wrong: Meilisearch's add-or-replace would let a sparse,
   event-shaped row overwrite the complete record an ended session already has.
 
+- **Meilisearch index names are configuration, not constants** — resolving
+  [ADR 0028](docs/design/decisions/0028-external-vs-bundled-meilisearch.md) in favour of
+  *external and namespaced*. CouchDB databases and S3 buckets have always been named in
+  `config/` as keyed maps (`claude-transcripts-sessions`); Meilisearch's indexes were
+  hard-coded `"sessions"` and `"turns"` — the most collidable names imaginable, on the
+  one backing service whose rebuild **clears the index first**. Since `MEILI_HOST` has
+  always been settable, a user pointing at an existing Meilisearch could destroy another
+  application's `sessions` index by running a supported command.
+
+  Index names now live in `config/` under `meilisearch.indexes`, defaulting to
+  `claude-transcripts-sessions` / `claude-transcripts-turns`. Configs written before this
+  key existed get the defaults and keep working. An instance upgrading from the old
+  names should run `claude-transcripts reindex` to populate the namespaced ones — nothing
+  in Meilisearch is authoritative, so there's no data migration — and may then delete the
+  two old indexes.
+
 ### Changed
 
 - **The OpenAPI spec names its schemas, and both API clients are generated again.**

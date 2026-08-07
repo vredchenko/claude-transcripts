@@ -37,7 +37,9 @@ The committed template, in full — this is the current shape, not a target:
     // other tunables/constants live here
   },
 
-  // NAMES — designed for MORE THAN ONE database and bucket from the start
+  // NAMES — designed for MORE THAN ONE database, bucket and index from the start.
+  // All three are namespaced so a deployment pointed at a store it doesn't
+  // exclusively own can't collide with anything else there.
   "couchdb": {
     "databases": {
       "sessions": "claude-transcripts-sessions",   // the session corpus
@@ -47,6 +49,12 @@ The committed template, in full — this is the current shape, not a target:
   "s3": {
     "buckets": {
       "sessions": "claude-transcripts-sessions"    // room for more buckets later
+    }
+  },
+  "meilisearch": {
+    "indexes": {
+      "sessions": "claude-transcripts-sessions",   // session metadata
+      "turns":    "claude-transcripts-turns"       // conversation content
     }
   },
 
@@ -172,3 +180,17 @@ toggles, tunables, service URLs, and (per
 bindings — all flow from `claude-transcripts.config.json` (non-secret) + `.env` (secret), with
 no second config source. New knobs extend this file rather than introducing
 another.
+
+## Pointing at an external Meilisearch
+
+`MEILI_HOST` (and `MEILI_API_KEY`, for an instance with a master key) can point anywhere
+— but read [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md)
+first, because Meilisearch is unlike the other backing services.
+
+CouchDB and Garage are **stores**: point at another one and the app works. Meilisearch
+is a **derived index** this app configures, feeds, and rebuilds — and `reindex` clears
+an index before repopulating it. That's safe only because the index names are
+namespaced (`claude-transcripts-*`) and therefore ours. If you change them, keep them
+distinct from anything else on that engine.
+
+The bundled instance stays the default and the configuration we test.
