@@ -41,7 +41,7 @@ and **typed clients are generated from it**.
 - `packages/shared` narrows to genuinely cross-cutting domain types/helpers (e.g.
   `sumTranscriptTokens`); request/response wire types come from the generated
   client, not hand-shared interfaces.
-- Supersedes ADR 0006's "no codegen" stance. The byte-identical-copy invariant for
+- Supersedes ADR 0006's "no codegen" stance. The (since retired) byte-identical-copy invariant for
   `sumTranscriptTokens` (hook ↔ shared) is unaffected — that's a host-side helper,
   not part of the wire contract.
 - Tooling choice (e.g. `openapi-typescript` / `openapi-fetch` or similar) is an

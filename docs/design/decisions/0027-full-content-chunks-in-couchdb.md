@@ -81,7 +81,7 @@ directly on turns.
   authority; they are byte-attributable back to the S3 object and rebuildable from
   it. The transcript is never reconstructed *from* chunks.
 - **Byte-identical writer/shared code.** The parse + chunk-content builder is
-  written once in `@claude-transcripts/shared` and copied byte-identically into the
+  written once in `@claude-transcripts/shared` and (at the time) copied byte-identically into the
   hook (which can't resolve the workspace), exactly as `sumTranscriptTokens` and
   `sliceIntoChunks` already are.
 - **Guarded by `couchFullContentChunks`.** The flag gates population and the

@@ -10,10 +10,10 @@ export * from "./model";
 /**
  * Shared types + token accounting for claude-transcripts.
  *
- * The webapi imports these. The Claude Code hook (hooks/) keeps a byte-identical
- * copy of `sumTranscriptTokens` in hooks/scripts/transcript-tokens.ts — it ships
- * as a standalone plugin and can't resolve this workspace at install time, so
- * the two must be kept in sync (same dedupe-by-message-id algorithm).
+ * Imported by the webapi and by the CLI — including the CLI's hook, which is the
+ * writer. There is no second copy to keep in step: the plugin under `hooks/` pipes its
+ * payload to `claude-transcripts hook run` rather than reimplementing any of this
+ * ([ADR 0004](../../../docs/design/decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)).
  */
 
 // ── Token usage ───────────────────────────────────────────────────────────────
@@ -184,9 +184,8 @@ export function sumActiveDurationMs(
 
 // ── Transcript chunking ─────────────────────────────────────────────────────────
 //
-// Shared with the hook's flush-transcript-chunk (the hook keeps a byte-identical
-// copy, like sumTranscriptTokens, since it can't resolve the workspace). Used by
-// `backfill` to reconstruct `chunk` docs matching how a live session is stored.
+// Used by the hook's flush-transcript-chunk action and by `backfill`, so an adopted
+// session's `chunk` docs partition exactly as a live session's do.
 
 /** Default chunk size (entries per chunk); mirrors config.system.logging.chunk. */
 export const DEFAULT_MAX_ENTRIES_PER_CHUNK = 200;
@@ -243,9 +242,9 @@ export function chunkDocId(sessionId: string, byteStart: number): string {
 // When `couchFullContentChunks` is on, a chunk doc carries the parsed turns it
 // covers (`entries[]`) in addition to its byte range — so CouchDB map-reduce views
 // can read individual turns (speaker-split, per-turn search) without fetching S3.
-// `buildChunkEntries` is byte-identical in the hook (like sliceIntoChunks), and its
-// output partitions 1:1 with `sliceIntoChunks(jsonl)` by `entryCount` (one entry per
-// non-blank line, in order), so a writer attaches each chunk's entries by slicing.
+// `buildChunkEntries` output partitions 1:1 with `sliceIntoChunks(jsonl)` by
+// `entryCount` (one entry per non-blank line, in order), so a writer attaches each
+// chunk's entries by slicing.
 
 /** Speaker/kind of a parsed transcript turn projected into a content chunk. */
 export type ChunkEntryRole = "user" | "assistant" | "tool_result" | "system" | "other";
@@ -341,8 +340,7 @@ function projectChunkEntry(doc: any): ChunkEntry {
 /**
  * Parse a JSONL transcript (or slice) into pruned per-turn `ChunkEntry`s — exactly
  * one entry per non-blank line, in order (a malformed line yields an `"other"`
- * placeholder so the count stays aligned with `sliceIntoChunks`). Pure + isomorphic;
- * the hook keeps a byte-identical copy.
+ * placeholder so the count stays aligned with `sliceIntoChunks`). Pure + isomorphic.
  */
 export function buildChunkEntries(jsonl: string): ChunkEntry[] {
   const out: ChunkEntry[] = [];

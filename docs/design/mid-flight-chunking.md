@@ -1,8 +1,8 @@
 # Notes — mid-flight transcript chunking (issue #4, P1)
 
 > **Status: implemented (metadata chunks).** The shared byte-faithful slicer
-> (`@claude-transcripts/shared` `sliceIntoChunks`, byte-identical copy in
-> `hooks/scripts/transcript-chunks.ts`) is live: `backfill` reconstructs `chunk`
+> (`@claude-transcripts/shared` `sliceIntoChunks` — one copy, imported directly since
+> the CLI became the hook) is live: `backfill` reconstructs `chunk`
 > docs, and the hook's `flush-transcript-chunk` tails the transcript incrementally
 > (byte-offset + lock state in `/tmp`, gated behind `features.midFlightChunking`).
 > Both produce identical byte boundaries. **Still deferred:** embedding the pruned
@@ -37,10 +37,10 @@ un-flushed delta, not the whole session).
 
 ## Design (as built)
 
-- **Trigger:** a new `chunk-flush` handler runs on `UserPromptSubmit`, `PostToolUse`,
-  `PostToolUseFailure`, and `Stop` (registered alongside the existing per-event
-  handlers in `dispatch.ts`). A final flush runs at `SessionEnd`.
-- **Tail + offset:** `lib/transcript-chunks.ts` reads new bytes from the last offset
+- **Trigger:** the `flush-transcript-chunk` action runs on `UserPromptSubmit`,
+  `PostToolUse`, `PostToolUseFailure`, and `Stop` (bound alongside the other per-event
+  actions in the app model). A final flush runs at `SessionEnd`.
+- **Tail + offset:** the hook runtime reads new bytes from the last offset
   to EOF, consuming only **complete `\n`-terminated lines** (a partial trailing line
   is left for next time so we never split a JSON record). Offset state lives in
   `/tmp/claude-transcripts-<sessionId>.chunk` (`{ offset, lastFlushMs }`), the same `/tmp` pattern
@@ -94,15 +94,16 @@ To enable in a deployment, set both `true` in the runtime config and re-run
   committed in this pass.
 
 Dedup of the streaming/duplicate assistant messages is left to **read/view time**
-(mirror the `transcript-tokens.ts` heaviest-usage-per-message-id rule) — chunks stay
+(mirror `sumTranscriptTokens`' heaviest-usage-per-message-id rule) — chunks stay
 byte-faithful to their slice, which keeps them append-only and replication-safe.
 
 ## Done in this pass
 
-- `lib/chunk-state.ts`, `lib/prune.ts`, `lib/transcript-chunks.ts`
-- `handlers/chunk-flush.ts` + `dispatch.ts` REGISTRY wiring
-- `handlers/session-start.ts` (reset/seed offset), `handlers/session-end.ts` (final
-  flush + `/tmp` cleanup)
+- the byte-faithful slicer + chunk state in `@claude-transcripts/shared` and the hook
+  runtime (`packages/cli/src/hook/runtime.ts`)
+- the `flush-transcript-chunk` action and its model bindings
+- `seed-session-start` (reset/seed offset) and the `SessionEnd` final flush +
+  `/tmp` cleanup
 - design doc `chunks.json` (hook mirror) + the `chunks` design in `ensure.ts` (webapi mirror)
 
 ## Not done yet (follow-ups)
@@ -114,5 +115,4 @@ byte-faithful to their slice, which keeps them append-only and replication-safe.
 - **Feature views**: `features/urls` first (validate the regex map against CouchDB),
   then repos/PRs/issues/`/`-commands/models.
 - **smoke-test.ts** coverage for the chunk path.
-- **Promote these notes to an ADR** superseding 0014, and keep the
-  `sumTranscriptTokens` byte-identical-copy invariant in mind if any parsing is shared.
+- **Promote these notes to an ADR** superseding 0014.

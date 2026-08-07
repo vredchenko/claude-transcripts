@@ -70,9 +70,10 @@ These are the ones that bite if you don't know them — the full set is in
 - **Extend the app model, don't re-derive it.** Compose files, the manifest, and
   the seed plan are *projections* of `packages/shared/src/model/` — change the
   model and regenerate.
-- **`sumTranscriptTokens` is duplicated on purpose** in `packages/shared/` and
-  `hooks/`, and the two copies must stay byte-identical (the hook can't resolve
-  the workspace at install time).
+- **There is one writer.** The CLI (`packages/cli/src/hook/`) is the hook and
+  imports `@claude-transcripts/shared` directly; `hooks/` is a shim that pipes the
+  payload to `claude-transcripts hook run`. Don't reintroduce a second copy of
+  `sumTranscriptTokens` or the chunking helpers.
 - **The hook must never block a session.** Every external call is wrapped; a dead
   stack means dropped events, not a stalled Claude Code.
 

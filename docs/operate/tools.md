@@ -31,8 +31,8 @@ Keeping these out of both the hook and the app is deliberate:
 - **Idempotent + `--dry-run`.** Anything that writes takes `--dry-run` and is
   safe to re-run (skip work already done).
 - **Schema parity with the hook.** Tools that write session docs reuse the hook's
-  document shapes and the `sumTranscriptTokens` rule (its byte-identical-copy
-  invariant — see [hook.md](../reference/hook.md) / [webapi.md](../reference/webapi.md)).
+  document shapes and `sumTranscriptTokens` from `@claude-transcripts/shared`
+  (see [hook.md](../reference/hook.md) / [webapi.md](../reference/webapi.md)).
 - **Bun + TypeScript**, reading the same `.env` (`COUCHDB_*`, `S3_*`) as the rest
   of the repo — see [configuration.md](../start/configuration.md).
 
@@ -40,7 +40,7 @@ Keeping these out of both the hook and the app is deliberate:
 
 | Utility | Purpose | Status today | Tracking |
 |---------|---------|--------------|----------|
-| **transcript-parser** | Parse a `<id>.jsonl` transcript into typed entries (messages, tool uses, usage). Reused by `backfill` and as a **verification oracle** — diff CouchDB content against the fs transcript. Token math validated against `ccusage`. | partial — `hooks/scripts/transcript-tokens.ts` | #6 |
+| **transcript-parser** | Parse a `<id>.jsonl` transcript into typed entries (messages, tool uses, usage). Reused by `backfill` and as a **verification oracle** — diff CouchDB content against the fs transcript. Token math validated against `ccusage`. | partial — `@claude-transcripts/shared` (`sumTranscriptTokens`, `buildChunkEntries`) | #6 |
 | **backfill** | "Adopt this machine's history": read on-disk `~/.claude/projects/**/<id>.jsonl` transcripts and reconstruct each session at **parity with the live hook** — the `summary:<id>` doc (`source: "backfill"` + `backfilled_at`) **and** per-event marker docs (so `events/*`, `tools/*`, `activity/timeline` views populate) and full-content `chunk` docs — plus the S3 transcript blob. Preserves the transcript's real per-entry timestamps (never stamps backfill time into `timestamp`); attributes by `--host` / `--actor`; skips sessions already present unless `--force` re-processes them. Flags: `--dir`, `--host`, `--actor`, `--chunk-size`, `--no-content`, `--force`, `--session`, `--webapi`, `--dry-run`. | exists — `packages/cli/src/commands/backfill.ts` (subagent sub-transcripts still TODO) | #6, #7 |
 | **reconcile** | Finalize stale `running`/`incomplete` sessions (no `SessionEnd` fired) from their CouchDB chunks and/or the S3 transcript → write the missing `summary:<id>`. | planned | #4 |
 | **export / import** | Dump (`export`) and restore (`import`) an instance (or a session / date range) as a portable bundle — summary + event docs + chunks + S3 blobs, plus the schema version — for moving history between machines or replacing an instance. | exists — `packages/cli/src/commands/{export,import}.ts` ([bundles.md](../design/bundles.md)) | — |

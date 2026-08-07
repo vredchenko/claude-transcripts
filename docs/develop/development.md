@@ -29,7 +29,7 @@ Tooling: Bun, TypeScript (ESM, strict), Hono, React 19 + Vite + MUI, Biome
 
 | Path | Purpose |
 |------|---------|
-| `hooks/` | Claude Code session-logging plugin (Bun). `scripts/dispatch.ts` routes every hook event to handler modules in `scripts/handlers/`. Writes to CouchDB + S3. |
+| `hooks/` | Claude Code plugin wrapper (Bun). `scripts/dispatch.ts` pipes each hook payload to `claude-transcripts hook run` — the writer itself lives in `packages/cli/src/hook/`. |
 | `packages/shared/` | Shared types + token accounting. |
 | `packages/webapi/` | Hono + Bun read API; serves the SPA in production. |
 | `packages/webui/` | React + Vite + MUI SPA. |

@@ -4,7 +4,7 @@ Date: 2026-06-06
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-08-07 — see [Amendment](#amendment-the-duplication-is-gone).
 
 ## Context
 
@@ -30,7 +30,7 @@ The monorepo template established the structure: a Bun workspace monorepo
 - Because of that, the token-summing logic is **duplicated**: the canonical copy
   is `packages/shared/src/index.ts` (`sumTranscriptTokens`), and
   `hooks/scripts/transcript-tokens.ts` is a byte-identical copy. Both files carry
-  a "keep in sync" note.
+  a "keep in sync" note. *(Superseded — see the amendment below.)*
 
 ## Consequences
 
@@ -42,3 +42,28 @@ The monorepo template established the structure: a Bun workspace monorepo
 - CouchDB design docs are likewise mirrored: `hooks/couchdb/` (synced by
   `setup-views.sh`) and `packages/webapi/src/storage/ensure.ts` (applied on boot).
   Either path can provision an empty database; the map functions must stay in sync.
+
+## Amendment: the duplication is gone
+
+*2026-08-07.*
+
+The duplication above rested on one premise — "the hook must run without resolving the
+monorepo's `node_modules`" — and that premise stopped being true when the **CLI became
+the hook**. `claude-transcripts hook run` is what gets registered with Claude Code, and
+an installed binary resolves `@claude-transcripts/shared` itself.
+
+So `hooks/` no longer contains a writer. It is a shim: `scripts/dispatch.ts` pipes the
+payload to `claude-transcripts hook run` and exits 0 whatever happens. The handlers, the
+CouchDB and S3 clients, and the byte-identical copies of `sumTranscriptTokens` and the
+chunking helpers were deleted — about 500 lines whose only remaining job was to be
+identical to something else.
+
+What the plugin costs now: it **requires the CLI to be installed**, since that is what
+does the work. That's a real trade against the original "installs and runs standalone
+with only Bun" consequence, and it's the right one — the plugin was never the primary
+install path (`hook install` is), and a second implementation that must be kept
+character-for-character in step with the first is a defect waiting for someone to edit
+one file and not the other.
+
+The rest of the ADR stands: the hook is still registered per machine, still outside the
+webapi/webui runtime image, and still a pure observer that cannot fail a session.

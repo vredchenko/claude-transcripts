@@ -123,8 +123,10 @@ no `tools/` dir.
   Schema/view changes go through the self-built **migrations** (not ad-hoc scripts).
 - **CouchDB doc schemas are defined in code** (shared types + validators) and
   validated at the webapi on write.
-- `@claude-transcripts/shared` `sumTranscriptTokens` and the hook's copy (`hooks/`) must
-  stay byte-identical (the hook can't resolve the workspace at install time).
+- **One writer.** The CLI (`packages/cli/src/hook/`) is the hook; `hooks/` is a thin
+  plugin shim that pipes the payload to `claude-transcripts hook run`. There is no
+  second copy of `sumTranscriptTokens` or the chunking helpers to keep in step — don't
+  reintroduce one.
 - **Bundled backing services default to no auth**, localhost only; treat empty
   creds as valid for the bundled case.
 - The hook **never blocks a session**: every external call is wrapped in try/catch.
