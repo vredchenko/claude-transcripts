@@ -61,33 +61,40 @@ pass `--keep` to leave the seeded session for the UI.
 
 ## 3. Register the hook with Claude Code
 
-Point Claude Code at `hooks/hooks/hooks.json`. The simplest route is to install
-the directory as a plugin (so `${CLAUDE_PLUGIN_ROOT}` resolves):
+The normal route needs neither a plugin nor a checkout — the installed binary
+registers itself:
 
 ```bash
-claude plugin install /absolute/path/to/claude-transcripts/hook
+claude-transcripts hook install
 ```
 
-Or reference the hook commands directly in your `~/.claude/settings.json`,
-substituting the absolute path to `hooks/scripts/dispatch.ts`.
+It merges into `~/.claude/settings.json`, so other tools' hooks are untouched and
+re-running is a no-op. `claude-transcripts hook status` shows what's registered.
+
+If you'd rather use Claude Code's plugin mechanism, install the `hooks/` directory
+(so `${CLAUDE_PLUGIN_ROOT}` resolves):
+
+```bash
+claude plugin install /absolute/path/to/claude-transcripts/hooks
+```
+
+That form still requires the CLI to be installed: the plugin is a shim that pipes each
+payload to `claude-transcripts hook run`.
 
 ### Architecture
 
-`hooks/hooks.json` registers the eight session-activity hook events, each
-pointing at the single entry point `scripts/dispatch.ts`. The dispatcher reads
-the hook payload, builds a context (config + CouchDB/S3/counts helpers from
-`scripts/lib/`), and fans out to the handler modules in `scripts/handlers/` —
-one event can drive many handlers. The registered events (each with a handler):
+Either route ends in the same place — `claude-transcripts hook run`
+([hook.md](../reference/hook.md)) — which reads one payload on stdin and runs the
+**actions** bound to that event by the app model. One event can drive several actions;
+they run concurrently and settled, and the process always exits 0.
 
-`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`, `Stop`,
-`SubagentStart`, `SubagentStop`, `SessionEnd`. Live events POST as they happen;
-`SessionEnd` writes the summary + transcript.
+Registered events: `SessionStart`, `UserPromptSubmit`, `PostToolUse`,
+`PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd`. Live
+events write as they happen; `SessionEnd` writes the summary + transcript.
 
-This is the same focused set a predecessor logging hook used; it avoids the
-per-event Bun startup cost of the high-frequency events. Wiring any other
-supported event (`PreToolUse`, `Notification`, `PreCompact`, `MessageDisplay`, …)
-is future scope: add a module in `scripts/handlers/`, name it in the `REGISTRY`
-in `dispatch.ts`, and register the event in `hooks.json`.
+To wire another supported event (`PreToolUse`, `Notification`, `PreCompact`, …), add
+the binding to the model's `BINDINGS` and re-run `bun run gen:hooks` — dispatch and
+registration are both projections of it, so neither is edited by hand.
 
 ## 4. (Optional) Backfill existing history
 

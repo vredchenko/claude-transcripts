@@ -40,8 +40,9 @@ decisions:
    installed CLI itself — `claude-transcripts hook run`. That drops both Bun and the
    repo from the user's dependencies, makes hook behaviour upgrade atomically with the
    binary, and starts faster (no transpile per event). It also removes the reason
-   `sumTranscriptTokens` is duplicated byte-identically between `shared` and `hooks/`.
-   The existing plugin form (`hooks/.claude-plugin/`) stays for contributors.
+   `sumTranscriptTokens` was duplicated byte-identically between `shared` and `hooks/`
+   — since done, so there is now one writer. The plugin form
+   (`hooks/.claude-plugin/`) stays, as a shim that delegates to the same binary.
 2. **Deployment assets must live outside the repo.** The compose files and config
    template need a home under the user's data dir, version-matched to the binary.
    Either embedded in the binary and written out, or fetched from the release.
@@ -232,11 +233,11 @@ verified, refusing to run on an unsupported platform, and idempotent.
 
 ### Consequences worth naming
 
-Deciding the hook is the CLI binary retires the reason `sumTranscriptTokens` is kept
-byte-identical in two places: the duplication exists only because "the hook can't
-resolve the workspace at install time", which stops being true once the hook *is* the
-installed binary. The standalone plugin under `hooks/` keeps its own copies for as long
-as it stays a separate artifact.
+Deciding the hook is the CLI binary retired the reason `sumTranscriptTokens` was kept
+byte-identical in two places: the duplication existed only because "the hook can't
+resolve the workspace at install time", which stopped being true once the hook *is* the
+installed binary. The plugin under `hooks/` no longer carries its own copies — it pipes
+the payload to `claude-transcripts hook run`, so there is one writer.
 
 ## Acceptance
 

@@ -197,6 +197,6 @@ superseding 0006), leaving `shared` for genuinely cross-cutting domain types lik
   `ClaudeSessionSummary`, `ClaudeSessionsResponse`, `ClaudeTranscriptResponse`.
 - **`sumTranscriptTokens(jsonl)`** — sums Anthropic token usage from a transcript,
   **deduplicating by `message.id`** (keeping the heaviest usage block per id) so
-  streamed/snapshotted duplicates aren't double-counted. This function is kept
-  **byte-identical** with `hooks/scripts/transcript-tokens.ts` (the hook can't
-  resolve the workspace at install time) — change both together.
+  streamed/snapshotted duplicates aren't double-counted. One definition, imported by
+  the webapi and by the CLI's hook alike — the hook's byte-identical copy was retired
+  when the CLI became the hook ([ADR 0004](../design/decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)).

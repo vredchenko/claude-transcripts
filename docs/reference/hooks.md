@@ -24,7 +24,7 @@ A hook event doesn't hard-code a behaviour; it resolves to a **set of actions**:
 - **`BINDINGS`** (same file) — the many-to-many `event → actions[]` table.
 
 `dispatch.ts` reads an incoming event and runs its bound actions. The hook's
-`bindings.generated.json` is **projected from `BINDINGS`** by `bun run gen:hooks`
+`hooks/hooks/hooks.json` is **projected from `BINDINGS`** by `bun run gen:hooks`
 (`scripts/sync-hooks.ts`), and the events we register live in
 `hooks/hooks/hooks.json` — so the wiring is defined once in the model and generated
 outward, the same way the [hook-events.md](hook-events.md) "What we do" column is.

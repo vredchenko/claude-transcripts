@@ -9,7 +9,7 @@
  * What it does:
  *  1. Build the hook runtime config from `config/` + `.env` and write it to
  *     ~/.config/claude-transcripts/config.json (mode 600) — the file the hook
- *     reads (hooks/scripts/lib/config.ts); nothing else writes it.
+ *     reads (packages/cli/src/hook/runtime.ts); nothing else writes it.
  *  2. Provision stores on the configured backend: ensure the CouchDB databases,
  *     probe the Garage bucket (the app never creates buckets). Meilisearch is
  *     intentionally skipped for now.

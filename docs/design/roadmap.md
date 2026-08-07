@@ -128,14 +128,15 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
 - **The e2e suite leaves fixtures behind.** It writes synthetic sessions into whatever
   store it points at and never cleans up, so running it against a real instance
   pollutes real history (and the search index) until they're deleted by hand.
-- **The hook exists twice.** `sumTranscriptTokens` (and the chunking helpers) are kept
-  **byte-identical** between `shared` and `hooks/` for one reason: the standalone
-  plugin can't resolve the workspace at install time. That stopped being the whole
-  story once the CLI became the hook — an installed binary *can* resolve it, and the
-  CLI's hook path imports `shared` directly. The duplication now only serves the
-  plugin artifact. Consolidating it — most likely by having the plugin exec the
-  installed CLI, leaving one implementation — would retire the invariant and the
-  drift risk that comes with any "keep these two files identical" rule.
+- **The hook exists twice — fixed.** `sumTranscriptTokens` and the chunking helpers
+  were kept **byte-identical** between `shared` and `hooks/` for one reason: a plugin
+  directory can't resolve the workspace. That stopped being true once the CLI became
+  the hook, so `hooks/` is now a shim that pipes its payload to
+  `claude-transcripts hook run` — about 500 lines of second implementation deleted,
+  along with the "keep these two files identical" rule and its drift risk. The plugin
+  now requires the CLI to be installed, which is the right trade: it was never the
+  primary install path ([ADR 0004](decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)
+  is amended).
 
 ## Future scope → captured in docs
 

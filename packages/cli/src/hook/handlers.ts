@@ -1,11 +1,11 @@
 /**
  * The hook actions, keyed the same way the app model binds them to events.
  *
- * These mirror the standalone plugin's `hooks/scripts/handlers/*` — same doc shapes,
- * same ids, same `/tmp` state — so a session logged through the CLI is
- * indistinguishable from one logged through the plugin. Unlike the plugin, this form
- * reuses `@claude-transcripts/shared` directly instead of keeping byte-identical
- * copies, because the CLI *can* resolve the workspace.
+ * These are the only implementation. The plugin under `hooks/` used to mirror them —
+ * same doc shapes, same ids, same `/tmp` state — but it now pipes its payload to
+ * `claude-transcripts hook run`, so a session logged through the plugin is logged by
+ * exactly this code. `@claude-transcripts/shared` is imported directly; nothing here
+ * is duplicated anywhere.
  *
  * Every handler is best-effort; the dispatcher swallows what they throw.
  */
