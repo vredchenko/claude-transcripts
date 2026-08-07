@@ -1,7 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["vite/client"],
+    // "bun" for the co-located *.test.ts specs (bun:test); the app code itself is
+    // browser-only and uses nothing from it.
+    "types": ["vite/client", "bun"],
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },

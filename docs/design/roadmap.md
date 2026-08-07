@@ -97,9 +97,13 @@ first thing a new user touches ([configuration.md](../start/configuration.md)).
   both on `reindex` and live off the `_changes` feed. Ended sessions keep coming from
   their summary doc: projecting them from an event would let Meilisearch's
   add-or-replace put a sparse row over a complete one.
-- **No dedicated results page.** The header box is a dropdown capped at a handful of
-  hits, with no paging, filters, or ranking controls — fine for "jump to that
-  session", not for exploring the corpus.
+- **No dedicated results page — fixed.** `/search` is a real results route: paged
+  (20 per index), filterable by project / model / host / provenance, with approximate
+  match counts. Its whole state lives in the query string, so a result set is linkable
+  and the back button steps through filters and pages. The header dropdown stays what it
+  was good at — "jump to that session" — and now links through to the page. Needed new
+  API surface: `offset`, filter params, `totals`, and `facets` (the filter options,
+  computed across the whole corpus so they don't shrink as you filter).
 - **[ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md) — decided:** external
   and namespaced. Meilisearch's indexes were bare `sessions` / `turns` constants while
   every other store's names live in `config/`, so pointing `MEILI_HOST` at an existing

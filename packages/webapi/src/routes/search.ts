@@ -73,6 +73,24 @@ const SearchResponseSchema = z
     query: z.string(),
     /** false when Meilisearch is disabled/unconfigured — the UI can say so. */
     enabled: z.boolean(),
+    /**
+     * Approximate match counts per index, so a results page knows whether there's a
+     * next page. Estimated by design — Meilisearch stops counting early on a large
+     * corpus.
+     */
+    totals: z.object({ sessions: z.number(), turns: z.number() }).openapi("SearchTotals"),
+    /**
+     * The distinct values available to filter on, across the whole corpus rather than
+     * the current page — otherwise the filter controls would shrink as you use them.
+     */
+    facets: z
+      .object({
+        cwd: z.array(z.string()),
+        model: z.array(z.string()),
+        hostname: z.array(z.string()),
+        source: z.array(z.string()),
+      })
+      .openapi("SearchFacets"),
   })
   .openapi("SearchResponse");
 
@@ -111,6 +129,12 @@ const searchRoute = createRoute({
     query: z.object({
       q: z.string().optional(),
       limit: z.coerce.number().int().nonnegative().optional(),
+      offset: z.coerce.number().int().nonnegative().optional(),
+      /** Narrow to one project directory / model / host / provenance. */
+      cwd: z.string().optional(),
+      model: z.string().optional(),
+      hostname: z.string().optional(),
+      source: z.string().optional(),
     }),
   },
   responses: {
@@ -140,24 +164,76 @@ export function searchRoutes(ctx: AppContext) {
   route.openapi(searchRoute, async (c: any) => {
     const q = (c.req.query("q") ?? "").trim();
     const limit = Number(c.req.query("limit") ?? 20);
-    if (!q) return c.json({ hits: [], turns: [], query: "", enabled: ctx.meili.enabled });
-    const [hits, turnHits] = await Promise.all([
-      ctx.meili.search(indexName(ctx.config, SESSIONS_INDEX_KEY), q, { limit }),
+    const offset = Number(c.req.query("offset") ?? 0);
+
+    // Only `sessions` carries these attributes; the turns index has cwd alone. Filter
+    // each index by what it actually holds rather than sending Meilisearch a filter on
+    // a field it doesn't know, which is an error rather than an empty result.
+    const eq = (attr: string, value?: string) =>
+      value ? `${attr} = ${JSON.stringify(value)}` : null;
+    const sessionFilter = [
+      eq("cwd", c.req.query("cwd")),
+      eq("model", c.req.query("model")),
+      eq("hostname", c.req.query("hostname")),
+      eq("source", c.req.query("source")),
+    ].filter((f): f is string => f !== null);
+    const turnFilter = [eq("cwd", c.req.query("cwd"))].filter((f): f is string => f !== null);
+
+    if (!q) {
+      return c.json({
+        hits: [],
+        turns: [],
+        query: "",
+        enabled: ctx.meili.enabled,
+        totals: { sessions: 0, turns: 0 },
+        facets: { cwd: [], model: [], hostname: [], source: [] },
+      });
+    }
+
+    const [sessionRes, turnRes, facets] = await Promise.all([
+      ctx.meili.search(indexName(ctx.config, SESSIONS_INDEX_KEY), q, {
+        limit,
+        offset,
+        filter: sessionFilter,
+      }),
       ctx.meili.search(indexName(ctx.config, TURNS_INDEX_KEY), q, {
         limit,
+        offset,
+        filter: turnFilter,
         attributesToCrop: ["text"],
         cropLength: 40,
       }),
+      // Facets describe the whole corpus, not this page — they're what the filter
+      // controls offer, so they must not shrink as the user filters.
+      ctx.meili.facets(indexName(ctx.config, SESSIONS_INDEX_KEY), [
+        "cwd",
+        "model",
+        "hostname",
+        "source",
+      ]),
     ]);
+
     // Prefer Meili's cropped `_formatted.text` snippet; fall back to the raw text.
-    const turns = turnHits.map((h: any) => ({
+    const turns = turnRes.hits.map((h: any) => ({
       sessionId: h.sessionId,
       role: h.role ?? "other",
       snippet: h._formatted?.text ?? h.text ?? "",
       timestamp: h.timestamp,
       cwd: h.cwd,
     }));
-    return c.json({ hits, turns, query: q, enabled: ctx.meili.enabled });
+    return c.json({
+      hits: sessionRes.hits,
+      turns,
+      query: q,
+      enabled: ctx.meili.enabled,
+      totals: { sessions: sessionRes.estimatedTotalHits, turns: turnRes.estimatedTotalHits },
+      facets: {
+        cwd: facets.cwd ?? [],
+        model: facets.model ?? [],
+        hostname: facets.hostname ?? [],
+        source: facets.source ?? [],
+      },
+    });
   });
 
   /**

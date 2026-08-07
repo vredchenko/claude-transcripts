@@ -122,27 +122,72 @@ export class Meili {
   /** Search an index; returns the hits array (empty on any failure). Cropping +
    *  highlighting (for content snippets) are opt-in and land in each hit's
    *  `_formatted`. */
+  /**
+   * Search one index.
+   *
+   * Returns the estimated total alongside the page, because a results page can't
+   * offer paging without knowing whether there is a next page. Meilisearch's count is
+   * an estimate by design — it stops counting early on large corpora — so treat it as
+   * "about this many", which is what a hit count is for anyway.
+   */
   async search(
     uid: string,
     q: string,
     opts: {
       limit?: number;
+      offset?: number;
+      filter?: string[];
       attributesToCrop?: string[];
       cropLength?: number;
       attributesToHighlight?: string[];
     } = {},
-  ): Promise<Record<string, unknown>[]> {
+  ): Promise<{ hits: Record<string, unknown>[]; estimatedTotalHits: number }> {
     const body: Record<string, unknown> = { q, limit: opts.limit ?? 20 };
+    if (opts.offset) body.offset = opts.offset;
+    if (opts.filter?.length) body.filter = opts.filter;
     if (opts.attributesToCrop) body.attributesToCrop = opts.attributesToCrop;
     if (opts.cropLength) body.cropLength = opts.cropLength;
     if (opts.attributesToHighlight) body.attributesToHighlight = opts.attributesToHighlight;
     const res = await this.req("POST", `/indexes/${uid}/search`, body);
-    if (!res?.ok) return [];
+    if (!res?.ok) return { hits: [], estimatedTotalHits: 0 };
     try {
-      const json = (await res.json()) as { hits?: Record<string, unknown>[] };
-      return json.hits ?? [];
+      const json = (await res.json()) as {
+        hits?: Record<string, unknown>[];
+        estimatedTotalHits?: number;
+      };
+      const hits = json.hits ?? [];
+      return { hits, estimatedTotalHits: json.estimatedTotalHits ?? hits.length };
     } catch {
-      return [];
+      return { hits: [], estimatedTotalHits: 0 };
+    }
+  }
+
+  /**
+   * The distinct values of a filterable attribute, for building filter controls.
+   *
+   * Meilisearch returns these from a normal search with `facets`, so this is one empty
+   * query rather than a scan. Best-effort: an engine that's down yields no facets and
+   * the UI simply offers no filters.
+   */
+  async facets(uid: string, attributes: string[]): Promise<Record<string, string[]>> {
+    const res = await this.req("POST", `/indexes/${uid}/search`, {
+      q: "",
+      limit: 0,
+      facets: attributes,
+    });
+    if (!res?.ok) return {};
+    try {
+      const json = (await res.json()) as {
+        facetDistribution?: Record<string, Record<string, number>>;
+      };
+      const out: Record<string, string[]> = {};
+      for (const attr of attributes) {
+        const dist = json.facetDistribution?.[attr] ?? {};
+        out[attr] = Object.keys(dist).filter(Boolean).sort();
+      }
+      return out;
+    } catch {
+      return {};
     }
   }
 }
@@ -173,7 +218,7 @@ export const SESSIONS_INDEX_KEY = "sessions";
 export const SESSIONS_INDEX_SETTINGS: IndexSettings = {
   primaryKey: "id",
   searchableAttributes: ["cwd", "model", "hostname", "endReason", "tools", "sessionId"],
-  filterableAttributes: ["model", "hostname", "endReason", "source"],
+  filterableAttributes: ["cwd", "model", "hostname", "endReason", "source"],
   sortableAttributes: ["timestamp"],
 };
 

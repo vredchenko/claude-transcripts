@@ -179,11 +179,25 @@ export interface TurnHit {
   cwd?: string;
 }
 
+export interface SearchTotals {
+  sessions: number;
+  turns: number;
+}
+
+export interface SearchFacets {
+  cwd: string[];
+  model: string[];
+  hostname: string[];
+  source: string[];
+}
+
 export interface SearchResponse {
   hits: SearchHit[];
   turns: TurnHit[];
   query: string;
   enabled: boolean;
+  totals: SearchTotals;
+  facets: SearchFacets;
 }
 
 export interface IndexCounts {
@@ -490,6 +504,15 @@ export type SearchParams = {
    * @nullable
    */
   limit?: number | null;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  offset?: number | null;
+  cwd?: string;
+  model?: string;
+  hostname?: string;
+  source?: string;
 };
 
 export type MigrateUpBody = {
