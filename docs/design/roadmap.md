@@ -47,15 +47,19 @@ both transcript read paths.
 The near-term list, mostly surfaced by using the system rather than planned up front.
 Ordered roughly by how much they get in the way.
 
-**Export / import bundles — next up.** The migration engine is built, but the
-`export`/`import` round-trip it was always meant to carry isn't
-([migrations.md](../operate/migrations.md)). It's the prerequisite for everything
-else here: with it, an existing instance can be dumped, torn down, replaced with a
-clean install, and restored — without it, adopting the new install path means losing
-whatever history a machine has already accumulated. A bundle carries the data **plus
-its schema version**, and import migrates it forward to the current one, so a dump
-taken today still restores after later migrations. Ranks ahead of `upgrade` for that
-reason: being able to move data off an instance is what makes replacing it safe.
+**Export / import bundles — done** ([bundles.md](bundles.md)). An instance can be
+dumped, torn down, replaced with a clean install, and restored; verified against a real
+7,135-doc corpus, including destroying a session outright and restoring it byte-for-byte.
+A bundle carries the data **plus the schema version it was taken at**, which is what lets
+import decide whether a restore is sound.
+
+Remaining, and deferred deliberately: import cannot yet restore a bundle **across a
+document-reshaping migration**. Migrations are recorded per database, so importing
+old-shaped docs into a database that already counts the transform as applied would leave
+two shapes behind with nothing pending to fix them. No such migration exists — all seven
+are view-only — so import refuses that case (`transformsDocs`) rather than implementing a
+scoped replay that could not be tested against anything. The replay is work for whenever
+the first document migration is written.
 
 **Install & first run** — the biggest remaining Tier-1 gap. Getting from `git clone`
 to "sessions are being logged" currently means running the stack, provisioning stores,
@@ -199,9 +203,10 @@ done.
 - **Self-built CouchDB migrations** — **done** for schema/views: a versioned up/down
   engine with a marker doc, driven from the CLI and `/api/migrate/*`; seven migrations
   applied to date ([migrations.md](../operate/migrations.md),
-  [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)). Remaining: the
-  export/import **bundle** format (dump + version + migrate-forward on import) — now
-  the next piece of work, see [Tier 1 — open work](#tier-1--open-work).
+  [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)). The export/import
+  **bundle** format is built on top of it ([bundles.md](bundles.md)). Remaining:
+  document-transforming migrations themselves, and the scoped replay import needs before
+  a bundle can cross one — see [Tier 1 — open work](#tier-1--open-work).
 
 **Ingest & lifecycle (Tier 1/2)**
 - `backfill` — **done**: adopts this machine's history as first-class records

@@ -4,7 +4,7 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-08-07 — see [Amendment](#amendment-import-checks-rather-than-migrates-forward).
 
 ## Context
 
@@ -45,3 +45,30 @@ Build our **own migration tooling** (lives in `tools/`, run via the CLI —
 - Design-view sync (the existing `hooks/couchdb/` ↔ `ensure.ts` mirror) folds into
   the migration step over time, so there is one authoritative path for view
   changes.
+
+## Amendment: import checks rather than migrates forward
+
+*2026-08-07, when export/import was built ([bundles.md](../bundles.md)).*
+
+The decision above says import "brings imported data to the current schema version (so a
+bundle exported at v3 can be imported and migrated to v5)". Implementing it showed that
+sentence to be both unnecessary and, read literally, unsafe.
+
+**Unnecessary**, because every migration written so far only creates or updates
+`_design/*` docs. Views are derived state: CouchDB recomputes them over whatever
+documents exist, including ones restored a moment ago. A v3 bundle therefore restores
+into a v5 instance correctly with no forward step at all.
+
+**Unsafe**, because the marker is per **database**, not per document. Running `migrate
+up` after an import cannot do what the sentence implies: the target is already at v5, so
+nothing is pending, so nothing runs — while the restored documents sit there in the v3
+shape. Had a document-transforming migration existed, "import, then migrate up" would
+have reported success and left the database holding two shapes.
+
+So the amended position: **import verifies rather than migrates.** It refuses a bundle
+newer than the target (forward-only, unchanged), and refuses an older bundle whose
+version gap contains a migration declaring `transformsDocs: true`. Migrating an imported
+bundle forward remains the right eventual answer, but it needs migrations to expose a
+document pass that can be **scoped to the restored ids** — not the whole-database `up`
+this ADR assumed. That work waits for the first document migration, since there is
+nothing to test a replay against until then.

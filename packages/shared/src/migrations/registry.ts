@@ -1,11 +1,20 @@
 /**
  * The ordered migration registry. Append new migrations here with the next id;
  * never renumber or edit an already-released migration's `up` (add a new one).
+ *
+ * **Every migration here is view-only** — each one upserts `_design/*` docs and nothing
+ * else. That is load-bearing for `export`/`import` (bundles.md): views are derived, so
+ * CouchDB recomputes them over restored docs and an old bundle needs no forward step.
+ *
+ * If you write a migration that rewrites **documents**, set `transformsDocs: true` on
+ * it. Import cannot yet replay a document transform over the docs it restores, so the
+ * flag makes it refuse the affected bundles loudly instead of leaving two document
+ * shapes in one database. See {@link Migration.transformsDocs}.
  */
 import { CHUNKS_DESIGN, INITIAL_DESIGNS } from "./designs";
 import { SESSION_INDEX_DESIGN } from "./session-index";
 import { SPEAKER_SPLIT_DESIGN } from "./speaker-split";
-import type { Migration } from "./types";
+import type { Migration, MigrationStep } from "./types";
 
 /**
  * v1 — install the initial map-reduce design views on the sessions database.
@@ -169,4 +178,23 @@ export const MIGRATIONS: Migration[] = [
 /** The highest migration id in the registry (the target for `up` with no `--to`). */
 export function latestVersion(): number {
   return MIGRATIONS.reduce((max, m) => Math.max(max, m.id), 0);
+}
+
+/**
+ * Migrations in `(from, to]` that rewrite documents rather than only design docs.
+ *
+ * This is the question `import` has to ask before restoring a bundle taken at an older
+ * schema: "between the version this data was dumped at and the version this database is
+ * now, did anything change the shape of documents?" Empty means the gap is view-only
+ * and the restore is safe as-is — which is every gap that exists today.
+ */
+export function docTransformsBetween(
+  from: number,
+  to: number,
+  migrations: Migration[] = MIGRATIONS,
+): MigrationStep[] {
+  return migrations
+    .filter((m) => m.id > from && m.id <= to && m.transformsDocs === true)
+    .sort((a, b) => a.id - b.id)
+    .map((m) => ({ id: m.id, name: m.name }));
 }
