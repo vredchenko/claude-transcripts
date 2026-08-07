@@ -17,4 +17,8 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run build
+      # The docs site is built into the app image, and it FAILS on a broken internal
+      # link. Without this the first sign of one is the release image refusing to
+      # build — which is exactly how v0.0.2's image came not to publish.
+      - run: bun run build:docs
       - run: bun run test

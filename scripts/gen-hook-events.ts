@@ -28,7 +28,11 @@ const SECTION_TITLES: Record<HookCategory, string> = {
   "session-end": "Session end",
 };
 
-const FIXTURES = "../tests/mock/claude-code/hooks";
+// Paths are relative to the OUTPUT file, docs/reference/hook-events.md — not to this
+// script. They were written when the generator wrote docs/hook-events.md, one level
+// up, and every one of them was off by a directory once that was corrected. The docs
+// build fails on a broken internal link, so this is checked rather than assumed.
+const FIXTURES = "../../tests/mock/claude-code/hooks";
 
 function renderRow(r: HookEventRow): string {
   // Wired → the bound action handlers; unwired → *why* we ignore it.
@@ -78,7 +82,7 @@ This table is the **payload/fixture reference**. The complementary [hooks.md](ho
 narrates the hook → action model, and [hook.md](hook.md) covers the writer
 mechanics. The per-**version** authoritative list (which events each supported
 Claude Code version exposes) is **generated** into \`compatibility.json\`
-([compatibility.md](compatibility.md), [ADR 0025](decisions/0025-claude-code-compatibility-matrix.md))
+([compatibility.md](../start/compatibility.md), [ADR 0025](../design/decisions/0025-claude-code-compatibility-matrix.md))
 — treat that as the source of truth if this table and a given CC version disagree.
 
 - **Official reference:** <https://code.claude.com/docs/en/hooks>
@@ -125,7 +129,7 @@ ${renderSections()}
 > 3. **No \`SessionEnd\` at all** — a hard crash / kill. The session is then
 >    detected as **\`incomplete\`** by derivation (see
 >    [couchdb.md → status model](couchdb.md#status-model-derived-not-stored)) and
->    finalised by the \`reconcile\` utility ([tools.md](tools.md)). Fixtures for (1)
+>    finalised by the \`reconcile\` utility ([tools.md](../operate/tools.md)). Fixtures for (1)
 >    and (2) live under \`stop-failure/\` and \`session-end/\`; case (3) is exercised
 >    by leaving a started session with no end fixture.
 
