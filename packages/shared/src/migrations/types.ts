@@ -60,6 +60,23 @@ export interface Migration {
   up(ctx: MigrationContext): Promise<void>;
   /** Reverse the change. Must be idempotent. */
   down(ctx: MigrationContext): Promise<void>;
+  /**
+   * Set this when `up` rewrites or reshapes existing **documents**, rather than only
+   * `_design/*` docs. Every migration to date is view-only, so none set it.
+   *
+   * It exists because view migrations and document migrations behave differently under
+   * `import` (bundles.md). Views are derived — CouchDB recomputes them over whatever
+   * docs exist, including ones written a moment ago — so restoring an old bundle into a
+   * newer instance needs no forward step. A document transform is not derived: it ran
+   * once, over the docs that existed then. Import writes old-shaped docs into a
+   * database whose marker already records that transform as applied, so `migrateUp`
+   * finds nothing pending and the new docs are never transformed. The result is two
+   * document shapes in one database, arrived at silently.
+   *
+   * Until import can replay a document transform over just the docs it wrote, the flag
+   * is what turns that silence into a refusal — see {@link docTransformsBetween}.
+   */
+  transformsDocs?: boolean;
 }
 
 /** A step reported by status/up/down (no side effects implied). */

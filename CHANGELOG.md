@@ -26,6 +26,36 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   19, so the monorepo runs one React version and hoist order can't decide anything.
   Deliberately *not* Ink 7 — it renders nothing when stdout isn't a TTY, which would
   make `claude-transcripts | grep` and any captured help output silently empty.
+
+- **`import` no longer trusts "the bundle is older, so it's fine".** Restoring an old
+  bundle into a newer instance is safe only while the migrations in between are
+  view-only — CouchDB rebuilds views over the restored docs, so nothing needs migrating
+  forward. A migration that reshapes *documents* breaks that silently: the marker is
+  per-database, so the target already counts the transform as applied, `migrate up` finds
+  nothing pending, and the restored docs keep their old shape permanently. Migrations can
+  now declare `transformsDocs`, and import refuses any bundle whose version gap contains
+  one, naming them. No migration sets it today — all seven are view-only, and a test
+  asserts that — so nothing changes in practice; the trap is armed rather than sprung
+  later. The scoped replay that would lift the refusal waits for the first document
+  migration, since until one exists there is nothing to test a replay against.
+  [ADR 0021](docs/design/decisions/0021-self-built-couchdb-migrations.md) is amended
+  accordingly: import **verifies** rather than migrates forward.
+
+- **`import` gave the wrong fix for a bundle from a newer schema.** It compared only
+  against the instance's applied version and always advised `migrate up` — useless when
+  the *build* is the thing that's too old, since `migrate up` reaches its own ceiling and
+  fails identically. It now distinguishes an instance behind its own build (run
+  `migrate up`) from a build that has never heard of that schema (upgrade the app).
+
+- **`import` refused bundles written by older CLIs.** The format check rejected any
+  version that wasn't an exact match, defeating the reason `format` is versioned
+  separately from the app: a bundle outlives the release that wrote it. Only a format
+  from the future is refused now.
+
+- **`import` treated an unreachable webapi as a pristine instance.** A failed status
+  read returned v0, which is a real version — so the version comparison took a branch it
+  had no evidence for. It now fails up front, naming the URL.
+
 ### Changed
 
 - **BREAKING — `GET /api/sessions/{id}/transcript` now returns

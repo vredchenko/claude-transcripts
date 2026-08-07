@@ -12,7 +12,12 @@ unchanged objects is an easy improvement when it matters.
 
 The migration engine has carried a promise since 0.0.1 — "dump data + version, import
 and migrate forward" ([migrations.md](../operate/migrations.md)) — that was never
-implemented. This is that piece.
+implemented. This is that piece, with one correction the implementation forced: the
+*migrate forward* half turned out to be unnecessary and, taken literally, wrong. Every
+migration so far only rebuilds views, which CouchDB recomputes over restored docs on its
+own. What an old bundle actually needs is not a forward migration but a **check** that
+nothing in the version gap reshaped documents — see
+[Why an older bundle is not automatically safe](#why-an-older-bundle-is-not-automatically-safe).
 
 ## The driving use case
 
@@ -135,9 +140,40 @@ claude-transcripts import <dir> [--dry-run] [--no-blobs]
    truncated bundle must fail loudly, not half-restore.
 2. **Compare schema versions.**
    - equal → import as-is;
-   - bundle **older** → import, then `migrate up` to bring it forward;
+   - bundle **older** → import as-is *while the migrations in between are view-only*,
+     which is every migration written so far. Views are derived: CouchDB recomputes them
+     over the restored docs, so there is nothing to migrate forward. If any migration in
+     the gap reshapes **documents** (`transformsDocs`), refuse — see below;
    - bundle **newer** than the target → refuse. Migrations only run forward, and
-     guessing at a future schema is how data gets corrupted. Upgrade first, then import.
+     guessing at a future schema is how data gets corrupted. The message distinguishes
+     an instance that is merely behind its own build (`migrate up` fixes it) from a
+     build that has never heard of that schema (upgrade the app), because `migrate up`
+     cannot help with the second and saying so saves a wasted attempt.
+
+### Why an older bundle is not automatically safe
+
+The obvious reading — "import, then run `migrate up`" — does not work, and it is worth
+being precise about why, because it fails *silently*.
+
+Migrations are recorded per **database**, not per document. A target at v9 has a marker
+saying v9. Import writes v7-shaped docs into it. `migrate up` reads the marker, finds
+nothing pending, and does nothing. The v8 document transform — which ran once, over the
+documents that existed at the time — never sees the restored ones. The database now
+holds two document shapes, and every version check along the way passed, because "bundle
+older than target" is the branch we treat as safe.
+
+Nothing exercises this today: all seven migrations upsert `_design/*` docs and nothing
+else, so every gap is view-only and every restore is genuinely safe. The risk is
+entirely in the future, which is why the guard is a **declaration on the migration**
+rather than an inspection of the data: a migration that reshapes documents sets
+`transformsDocs: true`, and import refuses any bundle whose gap contains one.
+
+The real fix is for import to **replay** a document transform over just the ids it
+restored — which needs migrations to separate their design-doc work from their
+document work (`up` vs a scoped `upDocs`). That is deliberately deferred until the first
+such migration exists, because a replay mechanism with nothing to replay cannot be
+tested honestly. Until then the guard converts a silent, permanent inconsistency into a
+refusal that names the migrations responsible.
 3. **Write** through `/api/ingest/*` — summaries, events, chunks, then blobs. Never
    direct to the stores.
 4. **Reindex** so search reflects the restored corpus (the `_changes` follower catches
@@ -153,8 +189,19 @@ already passes `_id` through, so this needs no API change.
 
 ## Edge cases
 
-- *Bundle newer than the target's schema.* Refuse with the version gap named (see
-  above).
+- *Bundle newer than the target's schema.* Refuse with the version gap named, and with
+  the fix that actually applies — `migrate up` when the instance is behind its own
+  build, upgrading the app when the build itself is too old (see above).
+- *Bundle older, with a document-reshaping migration in the gap.* Refuse, naming the
+  migrations. Import into an instance at the bundle's schema version instead. Cannot
+  happen today — every migration is view-only.
+- *Bundle written by a newer CLI than the one importing.* Refused on `format`, since a
+  layout from the future can't be read. The reverse — a newer CLI reading an older
+  bundle — is explicitly supported: that is what versioning `format` separately from the
+  app is for.
+- *The webapi is unreachable.* Refuse before reading the bundle. An instance that can't
+  report its schema version is not the same as one at v0, and treating them alike would
+  pick an import path with no evidence behind it.
 - *Target already holds some of this history.* Fine — every write is an upsert or a
   benign conflict. Import reports how many docs were new.
 - *Truncated or corrupted bundle.* Checksums catch it up front; nothing is written.
