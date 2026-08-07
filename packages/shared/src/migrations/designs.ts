@@ -37,7 +37,8 @@ const CHUNK_ENTRIES_MAP = `function (doc) {
       toolUses: e.toolUses || null,
       toolUseId: e.toolUseId || null,
       isError: e.isError || false,
-      isSidechain: e.isSidechain || false
+      isSidechain: e.isSidechain || false,
+      kind: e.kind || null
     });
   }
 }`;

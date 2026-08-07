@@ -162,7 +162,7 @@ documents that existed at the time — never sees the restored ones. The databas
 holds two document shapes, and every version check along the way passed, because "bundle
 older than target" is the branch we treat as safe.
 
-Nothing exercises this today: all seven migrations upsert `_design/*` docs and nothing
+Nothing exercises this today: all eight migrations upsert `_design/*` docs and nothing
 else, so every gap is view-only and every restore is genuinely safe. The risk is
 entirely in the future, which is why the guard is a **declaration on the migration**
 rather than an inspection of the data: a migration that reshapes documents sets

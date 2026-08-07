@@ -97,6 +97,13 @@ const TranscriptEntrySchema = z
     toolUseId: z.string().nullable().optional(),
     isError: z.boolean().optional(),
     isSidechain: z.boolean().optional(),
+    /**
+     * For a line that isn't a conversation turn, what it actually was —
+     * `attachment:hook_success`, `file-history-snapshot`, `system:turn_duration`.
+     * Absent on real turns, where `role` already says everything. Nullable because the
+     * chunks view emits `null` for entries written before this existed.
+     */
+    kind: z.string().nullable().optional(),
   })
   .openapi("TranscriptEntry");
 

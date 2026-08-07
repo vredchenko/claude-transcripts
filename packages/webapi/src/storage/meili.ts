@@ -203,6 +203,9 @@ export const TURNS_INDEX_SETTINGS: IndexSettings = {
  * `entries[]` turn that has text. Ids are stable (`<session>:<byteStart>:<index>`)
  * so re-ingesting a chunk replaces, not duplicates. Empty for byte-range-only chunks.
  */
+/** Roles that represent something a person or the model actually said. */
+const CONVERSATION_ROLES = new Set(["user", "assistant", "tool_result"]);
+
 export function toTurnSearchDocs(doc: any): Record<string, unknown>[] {
   const entries: any[] = Array.isArray(doc.entries) ? doc.entries : [];
   const out: Record<string, unknown>[] = [];
@@ -210,6 +213,11 @@ export function toTurnSearchDocs(doc: any): Record<string, unknown>[] {
     const e = entries[i];
     const text: string = typeof e?.text === "string" ? e.text : "";
     if (!text) continue;
+    // Conversation turns only. Non-message lines (attachments, mode changes, file
+    // history) now carry a summary so they don't render blank — but they are context,
+    // not content, and there are more of them than user turns. Indexing them would
+    // bury real matches under a thousand identical "hook_success" rows.
+    if (!CONVERSATION_ROLES.has(e?.role)) continue;
     out.push({
       id: searchDocId(doc.session_id, doc.byte_start, i),
       sessionId: doc.session_id,

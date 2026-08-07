@@ -164,6 +164,31 @@ const sessionIndexChunkCoverage: Migration = {
   },
 };
 
+/**
+ * v8 — redeploy `_design/chunks` so `entries_by_session` also emits `kind`: what a
+ * non-conversation line actually was (`attachment:hook_success`,
+ * `file-history-snapshot`, …). Without it every such line reads as an empty row, and
+ * in a real corpus those outnumber user turns. Additive to the emitted value, so
+ * `down` is a no-op and v1 still owns the design doc's existence.
+ *
+ * View-only, like every migration before it: the chunk docs already carry `kind` once
+ * written by a current hook, and CouchDB recomputes the view over whatever exists.
+ * Older chunks simply emit `null` — nothing needs rewriting, which is why this doesn't
+ * set `transformsDocs`.
+ */
+const chunkEntryKind: Migration = {
+  id: 8,
+  name: "chunk-entry-kind",
+  async up(ctx) {
+    ctx.log(`~ ${CHUNKS_DESIGN._id} (emit entry kind)`);
+    const { _rev, ...body } = CHUNKS_DESIGN;
+    await ctx.putDoc(CHUNKS_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${CHUNKS_DESIGN._id} (kind left in place — additive)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
 export const MIGRATIONS: Migration[] = [
   initialSchema,
@@ -173,6 +198,7 @@ export const MIGRATIONS: Migration[] = [
   speakerSplitTimeView,
   chunkEntriesView,
   sessionIndexChunkCoverage,
+  chunkEntryKind,
 ];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */
