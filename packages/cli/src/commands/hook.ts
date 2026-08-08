@@ -50,15 +50,26 @@ export function hookCommand(): string {
   return `${exec} run ${entry} hook run`;
 }
 
-/** Is this exact command already registered anywhere in the file? */
+/**
+ * Is this command one of ours?
+ *
+ * Matches every form the registration has taken — the installed binary
+ * (`…/claude-transcripts hook run`) and a checkout running from source
+ * (`bun run …/cli.tsx hook run`) — because `install` has to recognise, and replace, a
+ * registration it didn't itself write.
+ */
+function isOurCommand(command: string | undefined): boolean {
+  if (!command?.includes("hook run")) return false;
+  return command.includes("claude-transcripts") || command.includes("cli.tsx");
+}
+
+/** Every registration of ours currently in the file, as `event: command`. */
 function findRegistered(settings: { hooks?: SettingsHooks }): string[] {
   const found: string[] = [];
   for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
     for (const g of groups) {
       for (const h of g.hooks ?? []) {
-        if (h.command?.includes("hook run") && h.command.includes("claude-transcripts")) {
-          found.push(`${event}: ${h.command}`);
-        }
+        if (isOurCommand(h.command)) found.push(`${event}: ${h.command}`);
       }
     }
   }
@@ -74,27 +85,52 @@ function install(argv: string[]): number {
   const events = Object.keys(hookBindings());
 
   let added = 0;
+  let replaced = 0;
   for (const event of events) {
     const existing = hooks[event] ?? [];
-    if (existing.some((g) => g.hooks?.some((h) => h.command === command))) continue;
+    // Drop any registration of OURS that isn't the command we're about to write. It
+    // used to skip only on an exact string match, so switching form — a checkout
+    // running from source, then the installed binary — left both registered and every
+    // event fired two writers, double-writing events into CouchDB. Other tools' hooks
+    // are matched by `isOurCommand` and never touched.
+    const cleaned: HookGroup[] = [];
+    for (const g of existing) {
+      const kept = (g.hooks ?? []).filter((h) => {
+        if (h.command === command) return true;
+        if (isOurCommand(h.command)) {
+          replaced++;
+          return false;
+        }
+        return true;
+      });
+      if (kept.length) cleaned.push({ ...g, hooks: kept });
+    }
+    if (cleaned.some((g) => g.hooks?.some((h) => h.command === command))) {
+      hooks[event] = cleaned;
+      continue;
+    }
     hooks[event] = [
-      ...existing,
+      ...cleaned,
       { hooks: [{ type: "command", command, timeout: hookTimeout(event) }] },
     ];
     added++;
   }
 
   if (options["dry-run"] === true) {
-    console.log(`hook: would register ${added} event(s) in ${paths.claudeSettings}`);
+    console.log(
+      `hook: would register ${added} event(s)` +
+        `${replaced ? `, replacing ${replaced} stale one(s)` : ""} in ${paths.claudeSettings}`,
+    );
     return 0;
   }
 
   mkdirSync(dirname(paths.claudeSettings), { recursive: true });
   writeFileSync(paths.claudeSettings, `${JSON.stringify({ ...settings, hooks }, null, 2)}\n`);
+  const suffix = replaced ? ` (replaced ${replaced} stale registration(s))` : "";
   console.log(
     added
-      ? `hook: registered ${added} event(s) → ${paths.claudeSettings}`
-      : `hook: already registered (${events.length} events) → ${paths.claudeSettings}`,
+      ? `hook: registered ${added} event(s)${suffix} → ${paths.claudeSettings}`
+      : `hook: already registered (${events.length} events)${suffix} → ${paths.claudeSettings}`,
   );
   // Claude Code snapshots hook config when a session starts, so anything already open
   // keeps the old (or no) registration until it restarts. Silence here is the bug we
