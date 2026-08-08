@@ -8,14 +8,55 @@
  * throwing) and a raw-body upload (the transcript blob — no JSON schema).
  */
 
+import { readFileSync } from "node:fs";
+import { installPaths } from "../lib/paths";
+
 let BASE = resolveWebapiUrl();
 
-/** Resolve the webapi base URL from env (CT_WEBAPI_URL, else WEBAPI_HOST/PORT). */
+/**
+ * Resolve the webapi base URL.
+ *
+ * In precedence order: `CT_WEBAPI_URL`, then `WEBAPI_HOST`/`WEBAPI_PORT` from the
+ * environment, then **the installed instance's own `instance.env`**, then the default
+ * port.
+ *
+ * That third step is the one worth explaining. `install` generates a port per instance,
+ * so an install is frequently *not* on 7650 — and without this every command
+ * (`sessions`, `doctor`, `reindex`) had to be told `--webapi` or it would report a dead
+ * webapi on a port nothing was ever listening on. The instance already writes its port
+ * down; reading it is what makes the bare commands work.
+ */
 export function resolveWebapiUrl(): string {
   if (process.env.CT_WEBAPI_URL) return process.env.CT_WEBAPI_URL.replace(/\/$/, "");
-  const host = process.env.WEBAPI_HOST ?? "127.0.0.1";
-  const port = process.env.WEBAPI_PORT ?? "7650";
-  return `http://${host}:${port}`;
+  // An explicit env var still wins over the file — that's how a dev checkout points the
+  // CLI at a webapi it's running from source.
+  if (process.env.WEBAPI_PORT || process.env.WEBAPI_HOST) {
+    const host = process.env.WEBAPI_HOST ?? "127.0.0.1";
+    const port = process.env.WEBAPI_PORT ?? "7650";
+    return `http://${host}:${port}`;
+  }
+  const fromInstance = instanceWebapiUrl();
+  if (fromInstance) return fromInstance;
+  return "http://127.0.0.1:7650";
+}
+
+/**
+ * The webapi URL of the installed instance, read from its generated env file.
+ *
+ * Best-effort and deliberately quiet: no install, an unreadable file or a missing port
+ * all mean "fall through to the default", never an error. This runs before every
+ * command, so it must not be able to break one.
+ */
+function instanceWebapiUrl(): string | null {
+  try {
+    const raw = readFileSync(installPaths().instanceEnv, "utf8");
+    const port = /^WEBAPI_PORT=(\d+)\s*$/m.exec(raw)?.[1];
+    if (!port) return null;
+    const host = /^WEBAPI_HOST=(\S+)\s*$/m.exec(raw)?.[1] ?? "127.0.0.1";
+    return `http://${host}:${port}`;
+  } catch {
+    return null;
+  }
 }
 
 /** Override the base URL (e.g. from a `--webapi` flag). Call before first request. */

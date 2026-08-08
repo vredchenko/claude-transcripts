@@ -12,6 +12,7 @@
  */
 import { existsSync } from "node:fs";
 import { searchReindex } from "../api/generated";
+import { setWebapiUrl } from "../api/http";
 import { loadAppConfig } from "../lib/app-config";
 import { parseFlags, strOpt } from "../lib/args";
 import { linkInstanceEnv, writeAssets, writeVersionStamp } from "../lib/assets";
@@ -92,7 +93,12 @@ async function warnOnVersionSkew(env: EnvMap): Promise<void> {
  * unreachable must not fail an install that is otherwise fine. It says what happened
  * and names the command to retry with.
  */
-async function setUpSearch(): Promise<void> {
+async function setUpSearch(webapiUrl: string): Promise<void> {
+  // Point the generated client at THIS instance. It otherwise resolves the default
+  // 127.0.0.1:7650, which is right only when the instance happens to use the default
+  // port — so on any other port the search step failed with a bare ECONNREFUSED while
+  // the install it belonged to reported success.
+  setWebapiUrl(webapiUrl);
   try {
     const res = await searchReindex();
     if (!res.enabled) {
@@ -253,12 +259,17 @@ export async function runInstall(argv: string[]): Promise<number> {
   if (noApp) {
     console.log("  --no-app: skipped (needs the webapi; run `claude-transcripts reindex` later)");
   } else {
-    await setUpSearch();
+    await setUpSearch(`http://127.0.0.1:${env.WEBAPI_PORT}`);
   }
 
   // ── 8. Verify ─────────────────────────────────────────────────────────────
   step(8, TOTAL, "Verify");
-  console.log("  run `claude-transcripts doctor` to exercise the whole write→read→search path.");
+  // Name the URL: `doctor` defaults to 127.0.0.1:7650 like every other command, so on
+  // an instance with a different port the bare invocation reports a dead webapi.
+  const doctorCmd = noApp
+    ? "claude-transcripts doctor"
+    : `claude-transcripts doctor --webapi http://127.0.0.1:${env.WEBAPI_PORT}`;
+  console.log(`  run \`${doctorCmd}\` to exercise the whole write→read→search path.`);
 
   console.log("\ninstall: done.");
   console.log(`  UI       http://127.0.0.1:${env.WEBAPI_PORT}/app`);

@@ -6,6 +6,23 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **CLI commands find the instance's own webapi.** `install` generates a port per
+  instance, so an install is frequently not on the default 7650 — but the CLI resolved
+  its URL from environment variables alone and fell back to 7650 regardless. Every
+  command (`sessions`, `doctor`, `reindex`) then reported a dead webapi on a port
+  nothing was listening on, unless told `--webapi` every time. Resolution now falls back
+  to the installed instance's generated `instance.env` before the default, with explicit
+  env vars still winning so a dev checkout can point at a webapi it runs from source.
+
+  Found by upgrading a real instance: `install`'s own search step hit 7650 while the
+  instance ran on 7658, so it reported `ECONNREFUSED` and told the user to retry
+  something that would have failed the same way — inside an install that otherwise
+  announced success.
+
 ## [0.0.3] — 2026-08-08
 
 The **Tier 1 release candidate**. 0.0.1 was the Tier-1 system standing up end to end;
