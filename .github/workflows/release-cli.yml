@@ -34,9 +34,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
+          # Bake the version in. Without this a released binary reports 0.0.0-dev, and
+          # everything keyed off "is this a release" silently takes the dev branch —
+          # the app-image pin, the version-skew warning, the written asset stamp.
+          VERSION="${GITHUB_REF_NAME#refs/tags/}"
+          case "$VERSION" in v*) : ;; *) VERSION="0.0.0-dev" ;; esac
+          echo "building CLI as $VERSION"
           for t in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
             plat="${t#bun-}"
             bun build --compile --target="$t" packages/cli/src/cli.tsx \
+              --define "process.env.CT_VERSION='$VERSION'" \
               --outfile "out/claude-transcripts-$plat"
           done
           (cd out && for f in claude-transcripts-*; do sha256sum "$f" > "$f.sha256"; done)

@@ -137,10 +137,25 @@ const HEADER = [
  * new key must not rotate the CouchDB password an existing volume authenticates
  * against.
  */
+/**
+ * Keys the installer OWNS: recomputed every run and allowed to overwrite what's on
+ * disk, because they're derived from the CLI rather than chosen by the user.
+ *
+ * `APP_TAG` is the whole list. Components are lockstep-versioned (ADR 0023), so the app
+ * image has to track the CLI that installed it — but the merge below preserves existing
+ * values, which meant an instance created once at `latest` kept pulling `latest`
+ * forever while its CLI moved on. Upgrading then silently left an old image running:
+ * everything starts, and only some later read misbehaves.
+ */
+const INSTALLER_OWNED = ["APP_TAG"] as const;
+
 export function loadOrCreateInstanceEnv(path: string, opts: InstanceEnvOptions = {}): EnvMap {
   const generated = buildInstanceEnv(opts);
   const existing = existsSync(path) ? parseEnv(readFileSync(path, "utf8")) : {};
   const merged: EnvMap = { ...generated, ...existing };
+  for (const key of INSTALLER_OWNED) {
+    if (generated[key] !== undefined) merged[key] = generated[key];
+  }
 
   // A key present but empty is "not yet provisioned" (the S3 pair), not "keep empty" —
   // except where empty is a real choice, which is only the Meili key.
