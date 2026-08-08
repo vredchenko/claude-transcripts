@@ -6,7 +6,12 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.4] — 2026-08-08
+
+Two fixes for problems that only appear on a **real install**, both found by upgrading
+one to 0.0.3 rather than by reading the code. Neither is reachable on a default-port
+install that has never been registered any other way, which is why 0.0.3 shipped with
+them.
 
 ### Fixed
 
@@ -524,6 +529,7 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.4]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.4
 [0.0.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.3
 [0.0.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.2
 [0.0.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.1
