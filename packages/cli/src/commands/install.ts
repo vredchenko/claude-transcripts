@@ -10,7 +10,7 @@
  * re-verifies rather than reinstalling — and each failure names the command that
  * resumes from it. See docs/design/installation.md.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { searchReindex } from "../api/generated";
 import { setWebapiUrl } from "../api/http";
 import { loadAppConfig } from "../lib/app-config";
@@ -122,6 +122,10 @@ export async function runInstall(argv: string[]): Promise<number> {
   const meiliKey = options["meili-key"] === true;
   const portBaseOpt = strOpt(options, "port-base");
   const paths = installPaths();
+  // Read before loadOrCreateInstanceEnv rewrites it, so a moved pin can be reported.
+  const priorAppTag = existsSync(paths.instanceEnv)
+    ? /^APP_TAG=(\S+)\s*$/m.exec(readFileSync(paths.instanceEnv, "utf8"))?.[1]
+    : undefined;
   const TOTAL = 8;
 
   console.log(`claude-transcripts install (${VERSION})`);
@@ -167,6 +171,9 @@ export async function runInstall(argv: string[]): Promise<number> {
     meiliMasterKey: meiliKey,
   });
   console.log(`  ${firstRun ? "generated" : "reused"} ${paths.instanceEnv}`);
+  if (!firstRun && priorAppTag && priorAppTag !== env.APP_TAG) {
+    console.log(`  app image pin ${priorAppTag} → ${env.APP_TAG} (follows this CLI)`);
+  }
   const written = writeAssets(paths);
   // The app service reads `env_file: ../.env` relative to the compose file.
   linkInstanceEnv(paths);

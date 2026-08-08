@@ -6,6 +6,29 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A released CLI knew its own version, and pinned the app image to it.** `CT_VERSION`
+  was baked into the Docker image but never into the compiled CLI binary, so every
+  released binary reported `0.0.0-dev` — and each decision keyed off "is this a release"
+  silently took the dev branch: the app-image pin resolved to `main` instead of the
+  release, the version-skew warning was disabled outright, and the written asset stamp
+  said `0.0.0-dev`. Both compile sites (`release-cli.yml` and the Dockerfile's bundled
+  CLI) now inject it.
+
+- **`install` re-pins the app image on every run.** `APP_TAG` was written only when an
+  instance was *created*; afterwards the env merge preserved whatever was on disk. An
+  instance created once at `latest` therefore kept pulling `latest` forever while its
+  CLI moved on — and since Docker reuses a cached tag, an upgrade could leave a months-
+  old image running with nothing reporting a problem. It's now installer-owned:
+  recomputed each run, overwriting the file, and the change is logged. Ports, secrets
+  and everything else the instance chose are still preserved.
+
+  Together these are why upgrading a real instance to 0.0.3 quietly started **v0.0.1**,
+  whose health check then failed against an authenticated CouchDB.
+
 ## [0.0.4] — 2026-08-08
 
 Two fixes for problems that only appear on a **real install**, both found by upgrading

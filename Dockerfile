@@ -40,7 +40,12 @@ RUN bun run scripts/build-docs.ts --out /docs-dist
 
 # ── build-cli: compile the CLI to a single self-contained binary ────────────
 FROM deps AS build-cli
-RUN bun build --compile packages/cli/src/cli.tsx --outfile /out/claude-transcripts
+# Same reason as the released binaries: a CLI that thinks it's a dev build takes the
+# dev branch of every "is this a release" decision.
+ARG CT_VERSION=0.0.0-dev
+RUN bun build --compile packages/cli/src/cli.tsx \
+      --define "process.env.CT_VERSION='${CT_VERSION}'" \
+      --outfile /out/claude-transcripts
 
 # ── runtime: compose the built artifacts into a slim image ──────────────────
 FROM oven/bun:1 AS runtime
