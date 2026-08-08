@@ -10,6 +10,17 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`hook install` replaces a stale registration instead of adding a second one.** It
+  skipped only on an exact command-string match, so switching form — a checkout running
+  the hook from source, then the installed binary — left **both** registered. Every
+  event then fired two writers, double-writing event docs into CouchDB (summaries upsert
+  and chunks have stable ids, so events were the ones that duplicated). Registrations
+  belonging to this tool in any of its forms are now removed before the current one is
+  written; other tools' hooks are matched out and never touched.
+
+  Found by upgrading a real instance from a source install to the released binary — the
+  install reported success and left 11 events registered twice.
+
 - **CLI commands find the instance's own webapi.** `install` generates a port per
   instance, so an install is frequently not on the default 7650 — but the CLI resolved
   its URL from environment variables alone and fell back to 7650 regardless. Every
