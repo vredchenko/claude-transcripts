@@ -6,7 +6,9 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.7] — 2026-08-09
+
+Finishes what 0.0.6 started: the Services menu's last wrong link.
 
 ### Fixed
 
@@ -640,6 +642,7 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.7]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.7
 [0.0.6]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.6
 [0.0.5]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.5
 [0.0.4]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.4
