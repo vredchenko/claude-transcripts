@@ -6,6 +6,28 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The Services menu links to this deployment's real ports.** They were literals
+  hard-coded to the bundled dev defaults (7652, 7655, 7656, 7657) in `LinksMenu`, and
+  `servicesMenu` was passed through from `config/` as URLs carrying those same defaults.
+  `install` generates a per-instance port block, so on any instance that didn't happen
+  to get the defaults **every link in the menu pointed at a closed port** — while
+  sitting in the instance's own `app.json`, looking authoritative.
+
+  The app model now derives them from each service's *resolved* host port, so they
+  follow the env the instance actually runs with; derived entries win over the config
+  file, because a stale default in an existing `app.json` must not override the truth.
+  Config keys the model doesn't know are still carried through, so an operator can add
+  their own links. Meilisearch's own UI gained a menu key it had been missing, and
+  CouchDB keeps its `/_utils/` path rather than linking the bare root.
+
+  The webui reads them from `/api/model` instead of literals, and omits the group
+  entirely when the model is unreachable — a menu of links that don't work is worse
+  than no menu.
+
 ## [0.0.5] — 2026-08-09
 
 Makes an upgrade a single command. Both fixes are about a released CLI knowing what it

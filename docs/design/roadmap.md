@@ -280,9 +280,14 @@ done.
 
 **Webui (Tier 2)**
 - Configurable session-list columns + virtual scroll (#8)
-- Config-driven services menu — **done**: `servicesMenu` flows from `config/` through
-  the app model into the `/` manifest and the webui's Links menu, so admin-UI links
-  follow a deployment's real hosts/ports ([routes.md](../reference/routes.md)) (#14)
+- Config-driven services menu — **done** (properly, as of 0.0.6): admin-UI links are
+  *derived* by the app model from each service's resolved host port, reach the webui
+  through the `/api/model` manifest, and are rendered from it rather than from literals
+  ([routes.md](../reference/routes.md)) (#14). This was previously marked done while
+  neither half held: `LinksMenu` hard-coded the dev-default ports, and `servicesMenu`
+  was passed through from `config/` as literal URLs carrying those same defaults — so
+  on any instance whose port block `install` generated differently, every link pointed
+  at a closed port.
 - **Claude Code statusline indicator** — show a statusline in Claude Code when the
   external transcripts store is connected and logging, giving live confirmation the
   hook is wired.

@@ -108,6 +108,8 @@ export interface ServiceDef {
   resolvedPorts?: ResolvedPort[];
   /** admin UI reachable via this servicesMenu key, if any */
   adminUiServiceKey?: string;
+  /** path under the service's host port for that admin UI (default "/") */
+  adminUiPath?: string;
   /** runs on the host in dev (webapi/webui/cli) vs only in the compose stack */
   runsOnHostInDev?: boolean;
   dependsOn?: string[];
