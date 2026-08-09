@@ -6,7 +6,11 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.5] — 2026-08-09
+
+Makes an upgrade a single command. Both fixes are about a released CLI knowing what it
+is — until now one didn't, so it pinned the wrong image and disabled the check that
+would have said so.
 
 ### Fixed
 
@@ -552,6 +556,7 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.5]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.5
 [0.0.4]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.4
 [0.0.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.3
 [0.0.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.2
