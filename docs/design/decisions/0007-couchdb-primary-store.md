@@ -29,7 +29,7 @@ Use **CouchDB** as the primary store (database `claude-sessions`). What won it:
 - **Map/reduce projections.** A single corpus of session logs is projected many
   ways via design-doc views — by date, by cwd, by tool usage, an activity
   timeline, token totals — and more "interesting session features" can be added
-  as new views without touching the write path. (See `hooks/couchdb/` and
+  as new views without touching the write path. (Then `hooks/couchdb/` and
   `packages/webapi/src/storage/ensure.ts`.)
 - **Replication for multi-machine / multi-user aggregation.** A designed-for
   future capability: CouchDB instances linked over a Tailscale network can

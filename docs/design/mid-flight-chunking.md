@@ -81,9 +81,9 @@ un-flushed delta, not the whole session).
   when off, they're light markers (offsets + counts only).
 
 To enable in a deployment, set both `true` in the runtime config and re-run
-`hooks/scripts/setup.sh` (it bakes `claude-transcripts.config.json` into the hook runtime config).
+`claude-transcripts setup` / `install` (they write the hook's runtime config).
 
-## Views (added to BOTH mirrors — `hooks/couchdb/.../designs/` and `ensure.ts`)
+## Views (added through a migration — `packages/shared/src/migrations/`)
 
 - `chunks/by_session` — `[session_id, byte_start] → {byte_start, byte_end, entry_count}`
   for ordered reassembly of a session's content from its chunks.
@@ -104,7 +104,7 @@ byte-faithful to their slice, which keeps them append-only and replication-safe.
 - the `flush-transcript-chunk` action and its model bindings
 - `seed-session-start` (reset/seed offset) and the `SessionEnd` final flush +
   `/tmp` cleanup
-- design doc `chunks.json` (hook mirror) + the `chunks` design in `ensure.ts` (webapi mirror)
+- the `_design/chunks` design doc, installed by the migration registry (one definition)
 
 ## Not done yet (follow-ups)
 

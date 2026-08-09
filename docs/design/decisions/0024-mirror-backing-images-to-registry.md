@@ -19,7 +19,7 @@ Keep **copies of all third-party backing-service images** we depend on, **mirror
 in the project's own GitHub Container Registry (GHCR) namespace**. The bundled
 stack and the release pipeline reference the **mirrored** images (pinned by
 tag/digest), not the upstream ones directly. A dev automation
-(`scripts/mirror-images`, [dev-automation.md](../../develop/dev-automation.md)) pulls the
+(`scripts/mirror-images.ts`, [dev-automation.md](../../develop/dev-automation.md)) pulls the
 pinned upstream images and pushes them to `ghcr.io/<owner>/…`.
 
 For local development, a fresh clone can bypass the mirror entirely with the

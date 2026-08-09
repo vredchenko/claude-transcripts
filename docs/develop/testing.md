@@ -28,9 +28,10 @@ Claude Code instance:
    Meilisearch on the dev port range (no-auth, [configuration.md](../start/configuration.md)),
    isolated from any other services on the host.
 
-`hooks/scripts/smoke-test.ts` is the seed of this — it already seeds one synthetic
-session through the write path and asserts the views. The e2e suite generalises it
-into a fuller, multi-scenario harness (resumes, crashes/incomplete sessions,
+`claude-transcripts doctor` is the interactive sibling of this — it drives one
+synthetic session through the write path, asserts the rollups, checks it is searchable,
+and deletes it again. The e2e suite generalises that into a fuller, multi-scenario
+harness (resumes, crashes/incomplete sessions,
 subagents, chunked content, `backfill` parity).
 
 ## Other test layers (placeholder)

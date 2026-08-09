@@ -20,23 +20,51 @@ Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─�
                         └───────── reads/writes ──────agents┘
 ```
 
-> ### ⚠️ Work in progress — not ready for use
+> ### ⚠️ Early — a preview, not something to depend on
 >
-> **This project is under active development and has not been tested as
-> ready for use.** Nothing here is released or proven: the install path below has
-> not been validated on a clean machine, breaking changes land without notice, and
-> stored data may have to be discarded between revisions. There is **no auth and no
-> security model** — Tier 1 assumes a single user on a single trusted machine, so
-> don't expose it to a network or point it at anything you can't afford to lose.
-> Treat it as a preview to read and experiment with, not as software to depend on.
-> Issues and feedback are welcome.
+> There are tagged releases with published binaries and container images, and the
+> install and upgrade paths have been exercised against a real instance carrying real
+> history. What that does **not** mean: it has not been validated on a clean machine
+> other than the author's, breaking changes land without notice, and stored data may
+> still have to be discarded between revisions.
+>
+> There is **no auth and no security model** — Tier 1 assumes a single user on a
+> single trusted machine, so don't expose it to a network or point it at anything you
+> can't afford to lose. Issues and feedback are welcome.
 
 **Status:** early rebuild. Tier 1 (single machine, single user) first — retention,
 browse/search, and programmatic access, no auth. The design lives in
 [`docs/`](docs/), also published as a
 [project site](https://vredchenko.github.io/claude-transcripts/).
 
-## Getting started (localhost, single machine)
+## Install
+
+One command. It fetches the release binary for your platform, verifies its checksum,
+and hands over to `claude-transcripts install` — which generates this instance's
+secrets and ports, starts the backing services, provisions the stores, starts the app,
+sets up search, and registers the hook with Claude Code:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/install.sh | sh
+```
+
+Needs **Docker** and **Claude Code**. Not Bun, not a clone. Then:
+
+```bash
+claude-transcripts doctor     # write → read → search, end to end
+claude-transcripts sessions   # what's been recorded
+```
+
+The UI is at `http://127.0.0.1:<WEBAPI_PORT>/app` — `install` prints the address, and
+picks a free port block per instance rather than assuming one. Upgrading later is the
+same command again; it's idempotent and keeps your history.
+
+Details, including what it writes where: [installation.md](docs/start/installation.md).
+
+## Running from source (contributors)
+
+*The rest of this section is the from-source path — what you want if you're changing
+the code. If you just want to record sessions, use the installer above.*
 
 Everything runs on your own machine, bound to `127.0.0.1`, with no auth. The
 `7650–7661` range is only a **default**: every port is an `.env` variable
@@ -182,9 +210,12 @@ databases, probes the Garage bucket, and registers the logging hook in
 `~/.claude/settings.json` for all session events. Now run Claude Code anywhere —
 each session is logged; browse them at http://127.0.0.1:7651/app/.
 
-> The hook runs `bun run <repo>/hooks/scripts/dispatch.ts`, so keep this clone in
-> place and `bun` on your `PATH`. It never blocks a session — if the stack is down,
-> events are simply dropped.
+> From a source checkout the hook runs `bun run <repo>/packages/cli/src/cli.tsx hook
+> run`, so keep this clone in place and `bun` on your `PATH`; an installed binary
+> registers itself instead and needs neither. Either way it **never blocks a session** —
+> if the stack is down, events are dropped rather than surfaced. It writes to CouchDB
+> and S3 directly for that reason
+> ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
 
 ### 8. Backfill existing history
 

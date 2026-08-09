@@ -17,7 +17,10 @@ live here, only in S3 ([ADR 0014](../design/decisions/0014-transcripts-live-in-s
 - **Keyed by Claude Code's own `session_id`** (a UUID) wherever identity matters,
   so a session is addressable across machines.
 - **Schemas are defined in code** (TS types + runtime validators, e.g. zod) and
-  validated at the webapi on write ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)).
+  validated at the webapi on write ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md))
+  — for documents that arrive *through* it. The hook writes to CouchDB directly, so its
+  documents are not validated on write; the shapes below are what it is expected to
+  produce, not what is enforced.
 - **Tolerant of foreign/legacy docs** — views coalesce missing fields to defaults.
 
 ## Databases
@@ -40,7 +43,7 @@ field set, validation rules, retention).
 | [`chunk`](#chunk) | `chunk:<sessionId>:<byte_start>` | `claude-sessions` | `backfill` (reconstructed) · chunk-flush (live) | **exists** | Append-only byte-faithful slice of the transcript ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). Both `backfill` and the live mid-flight chunker emit them via the shared `sliceIntoChunks`. With `couchFullContentChunks` on, each chunk also embeds its parsed `entries[]` (`schema_version` 2, [ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)) via `buildChunkEntries`. | prune policy; map-reduce views over `entries[]` (speaker-split, per-turn search) |
 | [`session_start`](#session_start) | `session_start:<sessionId>` | `claude-sessions` | session-start → once, at start | **planned** | A first-class start record so a running session is queryable before any summary exists (feeds the `running` status + `start_meta` view). | does this replace/duplicate the `SessionStart` `event` doc? fields beyond start metadata |
 | [`meta`](#meta) | auto | `claude-sessions` | enrichment endpoint → any time, append-only | **planned** | Out-of-band enrichment attached to a session (host/actor attribution, tags, derived/extracted facts) without mutating existing docs. | the enrichment vocabulary; whether feature extraction (urls/repos/PRs) is `meta` or its own type; who may write it |
-| [`schema_version`](#schema_version) | `schema_version` | `claude-sessions` | migrations → on migrate | **planned** | Singleton recording the applied schema/migration version for the DB. | exact shape (single int vs per-type map); how it interacts with per-doc `schema_version` |
+| [`schema_version`](#schema_version) | `schema_version` | `claude-sessions` | migrations → on migrate | **exists** | Singleton recording the applied migration version plus the `applied[]` history. Written after **each** step, so an interrupted run stays consistent ([migrations.md](../operate/migrations.md)). | — |
 | [`log`](#log) | auto | app-logs DB *(separate)* | webapi/app → on log event | **planned** | Application/operational logs, kept out of the session corpus. | log schema; levels; retention; which subsystems emit |
 
 > **Candidate future types** (not yet committed — flagged for your call): a

@@ -61,7 +61,8 @@ coupled, optional** component.
 
 ## Consequences
 
-- Two indexes are projected from CouchDB: `sessions` (one doc per `summary`) and
+- Two indexes are projected from CouchDB — named `sessions` and `turns` at the time,
+  since namespaced to `claude-transcripts-*` ([ADR 0028](0028-external-vs-bundled-meilisearch.md)): one doc per `summary` and
   `turns` (one doc per full-content `chunk` entry). Both are **disposable** — nothing
   in them is authoritative, and `reindex` rebuilds them from the store.
 - Because it's optional, deployments that don't want search can simply not run it:
