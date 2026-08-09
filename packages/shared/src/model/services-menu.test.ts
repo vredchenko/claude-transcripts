@@ -8,6 +8,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { buildAppModel } from "./build";
+import { SERVICES } from "./services";
 import type { AppConfigFile } from "./types";
 
 const CONFIG: AppConfigFile = {
@@ -55,5 +56,24 @@ describe("servicesMenu", () => {
     expect(model.servicesMenu.myDashboard).toBe("https://ops.example");
     // …without letting their stale copy of a known key win.
     expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7660/_utils/");
+  });
+});
+
+/**
+ * The menu is rendered by a browser on the **host**, but the model that builds it runs
+ * inside the app container. Any service whose host-port env var the app container
+ * overrides therefore yields a link to a container-internal port — which is exactly
+ * what happened to CouchDB: compose pinned `COUCHDB_PORT=5984`, and the menu offered
+ * `127.0.0.1:5984`, where nothing on the host listens.
+ */
+describe("servicesMenu — container/host port confusion", () => {
+  test("the app container overrides no host-port var a menu link depends on", () => {
+    const app = SERVICES.find((s) => s.key === "app");
+    expect(app).toBeDefined();
+    const overridden = new Set(Object.keys(app?.containerEnv ?? {}));
+    const needed = SERVICES.filter((s) => s.adminUiServiceKey).flatMap((s) =>
+      (s.ports ?? []).map((p) => p.hostEnv),
+    );
+    expect(needed.filter((v) => overridden.has(v))).toEqual([]);
   });
 });

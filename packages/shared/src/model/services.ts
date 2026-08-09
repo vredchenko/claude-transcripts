@@ -154,8 +154,13 @@ export const SERVICES: ServiceDef[] = [
       // COUCHDB_URL wins over HOST/PORT, so it must be pinned here too — otherwise
       // a `.env` set for an external CouchDB would leak into the bundled app.
       COUCHDB_URL: "http://couchdb:5984",
-      COUCHDB_HOST: "couchdb",
-      COUCHDB_PORT: "5984",
+      // COUCHDB_HOST/COUCHDB_PORT are deliberately NOT pinned here. `COUCHDB_URL` wins
+      // for every connection (resolveCouchUrl checks it first), so overriding them buys
+      // nothing — and it actively breaks the services menu, which derives admin-UI links
+      // from each service's host port. Pinned to the container-internal 5984, the menu
+      // offered `127.0.0.1:5984` to a browser on the host, where nothing listens.
+      // Leaving them alone lets env_file's host-side values through, which is what a
+      // link meant for the host needs.
       S3_ENDPOINT: "http://garage:3900",
       MEILI_HOST: "http://meilisearch:7700",
     },

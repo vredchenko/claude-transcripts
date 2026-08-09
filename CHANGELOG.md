@@ -6,6 +6,23 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The CouchDB link in the Services menu pointed at the container's port.** 0.0.6 made
+  those links follow the deployment's resolved ports, which fixed three of the four —
+  and gave CouchDB a new wrong answer. The menu is built by the model *inside the app
+  container*, and compose pinned `COUCHDB_PORT=5984` there, so the link offered
+  `127.0.0.1:5984` to a browser on the host, where nothing listens.
+
+  That pin was redundant: `COUCHDB_URL` is set explicitly and wins for every connection
+  (`resolveCouchUrl` checks it first), so the container never needed `COUCHDB_HOST`/
+  `COUCHDB_PORT` at all. Removing it lets the host-side values through from `env_file`,
+  which is what a link meant for the host requires. A test now asserts the app container
+  overrides no host-port variable a menu link depends on, so the next service to grow an
+  admin UI can't reintroduce it.
+
 ## [0.0.6] — 2026-08-09
 
 Three things that were wrong in ways nothing reported: an installer that skipped the

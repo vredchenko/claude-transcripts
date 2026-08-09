@@ -127,8 +127,6 @@ services:
       - WEBAPI_HOST=0.0.0.0
       - WEBAPI_PORT=7650
       - COUCHDB_URL=http://couchdb:5984
-      - COUCHDB_HOST=couchdb
-      - COUCHDB_PORT=5984
       - S3_ENDPOINT=http://garage:3900
       - MEILI_HOST=http://meilisearch:7700
     ports:
