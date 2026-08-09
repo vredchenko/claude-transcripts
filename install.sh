@@ -71,26 +71,31 @@ main() {
   curl -fsSL "$base/$asset" -o "$tmp/$BIN_NAME" \
     || die "download failed: $base/$asset"
 
-  # Verify against the release checksums. Piping a binary from the internet into
-  # your shell's PATH without checking it is not something to be relaxed about.
-  if curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt" 2>/dev/null; then
-    expected="$(grep " $asset\$" "$tmp/checksums.txt" 2>/dev/null | awk '{print $1}' || true)"
-    if [ -n "$expected" ]; then
-      if command -v sha256sum >/dev/null 2>&1; then
-        actual="$(sha256sum "$tmp/$BIN_NAME" | awk '{print $1}')"
-      elif command -v shasum >/dev/null 2>&1; then
-        actual="$(shasum -a 256 "$tmp/$BIN_NAME" | awk '{print $1}')"
-      else
-        actual=""
-      fi
-      if [ -n "$actual" ] && [ "$actual" != "$expected" ]; then
-        die "checksum mismatch for $asset — refusing to install."
-      fi
-      [ -n "$actual" ] && info "checksum verified"
-    fi
+  # Verify against the release checksum. Piping a binary from the internet into your
+  # shell's PATH without checking it is not something to be relaxed about — so a
+  # missing or unreadable checksum is a failure, not a shrug.
+  #
+  # The file is `<asset>.sha256`, published per-asset by release-cli.yml. This used to
+  # look for a combined `checksums.txt`, which no release has ever contained: the fetch
+  # 404'd, the "no checksums published" branch ran, and every install silently skipped
+  # verification while reporting success.
+  curl -fsSL "$base/$asset.sha256" -o "$tmp/$asset.sha256" \
+    || die "no checksum published for $asset at $version — refusing to install."
+
+  # `sha256sum -c` needs the file beside the sum, and the sum names the original asset.
+  expected="$(awk '{print $1}' "$tmp/$asset.sha256")"
+  [ -n "$expected" ] || die "checksum file for $asset is empty — refusing to install."
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$tmp/$BIN_NAME" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$tmp/$BIN_NAME" | awk '{print $1}')"
   else
-    info "no checksums published for $version — skipping verification"
+    die "no sha256sum or shasum available to verify the download — refusing to install."
   fi
+
+  [ "$actual" = "$expected" ] || die "checksum mismatch for $asset — refusing to install."
+  info "checksum verified"
 
   mkdir -p "$BIN_DIR"
   chmod +x "$tmp/$BIN_NAME"

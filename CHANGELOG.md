@@ -28,6 +28,17 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   entirely when the model is unreachable — a menu of links that don't work is worse
   than no menu.
 
+- **`install.sh` actually verifies the binary it downloads.** It looked for a combined
+  `checksums.txt`, which no release has ever published — releases carry a per-asset
+  `<name>.sha256`. The fetch 404'd, the "no checksums published — skipping verification"
+  branch ran, and **every install piped an unverified binary onto the user's PATH while
+  reporting success**. The comment directly above that code says this is "not something
+  to be relaxed about", which was true and unimplemented.
+
+  It now reads `<asset>.sha256`, and a missing, empty or mismatched checksum — or no
+  `sha256sum`/`shasum` to check with — is a hard failure rather than a silent skip. A
+  release without a checksum is a problem to stop on, not to shrug at.
+
 ## [0.0.5] — 2026-08-09
 
 Makes an upgrade a single command. Both fixes are about a released CLI knowing what it
