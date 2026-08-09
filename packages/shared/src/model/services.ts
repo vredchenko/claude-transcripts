@@ -41,6 +41,7 @@ export const SERVICES: ServiceDef[] = [
       { internal: 5984, hostEnv: "COUCHDB_PORT", defaultHost: 7652, label: "HTTP API + Fauxton" },
     ],
     adminUiServiceKey: "couchdbFauxton",
+    adminUiPath: "/_utils/",
     volumes: [{ host: "./data/couchdb", container: "/opt/couchdb/data" }],
     // CouchDB 3 REMOVED "admin party": without an admin the container refuses to
     // start and crash-loops. So the bundled stack ships a fixed default admin
@@ -128,6 +129,7 @@ export const SERVICES: ServiceDef[] = [
       upstream: "riccoxie/meilisearch-ui",
     },
     ports: [{ internal: 24900, hostEnv: "MEILI_UI_PORT", defaultHost: 7657 }],
+    adminUiServiceKey: "meilisearchUi",
     dependsOn: ["meilisearch"],
   },
   {

@@ -1,19 +1,35 @@
 import { Button, ListSubheader, Menu, MenuItem } from "@mui/material";
 import { useState } from "react";
+import { useAppModel } from "../api/model";
 
 /**
  * Secondary (links) menu — quick links to the backing-service dashboards, this
  * app's own API surface, the source repo, and the technical docs.
  *
- * The service/API URLs are **placeholders** hard-coded to the bundled dev defaults
- * (the 7650–7661 range). The intended shape is to feed them from the `/api/model`
- * `servicesMenu` (config-driven) so they follow a deployment's real ports/hosts —
- * tracked as #14. App-relative links (`/api/...`) resolve against the current
+ * The backing-service links come from `/api/model`'s `servicesMenu`, which the app
+ * model derives from each service's **resolved** host port. They used to be literals
+ * pinned to the bundled dev defaults (7652, 7655, …), so on any instance whose ports
+ * `install` generated differently — which is most of them — every link in this menu
+ * pointed at a closed port.
+ *
+ * App-relative links (`/api/...`) stay literal: they resolve against the current
  * origin, so they work in dev (Vite proxy) and the combined prod image alike.
  *
  * Tech docs are served from the combined image at `/docs` (rendered from `docs/`
  * by scripts/build-docs.ts); app-relative so it works in dev and prod alike.
  */
+/**
+ * Display names for the model's `servicesMenu` keys. A key with no entry here still
+ * renders — under its own key — so a service added to the model appears in the menu
+ * without having to touch this file first.
+ */
+const SERVICE_LABELS: Record<string, string> = {
+  couchdbFauxton: "CouchDB · Fauxton",
+  garageWebui: "Garage · Web UI",
+  meilisearch: "Meilisearch · API",
+  meilisearchUi: "Meilisearch · UI",
+};
+
 const REPO_URL = "https://github.com/vredchenko/claude-transcripts";
 
 interface LinkDef {
@@ -37,20 +53,6 @@ const GROUPS: LinkGroup[] = [
     ],
   },
   {
-    heading: "Services",
-    links: [
-      { label: "CouchDB · Fauxton", href: "http://127.0.0.1:7652/_utils/" },
-      {
-        label: "CouchDB · _all_docs (JSON)",
-        href: "http://127.0.0.1:7652/claude-transcripts-sessions/_all_docs?include_docs=true&limit=50",
-      },
-      { label: "Garage · Web UI", href: "http://127.0.0.1:7655/" },
-      { label: "Garage · buckets", href: "http://127.0.0.1:7655/buckets" },
-      { label: "Meilisearch · UI", href: "http://127.0.0.1:7657/" },
-      { label: "Meilisearch · API", href: "http://127.0.0.1:7656/" },
-    ],
-  },
-  {
     heading: "Project",
     links: [
       { label: "GitHub repository", href: REPO_URL },
@@ -62,6 +64,17 @@ const GROUPS: LinkGroup[] = [
 export function LinksMenu() {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const open = Boolean(anchor);
+  const { data: model } = useAppModel();
+
+  // Services come from the model, so they follow this deployment's real ports. The
+  // group is omitted entirely when the model is unreachable rather than falling back
+  // to defaults — a menu of links that don't work is worse than no menu.
+  const serviceLinks: LinkDef[] = Object.entries(model?.servicesMenu ?? {})
+    .map(([key, href]) => ({ label: SERVICE_LABELS[key] ?? key, href }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const groups: LinkGroup[] = serviceLinks.length
+    ? [GROUPS[0] as LinkGroup, { heading: "Services", links: serviceLinks }, ...GROUPS.slice(1)]
+    : GROUPS;
 
   return (
     <>
@@ -75,7 +88,7 @@ export function LinksMenu() {
         Links ▾
       </Button>
       <Menu anchorEl={anchor} open={open} onClose={() => setAnchor(null)}>
-        {GROUPS.flatMap((group) => [
+        {groups.flatMap((group) => [
           <ListSubheader key={`h-${group.heading}`} disableSticky>
             {group.heading}
           </ListSubheader>,

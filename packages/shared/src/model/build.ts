@@ -12,6 +12,37 @@ import type { AppConfigFile, AppModel, EnvLike, ServiceDef } from "./types";
  * routes/env) come from code; dynamic facets (names/ports/version/features) come
  * from config + env, so the model reflects the current build source or deploy.
  */
+/**
+ * Admin-UI links, derived from the services' **resolved** ports.
+ *
+ * These used to be literal URLs in `config/`, carrying the template's default ports
+ * (7652, 7655, …). `install` generates a per-instance port block, so on any instance
+ * that didn't happen to get the defaults every link pointed at a closed port — and
+ * since the values lived in the instance's own `app.json`, they looked authoritative
+ * while being wrong.
+ *
+ * The model already knows each service's host port after env resolution, so it can say
+ * where a dashboard actually is. Derived entries therefore WIN over the config file:
+ * a stale default in an existing `app.json` must not override the truth. Config keys
+ * the model doesn't know are still carried through, so an operator can add links of
+ * their own.
+ */
+function buildServicesMenu(
+  services: ServiceDef[],
+  fromConfig: Record<string, string>,
+): Record<string, string> {
+  const derived: Record<string, string> = {};
+  for (const s of services) {
+    if (!s.adminUiServiceKey) continue;
+    const port = s.resolvedPorts?.[0]?.host;
+    if (!port) continue;
+    const path = s.adminUiPath ?? "/";
+    derived[s.adminUiServiceKey] = `http://127.0.0.1:${port}${path}`;
+  }
+  // Config first so its extra keys survive; derived last so it wins on shared keys.
+  return { ...fromConfig, ...derived };
+}
+
 export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppModel {
   const version = env.CT_VERSION ?? "0.0.0-dev";
 
@@ -42,7 +73,7 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
     routes: ROUTES,
     env: ENV_VARS,
     features: config.features,
-    servicesMenu: config.servicesMenu,
+    servicesMenu: buildServicesMenu(services, config.servicesMenu),
     system: config.system,
     cliSpec: CLI_SPEC,
   };
