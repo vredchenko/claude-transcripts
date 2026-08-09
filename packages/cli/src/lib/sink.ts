@@ -1,7 +1,7 @@
 /**
  * Where ingested docs/blobs are delivered.
  *
- * Per ADR 0016 the webapi is the sole I/O gateway: the CLI never writes CouchDB/S3
+ * Per ADR 0016 the webapi is the I/O gateway for this path: `backfill` never writes CouchDB/S3
  * directly. Host-side ingestion reads local files the container can't see and hands
  * the derived docs **to** the webapi (an input source, not a backend write around
  * it — docs/reference/cli.md). `--dry-run` swaps in a sink that only prints.

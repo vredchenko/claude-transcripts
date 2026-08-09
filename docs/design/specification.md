@@ -182,7 +182,7 @@ truth. Eight events are wired today, all observe-only. The canonical hook list i
 A single append-only database (`claude-sessions`) of typed docs — `event`,
 `summary:<id>`, and `chunk:<id>:<byte_start>` — every doc carrying a `type` and an
 explicit `timestamp`, keyed by Claude Code's own `session_id`. Map-reduce design
-views do the aggregation, mirrored in `hooks/couchdb/` and the webapi's `ensure.ts`
+views do the aggregation, owned by the migrations in `packages/shared/src/migrations/`
 (kept in sync). Full doc schemas + view catalogue in [couchdb.md](../reference/couchdb.md);
 schema/view evolution is handled by **self-built migrations**
 ([migrations.md](../operate/migrations.md), [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)).

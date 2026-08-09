@@ -112,9 +112,14 @@ no `tools/` dir.
   Consumers **project** from it (`toManifest` → `/`, `toComposeEnv` → stack,
   `toSeedPlan` → seed) — don't re-derive these facts elsewhere; **extend the
   model**. Pure TS, so Bun server and React client both use it.
-- **The webapi is the sole I/O gateway** (stability column): consumers never touch
-  CouchDB/S3 directly; writes are never proxied. The lone exception is host-side
-  metadata ingestion (local files the container can't see).
+- **The webapi is the I/O gateway** (stability column): consumers never touch
+  CouchDB/S3 directly for **reads**, and writes are never proxied. Two exceptions, both
+  deliberate: host-side metadata ingestion (local files the container can't see, still
+  delivered *to* the webapi), and **the hook, which writes to CouchDB and S3 directly**
+  so that recording a session never depends on the webapi being up
+  ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
+  That bypass is why the `_changes` follower exists, and why hook-written docs get no
+  write-time validation.
 - **OpenAPI spec is the contract source of truth**; the webui + cli consume
   clients **generated** from it (orval, `bun run gen:clients`). Don't hand-write
   request code.

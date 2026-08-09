@@ -42,9 +42,9 @@ Build our **own migration tooling** (lives in `tools/`, run via the CLI —
   than ad-hoc scripts; `backfill`, export, and import all key off the same version.
 - We own the maintenance burden of the tooling — accepted, because no off-the-shelf
   CouchDB option fits a vendor-neutral Bun/TS project.
-- Design-view sync (the existing `hooks/couchdb/` ↔ `ensure.ts` mirror) folds into
-  the migration step over time, so there is one authoritative path for view
-  changes.
+- Design-view sync (the then-existing `hooks/couchdb/` ↔ `ensure.ts` mirror) folds
+  into the migration step over time, so there is one authoritative path for view
+  changes. *(Since done — the mirror is gone and the registry owns the designs.)*
 
 ## Amendment: import checks rather than migrates forward
 

@@ -40,8 +40,8 @@ driven through the [CLI](../reference/cli.md).
   replay over just the ids it restored.
 - **Design views** — create / update / remove map-reduce + aggregate design docs as
   part of the same versioned step, so views never drift from the doc shapes they
-  map over. Over time this subsumes the current `hooks/couchdb/` ↔ `ensure.ts`
-  mirror sync into one authoritative path.
+  map over. This has since happened: the design docs are owned by the migration
+  registry alone, and the former `hooks/couchdb/` ↔ `ensure.ts` mirror is gone.
 - **Export / import** — a bundle records the schema version it was dumped at, and
   `import` uses it to decide whether the restore is sound: forward-only (a newer bundle
   is refused), and an older bundle is restored as-is while the migrations in between are

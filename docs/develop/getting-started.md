@@ -45,7 +45,7 @@ Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─�
 
 | Path | What it is |
 |------|------------|
-| `hooks/` | The writer — a standalone Claude Code plugin. `scripts/dispatch.ts` routes each event to a handler. Installs per machine. |
+| `hooks/` | A thin Claude Code **plugin wrapper**: `scripts/dispatch.ts` pipes each payload to `claude-transcripts hook run`. The writer itself is `packages/cli/src/hook/`. Installs per machine. |
 | `packages/webapi/` | Bun + Hono gateway. **The only thing that touches CouchDB or S3.** Serves the SPA and docs in production. |
 | `packages/webui/` | React + Vite + MUI SPA. Optional. |
 | `packages/cli/` | Bun + Ink CLI — user-facing *and* the admin utility (`setup`, `doctor`, `backfill`, export/import). Optional. |
@@ -59,8 +59,10 @@ Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─�
 These are the ones that bite if you don't know them — the full set is in
 [conventions.md](conventions.md) and the repo's `CLAUDE.md`.
 
-- **The webapi is the sole I/O gateway.** Nothing else opens a CouchDB or S3
-  connection ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)).
+- **The webapi is the I/O gateway.** Nothing reads a backend directly, and no consumer
+  writes to one — with one deliberate exception: the **hook** writes to CouchDB and S3
+  itself, so recording a session never depends on the webapi being up
+  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
 - **The OpenAPI spec is the contract.** The webui and CLI use *generated* clients
   (`bun run gen:clients`) — don't hand-write request code
   ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)).

@@ -1,10 +1,11 @@
 # CLI
 
-> **Status: specified, not yet built.** This documents the intended design; the
-> CLI does not exist as a package yet. Today its functions live as scripts under
-> `hooks/scripts/` (`smoke-test`, `setup`) and the planned operational
-> helpers under `scripts/` ([dev-automation.md](../develop/dev-automation.md)). The CLI
-> consolidates them.
+> **Status: built and released.** `@claude-transcripts/cli` ships as a compiled
+> binary per platform on each release, and as the CLI bundled into the app image. It
+> **is** the hook (`hook run`), the installer (`install`), and the admin surface
+> (`backfill`, `export`/`import`, `migrate`, `reindex`, `doctor`, `sessions`,
+> `search`). The scripts it consolidated are gone; `scripts/` now holds dev-only repo
+> automation ([dev-automation.md](../develop/dev-automation.md)).
 
 A terminal client for the system, and the **admin utility** for setup and data
 operations. It is an **optional interface** — the system is fully usable without
@@ -65,18 +66,45 @@ under Bun. In the combined container the CLI is **bundled in the image**, and th
 webui offers a **download link** for it as a convenience
 ([containers.md](../operate/containers.md), [routes.md](routes.md)).
 
-## Command surface (placeholder)
+## Command surface
 
-To be specified. Anticipated groups:
+The authoritative list is the app model's `cliSpec` — `claude-transcripts` with no
+arguments renders help straight from it, so this table and the binary can't disagree
+for long. As built:
 
-- `claude-transcripts sessions list|show|transcript …` — read the corpus (via webapi).
-- `claude-transcripts search …` — query the search backend (via webapi).
-- `claude-transcripts couch …` / `claude-transcripts s3 …` — power-user read access to the proxies.
-- `claude-transcripts meta post …` — enrichment.
-- `claude-transcripts setup|configure|smoke-test` — install/admin.
-- `claude-transcripts reindex` — rebuild the search indexes from CouchDB (they're
-  derived state, populated only by writes through the ingest endpoints; see
-  [webapi.md](webapi.md#search-indexes-derived-state)).
-- `claude-transcripts backfill|export|import|migrate` — data lifecycle (`backfill` adopts
-  on-disk transcripts; `export`/`import` is the bundle round-trip; see
-  [migrations.md](../operate/migrations.md)).
+**Lifecycle**
+
+- `install` — set up everything: stores, app, search, and the Claude Code hook.
+  Idempotent; re-run it to upgrade.
+- `uninstall` — remove the instance (history survives unless `--purge`).
+- `stack` — control the container stack directly.
+- `provision` — create the CouchDB databases and the Garage bucket + key.
+
+**Recording**
+
+- `hook run|install|uninstall|status` — the hook itself, and its registration with
+  Claude Code.
+- `setup` — write the hook's runtime config and register it (the host-side path).
+
+**Reading**
+
+- `sessions [id]` — list sessions, or show one with a transcript preview.
+- `search` — query the corpus.
+
+**Data lifecycle**
+
+- `backfill` — adopt on-disk `~/.claude` transcripts as first-class history;
+  `--force` re-processes one already adopted.
+- `export` / `import` — the portable bundle round-trip ([bundles.md](../design/bundles.md)).
+- `migrate status|up|down` — schema migrations ([migrations.md](../operate/migrations.md)).
+- `reindex` — rebuild the search indexes from CouchDB. They're derived state kept
+  current by the ingest routes and the `_changes` follower, so this is the
+  reconciliation step rather than the only path.
+
+**Diagnosis**
+
+- `doctor` — drive a synthetic session through write → read → search and remove it
+  again. `--keep` leaves it for inspection.
+
+Not built, and listed here only so the gap is visible: `couch` / `s3` power-user
+passthroughs, and `meta post` enrichment.

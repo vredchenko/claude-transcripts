@@ -27,7 +27,7 @@ the document/blob shapes. See [routes.md](../reference/routes.md) and [tiers.md]
 
 | Path | What it is |
 |------|-----------|
-| `hooks/` | Claude Code plugin wrapper. `scripts/dispatch.ts` pipes each hook payload to `claude-transcripts hook run` and always exits 0; it holds no logging code. The writer — events/summaries to CouchDB, transcript blobs to S3 — is `packages/cli/src/hook/`. |
+| `hooks/` | Claude Code plugin wrapper. `hooks/scripts/dispatch.ts` pipes each hook payload to `claude-transcripts hook run` and always exits 0; it holds no logging code. The writer — events/summaries to CouchDB, transcript blobs to S3, written **directly** so a session is never lost to a webapi outage ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)) — is `packages/cli/src/hook/`. |
 | `packages/shared/` | The app model + cross-cutting types + `sumTranscriptTokens`. Imported by the webapi and by the CLI's hook — one copy, no duplication. |
 | `packages/webapi/` | Hono + Bun read API. Auto-creates the CouchDB DB + design docs on boot. Reads sessions/transcripts; serves the built SPA in prod. |
 | `packages/webui/` | React + Vite + MUI SPA. Session list, detail, transcript viewer. |
@@ -41,7 +41,7 @@ the document/blob shapes. See [routes.md](../reference/routes.md) and [tiers.md]
   `transcript_bytes` (the transcript's size; its content lives in S3 only — never
   in CouchDB, see [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)).
 
-Design docs (mirrored in `hooks/couchdb/` and `packages/webapi/src/storage/ensure.ts`):
+Design docs (owned by the migrations in `packages/shared/src/migrations/`, applied at webapi boot):
 
 - `sessions/by_date`, `sessions/by_cwd`
 - `events/by_session`, `events/by_type`

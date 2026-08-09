@@ -24,7 +24,7 @@ resolves everything itself. The copies were retired along with the
 ## Layout
 
 - `.claude-plugin/plugin.json` — plugin manifest.
-- `hooks/hooks.json` — the Claude Code events to register (**generated** by
+- `hooks/hooks/hooks.json` — the Claude Code events to register (**generated** by
   `scripts/sync-hooks.ts`, `bun run gen:hooks`; re-run after changing the model's
   `BINDINGS`).
 - `scripts/dispatch.ts` — the shim. Finds the CLI (PATH, then the installer's

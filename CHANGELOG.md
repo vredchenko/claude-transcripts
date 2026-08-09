@@ -8,6 +8,36 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Docs reconciled against what the code actually does.** A pass over every `.md` in
+  the repo plus the app model, prompted by [ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md)
+  describing an exception narrower than the one the code takes.
+
+  - **ADR 0016 amended: the hook is a second writer.** It writes to CouchDB and S3
+    directly — all four of its actions — because recording a session must not depend on
+    the webapi being up. The ADR's "still delivered *to* the webapi" exception covered
+    `backfill`, not the hook. What that costs (no write-time validation, no write-time
+    indexing, store credentials on the host) and what covers it (the `_changes`
+    follower) is now written down. `CLAUDE.md`, `getting-started.md`,
+    `couchdb-documents.md` and a stale code comment all repeated the too-narrow version.
+  - **The README led with the contributor path** and stated that nothing was released,
+    with no mention of the one-command installer. It now opens with `curl | sh`, and
+    the from-source steps are marked as such. Its claim that the hook runs
+    `hooks/scripts/dispatch.ts` was two refactors out of date.
+  - **`cli.md` said "specified, not yet built"** for a CLI that ships as a released
+    binary, and listed an anticipated command surface instead of the real one.
+  - **Design docs were described as mirrored** between `hooks/couchdb/` and
+    `ensure.ts`. That mirror is gone; the migration registry owns them.
+  - **`webapi.md` said nothing follows CouchDB's change feed** — the follower has
+    existed since search went live — and named the pre-ADR-0028 index names.
+  - **The model's `ROUTES` was missing whole families** (search, ingest, migrate,
+    turns, health, docs, cli download), so the manifest at `/` under-described the
+    surface an agent arrives at. It stays a coarse family map by design: per-endpoint
+    detail belongs to the OpenAPI spec.
+  - Nine references to files that no longer exist, and `schema_version` marked
+    "planned" when migrations have been writing it since v1.
+
 ### Fixed
 
 - **The Services menu links to this deployment's real ports.** They were literals

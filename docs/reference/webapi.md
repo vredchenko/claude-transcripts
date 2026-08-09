@@ -132,17 +132,27 @@ last 36 h. Each is classified `running` if it logged activity within 15 min, els
 
 ### Search indexes (derived state)
 
-Two Meilisearch indexes: `sessions` (one doc per `summary`, metadata search) and
-`turns` (one doc per full-content `chunk` entry with text, content search).
+Two Meilisearch indexes, named from `config/` (`meilisearch.indexes`, namespaced so a
+shared engine can't collide — [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md)):
+`claude-transcripts-sessions` (one doc per session, metadata search) and
+`claude-transcripts-turns` (one doc per conversation turn, content search).
 
-They are **derived**, and written only as a side effect of `/api/ingest/*` — nothing
-follows CouchDB's change feed. Three consequences worth knowing:
+They are **derived** — everything in them is a projection of CouchDB, so losing the
+engine costs a `reindex`, not data. Three write paths keep them current:
 
-- History adopted before search existed is **not** indexed, and neither is anything
-  written straight to CouchDB rather than through ingest — which is the hook's path, so
-  a live-recorded session is not searchable until a rebuild.
-- A document deleted from CouchDB **stays** in the index.
-- `POST /api/search/reindex` (`cli reindex`) is the reconciliation step for all of it.
+- **The ingest routes** index as they write, so `backfill` / `import` / `doctor` are
+  searchable immediately.
+- **A CouchDB `_changes` follower** catches everything else — including the hook's
+  direct writes, which never touch the webapi. It checkpoints its sequence, so a
+  restart resumes rather than replaying; its *first* run starts at `now`, because
+  bulk-loading an existing corpus is far cheaper via `reindex`.
+- **`POST /api/search/reindex`** (`cli reindex`) clears and rebuilds. The reconciliation
+  step for history that predates search, for an index rename, and for deletes.
+
+Worth knowing: only conversation turns (`user`/`assistant`/`tool_result`) enter the
+turns index. Non-message lines carry a display summary but are deliberately not
+indexed — they're context, not content, and there are more of them than user turns.
+Deleting a session through `DELETE /api/ingest/{id}` removes its search entries too.
 
 Two Meilisearch behaviours the write path has to respect:
 
@@ -168,12 +178,15 @@ Two Meilisearch behaviours the write path has to respect:
 
 ## Schema setup on boot (`ensure.ts`)
 
-`ensureCouchDbs` runs every boot and is idempotent: it creates the database
-(ignoring "already exists"), **upserts** every design doc (carrying `_rev`
-forward to avoid conflicts), and creates a Mango index on `type` (non-fatal on
-error). The design docs it applies are the **webapi mirror** of the hook's
-`hooks/couchdb/` designs — the two must stay in sync (a key invariant; see
-[CLAUDE.md](../../CLAUDE.md)). The full view catalogue is documented in
+`ensureCouchDbs` runs every boot and is idempotent: it creates the databases
+(ignoring "already exists") and creates a Mango index on `type` (non-fatal on error),
+then applies any **pending migrations**.
+
+The design docs come from the migration registry
+(`@claude-transcripts/shared` `src/migrations/`) and nowhere else — there is one
+authoritative definition, applied through the versioned path rather than upserted
+blindly, so a view can never drift from the document shapes it maps over
+([migrations.md](../operate/migrations.md)). The full view catalogue is documented in
 [couchdb.md](couchdb.md).
 
 ## SPA serving (prod)
