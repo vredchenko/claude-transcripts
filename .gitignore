@@ -28,6 +28,12 @@ openapi.json
 # Local hook config / scratch
 hooks/.config/
 
+# Browser-suite output: Playwright's traces/artefacts, and the screenshots + report
+# from `bun run test:browser:capture`. Both are local diagnostics, regenerated on demand.
+tests/browser/.results/
+tests/browser/.captures/
+playwright-report/
+
 # Placeholder output of scripts/regenerate-compatibility.ts. The generator isn't wired
 # to a real Claude Code source yet and stamps `generatedAt`, so committing it would
 # churn on every `gen:all`. Track it once the generator produces something stable.

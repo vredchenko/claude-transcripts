@@ -22,3 +22,28 @@ jobs:
       # build — which is exactly how v0.0.2's image came not to publish.
       - run: bun run build:docs
       - run: bun run test
+
+  # The webui browser suite. A separate job because it needs a browser download that
+  # the rest of the checks don't, and because a layout regression should read as
+  # "browser tests failed", not as a mystery inside `check`.
+  #
+  # No backing services: every `/api` call is answered from the fixtures in
+  # `tests/browser/fixtures/`, so this needs nothing but a Chromium.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run test:browser:install
+      - run: bun run test:browser
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          # Traces and failure screenshots — the only way to see what a layout looked
+          # like on a machine you can't open a browser on.
+          path: tests/browser/.results/
+          retention-days: 7
