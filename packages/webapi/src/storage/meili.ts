@@ -5,6 +5,7 @@
  * by `features.meilisearch` + `MEILI_HOST`; in the bundled dev stack Meili runs with
  * no master key, so `apiKey` is optional.
  */
+import { HIGHLIGHT_POST, HIGHLIGHT_PRE } from "@claude-transcripts/shared";
 
 export interface MeiliConfig {
   host: string;
@@ -147,7 +148,15 @@ export class Meili {
     if (opts.filter?.length) body.filter = opts.filter;
     if (opts.attributesToCrop) body.attributesToCrop = opts.attributesToCrop;
     if (opts.cropLength) body.cropLength = opts.cropLength;
-    if (opts.attributesToHighlight) body.attributesToHighlight = opts.attributesToHighlight;
+    if (opts.attributesToHighlight) {
+      body.attributesToHighlight = opts.attributesToHighlight;
+      // Private-use delimiters rather than Meilisearch's `<em>` default. A snippet is
+      // rendered as *text* by every consumer, and transcripts contain arbitrary
+      // markup — emitting HTML here would mean either escaping it back out or
+      // rendering attacker-controlled tags. See `shared/src/highlight.ts`.
+      body.highlightPreTag = HIGHLIGHT_PRE;
+      body.highlightPostTag = HIGHLIGHT_POST;
+    }
     const res = await this.req("POST", `/indexes/${uid}/search`, body);
     if (!res?.ok) return { hits: [], estimatedTotalHits: 0 };
     try {

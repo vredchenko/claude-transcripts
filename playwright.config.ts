@@ -49,6 +49,11 @@ export default defineConfig({
     // timeout, which `test.fail()` will not accept as the expected failure. Failing
     // the action first turns it into an ordinary error, which it can.
     actionTimeout: 10_000,
+    // Ask the app for no animation. Without it the transcript's scroll-to-match is
+    // still gliding when a click is dispatched, so the target has moved by the time it
+    // lands and the test fails — intermittently, and differently per engine. The app
+    // honours `prefers-reduced-motion`, so this is the real setting, not a test hook.
+    contextOptions: { reducedMotion: "reduce" },
   },
 
   /**

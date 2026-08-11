@@ -15,6 +15,7 @@
  *
  * Specs that want the real thing skip all of this — see `LIVE` in `./app.ts`.
  */
+import { HIGHLIGHT_POST, HIGHLIGHT_PRE } from "@claude-transcripts/shared";
 import type { Page, Route } from "@playwright/test";
 import {
   APP_MODEL,
@@ -28,6 +29,25 @@ import {
 
 /** Total bytes the fake transcript "covers" — only its presence matters to the UI. */
 const BYTE_COVERAGE = 128_000;
+
+/**
+ * Wrap a query's occurrences in the highlight delimiters, as Meilisearch does for a
+ * snippet.
+ *
+ * Faithful to the *contract* rather than the engine: real Meilisearch also marks
+ * prefixes and typo-corrections, which this doesn't attempt. What matters here is that
+ * the webui receives marks in the agreed form and renders them, which is the part the
+ * browser suite can meaningfully check.
+ */
+function markMatches(text: string, query: string): string {
+  const terms = query.trim().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return text;
+  const pattern = new RegExp(
+    terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"),
+    "gi",
+  );
+  return text.replace(pattern, (m) => `${HIGHLIGHT_PRE}${m}${HIGHLIGHT_POST}`);
+}
 
 function json(route: Route, body: unknown, status = 200): Promise<void> {
   return route.fulfill({
@@ -183,17 +203,26 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
         // engine, but it is honest about which fixture rows a query should reach.
         const needle = q.toLowerCase();
         const cwd = url.searchParams.get("cwd");
+        /** Which of a session hit's fields contain the query — the real `matchedIn`. */
+        const matchedIn = (h: (typeof SEARCH_SESSION_HITS)[number]): string[] =>
+          (
+            [
+              ["cwd", h.cwd],
+              ["model", h.model],
+              ["hostname", h.hostname],
+              ["endReason", h.endReason],
+              ["tools", (h.tools ?? []).join(" ")],
+            ] as const
+          )
+            .filter(([, value]) => (value ?? "").toLowerCase().includes(needle))
+            .map(([field]) => field);
+
         const hits = SEARCH_SESSION_HITS.filter(
-          (h) =>
-            (!cwd || h.cwd === cwd) &&
-            [h.cwd, h.model, h.hostname, ...(h.tools ?? [])]
-              .join(" ")
-              .toLowerCase()
-              .includes(needle),
-        );
+          (h) => (!cwd || h.cwd === cwd) && matchedIn(h).length > 0,
+        ).map((h) => ({ ...h, matchedIn: matchedIn(h) }));
         const turnHits = SEARCH_TURN_HITS.filter(
           (t) => (!cwd || t.cwd === cwd) && t.snippet.toLowerCase().includes(needle),
-        );
+        ).map((t) => ({ ...t, snippet: markMatches(t.snippet, q) }));
         const limit = intParam(url, "limit", 20);
         const offset = intParam(url, "offset", 0);
         return json(route, {

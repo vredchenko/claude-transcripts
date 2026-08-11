@@ -4,6 +4,10 @@
  */
 
 export * from "./couch-url";
+// The search-highlight marks + their readers. Shared because the webapi writes the
+// marks and the webui reads them: the two must agree on the delimiters, and a
+// constant in one package that the other retypes is a contract waiting to drift.
+export * from "./highlight";
 export * from "./migrations";
 export * from "./model";
 

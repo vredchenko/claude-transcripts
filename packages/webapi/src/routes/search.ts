@@ -1,3 +1,4 @@
+import { HIGHLIGHT_PRE } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { indexName } from "../config";
 import type { AppContext } from "../context";
@@ -17,6 +18,24 @@ const ErrorSchema = z.object({ error: z.string() }).openapi("ApiError");
 
 /** Documents per Meilisearch request — keeps a big rebuild off one huge payload. */
 const BATCH = 1000;
+
+/**
+ * Words of context Meilisearch crops a snippet to, centred on the match.
+ *
+ * The original 40 gave a line so short that a match often arrived with no sentence
+ * around it — you could see your word and not what was being said about it, which is
+ * the whole reason to read a search result rather than just open the session. 90 is
+ * roughly two lines at the width the results render at: enough to judge relevance,
+ * short enough that a page of them is still scannable.
+ */
+const SNIPPET_WORDS = 90;
+
+/**
+ * Session-index attributes worth highlighting. These are exactly the searchable ones
+ * minus `sessionId` — an id match highlights a hex string, which tells the reader
+ * nothing they can't already see.
+ */
+const SESSION_HIGHLIGHT_ATTRS = ["cwd", "model", "hostname", "endReason", "tools"];
 
 /**
  * Clear an index and re-add `docs` in batches, waiting for Meilisearch's async
@@ -39,6 +58,23 @@ async function rebuild(
   return ctx.meili.taskFailures(tasks);
 }
 
+/**
+ * Which of a session's fields the query actually hit, read back out of Meilisearch's
+ * `_formatted` block by looking for the highlight marks it put there.
+ *
+ * `_formatted` carries every requested attribute whether or not it matched, so
+ * presence proves nothing — only a mark does. `tools` is an array, so its values are
+ * checked individually rather than stringified.
+ */
+function matchedAttributes(formatted: Record<string, unknown> | undefined): string[] {
+  if (!formatted) return [];
+  const marked = (value: unknown): boolean =>
+    typeof value === "string"
+      ? value.includes(HIGHLIGHT_PRE)
+      : Array.isArray(value) && value.some(marked);
+  return SESSION_HIGHLIGHT_ATTRS.filter((attr) => marked(formatted[attr]));
+}
+
 const SearchHitSchema = z
   .object({
     sessionId: z.string(),
@@ -49,11 +85,26 @@ const SearchHitSchema = z
     endReason: z.string().optional(),
     source: z.string().optional(),
     tools: z.array(z.string()).optional(),
+    promptCount: z.number().optional(),
+    eventCount: z.number().optional(),
+    /**
+     * Which fields the query matched (`cwd`, `model`, `hostname`, `endReason`,
+     * `tools`) — the answer to "why is this session in my results?", which a row of
+     * metadata otherwise leaves the reader to guess at.
+     */
+    matchedIn: z.array(z.string()).optional(),
   })
   .passthrough()
   .openapi("SearchHit");
 
-/** A conversation-content match — one turn, with a cropped snippet around the hit. */
+/**
+ * A conversation-content match — one turn, with a cropped snippet around the hit.
+ *
+ * `snippet` carries highlight marks (`shared/src/highlight.ts`): private-use
+ * delimiters around the matched spans, **not** markup. Render it with
+ * `splitMarkedText`, or strip the marks with `stripHighlightMarks` for a plain-text
+ * context. Rendering it as HTML would be a bug, and a security one.
+ */
 const TurnHitSchema = z
   .object({
     sessionId: z.string(),
@@ -195,13 +246,18 @@ export function searchRoutes(ctx: AppContext) {
         limit,
         offset,
         filter: sessionFilter,
+        // Highlighted so the result can say *why* this session matched. A metadata
+        // hit is otherwise indistinguishable from any other row in the list — the
+        // query touched one of these fields, and the reader can't tell which.
+        attributesToHighlight: SESSION_HIGHLIGHT_ATTRS,
       }),
       ctx.meili.search(indexName(ctx.config, TURNS_INDEX_KEY), q, {
         limit,
         offset,
         filter: turnFilter,
         attributesToCrop: ["text"],
-        cropLength: 40,
+        cropLength: SNIPPET_WORDS,
+        attributesToHighlight: ["text"],
       }),
       // Facets describe the whole corpus, not this page — they're what the filter
       // controls offer, so they must not shrink as the user filters.
@@ -213,7 +269,9 @@ export function searchRoutes(ctx: AppContext) {
       ]),
     ]);
 
-    // Prefer Meili's cropped `_formatted.text` snippet; fall back to the raw text.
+    // Prefer Meili's cropped + marked `_formatted.text` snippet; fall back to the raw
+    // text. The marks are private-use delimiters, not markup — see
+    // `shared/src/highlight.ts` for why, and for the readers that turn them into spans.
     const turns = turnRes.hits.map((h: any) => ({
       sessionId: h.sessionId,
       role: h.role ?? "other",
@@ -221,8 +279,16 @@ export function searchRoutes(ctx: AppContext) {
       timestamp: h.timestamp,
       cwd: h.cwd,
     }));
+
+    // `_formatted` is Meilisearch's bookkeeping and would be noise in the response;
+    // what a reader wants from it is the one fact it encodes — which fields matched.
+    const hits = sessionRes.hits.map((h: any) => {
+      const { _formatted, ...rest } = h;
+      return { ...rest, matchedIn: matchedAttributes(_formatted) };
+    });
+
     return c.json({
-      hits: sessionRes.hits,
+      hits,
       turns,
       query: q,
       enabled: ctx.meili.enabled,
