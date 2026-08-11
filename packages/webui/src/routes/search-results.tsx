@@ -26,8 +26,9 @@ import {
 } from "@mui/material";
 import { Link, useNavigate, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { getSearchQueryKey, useSearch } from "../api/generated";
+import { MarkedSnippet } from "../components/HighlightedText";
 import { EmptyState, Loading } from "../components/states";
-import { projectName } from "../format";
+import { formatCount, formatTimestamp, projectName } from "../format";
 import {
   type FilterKey,
   PAGE_SIZE,
@@ -39,6 +40,19 @@ import {
 import { MONO } from "../theme";
 
 export type { SearchRouteSearch };
+
+/**
+ * Reader-facing names for the fields a session hit can match on. The API returns the
+ * index's attribute names; "matched cwd" is jargon for a chip that exists to explain
+ * itself.
+ */
+const MATCH_FIELD_LABELS: Record<string, string> = {
+  cwd: "project",
+  model: "model",
+  hostname: "host",
+  endReason: "end reason",
+  tools: "tools",
+};
 
 /** Labels (and display formatting) for the filter controls, in render order. */
 const FILTERS = [
@@ -161,21 +175,63 @@ export function SearchResultsPage() {
                     {/* Stable handle for the browser suite: result items have no
                         role or accessible name of their own to address them by. */}
                     <Box sx={{ p: 1.5 }} data-testid="search-session-result">
-                      <Link
-                        to="/sessions/$id"
-                        params={{ id: h.sessionId }}
-                        style={{ color: theme.palette.primary.main, textDecoration: "none" }}
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="baseline"
+                        sx={{ flexWrap: "wrap", gap: 0.5 }}
                       >
-                        {projectName(h.cwd ?? "")}
-                      </Link>
+                        <Link
+                          to="/sessions/$id"
+                          params={{ id: h.sessionId }}
+                          search={{ q }}
+                          style={{ color: theme.palette.primary.main, textDecoration: "none" }}
+                        >
+                          <Typography component="span" sx={{ fontWeight: 600 }}>
+                            {projectName(h.cwd ?? "")}
+                          </Typography>
+                        </Link>
+                        {h.timestamp && (
+                          <Typography variant="caption" color="text.secondary">
+                            {formatTimestamp(h.timestamp)}
+                          </Typography>
+                        )}
+                        {/* Why this session is in the results. A metadata hit is
+                            otherwise indistinguishable from any other row. */}
+                        {(h.matchedIn ?? []).map((field) => (
+                          <Chip
+                            key={field}
+                            size="small"
+                            variant="outlined"
+                            color="warning"
+                            label={`matched ${MATCH_FIELD_LABELS[field] ?? field}`}
+                            sx={{ height: 18, fontSize: 10 }}
+                          />
+                        ))}
+                      </Stack>
                       <Typography
                         variant="caption"
                         color="text.secondary"
-                        sx={{ display: "block", fontFamily: MONO }}
+                        sx={{ display: "block", wordBreak: "break-word" }}
                       >
-                        {h.sessionId}
-                        {h.model ? ` · ${h.model}` : ""}
-                        {h.hostname ? ` · ${h.hostname}` : ""}
+                        {[
+                          h.model,
+                          h.hostname,
+                          h.source,
+                          h.promptCount === undefined
+                            ? null
+                            : `${formatCount(h.promptCount)} prompt${h.promptCount === 1 ? "" : "s"}`,
+                          h.eventCount === undefined ? null : `${formatCount(h.eventCount)} events`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: "block", fontFamily: MONO, wordBreak: "break-all" }}
+                      >
+                        {h.cwd || h.sessionId}
                       </Typography>
                     </Box>
                   </Box>
@@ -195,21 +251,56 @@ export function SearchResultsPage() {
                   <Box key={`${t.sessionId}-${i}`}>
                     {i > 0 && <Divider />}
                     <Box sx={{ p: 1.5 }} data-testid="search-turn-result">
-                      <Stack direction="row" spacing={1} alignItems="baseline">
-                        <Chip size="small" label={t.role} sx={{ height: 18, fontSize: 10 }} />
-                        <Typography variant="body2" sx={{ color: theme.palette.text.primary }}>
-                          {t.snippet}
+                      <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
+                        <Chip
+                          size="small"
+                          label={t.role}
+                          sx={{ height: 18, fontSize: 10, flexShrink: 0 }}
+                        />
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: theme.palette.text.primary,
+                            // A snippet can be one unbroken token; without these it
+                            // widens the row past the page instead of wrapping.
+                            minWidth: 0,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          <MarkedSnippet snippet={t.snippet} />
                         </Typography>
                       </Stack>
-                      <Link
-                        to="/sessions/$id"
-                        params={{ id: t.sessionId }}
-                        style={{ color: theme.palette.primary.main, textDecoration: "none" }}
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="baseline"
+                        sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.5 }}
                       >
-                        <Typography component="span" variant="caption" sx={{ fontFamily: MONO }}>
-                          {projectName(t.cwd ?? "")} · {t.sessionId}
+                        {/* `q` rides along so the session opens with the same terms
+                            marked, and scrolled to the first one. */}
+                        <Link
+                          to="/sessions/$id"
+                          params={{ id: t.sessionId }}
+                          search={{ q }}
+                          style={{ color: theme.palette.primary.main, textDecoration: "none" }}
+                        >
+                          <Typography component="span" variant="caption" sx={{ fontWeight: 600 }}>
+                            {projectName(t.cwd ?? "")}
+                          </Typography>
+                        </Link>
+                        {t.timestamp && (
+                          <Typography variant="caption" color="text.secondary">
+                            {formatTimestamp(t.timestamp)}
+                          </Typography>
+                        )}
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontFamily: MONO, wordBreak: "break-all" }}
+                        >
+                          {t.sessionId}
                         </Typography>
-                      </Link>
+                      </Stack>
                     </Box>
                   </Box>
                 ))}

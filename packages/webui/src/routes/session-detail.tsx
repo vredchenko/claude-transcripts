@@ -9,7 +9,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { useGetSession } from "../api/generated";
 import { SourceChip } from "../components/SourceChip";
@@ -22,6 +22,12 @@ import { formatBytes, formatCount, formatDuration, formatTimestamp } from "../fo
 import { MONO } from "../theme";
 
 type SpeakerFilter = "all" | "user" | "assistant";
+
+/** Query-string state this route owns. */
+export interface SessionDetailSearch {
+  /** Search terms that led here, marked in the transcript. See `router.tsx`. */
+  q?: string;
+}
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -43,8 +49,11 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 /** `/sessions/$id`: session metadata + the transcript viewer. */
 export function SessionDetailPage() {
   const { id } = useParams({ from: "/sessions/$id" });
+  const { q } = useRouterSearch({ from: "/sessions/$id" }) as SessionDetailSearch;
+  const query = q?.trim() || undefined;
   const { data: session, isPending, isError, error } = useGetSession(id);
   const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
+  const navigate = useNavigate();
   const theme = useTheme();
 
   return (
@@ -133,7 +142,22 @@ export function SessionDetailPage() {
             justifyContent="space-between"
             sx={{ mb: 1, flexWrap: "wrap", gap: 1 }}
           >
-            <Typography variant="h6">Transcript</Typography>
+            <Stack direction="row" spacing={1} alignItems="baseline" sx={{ flexWrap: "wrap" }}>
+              <Typography variant="h6">Transcript</Typography>
+              {/* Arriving from a result, the highlighting needs a stated cause —
+                  otherwise it reads as the app having decided some words matter. The
+                  chip clears `?q=`, which is the only way back to a plain transcript
+                  short of editing the URL. */}
+              {query && (
+                <Chip
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  label={`matches for “${query}”`}
+                  onDelete={() => navigate({ to: "/sessions/$id", params: { id }, search: {} })}
+                />
+              )}
+            </Stack>
             <ToggleButtonGroup
               size="small"
               exclusive
@@ -147,9 +171,9 @@ export function SessionDetailPage() {
             </ToggleButtonGroup>
           </Stack>
           {speaker !== "all" ? (
-            <SpeakerTurnsView sessionId={session.sessionId} role={speaker} />
+            <SpeakerTurnsView sessionId={session.sessionId} role={speaker} query={query} />
           ) : session.hasTranscript ? (
-            <TranscriptView sessionId={session.sessionId} />
+            <TranscriptView sessionId={session.sessionId} query={query} />
           ) : (
             <Typography color="text.secondary" variant="body2">
               No transcript was stored for this session.

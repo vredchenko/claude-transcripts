@@ -170,6 +170,9 @@ export interface SearchHit {
   endReason?: string;
   source?: string;
   tools?: string[];
+  promptCount?: number;
+  eventCount?: number;
+  matchedIn?: string[];
 }
 
 export interface TurnHit {

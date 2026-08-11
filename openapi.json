@@ -378,6 +378,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "promptCount": {
+            "type": "number"
+          },
+          "eventCount": {
+            "type": "number"
+          },
+          "matchedIn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": ["sessionId"]

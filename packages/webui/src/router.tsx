@@ -1,7 +1,7 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { RootLayout } from "./routes/root";
 import { SearchResultsPage, type SearchRouteSearch } from "./routes/search-results";
-import { SessionDetailPage } from "./routes/session-detail";
+import { SessionDetailPage, type SessionDetailSearch } from "./routes/session-detail";
 import { SessionsListPage } from "./routes/sessions-list";
 
 /**
@@ -16,10 +16,19 @@ const listRoute = createRoute({
   component: SessionsListPage,
 });
 
+/**
+ * The detail route carries the search terms that led here (`?q=`), so arriving from a
+ * result lands on the matched turn with the terms marked instead of at the top of a
+ * five-thousand-entry transcript. Absent when the session was opened from the list,
+ * which simply means nothing is highlighted.
+ */
 const detailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sessions/$id",
   component: SessionDetailPage,
+  validateSearch: (search: Record<string, unknown>): SessionDetailSearch => ({
+    q: typeof search.q === "string" && search.q ? search.q : undefined,
+  }),
 });
 
 /**

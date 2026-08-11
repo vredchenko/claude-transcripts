@@ -15,8 +15,9 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useSearch } from "../api/generated";
-import { projectName } from "../format";
+import { formatTimestamp, projectName } from "../format";
 import { MONO } from "../theme";
+import { MarkedSnippet } from "./HighlightedText";
 
 /**
  * Header search box → full-text session search (Meilisearch, `GET /api/search`).
@@ -41,9 +42,13 @@ export function SearchBox() {
   const turns = data?.turns ?? [];
   const showPanel = open && debounced.length > 0;
 
+  /**
+   * Open a session, carrying the query so it lands on the match with the terms
+   * marked — the dropdown's whole job is "take me to where that was said".
+   */
   const go = (sessionId: string) => {
     setOpen(false);
-    navigate({ to: "/sessions/$id", params: { id: sessionId } });
+    navigate({ to: "/sessions/$id", params: { id: sessionId }, search: { q: debounced } });
   };
 
   /** Hand the query to the results page — this dropdown is capped and unfiltered. */
@@ -110,19 +115,20 @@ export function SearchBox() {
                   <ListItemButton key={`t-${i}`} onClick={() => go(t.sessionId)}>
                     <ListItemText
                       primary={
-                        <span>
+                        <Box component="span" sx={{ overflowWrap: "anywhere" }}>
                           <Chip
                             component="span"
                             size="small"
                             label={t.role}
                             sx={{ mr: 1, height: 18, fontSize: 10 }}
                           />
-                          {t.snippet}
-                        </span>
+                          <MarkedSnippet snippet={t.snippet} />
+                        </Box>
                       }
                       secondary={
                         <span style={{ fontFamily: MONO, fontSize: 11 }}>
-                          {projectName(t.cwd)} · {t.sessionId}
+                          {projectName(t.cwd)}
+                          {t.timestamp ? ` · ${formatTimestamp(t.timestamp)}` : ""}
                         </span>
                       }
                     />

@@ -42,6 +42,23 @@ export function codeBg(mode: ColorMode): string {
   return mode === "dark" ? "#0d1117" : "#f6f8fa";
 }
 
+/**
+ * The marker behind a search match. Amber in both modes, because a match has to read
+ * as a match at a glance — but muted enough that a snippet with six of them is still
+ * a sentence rather than a highlighter accident.
+ *
+ * The dark value is translucent on purpose: it sits over `background.paper` and over
+ * `codeBg` (a raw transcript block), and a solid fill would fight one of them.
+ */
+export function highlightBg(mode: ColorMode): string {
+  return mode === "dark" ? "rgba(210, 153, 34, 0.38)" : "#fff3c4";
+}
+
+/** Text colour on {@link highlightBg} — inherits in dark, darkens in light. */
+export function highlightFg(mode: ColorMode): string {
+  return mode === "dark" ? "inherit" : "#1f2328";
+}
+
 /** Monospace stack for ids, paths, and transcript JSON. */
 export const MONO =
   'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
