@@ -10,7 +10,6 @@
 import { expect, test } from "@playwright/test";
 import { MULTI_DAY_SESSION, SEARCH_METADATA_QUERY, SEARCH_QUERY } from "../fixtures/corpus";
 import { LIVE, SearchResultsPage, SessionDetailPage, setupPage } from "../helpers/app";
-import { isFirefox, isMobile, knownBroken } from "../helpers/known-broken";
 
 /** `<mark>` elements, whatever wraps them. */
 const marks = (page: import("@playwright/test").Page) => page.locator("mark");
@@ -93,13 +92,6 @@ test.describe("following a result into its session", () => {
   });
 
   test("states why the transcript is highlighted, and can clear it", async ({ page }) => {
-    // Blink only: the overflowing row sits over the chip and Blink refuses the click.
-    // Gecko's hit-testing lets it reach the chip, so the test genuinely passes there.
-    if (isMobile() && !isFirefox()) {
-      knownBroken(
-        "an overflowing transcript row covers the chip, so its clear button can't be clicked",
-      );
-    }
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
@@ -113,12 +105,6 @@ test.describe("following a result into its session", () => {
   });
 
   test("highlights the speaker-split view too", async ({ page }) => {
-    // Blink only: here Gecko's click does reach the toggle.
-    if (isMobile() && !isFirefox()) {
-      knownBroken(
-        "an overflowing transcript row covers the speaker toggle and intercepts the click",
-      );
-    }
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);

@@ -16,7 +16,6 @@ import {
   setupPage,
 } from "../helpers/app";
 import { watchConsole } from "../helpers/audit";
-import { isFirefox, isMobile, knownBroken } from "../helpers/known-broken";
 
 test.describe("sessions list", () => {
   test("lists sessions with their metadata", async ({ page }) => {
@@ -71,12 +70,6 @@ test.describe("session detail", () => {
   });
 
   test("a transcript row expands to its full content", async ({ page }) => {
-    // Chromium only, and that asymmetry is the finding: the overflowing row exists in
-    // both engines (the layout specs fail on both), but only Blink's hit-testing puts
-    // it over the pointer so the click never lands. Gecko still clicks through.
-    if (isMobile() && !isFirefox()) {
-      knownBroken("overflowing rows shift out from under the pointer, so the click never lands");
-    }
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId);
@@ -94,9 +87,6 @@ test.describe("session detail", () => {
   });
 
   test("the speaker filter switches to the split view", async ({ page }) => {
-    if (isMobile() && !isFirefox()) {
-      knownBroken("an overflowing transcript row covers the toggle and intercepts the click");
-    }
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId);

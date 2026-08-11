@@ -262,6 +262,8 @@ export type ListSessionsParams = {
    * @nullable
    */
   skip?: number | null;
+  from?: string;
+  to?: string;
 };
 
 export type GetSessionTranscriptParams = {

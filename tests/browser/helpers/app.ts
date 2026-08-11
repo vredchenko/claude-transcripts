@@ -8,6 +8,7 @@
  * the UI changing at all.
  */
 import { expect, type Locator, type Page } from "@playwright/test";
+import { NOW } from "../fixtures/corpus";
 import { type MockApiOptions, mockApi } from "./mock-api";
 
 /**
@@ -27,7 +28,18 @@ export const APP_BASE = "/app";
  * console output for {@link ../helpers/audit.consoleErrors}.
  */
 export async function setupPage(page: Page, options: MockApiOptions = {}): Promise<void> {
-  if (!LIVE) await mockApi(page, options);
+  if (LIVE) return;
+  // Pin the browser's clock to the corpus's anchor. The fixtures are deterministic
+  // instants, but the app measures against `Date.now()` — so without this a running
+  // session (which extends to "now") stretches from the fixture's March to whatever
+  // today is, and the calendar draws it as a bar across five months. Fixing the clock
+  // makes the app and the fixtures agree about when "now" is, which also settles
+  // "today" in the calendar and keeps screenshots stable over time.
+  //
+  // `setFixedTime` rather than `install`: it changes what the clock *reports* without
+  // taking over timers, so the search box's debounce still fires.
+  await page.clock.setFixedTime(new Date(NOW));
+  await mockApi(page, options);
 }
 
 /** Navigate and wait for the SPA to have painted its first real content. */
@@ -41,9 +53,38 @@ async function go(page: Page, path: string): Promise<void> {
 export class SessionsListPage {
   constructor(readonly page: Page) {}
 
-  async goto(): Promise<void> {
-    await go(this.page, "/");
+  /** `search` selects a projection, e.g. `?view=calendar&month=2026-03`. */
+  async goto(search = ""): Promise<void> {
+    await go(this.page, `/${search}`);
     await expect(this.page.getByRole("heading", { name: "Sessions" })).toBeVisible();
+  }
+
+  /** Switch projection through the toggle, as a reader would. */
+  async selectView(label: "Table" | "Timeline" | "Calendar"): Promise<void> {
+    await this.page
+      .getByRole("group", { name: "session view" })
+      .getByRole("button", { name: label })
+      .click();
+  }
+
+  async selectDensity(label: "Cards" | "Compact" | "To scale"): Promise<void> {
+    await this.page
+      .getByRole("group", { name: "timeline density" })
+      .getByRole("button", { name: label })
+      .click();
+  }
+
+  /** Bars in the calendar's month grid — one per session per week row it covers. */
+  get calendarBars(): Locator {
+    return this.page.getByTestId("calendar-bar");
+  }
+
+  get calendarDayBars(): Locator {
+    return this.page.getByTestId("calendar-day-bar");
+  }
+
+  get calendarDayCells(): Locator {
+    return this.page.getByTestId("calendar-day-cell");
   }
 
   /** The sessions table (absent when the list is empty or errored). */

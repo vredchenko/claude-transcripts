@@ -1,8 +1,13 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import type { TimelineDensity } from "./components/sessions/SessionsTimeline";
 import { RootLayout } from "./routes/root";
 import { SearchResultsPage, type SearchRouteSearch } from "./routes/search-results";
 import { SessionDetailPage, type SessionDetailSearch } from "./routes/session-detail";
-import { SessionsListPage } from "./routes/sessions-list";
+import {
+  SessionsListPage,
+  type SessionsRouteSearch,
+  type SessionsView,
+} from "./routes/sessions-list";
 
 /**
  * Code-based route tree (no file-based router plugin). The app is served under
@@ -10,10 +15,30 @@ import { SessionsListPage } from "./routes/sessions-list";
  */
 const rootRoute = createRootRoute({ component: RootLayout });
 
+/**
+ * The list route owns which projection is showing and what it's showing — so a
+ * calendar month or a timeline density is linkable, and the back button steps through
+ * them. Unknown values fall back to the defaults rather than rendering nothing, since
+ * this state arrives from whatever someone pasted into the address bar.
+ */
 const listRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: SessionsListPage,
+  validateSearch: (search: Record<string, unknown>): SessionsRouteSearch => ({
+    view:
+      search.view === "timeline" || search.view === "calendar"
+        ? (search.view as SessionsView)
+        : undefined,
+    density:
+      search.density === "compact" ||
+      search.density === "proportional" ||
+      search.density === "cards"
+        ? (search.density as TimelineDensity)
+        : undefined,
+    month: typeof search.month === "string" ? search.month : undefined,
+    day: typeof search.day === "string" ? search.day : undefined,
+  }),
 });
 
 /**
