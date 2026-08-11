@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // "bun" for capture.ts (import.meta.dir, the script entrypoint); DOM because the
+    // audit helpers' `page.evaluate` bodies are compiled as browser code even though
+    // the file around them runs in Bun.
+    "types": ["bun"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": [".", "../../playwright.config.ts"]
+}
