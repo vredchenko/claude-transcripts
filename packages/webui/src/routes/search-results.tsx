@@ -158,7 +158,9 @@ export function SearchResultsPage() {
                 {hits.map((h, i) => (
                   <Box key={h.sessionId}>
                     {i > 0 && <Divider />}
-                    <Box sx={{ p: 1.5 }}>
+                    {/* Stable handle for the browser suite: result items have no
+                        role or accessible name of their own to address them by. */}
+                    <Box sx={{ p: 1.5 }} data-testid="search-session-result">
                       <Link
                         to="/sessions/$id"
                         params={{ id: h.sessionId }}
@@ -192,7 +194,7 @@ export function SearchResultsPage() {
                   // Turn hits carry no stable client id; position in the page is fine.
                   <Box key={`${t.sessionId}-${i}`}>
                     {i > 0 && <Divider />}
-                    <Box sx={{ p: 1.5 }}>
+                    <Box sx={{ p: 1.5 }} data-testid="search-turn-result">
                       <Stack direction="row" spacing={1} alignItems="baseline">
                         <Chip size="small" label={t.role} sx={{ height: 18, fontSize: 10 }} />
                         <Typography variant="body2" sx={{ color: theme.palette.text.primary }}>

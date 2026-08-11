@@ -1,6 +1,6 @@
 # Testing
 
-> **Status: landed (Tier-1 scope).** The e2e harness (`tests/e2e/`) drives
+> **Status: landed (Tier-1 scope).** The e2e suite (`tests/e2e/`) drives
 > synthesized sessions — baseline, large multi-chunk, and subagent-sidechain —
 > through the real write→store→read path and self-skips when the stack is down;
 > the CLI `doctor` command is the interactive single-session equivalent. Unit
@@ -31,7 +31,7 @@ Claude Code instance:
 `claude-transcripts doctor` is the interactive sibling of this — it drives one
 synthetic session through the write path, asserts the rollups, checks it is searchable,
 and deletes it again. The e2e suite generalises that into a fuller, multi-scenario
-harness (resumes, crashes/incomplete sessions,
+set of cases (resumes, crashes/incomplete sessions,
 subagents, chunked content, `backfill` parity).
 
 ## Other test layers (placeholder)
@@ -39,6 +39,12 @@ subagents, chunked content, `backfill` parity).
 - **Unit** — `sumTranscriptTokens` (done — `packages/shared/src/index.test.ts`;
   to be validated against `ccusage` as an oracle too), chunk offset tiling (done),
   plus pruning + config overlay (pending).
+- **Browser (webui)** — **done** (`tests/browser/`, `bun run test:browser`). Playwright
+  over Chromium and Firefox at two widths, with every `/api` call answered from a
+  synthetic corpus, so it needs no stack and runs in CI. Alongside the usual
+  does-it-render checks it audits *geometry* — content escaping its container, pages
+  scrolling sideways — because the layout bugs this UI grows pass every assertion about
+  content while being visibly wrong. Point it at a real instance with `E2E_BASE_URL`.
 - **Contract** — the generated API clients ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md))
   give the webui/CLI a typed boundary; assert the OpenAPI spec stays compatible
   (pending).
