@@ -1,3 +1,4 @@
+import { matchesQuery } from "@claude-transcripts/shared";
 import {
   Accordion,
   AccordionDetails,
@@ -9,7 +10,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getGetSessionTranscriptQueryKey,
   type TranscriptEntry,
@@ -18,9 +19,22 @@ import {
 import { formatCount } from "../format";
 import { codeBg, MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
+import { TermHighlight } from "./HighlightedText";
 import { EmptyState, ErrorState, Loading } from "./states";
 
 const PAGE = 100;
+
+/**
+ * How far the view will page forward on its own looking for a search match.
+ *
+ * Arriving from a search result and being told "no matches on this page" would be a
+ * non-answer — the match is *somewhere*, and the reader would have to click "Load
+ * more" until they found it. So the view keeps fetching until it does. Bounded because
+ * a transcript can run to tens of thousands of entries and an unbounded auto-loader
+ * would happily pull the whole thing into the DOM; past this point the reader is told
+ * where it got to and paging goes back to being their choice.
+ */
+const MAX_AUTO_LOAD = 1_000;
 
 const KIND_COLOR: Record<string, "primary" | "secondary" | "default" | "info"> = {
   user: "info",
@@ -39,11 +53,57 @@ function kindColor(kind: string): "primary" | "secondary" | "default" | "info" {
   return KIND_COLOR[kind] ?? KIND_COLOR[kind.split(":")[0] ?? ""] ?? "default";
 }
 
-function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
+/** Does this entry's text contain the query? Drives highlighting and auto-scroll. */
+function entryMatches(entry: TranscriptEntry, query: string | undefined): boolean {
+  return Boolean(query) && matchesQuery(entry.text ?? "", query ?? "");
+}
+
+function EntryRow({
+  entry,
+  index,
+  query,
+  isFirstMatch,
+}: {
+  entry: TranscriptEntry;
+  index: number;
+  query?: string;
+  /** The row the page scrolls to and opens on arrival from a search result. */
+  isFirstMatch: boolean;
+}) {
   const view: EntryView = summarizeEntry(entry);
   const theme = useTheme();
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // Bring the match into view once, on arrival. Not on every render: the reader may
+  // have scrolled somewhere else deliberately, and yanking them back would be worse
+  // than never having scrolled at all.
+  //
+  // Smooth only if the reader hasn't asked for less motion. An unrequested smooth
+  // scroll through a few thousand transcript rows is a vestibular trigger, and it also
+  // means the whole page is still moving for a second after load — during which
+  // anything the reader (or a test) clicks lands somewhere other than where they
+  // aimed. `auto` jumps straight there.
+  useEffect(() => {
+    if (!isFirstMatch) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    ref.current?.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+  }, [isFirstMatch]);
+
   return (
-    <Accordion disableGutters square sx={{ bgcolor: "background.paper" }}>
+    <Accordion
+      ref={ref}
+      disableGutters
+      square
+      defaultExpanded={isFirstMatch}
+      sx={{
+        bgcolor: "background.paper",
+        // Mark the row the search sent us to, so it's findable again after scrolling
+        // away — the highlighted words alone are easy to lose in a long transcript.
+        ...(isFirstMatch
+          ? { outline: `2px solid ${theme.palette.warning.main}`, outlineOffset: -2 }
+          : {}),
+      }}
+    >
       <AccordionSummary
         expandIcon={<Typography sx={{ fontSize: 18, lineHeight: 1 }}>⌄</Typography>}
       >
@@ -65,7 +125,11 @@ function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
               whiteSpace: "nowrap",
             }}
           >
-            {view.preview || <em>(no text content)</em>}
+            {view.preview ? (
+              <TermHighlight text={view.preview} query={query} />
+            ) : (
+              <em>(no text content)</em>
+            )}
           </Typography>
         </Stack>
       </AccordionSummary>
@@ -87,8 +151,14 @@ function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
           }}
         >
           {/* Full text is the payload worth expanding; a tool-only turn has none, so
-              fall back to the turn's structured fields. */}
-          {entry.text ? entry.text : JSON.stringify(entry, null, 2)}
+              fall back to the turn's structured fields. The JSON fallback isn't
+              highlighted — matches are found in `text`, and marking substrings of a
+              serialised object would light up field names too. */}
+          {entry.text ? (
+            <TermHighlight text={entry.text} query={query} />
+          ) : (
+            JSON.stringify(entry, null, 2)
+          )}
         </Box>
       </AccordionDetails>
     </Accordion>
@@ -100,8 +170,12 @@ function EntryRow({ entry, index }: { entry: TranscriptEntry; index: number }) {
  * accumulating them so "Load more" appends without refetching earlier pages. Each
  * entry shows a one-line preview and expands to the raw JSON. (Virtual scrolling is
  * a planned follow-up; incremental paging keeps very long transcripts responsive.)
+ *
+ * Given a `query` — set when the reader arrived from a search result — it also marks
+ * the matching terms, opens and scrolls to the first matching entry, and keeps paging
+ * forward on its own until it finds one (up to {@link MAX_AUTO_LOAD}).
  */
-export function TranscriptView({ sessionId }: { sessionId: string }) {
+export function TranscriptView({ sessionId, query }: { sessionId: string; query?: string }) {
   const [limit, setLimit] = useState(PAGE);
   const params = { offset: 0, limit };
   const { data, isPending, isError, error, isPlaceholderData } = useGetSessionTranscript(
@@ -114,6 +188,21 @@ export function TranscriptView({ sessionId }: { sessionId: string }) {
       },
     },
   );
+
+  const entries = data?.entries;
+  /** Index of the first entry containing the query, or -1. */
+  const firstMatch = useMemo(() => {
+    if (!query || !entries) return -1;
+    return entries.findIndex((entry) => entryMatches(entry, query));
+  }, [entries, query]);
+
+  // Keep reaching forward while the match could still be ahead of us.
+  const hasMore = data?.hasMore ?? false;
+  const searching = Boolean(query) && firstMatch === -1 && hasMore && limit < MAX_AUTO_LOAD;
+  useEffect(() => {
+    if (!searching || isPlaceholderData) return;
+    setLimit((n) => Math.min(n + PAGE, MAX_AUTO_LOAD));
+  }, [searching, isPlaceholderData]);
 
   if (isPending) return <Loading label="Loading transcript…" />;
   if (isError) return <ErrorState error={error} />;
@@ -128,11 +217,14 @@ export function TranscriptView({ sessionId }: { sessionId: string }) {
         {/* Which store answered: `chunks` means this is readable mid-session and will
             keep growing; `s3` means the session's finalised transcript. */}
         {data.source === "chunks" ? " · live from chunks" : " · from stored transcript"}
+        {query &&
+          firstMatch === -1 &&
+          (searching ? " · searching…" : " · no match in these entries")}
       </Typography>
       <Stack spacing={0.5}>
         {data.entries.map((entry, i) => (
           // Transcript order is append-only + stable, so the index is a valid key.
-          <EntryRow key={i} entry={entry} index={i} />
+          <EntryRow key={i} entry={entry} index={i} query={query} isFirstMatch={i === firstMatch} />
         ))}
       </Stack>
       {data.hasMore && (

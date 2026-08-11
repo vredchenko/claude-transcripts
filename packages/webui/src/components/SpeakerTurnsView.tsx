@@ -2,6 +2,7 @@ import { Box, Chip, Stack, Typography } from "@mui/material";
 import { type SpeakerRole, useGetSessionTurns } from "../api/generated";
 import { formatCount, formatTimestamp } from "../format";
 import { MONO } from "../theme";
+import { TermHighlight } from "./HighlightedText";
 import { EmptyState, ErrorState, Loading } from "./states";
 
 /**
@@ -9,7 +10,16 @@ import { EmptyState, ErrorState, Loading } from "./states";
  * `speaker_split/by_role` view (`GET /api/sessions/{id}/turns`). Empty for sessions
  * logged without full-content chunks (`couchFullContentChunks`).
  */
-export function SpeakerTurnsView({ sessionId, role }: { sessionId: string; role: SpeakerRole }) {
+export function SpeakerTurnsView({
+  sessionId,
+  role,
+  query,
+}: {
+  sessionId: string;
+  role: SpeakerRole;
+  /** Search terms to mark, when the reader arrived from a result. */
+  query?: string;
+}) {
   const { data, isPending, isError, error } = useGetSessionTurns(sessionId, { role });
 
   if (isPending) return <Loading label="Loading turns…" />;
@@ -49,7 +59,7 @@ export function SpeakerTurnsView({ sessionId, role }: { sessionId: string; role:
               </Typography>
             </Stack>
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-              {turn.text || <em>(no text)</em>}
+              {turn.text ? <TermHighlight text={turn.text} query={query} /> : <em>(no text)</em>}
             </Typography>
           </Box>
         ))}

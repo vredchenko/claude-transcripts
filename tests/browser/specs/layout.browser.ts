@@ -41,7 +41,9 @@ async function expectNoOverflow(page: Page, where: string) {
 
 test("the sessions list stays inside its container", async ({ page }) => {
   if (isMobile()) {
-    knownBroken("the sessions table forces the page to scroll horizontally at narrow widths");
+    // Two causes here, both needing a fix: the TableContainer doesn't confine the
+    // table, and the header Toolbar overflows independently of it.
+    knownBroken("the sessions table and the header both push the page wider than the viewport");
   }
   await setupPage(page);
   const list = new SessionsListPage(page);
@@ -90,7 +92,10 @@ test("the speaker-split view contains long turns", async ({ page }) => {
 
 test("search results contain long snippets", async ({ page }) => {
   if (isMobile()) {
-    knownBroken("a long unbroken snippet widens the result row past the page at narrow widths");
+    // Not the snippets — those wrap. The header's Toolbar does not fit 412px: its
+    // middle (search) cell has no min-width:0, so it refuses to shrink and pushes the
+    // settings/links menus off the right edge, scrolling every page in the app.
+    knownBroken("the header Toolbar overflows at narrow widths, scrolling the whole page");
   }
   await setupPage(page);
   const search = new SearchResultsPage(page);
@@ -102,7 +107,7 @@ test("search results contain long snippets", async ({ page }) => {
 test("the header search dropdown contains long snippets", async ({ page }) => {
   test.skip(LIVE, "depends on what the corpus matches");
   if (isMobile()) {
-    knownBroken("the dropdown's snippet line does not wrap, widening the popper past the page");
+    knownBroken("the header Toolbar overflows at narrow widths, scrolling the whole page");
   }
   await setupPage(page);
   await page.goto("/app/");

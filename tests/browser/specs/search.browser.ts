@@ -1,0 +1,136 @@
+/**
+ * Search results: showing what matched, and taking you to it.
+ *
+ * The two failures this guards against are the ones that made search results hard to
+ * use in the first place. A result that doesn't mark the matched term makes you re-read
+ * the snippet to find your own query in it. And a result that drops the query on the
+ * way to the session drops you at entry #0 of a five-thousand-entry transcript, with
+ * the thing you searched for somewhere below.
+ */
+import { expect, test } from "@playwright/test";
+import { MULTI_DAY_SESSION, SEARCH_METADATA_QUERY, SEARCH_QUERY } from "../fixtures/corpus";
+import { LIVE, SearchResultsPage, SessionDetailPage, setupPage } from "../helpers/app";
+import { isFirefox, isMobile, knownBroken } from "../helpers/known-broken";
+
+/** `<mark>` elements, whatever wraps them. */
+const marks = (page: import("@playwright/test").Page) => page.locator("mark");
+
+test.describe("results page", () => {
+  test("marks the matched term in a conversation snippet", async ({ page }) => {
+    await setupPage(page);
+    const search = new SearchResultsPage(page);
+    await search.goto(SEARCH_QUERY);
+
+    const firstResult = search.turnResults.first();
+    await expect(firstResult).toBeVisible();
+    const marked = firstResult.locator("mark").first();
+    await expect(marked).toBeVisible();
+    await expect(marked).toHaveText(new RegExp(SEARCH_QUERY, "i"));
+  });
+
+  test("gives each conversation result its project, time and session", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture metadata");
+    await setupPage(page);
+    const search = new SearchResultsPage(page);
+    await search.goto(SEARCH_QUERY);
+
+    const firstResult = search.turnResults.first();
+    // The project it happened in, and a timestamp — the two facts that let you tell
+    // one result from another without opening them.
+    await expect(firstResult.getByText("beacon-service")).toBeVisible();
+    await expect(firstResult.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)).toBeVisible();
+    await expect(firstResult.getByText(MULTI_DAY_SESSION.sessionId)).toBeVisible();
+  });
+
+  test("says which field a metadata hit matched on", async ({ page }) => {
+    test.skip(LIVE, "depends on what the corpus matches");
+    await setupPage(page);
+    const search = new SearchResultsPage(page);
+    await search.goto(SEARCH_METADATA_QUERY);
+
+    // A session hit is a row of metadata; without this the reader can't tell why it
+    // is in the results at all.
+    await expect(search.sessionResults.first().getByText(/matched project/)).toBeVisible();
+  });
+
+  test("does not render markup in a snippet as markup", async ({ page }) => {
+    test.skip(LIVE, "needs the fixture's markup-bearing turn");
+    await setupPage(page);
+    const search = new SearchResultsPage(page);
+    // The corpus turn containing "<local-command-caveat>" — transcripts carry
+    // arbitrary markup, and a snippet must show it, not run it.
+    await search.goto("local-command-caveat");
+    const result = search.turnResults.first();
+    await expect(result).toContainText("<local-command-caveat>");
+    // If the tag had been parsed there would be an element, not text.
+    expect(await page.locator("local-command-caveat").count()).toBe(0);
+  });
+});
+
+test.describe("following a result into its session", () => {
+  test("carries the query, and marks it in the transcript", async ({ page }) => {
+    await setupPage(page);
+    const search = new SearchResultsPage(page);
+    await search.goto(SEARCH_QUERY);
+
+    await search.turnResults.first().getByRole("link").first().click();
+    await expect(page).toHaveURL(new RegExp(`/app/sessions/[^?]+\\?q=${SEARCH_QUERY}`));
+    await expect(page.getByRole("heading", { name: "Transcript", exact: true })).toBeVisible();
+    await expect(marks(page).first()).toBeVisible();
+  });
+
+  test("opens the matching entry rather than leaving it collapsed", async ({ page }) => {
+    test.skip(LIVE, "fixture-specific transcript");
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
+
+    // The row the search led to is expanded on arrival: landing on a collapsed row
+    // means the reader still has to hunt for the thing they searched for.
+    const expanded = page.locator(".MuiAccordionSummary-root[aria-expanded='true']");
+    await expect(expanded).toHaveCount(1);
+    await expect(expanded).toContainText(new RegExp(SEARCH_QUERY, "i"));
+  });
+
+  test("states why the transcript is highlighted, and can clear it", async ({ page }) => {
+    // Blink only: the overflowing row sits over the chip and Blink refuses the click.
+    // Gecko's hit-testing lets it reach the chip, so the test genuinely passes there.
+    if (isMobile() && !isFirefox()) {
+      knownBroken(
+        "an overflowing transcript row covers the chip, so its clear button can't be clicked",
+      );
+    }
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
+
+    const banner = page.getByText(`matches for “${SEARCH_QUERY}”`);
+    await expect(banner).toBeVisible();
+
+    await page.getByTestId("CancelIcon").click();
+    await expect(page).not.toHaveURL(/\?q=/);
+    await expect(marks(page)).toHaveCount(0);
+  });
+
+  test("highlights the speaker-split view too", async ({ page }) => {
+    // Blink only: here Gecko's click does reach the toggle.
+    if (isMobile() && !isFirefox()) {
+      knownBroken(
+        "an overflowing transcript row covers the speaker toggle and intercepts the click",
+      );
+    }
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
+    await detail.selectSpeaker("You");
+    await expect(page.getByText(/user turns?/)).toBeVisible();
+    await expect(marks(page).first()).toBeVisible();
+  });
+
+  test("a session opened from the list has nothing highlighted", async ({ page }) => {
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId);
+    await expect(marks(page)).toHaveCount(0);
+  });
+});

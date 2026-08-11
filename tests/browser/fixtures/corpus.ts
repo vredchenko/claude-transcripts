@@ -265,8 +265,14 @@ export interface SearchTurnHit {
   cwd?: string;
 }
 
-/** `q=retry` — the query the search specs drive, with hits in both indexes. */
+/** `q=retry` — a content query: it hits turn text and nothing in session metadata. */
 export const SEARCH_QUERY = "retry";
+
+/**
+ * `q=beacon` — a metadata query. It matches a session's `cwd` and no turn text, which
+ * is the case that produces a session hit with a `matchedIn` explaining itself.
+ */
+export const SEARCH_METADATA_QUERY = "beacon";
 
 export const SEARCH_SESSION_HITS = [
   {
