@@ -41,16 +41,30 @@ export interface Overflow {
  */
 export async function overflowingElements(page: Page, tolerance = 2): Promise<Overflow[]> {
   return page.evaluate((tol) => {
-    const container =
-      document.querySelector(".MuiContainer-root") ??
-      document.querySelector("main") ??
-      document.body;
-    const bounds = container.getBoundingClientRect();
+    const viewport = { left: 0, right: document.documentElement.clientWidth };
 
-    /** True if anything between `el` and the container clips or scrolls horizontally. */
+    /**
+     * What an element is supposed to fit inside: the content container when it's in
+     * one, the viewport otherwise.
+     *
+     * Measuring everything against the content container missed a whole class of bug —
+     * the app header lives *outside* it, so a header that overflowed the screen showed
+     * up only as "the page scrolls", with nothing named. Measuring everything against
+     * the viewport instead would miss the opposite case: a card that escapes its
+     * column but happens to stay on screen. Each element is checked against whichever
+     * box actually constrains it.
+     */
+    const boundsFor = (el: Element): { left: number; right: number } => {
+      const container = el.closest(".MuiContainer-root") ?? el.closest("main");
+      if (!container || container === el) return viewport;
+      const rect = container.getBoundingClientRect();
+      return { left: rect.left, right: rect.right };
+    };
+
+    /** True if anything above `el` clips or scrolls horizontally. */
     const isClipped = (el: Element): boolean => {
       let node: Element | null = el.parentElement;
-      while (node && node !== container) {
+      while (node && node !== document.body) {
         const overflowX = getComputedStyle(node).overflowX;
         if (overflowX === "auto" || overflowX === "scroll" || overflowX === "hidden") return true;
         node = node.parentElement;
@@ -58,10 +72,11 @@ export async function overflowingElements(page: Page, tolerance = 2): Promise<Ov
       return false;
     };
 
-    /** Escapes `bounds` horizontally by more than the tolerance. */
+    /** Escapes the box that constrains it, by more than the tolerance. */
     const escapes = (el: Element): boolean => {
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return false;
+      const bounds = boundsFor(el);
       return bounds.left - rect.left > tol || rect.right - bounds.right > tol;
     };
 
@@ -73,13 +88,14 @@ export async function overflowingElements(page: Page, tolerance = 2): Promise<Ov
       width: number;
     }[] = [];
 
-    for (const el of Array.from(container.querySelectorAll("*"))) {
+    for (const el of Array.from(document.body.querySelectorAll("*"))) {
       if (!escapes(el) || isClipped(el)) continue;
       // Report the outermost offender only. A blown-out flex row drags every
       // descendant out with it, and eight lines about one row bury the row itself.
-      if (el.parentElement && el.parentElement !== container && escapes(el.parentElement)) continue;
+      if (el.parentElement && escapes(el.parentElement)) continue;
 
       const rect = el.getBoundingClientRect();
+      const bounds = boundsFor(el);
       const cls = typeof el.className === "string" ? el.className : "";
       // The first class is the meaningful one (`MuiAccordionSummary-content`); the
       // emotion hash that follows it changes on every build.

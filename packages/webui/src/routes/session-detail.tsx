@@ -29,17 +29,43 @@ export interface SessionDetailSearch {
   q?: string;
 }
 
+/**
+ * One labelled fact in the metadata grid.
+ *
+ * The label is a block with a fixed line box and the value sits on its own line, so
+ * every cell in a grid row starts its value at the same height. Previously the label
+ * was inline and the value's height varied with its content — a chip is taller than a
+ * line of text — which left each row's values on slightly different baselines and made
+ * a tidy grid read as a jumble.
+ */
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Box>
+    <Box sx={{ minWidth: 0 }}>
       <Typography
         variant="caption"
+        component="div"
         color="text.secondary"
-        sx={{ textTransform: "uppercase", letterSpacing: 0.5 }}
+        sx={{
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          lineHeight: 1.6,
+          whiteSpace: "nowrap",
+        }}
       >
         {label}
       </Typography>
-      <Typography variant="body2" component="div" sx={{ wordBreak: "break-word" }}>
+      <Typography
+        variant="body2"
+        component="div"
+        sx={{
+          // Values are ids, paths and hostnames: they must wrap inside their cell
+          // rather than widen the column and skew the whole grid.
+          overflowWrap: "anywhere",
+          minHeight: 24,
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
         {children}
       </Typography>
     </Box>
@@ -67,19 +93,33 @@ export function SessionDetailPage() {
 
       {session && (
         <>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 2 }}>
-            <Typography variant="h5" sx={{ fontFamily: MONO }}>
+          <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            sx={{ mt: 1, mb: 2, flexWrap: "wrap", gap: 1 }}
+          >
+            <Typography
+              variant="h5"
+              // A session id is 36 unbroken characters and the heading is monospace,
+              // which is wider than the narrowest phone.
+              sx={{ fontFamily: MONO, overflowWrap: "anywhere", minWidth: 0 }}
+            >
               {session.sessionId}
             </Typography>
             <StatusChip status={session.status} />
           </Stack>
 
           <Paper sx={{ p: 2, mb: 3 }}>
+            {/* Auto-fill rather than a fixed 2/4 columns: a fixed count leaves a
+                ragged hole wherever the field count isn't a multiple of it, and forces
+                a column width that long values (a hostname, a model id) then break out
+                of. This packs to whatever the width allows and every column is equal. */}
             <Box
               sx={{
                 display: "grid",
                 gap: 2,
-                gridTemplateColumns: { xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+                gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
               }}
             >
               <Field label="Started">
@@ -90,9 +130,7 @@ export function SessionDetailPage() {
               <Field label="Model">{session.model ?? "—"}</Field>
               <Field label="Hostname">{session.hostname || "—"}</Field>
               <Field label="Recording">
-                <Box sx={{ mt: 0.25 }}>
-                  <SourceChip source={session.source} />
-                </Box>
+                <SourceChip source={session.source} />
               </Field>
               <Field label="End reason">{session.endReason}</Field>
               <Field label="Prompts">{formatCount(session.promptCount)}</Field>

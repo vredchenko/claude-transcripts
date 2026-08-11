@@ -342,6 +342,31 @@ function isRealSession(agg: SessionAggregate | undefined): agg is SessionAggrega
   );
 }
 
+/**
+ * Does a session overlap the `[from, to]` window? Absent or unparseable bounds are
+ * treated as open, so a malformed date widens the result set rather than emptying it —
+ * a caller seeing everything can tell something is wrong; one seeing nothing can't
+ * distinguish that from a quiet month.
+ *
+ * A session's extent runs from its first event to its last. `timestamp` is the later
+ * end (the summary's time, or the newest event for a live one) and `startTimestamp`
+ * the earlier, so overlap is "ends after `from` and starts before `to`".
+ */
+function overlapsRange(
+  session: SessionSummary,
+  from: string | undefined,
+  to: string | undefined,
+): boolean {
+  const fromMs = from ? Date.parse(from) : Number.NaN;
+  const toMs = to ? Date.parse(to) : Number.NaN;
+  const startMs = Date.parse(session.startTimestamp ?? session.timestamp);
+  const endMs = Date.parse(session.lastActivity ?? session.timestamp);
+
+  if (!Number.isNaN(fromMs) && !Number.isNaN(endMs) && endMs < fromMs) return false;
+  if (!Number.isNaN(toMs) && !Number.isNaN(startMs) && startMs > toMs) return false;
+  return true;
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 const listRoute = createRoute({
@@ -352,6 +377,16 @@ const listRoute = createRoute({
     query: z.object({
       limit: z.coerce.number().int().nonnegative().optional(),
       skip: z.coerce.number().int().nonnegative().optional(),
+      /**
+       * Narrow to sessions **overlapping** an ISO instant range — what a calendar or
+       * timeline needs to draw one month without pulling the whole corpus.
+       *
+       * Overlap, not containment: a session that ran across the start of the window
+       * belongs in it, and asking for a month must not drop the four-day session that
+       * began the previous week. Either bound may be given alone.
+       */
+      from: z.string().optional(),
+      to: z.string().optional(),
     }),
   },
   responses: {
@@ -474,6 +509,8 @@ export function sessionRoutes(ctx: AppContext) {
   route.openapi(listRoute, async (c: any) => {
     const limit = Number(c.req.query("limit") ?? 50);
     const skip = Number(c.req.query("skip") ?? 0);
+    const from = c.req.query("from");
+    const to = c.req.query("to");
     const db = ctx.couch.db("sessions");
     // One aggregate row per session (ended + running + incomplete), grouped by
     // session_id. Sorted + paginated in-memory — fine at Tier-1 volumes; a
@@ -484,9 +521,12 @@ export function sessionRoutes(ctx: AppContext) {
     const all: SessionSummary[] = res.rows
       .filter((r: any) => isRealSession(r.value))
       .map((r: any) => aggregateToSummary(String(r.key), r.value, now, windowMs));
-    all.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
-    const page = all.slice(skip, skip + limit);
-    return c.json({ sessions: page, totalCount: all.length });
+    const windowed = all.filter((s) => overlapsRange(s, from, to));
+    windowed.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
+    const page = windowed.slice(skip, skip + limit);
+    // Total is of the *filtered* set, so a paged client asking for one month doesn't
+    // page against the size of the whole corpus.
+    return c.json({ sessions: page, totalCount: windowed.length });
   });
 
   route.openapi(detailRoute, async (c: any) => {

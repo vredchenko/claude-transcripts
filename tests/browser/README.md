@@ -97,10 +97,28 @@ navigating — the messages worth catching are logged during the first render.
 
 ## Known-broken checks
 
-Some checks are marked with `knownBroken(reason)`: they run, they fail, and the failure
-is expected. This is how a bug that predates the suite gets recorded without turning CI
-red — see the comment in `helpers/known-broken.ts`.
+`helpers/known-broken.ts` provides `knownBroken(reason)` for a check that finds a real
+bug you aren't fixing in the same change: it runs, it fails, and the failure is
+expected, so CI stays green without the finding being lost.
 
-They are **self-clearing**. Fix the bug and the test passes, at which point Playwright
+It is **self-clearing**. Fix the bug and the test passes, at which point Playwright
 reports "expected to fail but passed" and the build goes red until the `knownBroken`
-line is deleted. Removing that line is part of the fix.
+line is deleted — so removing it is part of the fix. Nothing currently uses it; the
+eight it was introduced for have all been fixed.
+
+## The clock is pinned
+
+`setupPage` fixes the browser's clock to the corpus's anchor (`NOW`). The fixtures are
+deterministic instants but the app measures against `Date.now()`, so without this a
+*running* session — which by definition extends to now — stretches from the fixture's
+March to whatever today happens to be, and the calendar draws it as a bar across five
+months. Pinning also settles which day the calendar calls "today", and keeps
+screenshots comparable over time.
+
+## Geometry is not the only way a layout fails
+
+The overflow audit catches content that escapes its box. It does not catch content that
+*fits* and is useless: making the header fit a phone by letting the search field shrink
+produced a 20-pixel input jammed against the settings button, with nothing overflowing
+and nothing to report. Where a fix works by shrinking something, assert the thing stayed
+big enough to use — see "the header search box stays usable at every width".

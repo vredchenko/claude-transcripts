@@ -33,6 +33,24 @@ export function createAppTheme(mode: ColorMode) {
           root: { borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" },
         },
       },
+      MuiAccordionSummary: {
+        styleOverrides: {
+          /**
+           * `.MuiAccordionSummary-content` is a flex container, and a flex item's
+           * default `min-width: auto` refuses to shrink below its content's
+           * max-content width. A transcript row previews a single unwrapped line, so
+           * one long unbroken string — a path, a caveat block, a base64 blob, all of
+           * which transcripts are full of — forced the row to seventeen hundred
+           * pixels and spilled it out of the card on *both* sides, over neighbouring
+           * controls.
+           *
+           * Fixed here rather than at the one call site because it's a property of
+           * the component, not of that row: any accordion added later would inherit
+           * the same bug.
+           */
+          content: { minWidth: 0 },
+        },
+      },
     },
   });
 }
