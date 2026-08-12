@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The contract check compares this branch's spec against the base branch's,
+          # which it reads out of git. The default shallow checkout has no such ref,
+          # and the check would skip itself into permanent uselessness.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -37,6 +42,14 @@ jobs:
       - run: bun run gen:all
       - name: generated files are reproducible
         run: git diff --exit-code
+
+      # Does this change break a consumer generated against the base branch's spec?
+      # Additive changes pass; a break passes only if a commit declares it. Consumers
+      # are generated, so a break surfaces at *their* next codegen, not here.
+      - name: contract stays compatible
+        run: bun run check:contract
+        env:
+          CONTRACT_BASE: origin/${{ github.base_ref || github.event.repository.default_branch }}
 
       - run: bun run lint
       - run: bun run typecheck

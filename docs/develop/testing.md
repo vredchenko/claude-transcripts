@@ -45,9 +45,15 @@ subagents, chunked content, `backfill` parity).
   does-it-render checks it audits *geometry* — content escaping its container, pages
   scrolling sideways — because the layout bugs this UI grows pass every assertion about
   content while being visibly wrong. Point it at a real instance with `E2E_BASE_URL`.
-- **Contract** — the generated API clients ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md))
-  give the webui/CLI a typed boundary; assert the OpenAPI spec stays compatible
-  (pending).
+- **Contract** — **done** (`bun run check:contract`). The generated API clients
+  ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md))
+  give the webui/CLI a typed boundary, and `openapi.json` is committed as the baseline
+  ([amendment](../design/decisions/0019-openapi-source-of-truth-generated-clients.md#amendment-the-spec-is-committed-and-compatibility-is-checked)).
+  CI diffs a branch's spec against the base branch's and fails on changes that break a
+  consumer generated from the older one — comparing in the right direction, so the
+  server may add response fields and relax request rules freely. A deliberate break
+  passes when a commit declares it (`type!:` or a `BREAKING CHANGE:` footer). The
+  comparator is pure and unit-tested (`packages/webapi/src/contract-diff.test.ts`).
 - **Migration** — up/down round-trips **done** (in-memory port fake,
   `packages/shared/src/migrations/runner.test.ts`); export→import
   (migrate-on-import) bundle round-trips pending ([migrations.md](../operate/migrations.md)).
