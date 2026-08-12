@@ -58,7 +58,11 @@ export interface ProxyTarget {
 export function instanceEnvPath(): string {
   const ctHome = process.env.CT_HOME;
   if (ctHome) return join(ctHome, "config", "instance.env");
-  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
+  // Blank-checked but otherwise taken verbatim — padding included — because that is
+  // what the CLI does, and the two resolving one path differently is the failure this
+  // mirrors against (see dev/instance-path-parity.test.ts).
+  const xdg = process.env.XDG_CONFIG_HOME;
+  const configHome = xdg?.trim() ? xdg : join(homedir(), ".config");
   return join(configHome, "claude-transcripts", "instance.env");
 }
 
