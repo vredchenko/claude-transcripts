@@ -67,6 +67,8 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
 packages/webui/
 ├── index.html                 # Vite HTML entry (#root + module script)
 ├── vite.config.ts             # React plugin, base "/app/", dev server, /api proxy
+├── dev/
+│   └── webapi-target.ts       # dev-only (Node): find the webapi, explain it if absent
 └── src/
     ├── main.tsx               # React root: QueryClient + ColorModeProvider + Router
     ├── color-mode.tsx         # color-mode state (light/dark/system) + ThemeProvider
@@ -235,8 +237,18 @@ in the generated snapshot. The header uses it for the title + build version.
 - Loads the **repo-root `.env`** (shared with the webapi) for `WEBUI_HOST/PORT`
   and the `WEBAPI_HOST/PORT` proxy target.
 - Sets `base: "/app/"` so dev matches the production mount point.
-- Dev server defaults to `127.0.0.1:7651`, proxying `/api` →
-  `http://127.0.0.1:7650` (`changeOrigin: true`).
+- Dev server defaults to `127.0.0.1:7651`, proxying `/api` (`changeOrigin: true`).
+- **Finding the webapi** (`dev/webapi-target.ts`) — the proxy target is, in order:
+  `WEBAPI_PORT` when set, else the **installed instance's** `instance.env`, else
+  `7650`. `install` allocates a port per instance, so a checkout run alongside an
+  install would otherwise proxy to a port nothing listens on. Only the *port* pins
+  the target; `WEBAPI_HOST` just chooses the host for it, because the template ships
+  a `WEBAPI_HOST` and it must not suppress the lookup. This mirrors the CLI's
+  `resolveWebapiUrl` — a checkout's two clients should agree on where the webapi is.
+- **When nothing is listening**, the target is reported at startup and failed proxy
+  calls return **502** with a `{ error, detail }` body naming the dead origin and the
+  live instance to use instead. Vite's own handler would return a bodiless 500, which
+  reads as an application bug rather than a missing upstream.
 - `bun run build` (root) outputs `packages/webui/dist/`, which the production
   image copies and the webapi serves via `CT_STATIC_DIR`
   ([ADR 0002](../design/decisions/0002-single-combined-container.md)).

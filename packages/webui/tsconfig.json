@@ -7,5 +7,7 @@
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src"]
+  // "dev" holds the dev-server helpers (Node, not shipped to the browser); it is kept
+  // out of "src" so nothing in the SPA can import a module that reads the filesystem.
+  "include": ["src", "dev"]
 }
