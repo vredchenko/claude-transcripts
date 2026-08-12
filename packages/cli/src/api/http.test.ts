@@ -91,11 +91,12 @@ describe("resolveWebapiUrl", () => {
   });
 
   test("the module imports cleanly on a machine with no install", () => {
-    // `BASE` is initialised by calling the resolver during module evaluation, so a
-    // declaration the resolver reads that sits *below* it throws on import — and only
-    // where no earlier branch returns first, i.e. exactly on a machine with no install.
-    // A fresh user running `install` is that machine, so this is checked in a
-    // subprocess: within this file the module is long since evaluated and cannot fail.
+    // Importing must stay inert: `index.ts` reaches this module through its commands,
+    // so anything that throws here takes down every command at load, before argv is
+    // parsed — and a resolver fault surfaces only where no earlier branch returns
+    // first, i.e. exactly on the machine of someone who has installed nothing yet.
+    // Checked in a subprocess because within this file the module is long since
+    // evaluated and cannot reproduce a load-time failure at all.
     const r = Bun.spawnSync({
       cmd: [
         process.execPath,
@@ -109,6 +110,25 @@ describe("resolveWebapiUrl", () => {
     });
     expect(r.stderr.toString()).not.toContain("ReferenceError");
     expect(r.stdout.toString().trim()).toBe("http://127.0.0.1:7650");
+    expect(r.exitCode).toBe(0);
+  });
+
+  test("the base URL is resolved on first use, not at import", () => {
+    // Set the port *after* the module is imported: resolving at import would have
+    // baked in the default and ignored it. Also a subprocess, since this file's own
+    // import happened before any test ran and cannot be re-timed.
+    const r = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        "-e",
+        `const m = await import(${JSON.stringify(join(import.meta.dir, "http.ts"))});
+         process.env.WEBAPI_PORT = "7999";
+         console.log(m.webapiUrl());`,
+      ],
+      cwd: home,
+      env: { ...process.env, CT_HOME: home, CT_WEBAPI_URL: "", WEBAPI_HOST: "", WEBAPI_PORT: "" },
+    });
+    expect(r.stdout.toString().trim()).toBe("http://127.0.0.1:7999");
     expect(r.exitCode).toBe(0);
   });
 

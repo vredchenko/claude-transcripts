@@ -63,7 +63,10 @@ blocks core CLI use if absent.
   *port* pins the target; `WEBAPI_HOST` just chooses the host for it — `.env.template`
   ships a `WEBAPI_HOST` and Bun loads it for anything run from a checkout, so letting
   it count as a named target would suppress the lookup. The webui's dev proxy resolves
-  the same way ([webui.md](webui.md#build--dev-viteconfigts)).
+  the same way ([webui.md](webui.md#build--dev-viteconfigts)). Resolution happens on
+  **first use and is then memoised** — importing the module stays inert, so a fault in
+  the resolver can't take down every command at load, and `--webapi` skips the instance
+  read entirely.
 
 ## Packaging (deferred)
 
