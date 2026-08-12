@@ -1,9 +1,12 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type UserConfig } from "vite";
 import { DEFAULT_WEBAPI_ORIGIN, describeTarget, resolveProxyTarget } from "./dev/webapi-target";
 
 // Loads the repo-root .env (shared with the webapi) for the dev server + proxy.
-export default defineConfig(async ({ command, mode }) => {
+// The `UserConfig` return annotation is load-bearing: without it the object below is
+// only inferred, so the proxy `configure` callback's parameters get no contextual type
+// and silently become `any` — including the `res` union this file narrows by hand.
+export default defineConfig(async ({ command, mode }): Promise<UserConfig> => {
   const env = loadEnv(mode, "../../", "");
 
   // Only when serving: `vite build` has no proxy, and probing a port during a
