@@ -13,31 +13,39 @@ import { installPaths } from "../lib/paths";
 
 let BASE = resolveWebapiUrl();
 
+/** The documented default (`.env.template`, docs/start/installation.md). */
+const DEFAULT_WEBAPI_PORT = "7650";
+
 /**
  * Resolve the webapi base URL.
  *
- * In precedence order: `CT_WEBAPI_URL`, then `WEBAPI_HOST`/`WEBAPI_PORT` from the
- * environment, then **the installed instance's own `instance.env`**, then the default
- * port.
+ * In precedence order: `CT_WEBAPI_URL`, then `WEBAPI_PORT` from the environment, then
+ * **the installed instance's own `instance.env`**, then the default port.
  *
  * That third step is the one worth explaining. `install` generates a port per instance,
  * so an install is frequently *not* on 7650 — and without this every command
  * (`sessions`, `doctor`, `reindex`) had to be told `--webapi` or it would report a dead
  * webapi on a port nothing was ever listening on. The instance already writes its port
  * down; reading it is what makes the bare commands work.
+ *
+ * Which makes it worth being precise about what suppresses that step: the **port** pins
+ * the target, and `WEBAPI_HOST` only chooses the host for whichever port is picked.
+ * `.env.template` ships a `WEBAPI_HOST` — it is the address a host-run webapi *binds* —
+ * and Bun loads that `.env` for anything run out of a checkout. Treating it as "the
+ * developer named a target" put every checkout back on 7650 with the install
+ * undiscovered, which is the failure the instance lookup exists to prevent. The webui's
+ * dev proxy resolves the same way (packages/webui/dev/webapi-target.ts); a checkout's
+ * two clients disagreeing about where the webapi lives is its own bug.
  */
 export function resolveWebapiUrl(): string {
   if (process.env.CT_WEBAPI_URL) return process.env.CT_WEBAPI_URL.replace(/\/$/, "");
-  // An explicit env var still wins over the file — that's how a dev checkout points the
+  const host = process.env.WEBAPI_HOST ?? "127.0.0.1";
+  // An explicit port still wins over the file — that's how a dev checkout points the
   // CLI at a webapi it's running from source.
-  if (process.env.WEBAPI_PORT || process.env.WEBAPI_HOST) {
-    const host = process.env.WEBAPI_HOST ?? "127.0.0.1";
-    const port = process.env.WEBAPI_PORT ?? "7650";
-    return `http://${host}:${port}`;
-  }
+  if (process.env.WEBAPI_PORT) return `http://${host}:${process.env.WEBAPI_PORT}`;
   const fromInstance = instanceWebapiUrl();
   if (fromInstance) return fromInstance;
-  return "http://127.0.0.1:7650";
+  return `http://${host}:${DEFAULT_WEBAPI_PORT}`;
 }
 
 /**
