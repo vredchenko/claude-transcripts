@@ -2,7 +2,7 @@
  * `claude-transcripts install` — get from nothing to "sessions are being recorded".
  *
  *   claude-transcripts install [--yes] [--no-hook] [--no-app] [--port-base N]
- *                              [--meili-key] [--skip-preflight]
+ *                              [--meili-key] [--skip-preflight] [--no-prune]
  *
  * A composition, not a monolith: every phase below is also its own command
  * (`stack`, `provision`, `hook install`, `doctor`), so a failure is resumable and an
@@ -18,6 +18,7 @@ import { parseFlags, strOpt } from "../lib/args";
 import { linkInstanceEnv, writeAssets, writeVersionStamp } from "../lib/assets";
 import { composeUp, healthTargets, serviceLogs, waitForHealth } from "../lib/compose";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
+import { appImageRepo, pruneAppImages, renderPruneReport } from "../lib/images";
 import {
   DEFAULT_PORT_BASE,
   type EnvMap,
@@ -120,6 +121,7 @@ export async function runInstall(argv: string[]): Promise<number> {
   const noHook = options["no-hook"] === true;
   const noApp = options["no-app"] === true;
   const meiliKey = options["meili-key"] === true;
+  const noPrune = options["no-prune"] === true;
   const portBaseOpt = strOpt(options, "port-base");
   const paths = installPaths();
   // Read before loadOrCreateInstanceEnv rewrites it, so a moved pin can be reported.
@@ -242,6 +244,20 @@ export async function runInstall(argv: string[]): Promise<number> {
     }
     console.log(`  ✓ webapi (${(health.waitedMs / 1000).toFixed(1)}s)`);
     await warnOnVersionSkew(env);
+
+    // Reclaim the images this upgrade superseded — last in the phase, and only once
+    // the new one has served a health check. Pruning any earlier would spend the
+    // rollback target to make room for an image not yet known to work.
+    if (noPrune) {
+      console.log("  --no-prune: keeping superseded app images");
+    } else {
+      const repo = appImageRepo(env);
+      const report = await pruneAppImages({
+        repo,
+        keepTags: [env.APP_TAG ?? "", priorAppTag ?? ""],
+      });
+      console.log(renderPruneReport(report, repo));
+    }
   }
 
   // ── 6. Hook ───────────────────────────────────────────────────────────────
