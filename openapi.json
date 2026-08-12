@@ -1,0 +1,1796 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Claude Transcripts",
+    "version": "0.0.0-dev"
+  },
+  "components": {
+    "schemas": {
+      "SessionStatus": {
+        "type": "string",
+        "enum": ["ended", "running", "incomplete"]
+      },
+      "TokenUsage": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "number"
+          },
+          "output": {
+            "type": "number"
+          },
+          "cacheCreation": {
+            "type": "number"
+          },
+          "cacheRead": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "messages": {
+            "type": "number"
+          }
+        },
+        "required": ["input", "output", "cacheCreation", "cacheRead", "total", "messages"]
+      },
+      "SessionSummary": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "startTimestamp": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "activeMs": {
+            "type": "number"
+          },
+          "model": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "eventCount": {
+            "type": "number"
+          },
+          "promptCount": {
+            "type": "number"
+          },
+          "errorCount": {
+            "type": "number"
+          },
+          "toolCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "endReason": {
+            "type": "string"
+          },
+          "hasTranscript": {
+            "type": "boolean"
+          },
+          "transcriptSize": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus"
+          },
+          "lastActivity": {
+            "type": "string"
+          },
+          "tokenUsage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId",
+          "timestamp",
+          "cwd",
+          "hostname",
+          "eventCount",
+          "promptCount",
+          "errorCount",
+          "toolCounts",
+          "endReason",
+          "hasTranscript",
+          "status"
+        ]
+      },
+      "SessionsResponse": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            }
+          },
+          "totalCount": {
+            "type": "number"
+          }
+        },
+        "required": ["sessions", "totalCount"]
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["error"]
+      },
+      "SpeakerRole": {
+        "type": "string",
+        "enum": ["user", "assistant", "tool_result", "system", "other"]
+      },
+      "ToolUseRef": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
+      "TranscriptEntry": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/SpeakerRole"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "toolUses": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ToolUseRef"
+            }
+          },
+          "toolUseId": {
+            "type": "string",
+            "nullable": true
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "isSidechain": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": ["role"]
+      },
+      "TranscriptSource": {
+        "type": "string",
+        "enum": ["chunks", "s3"]
+      },
+      "TranscriptResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptEntry"
+            }
+          },
+          "totalCount": {
+            "type": "number"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/TranscriptSource"
+          },
+          "byteCoverage": {
+            "type": "number"
+          }
+        },
+        "required": ["entries", "totalCount", "hasMore", "source", "byteCoverage"]
+      },
+      "SpeakerTurn": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/SpeakerRole"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "toolUses": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ToolUseRef"
+            }
+          },
+          "toolUseId": {
+            "type": "string",
+            "nullable": true
+          },
+          "isError": {
+            "type": "boolean"
+          }
+        },
+        "required": ["role", "timestamp", "text"]
+      },
+      "SessionTurnsResponse": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakerTurn"
+            }
+          },
+          "totalCount": {
+            "type": "number"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpeakerRole"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": ["turns", "totalCount", "hasMore", "role"]
+      },
+      "CrossSessionTurn": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/SpeakerRole"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["sessionId", "cwd", "role", "timestamp", "text"]
+      },
+      "CrossSessionTurnsResponse": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrossSessionTurn"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpeakerRole"
+              },
+              {
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": ["turns", "hasMore", "role"]
+      },
+      "SessionResetResult": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "number"
+              },
+              "events": {
+                "type": "number"
+              },
+              "chunks": {
+                "type": "number"
+              },
+              "blobs": {
+                "type": "number"
+              }
+            },
+            "required": ["summary", "events", "chunks", "blobs"]
+          }
+        },
+        "required": ["ok", "id", "deleted"]
+      },
+      "SearchHit": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "endReason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["sessionId"]
+      },
+      "TurnHit": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          }
+        },
+        "required": ["sessionId", "role", "snippet"]
+      },
+      "SearchTotals": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "number"
+          },
+          "turns": {
+            "type": "number"
+          }
+        },
+        "required": ["sessions", "turns"]
+      },
+      "SearchFacets": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hostname": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["cwd", "model", "hostname", "source"]
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            }
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TurnHit"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/SearchTotals"
+          },
+          "facets": {
+            "$ref": "#/components/schemas/SearchFacets"
+          }
+        },
+        "required": ["hits", "turns", "query", "enabled", "totals", "facets"]
+      },
+      "IndexCounts": {
+        "type": "object",
+        "properties": {
+          "scanned": {
+            "type": "number"
+          },
+          "indexed": {
+            "type": "number"
+          }
+        },
+        "required": ["scanned", "indexed"]
+      },
+      "ReindexResult": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "sessions": {
+            "$ref": "#/components/schemas/IndexCounts"
+          },
+          "turns": {
+            "$ref": "#/components/schemas/IndexCounts"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["enabled", "sessions", "turns", "failures"]
+      },
+      "MigrationStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name"]
+      },
+      "AppliedMigration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "at"]
+      },
+      "MigrationStatus": {
+        "type": "object",
+        "properties": {
+          "currentVersion": {
+            "type": "number"
+          },
+          "latestVersion": {
+            "type": "number"
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationStep"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppliedMigration"
+            }
+          }
+        },
+        "required": ["currentVersion", "latestVersion", "pending", "history"]
+      },
+      "MigrationDirection": {
+        "type": "string",
+        "enum": ["up", "down"]
+      },
+      "MigrationRunResult": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "$ref": "#/components/schemas/MigrationDirection"
+          },
+          "fromVersion": {
+            "type": "number"
+          },
+          "toVersion": {
+            "type": "number"
+          },
+          "applied": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationStep"
+            }
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "log": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["direction", "fromVersion", "toVersion", "applied", "dryRun", "log"]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "skip",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "operationId": "getSession",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/transcript": {
+      "get": {
+        "operationId": "getSessionTranscript",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transcript",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "No transcript in CouchDB and the S3 fallback failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/turns": {
+      "get": {
+        "operationId": "getSessionTurns",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/SpeakerRole"
+            },
+            "required": false,
+            "name": "role",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Turns (speaker-split)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTurnsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/turns": {
+      "get": {
+        "operationId": "getTurns",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/SpeakerRole"
+            },
+            "required": false,
+            "name": "role",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "skip",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cross-session turns (time-ordered)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrossSessionTurnsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/summary": {
+      "post": {
+        "operationId": "ingestSummary",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "_id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["summary"]
+                  },
+                  "event": {
+                    "type": "string",
+                    "enum": ["SessionEnd"]
+                  },
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  },
+                  "hostname": {
+                    "type": "string"
+                  },
+                  "cwd": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "end_reason": {
+                    "type": "string"
+                  },
+                  "event_count": {
+                    "type": "number"
+                  },
+                  "prompt_count": {
+                    "type": "number"
+                  },
+                  "error_count": {
+                    "type": "number"
+                  },
+                  "tool_counts": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "transcript_bytes": {
+                    "type": "number"
+                  },
+                  "token_usage": {
+                    "type": "object",
+                    "properties": {
+                      "input": {
+                        "type": "number"
+                      },
+                      "output": {
+                        "type": "number"
+                      },
+                      "cacheCreation": {
+                        "type": "number"
+                      },
+                      "cacheRead": {
+                        "type": "number"
+                      },
+                      "total": {
+                        "type": "number"
+                      },
+                      "messages": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "input",
+                      "output",
+                      "cacheCreation",
+                      "cacheRead",
+                      "total",
+                      "messages"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "backfilled_at": {
+                    "type": "string"
+                  },
+                  "actor": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "_id",
+                  "type",
+                  "event",
+                  "session_id",
+                  "timestamp",
+                  "hostname",
+                  "cwd",
+                  "end_reason",
+                  "event_count",
+                  "prompt_count",
+                  "error_count",
+                  "tool_counts",
+                  "transcript_bytes",
+                  "token_usage"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "updated": {
+                      "type": "boolean"
+                    },
+                    "inserted": {
+                      "type": "number"
+                    },
+                    "bytes": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["ok"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid doc",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/events": {
+      "post": {
+        "operationId": "ingestEvents",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["event"]
+                        },
+                        "event": {
+                          "type": "string"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "hostname": {
+                          "type": "string"
+                        },
+                        "cwd": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "event", "session_id", "timestamp", "hostname", "cwd"]
+                    }
+                  }
+                },
+                "required": ["docs"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "updated": {
+                      "type": "boolean"
+                    },
+                    "inserted": {
+                      "type": "number"
+                    },
+                    "bytes": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["ok"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid docs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/chunks": {
+      "post": {
+        "operationId": "ingestChunks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "docs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "_id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": ["chunk"]
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "byte_start": {
+                          "type": "number"
+                        },
+                        "byte_end": {
+                          "type": "number"
+                        },
+                        "entry_count": {
+                          "type": "number"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "hostname": {
+                          "type": "string"
+                        },
+                        "cwd": {
+                          "type": "string"
+                        },
+                        "schema_version": {
+                          "type": "number"
+                        },
+                        "entries": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "role": {
+                                "type": "string",
+                                "enum": ["user", "assistant", "tool_result", "system", "other"]
+                              },
+                              "timestamp": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "toolUses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["name"]
+                                }
+                              },
+                              "toolUseId": {
+                                "type": "string"
+                              },
+                              "isError": {
+                                "type": "boolean"
+                              },
+                              "isSidechain": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": ["role"]
+                          }
+                        }
+                      },
+                      "required": [
+                        "_id",
+                        "type",
+                        "session_id",
+                        "byte_start",
+                        "byte_end",
+                        "entry_count",
+                        "timestamp",
+                        "hostname",
+                        "cwd",
+                        "schema_version"
+                      ]
+                    }
+                  }
+                },
+                "required": ["docs"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "updated": {
+                      "type": "boolean"
+                    },
+                    "inserted": {
+                      "type": "number"
+                    },
+                    "bytes": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["ok"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid docs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/{id}/transcript": {
+      "put": {
+        "operationId": "ingestTranscript",
+        "summary": "Store a session transcript (raw JSONL body, application/x-ndjson) in S3",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "updated": {
+                      "type": "boolean"
+                    },
+                    "inserted": {
+                      "type": "number"
+                    },
+                    "bytes": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["ok"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/{id}": {
+      "delete": {
+        "operationId": "resetSession",
+        "summary": "Delete a session's summary/event/chunk docs so it can be re-ingested",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "required": false,
+            "name": "blobs",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResetResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cwd",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "model",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "hostname",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "source",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/reindex": {
+      "post": {
+        "operationId": "searchReindex",
+        "responses": {
+          "200": {
+            "description": "Reindex result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReindexResult"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/migrate/status": {
+      "get": {
+        "operationId": "migrateStatus",
+        "responses": {
+          "200": {
+            "description": "Migration status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationStatus"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/migrate/up": {
+      "post": {
+        "operationId": "migrateUp",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "number"
+                  },
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationRunResult"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/migrate/down": {
+      "post": {
+        "operationId": "migrateDown",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "steps": {
+                    "type": "number"
+                  },
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rolled back",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationRunResult"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

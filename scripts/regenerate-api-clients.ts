@@ -29,9 +29,14 @@ async function main() {
   // 2. Generate the clients (orval reads ./openapi.json per orval.config.ts).
   await $`bunx orval --config ${join(ROOT, "orval.config.ts")}`;
   // 3. Bring the emitted files up to repo style so `lint` passes on generated code.
-  const targets = ["cli", "webui"].map((p) =>
-    join(ROOT, "packages", p, "src", "api", "generated.ts"),
-  );
+  // The spec is formatted too, now that it's committed: `JSON.stringify(…, null, 2)`
+  // is not what Biome produces, so without this `lint` and the "generated files are
+  // reproducible" check would demand opposite things — format it and regeneration
+  // dirties the tree, don't and lint fails.
+  const targets = [
+    SPEC,
+    ...["cli", "webui"].map((p) => join(ROOT, "packages", p, "src", "api", "generated.ts")),
+  ];
   await $`bunx biome check --write ${targets}`.quiet();
   console.log("[gen] clients regenerated into packages/{cli,webui}/src/api/generated.ts");
 }
