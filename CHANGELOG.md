@@ -6,6 +6,43 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.9] — 2026-08-12
+
+An upgrade cleans up after itself.
+
+### Added
+
+- **`install` reclaims the app images it supersedes.** Compose pulls but never prunes,
+  so nothing in the normal path removed the predecessor image: a few releases in, a
+  machine carries several hundred megabytes per version it has passed through. The cost
+  isn't untidiness — the *next* upgrade needs room for a fresh pull, and the failure
+  mode when it doesn't have it is a half-extracted layer at the least recoverable
+  moment. Found on an instance whose disk had reached 100% while holding four
+  superseded tags alongside the one it was running.
+
+  The scope is deliberately narrow, because the blast radius of getting this wrong is
+  the running instance. Only `${IMAGE_NS}/claude-transcripts-app`, the image the
+  installer itself pulls — never a contributor's locally built `:local`, and never a
+  bare `docker image prune`, which would reach clean out of the instance into whatever
+  else the machine runs. Only after the new image has answered a health check, since
+  pruning earlier spends the rollback target to make room for an image not yet known to
+  work. Never the tag just installed, nor the one it replaced, so a rollback stays an
+  `APP_TAG` edit rather than a re-pull. And never forced: `docker rmi` refuses to remove
+  an image a container still references, and that refusal is the safety check rather
+  than something to work around. `--no-prune` opts out.
+
+  Removal goes by `repo:tag` rather than image ID, because one ID can carry several
+  tags — deleting `v0.0.8` by ID would take `latest` with it when they point at the same
+  build. Retention needs no version sorting: the tag being replaced is already read from
+  the instance env, so "current plus predecessor" falls out of what the installer
+  already knows. The selection is pure and unit-tested, because it runs unattended after
+  the install has already succeeded, and deleting the wrong image reports nothing until
+  the next `up`.
+
+  Reported as counts and tags rather than bytes: images share base layers, so a total
+  summed from what `docker images` prints overstates what was actually freed — on the
+  instance above, four 418MB images reclaimed 1.0GB, not 1.7GB.
+
 ## [0.0.8] — 2026-08-12
 
 The webui gets two more ways to read a corpus, search stops making you hunt for your own
@@ -745,6 +782,8 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.9]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.9
+[0.0.8]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.8
 [0.0.7]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.7
 [0.0.6]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.6
 [0.0.5]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.5
