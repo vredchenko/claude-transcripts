@@ -14,6 +14,30 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+
+      # Every committed generated artifact must be reproducible from its source.
+      #
+      # This exists because it wasn't. `packages/webui/src/api/generated.ts` spent
+      # weeks as a *hand-written* file — orval's output was unusable (the spec inlined
+      # its schemas, so every type came out named `ListSessions200SessionsItemStatus`),
+      # so it was written by hand and kept the name. It even carried a header saying
+      # so, while the docs went on claiming clients are generated
+      # ([ADR 0019](../../docs/design/decisions/0019-openapi-source-of-truth-generated-clients.md)).
+      # `deploy/docker-compose.yml` had the same drift from the other direction: a
+      # regeneration silently dropped hand-written comments the generator can't emit.
+      #
+      # A file named "generated" that nobody regenerates is worse than a hand-written
+      # one, because the name suppresses exactly the scrutiny it needs. Regenerating
+      # everything and failing on a diff is what makes the claim checkable.
+      #
+      # `gen:clients` is deliberately separate from `gen:all` in package.json, so both
+      # run. `compatibility.json` stamps `generatedAt` but is gitignored, so it can't
+      # trip this.
+      - run: bun run gen:clients
+      - run: bun run gen:all
+      - name: generated files are reproducible
+        run: git diff --exit-code
+
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run build
