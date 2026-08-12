@@ -56,6 +56,14 @@ blocks core CLI use if absent.
 - **Generated API client** (above) — the same source of truth the webui uses.
 - Reads the same backend config as the rest of the repo for host-side operations
   (`COUCHDB_*`, `S3_*`); for app-side operations it only needs the webapi base URL.
+- **Finding the webapi** (`src/api/http.ts`) — `--webapi`, else `CT_WEBAPI_URL`, else
+  `WEBAPI_PORT`, else the **installed instance's** `instance.env`, else `7650`.
+  `install` allocates a port per instance, so without the `instance.env` step the bare
+  commands would report a dead webapi on a port nothing was listening on. Only the
+  *port* pins the target; `WEBAPI_HOST` just chooses the host for it — `.env.template`
+  ships a `WEBAPI_HOST` and Bun loads it for anything run from a checkout, so letting
+  it count as a named target would suppress the lookup. The webui's dev proxy resolves
+  the same way ([webui.md](webui.md#build--dev-viteconfigts)).
 
 ## Packaging (deferred)
 

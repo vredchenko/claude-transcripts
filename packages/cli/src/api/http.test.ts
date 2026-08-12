@@ -56,6 +56,34 @@ describe("resolveWebapiUrl", () => {
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
   });
 
+  test("WEBAPI_HOST alone does not suppress the instance lookup", () => {
+    // The template ships a WEBAPI_HOST and Bun loads it for anything run from a
+    // checkout, so if the host counted as "a target was named" the lookup below would
+    // never get a turn and every checkout would sit on a dead 7650.
+    writeInstanceEnv("WEBAPI_PORT=7658\n");
+    process.env.WEBAPI_HOST = "127.0.0.1";
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
+  });
+
+  test("an empty WEBAPI_PORT is not a pin", () => {
+    // `WEBAPI_PORT=` in a .env is a blank, not a choice. Reading it as one produced a
+    // portless `http://127.0.0.1:`, which fails at the socket rather than saying why.
+    writeInstanceEnv("WEBAPI_PORT=7658\n");
+    process.env.WEBAPI_PORT = "";
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
+  });
+
+  test("WEBAPI_HOST chooses the host when a port is pinned", () => {
+    process.env.WEBAPI_HOST = "10.0.0.5";
+    process.env.WEBAPI_PORT = "7650";
+    expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7650");
+  });
+
+  test("WEBAPI_HOST applies to the default when there is no install", () => {
+    process.env.WEBAPI_HOST = "10.0.0.5";
+    expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7650");
+  });
+
   test("an unreadable or portless instance file falls through", () => {
     writeInstanceEnv("COUCHDB_PORT=7660\n# no webapi port here\n");
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
