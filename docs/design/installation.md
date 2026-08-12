@@ -164,6 +164,15 @@ The ones that will actually happen, and what each should do.
   slate.
 - *An older version is installed.* That's `upgrade`: new binary, new assets, new image
   tag, `migrate up`. Migrations run forward only, and never on a downgrade.
+- *The images the upgrade superseded.* Compose pulls but never prunes, so each release
+  passed through leaves a few hundred megabytes behind, and the upgrade that eventually
+  fails is the one with no room left to pull. Install reclaims them — but only its own
+  (`${IMAGE_NS}/claude-transcripts-app`, never a locally built `:local`, never a bare
+  `docker image prune` that would reach outside the instance), only after the new image
+  has answered a health check, and never the tag it just replaced, which is what makes
+  a rollback an `APP_TAG` edit rather than a re-pull. An image a container still holds
+  is left alone: `docker rmi` is not forced, and its refusal is the safety check.
+  `--no-prune` opts out.
 - *Existing `.env`/config from a contributor checkout.* Don't touch the repo. The
   user install is a separate instance under `~/.config`.
 - *Existing volumes with real history.* Never destroyed by install, upgrade, or plain

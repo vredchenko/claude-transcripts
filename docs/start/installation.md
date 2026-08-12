@@ -28,7 +28,8 @@ claude-transcripts doctor       # verify the whole write→read path
 
 Useful flags: `--port-base N` (move the port block), `--meili-key` (turn on
 Meilisearch auth), `--no-hook` (set up the stores but don't register with Claude
-Code), `--no-app` (run the webapi yourself). Removing it again:
+Code), `--no-app` (run the webapi yourself), `--no-prune` (keep the app images this
+upgrade superseded). Removing it again:
 
 ```sh
 claude-transcripts uninstall            # keeps your recorded history
