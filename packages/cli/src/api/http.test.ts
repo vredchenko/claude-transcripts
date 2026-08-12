@@ -42,6 +42,18 @@ describe("resolveWebapiUrl", () => {
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
   });
 
+  test("a 0.0.0.0 bind host in the instance file is dialled as loopback", () => {
+    // That field records what the webapi BINDS. `0.0.0.0` is "every interface", not an
+    // address to connect to — dialling it works on Linux and not everywhere else.
+    writeInstanceEnv("WEBAPI_HOST=0.0.0.0\nWEBAPI_PORT=7658\n");
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
+  });
+
+  test("any other instance host is used as written", () => {
+    writeInstanceEnv("WEBAPI_HOST=10.0.0.5\nWEBAPI_PORT=7658\n");
+    expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7658");
+  });
+
   test("CT_WEBAPI_URL wins over the instance file", () => {
     writeInstanceEnv("WEBAPI_PORT=7658\n");
     process.env.CT_WEBAPI_URL = "http://example.test:9000/";
