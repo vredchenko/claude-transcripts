@@ -37,6 +37,7 @@
     "bootstrap:garage": "bun run scripts/bootstrap-garage.ts",
     "test": "bun test",
     "test:e2e": "bun test ./tests/e2e/*.test.ts",
+    "check:contract": "bun run scripts/check-contract.ts",
     "test:browser": "playwright test",
     "test:browser:install": "playwright install --with-deps chromium firefox",
     "test:browser:capture": "bun run tests/browser/capture.ts",

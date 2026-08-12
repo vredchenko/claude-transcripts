@@ -22,8 +22,9 @@ deploy/data/
 
 # Generated API clients (regenerated from the OpenAPI spec) ARE committed.
 # packages/*/src/api/generated.ts   # uncomment if we choose not to commit them
-# The OpenAPI spec is a transient build input (emitted by gen:clients, then orval'd):
-openapi.json
+# `openapi.json` is committed too — it is the contract's source of truth (ADR 0019),
+# and the contract check needs a baseline in git to compare a change against. CI keeps
+# it honest: `gen:clients` rewrites it and a diff fails the build.
 
 # Local hook config / scratch
 hooks/.config/

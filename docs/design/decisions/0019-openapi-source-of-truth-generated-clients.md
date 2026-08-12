@@ -46,3 +46,31 @@ and **typed clients are generated from it**.
   not part of the wire contract.
 - Tooling choice (e.g. `openapi-typescript` / `openapi-fetch` or similar) is an
   implementation detail to be fixed when the CLI lands; see [cli.md](../../reference/cli.md).
+
+## Amendment: the spec is committed, and compatibility is checked
+
+Date: 2026-08-12
+
+Calling the spec "the single source of truth" while `.gitignore` called it "a transient
+build input" was a contradiction, and it had a cost: with nothing in git to compare
+against, no change could be assessed for whether it broke a consumer.
+
+The spec is therefore **committed** (`openapi.json`), and `scripts/check-contract.ts`
+compares the working tree's spec against the baseline's, failing on changes that break
+a consumer generated from the older one.
+
+Committing a generated artefact is only safe if something proves it is still generated —
+which is exactly the trap this repo already fell into, when `packages/webui/src/api/generated.ts`
+spent weeks hand-written under a generated name. CI now regenerates everything and fails
+on a diff, so a stale committed spec is a build failure rather than a quiet lie.
+
+Two consequences worth stating:
+
+- **A contract change is visible in review.** The diff shows the contract moving, next
+  to the route change that moved it, instead of being invisible until someone
+  regenerates.
+- **Breaking the contract stays allowed, but not silently.** Pre-1.0, a frozen API would
+  be the wrong constraint. A break passes the check when a commit declares it
+  (`feat(webapi)!:` or a `BREAKING CHANGE:` footer), which puts the acknowledgement in
+  the history and the changelog — where someone debugging a client that stopped working
+  will actually look.
