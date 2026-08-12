@@ -83,7 +83,11 @@ function instanceWebapiUrl(): string | null {
     const port = /^WEBAPI_PORT=(\d+)\s*$/m.exec(raw)?.[1];
     if (!port) return null;
     const host = /^WEBAPI_HOST=(\S+)\s*$/m.exec(raw)?.[1] ?? "127.0.0.1";
-    return `http://${host}:${port}`;
+    // `WEBAPI_HOST` in that file is what the webapi BINDS. `0.0.0.0` means "every
+    // interface" to a listener and is not an address to dial: connecting to it happens
+    // to work on Linux and does not everywhere. Read it as the loopback it implies.
+    // The webui's resolver does the same (packages/webui/dev/webapi-target.ts).
+    return `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}`;
   } catch {
     return null;
   }
