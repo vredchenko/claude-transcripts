@@ -65,6 +65,12 @@ describe("resolveWebapiUrl", () => {
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
   });
 
+  test("an empty WEBAPI_HOST is not a choice either", () => {
+    process.env.WEBAPI_HOST = "";
+    process.env.WEBAPI_PORT = "7650";
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
+  });
+
   test("an empty WEBAPI_PORT is not a pin", () => {
     // `WEBAPI_PORT=` in a .env is a blank, not a choice. Reading it as one produced a
     // portless `http://127.0.0.1:`, which fails at the socket rather than saying why.
@@ -82,6 +88,28 @@ describe("resolveWebapiUrl", () => {
   test("WEBAPI_HOST applies to the default when there is no install", () => {
     process.env.WEBAPI_HOST = "10.0.0.5";
     expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7650");
+  });
+
+  test("the module imports cleanly on a machine with no install", () => {
+    // `BASE` is initialised by calling the resolver during module evaluation, so a
+    // declaration the resolver reads that sits *below* it throws on import — and only
+    // where no earlier branch returns first, i.e. exactly on a machine with no install.
+    // A fresh user running `install` is that machine, so this is checked in a
+    // subprocess: within this file the module is long since evaluated and cannot fail.
+    const r = Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        "-e",
+        `import(${JSON.stringify(join(import.meta.dir, "http.ts"))}).then((m) => console.log(m.webapiUrl()))`,
+      ],
+      // cwd is the sandboxed home so no repo .env is picked up, and CT_HOME points at
+      // an install that isn't there.
+      cwd: home,
+      env: { ...process.env, CT_HOME: home, CT_WEBAPI_URL: "", WEBAPI_HOST: "", WEBAPI_PORT: "" },
+    });
+    expect(r.stderr.toString()).not.toContain("ReferenceError");
+    expect(r.stdout.toString().trim()).toBe("http://127.0.0.1:7650");
+    expect(r.exitCode).toBe(0);
   });
 
   test("an unreadable or portless instance file falls through", () => {

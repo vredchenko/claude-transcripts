@@ -11,10 +11,16 @@
 import { readFileSync } from "node:fs";
 import { installPaths } from "../lib/paths";
 
-let BASE = resolveWebapiUrl();
-
-/** The documented default (`.env.template`, docs/start/installation.md). */
+/**
+ * The documented default (`.env.template`, docs/start/installation.md).
+ *
+ * Declared above `BASE` deliberately: that initialiser calls the resolver during module
+ * evaluation, so anything the resolver reads must already be initialised or the import
+ * throws — and only on machines with no install, since any earlier branch returns first.
+ */
 const DEFAULT_WEBAPI_PORT = "7650";
+
+let BASE = resolveWebapiUrl();
 
 /**
  * Resolve the webapi base URL.
@@ -39,7 +45,10 @@ const DEFAULT_WEBAPI_PORT = "7650";
  */
 export function resolveWebapiUrl(): string {
   if (process.env.CT_WEBAPI_URL) return process.env.CT_WEBAPI_URL.replace(/\/$/, "");
-  const host = process.env.WEBAPI_HOST ?? "127.0.0.1";
+  // `||`, not `??`, for both halves: a blank env var is an unfilled slot, not a choice.
+  // `??` keeps `""` and builds `http://:7650` / `http://host:`, URLs that fail at the
+  // socket with nothing that points back at the empty line in the .env that caused it.
+  const host = process.env.WEBAPI_HOST || "127.0.0.1";
   // An explicit port still wins over the file — that's how a dev checkout points the
   // CLI at a webapi it's running from source.
   if (process.env.WEBAPI_PORT) return `http://${host}:${process.env.WEBAPI_PORT}`;
