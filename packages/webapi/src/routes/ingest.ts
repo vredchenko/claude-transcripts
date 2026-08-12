@@ -286,7 +286,7 @@ export function ingestRoutes(ctx: AppContext) {
   route.openapi(transcriptRoute, async (c: any) => {
     const id = c.req.param("id");
     const text = await c.req.text();
-    if (!text || !text.trim()) return c.json({ error: "Empty transcript body" }, 400);
+    if (!text?.trim()) return c.json({ error: "Empty transcript body" }, 400);
     const bucket = bucketName(ctx.config, "sessions");
     await ctx.blob.put(
       bucket,

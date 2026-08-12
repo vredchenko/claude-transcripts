@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -27,7 +27,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "a11y": {
         "useButtonType": "off",
         "useKeyWithClickEvents": "off",
@@ -58,5 +58,25 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "// These files EMIT `${VAR}` strings rather than containing template literals:",
+        "// the model writes compose interpolation, sync-hooks writes the placeholder",
+        "// Claude Code expands. Flagging them is noise, and the noise was hiding the",
+        "// rest of the lint output. Same reasoning as the assets.generated.ts exclusion",
+        "// above, scoped to one rule instead of the whole file.",
+        "packages/shared/src/model/services.ts",
+        "scripts/sync-hooks.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    }
+  ]
 }
