@@ -249,9 +249,8 @@ function blockText(content: unknown, onlyType?: string): string {
   if (Array.isArray(content)) {
     return (
       content
-        // biome-ignore lint/suspicious/noExplicitAny: upstream content items
+        // `any` throughout: these are upstream-owned content items, not our shape.
         .filter((c: any) => (onlyType ? c?.type === onlyType : true))
-        // biome-ignore lint/suspicious/noExplicitAny: upstream content items
         .map((c: any) => (typeof c?.text === "string" ? c.text : ""))
         .join("")
     );

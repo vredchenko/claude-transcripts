@@ -16,7 +16,7 @@ export interface TranscriptEntry {
   gitBranch?: string;
   version?: string;
   isSidechain?: boolean; // true ⇒ a subagent sub-transcript line
-  // biome-ignore lint/suspicious/noExplicitAny: message shape is upstream-owned
+  // `any`: the message shape is upstream-owned, not ours to pin down.
   message?: any;
   [k: string]: unknown;
 }
@@ -110,7 +110,7 @@ export function deriveSessionFacts(jsonl: string, opts: DeriveOpts = {}): Sessio
 function isRealPrompt(content: unknown): boolean {
   if (typeof content === "string") return content.trim().length > 0;
   if (Array.isArray(content)) {
-    // biome-ignore lint/suspicious/noExplicitAny: upstream content items
+    // `any`: upstream-owned content items.
     return content.some((c: any) => c?.type === "text");
   }
   return false;
