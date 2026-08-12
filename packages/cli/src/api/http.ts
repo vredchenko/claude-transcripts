@@ -11,16 +11,29 @@
 import { readFileSync } from "node:fs";
 import { installPaths } from "../lib/paths";
 
-/**
- * The documented default (`.env.template`, docs/start/installation.md).
- *
- * Declared above `BASE` deliberately: that initialiser calls the resolver during module
- * evaluation, so anything the resolver reads must already be initialised or the import
- * throws — and only on machines with no install, since any earlier branch returns first.
- */
+/** The documented default (`.env.template`, docs/start/installation.md). */
 const DEFAULT_WEBAPI_PORT = "7650";
 
-let BASE = resolveWebapiUrl();
+/**
+ * The base URL, resolved on first use rather than at import.
+ *
+ * Resolving in a module-level initialiser made importing this file *do* something:
+ * read `instance.env`, consult four env vars, and — if any of that threw — take down
+ * the import itself. `index.ts` reaches here through its commands, so the blast radius
+ * of a mistake in the resolver was every command, at load, before argv was even parsed.
+ * A ReferenceError shipped in exactly that shape once (0ef96ca); making it lazy retires
+ * the whole class rather than that one instance.
+ *
+ * Memoised, so a bulk command doing hundreds of requests still reads the instance file
+ * once. `setWebapiUrl` fills the same slot, which is what makes `--webapi` skip the
+ * lookup entirely instead of racing it.
+ */
+let resolved: string | null = null;
+
+function base(): string {
+  resolved ??= resolveWebapiUrl();
+  return resolved;
+}
 
 /**
  * Resolve the webapi base URL.
@@ -78,17 +91,17 @@ function instanceWebapiUrl(): string | null {
 
 /** Override the base URL (e.g. from a `--webapi` flag). Call before first request. */
 export function setWebapiUrl(url: string): void {
-  BASE = url.replace(/\/$/, "");
+  resolved = url.replace(/\/$/, "");
 }
 
-/** The current base URL (for logs/labels). */
+/** The current base URL (for logs/labels). Resolves it if nothing has yet. */
 export function webapiUrl(): string {
-  return BASE;
+  return base();
 }
 
 /** orval mutator: perform the request and return the parsed JSON body as `T`. */
 export async function customFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, init);
+  const res = await fetch(`${base()}${url}`, init);
   if (!res.ok) {
     // Include the server's own explanation — the webapi returns `{error}` on
     // failure, and without it the caller only sees an opaque status code.
@@ -120,7 +133,7 @@ async function errorDetail(res: Response): Promise<string> {
 
 /** GET `path` and report whether it exists (ok). Never throws on 404. */
 export async function exists(path: string): Promise<boolean> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${base()}${path}`);
   return res.ok;
 }
 
@@ -136,7 +149,7 @@ export async function putStream(
   filePath: string,
   contentType: string,
 ): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base()}${path}`, {
     method: "PUT",
     headers: { "content-type": contentType },
     body: Bun.file(filePath).stream(),
@@ -150,7 +163,7 @@ export async function putStream(
 
 /** Upload a raw body (the transcript blob — not part of the typed JSON client). */
 export async function putRaw(path: string, body: Uint8Array, contentType: string): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base()}${path}`, {
     method: "PUT",
     headers: { "content-type": contentType },
     body,
