@@ -25,16 +25,27 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
 
 ## What's built (Tier 1)
 
-- Paginated **session list** (`/`) with per-column summary metrics — including
-  **duration**, the working-directory **path** Claude was started from, and a
-  **source** chip (live-recorded vs backfilled).
+- **Session list** (`/`) in three **projections**, chosen from a toggle and recorded
+  in the URL (`/?view=calendar&month=2026-03`) so a view is linkable and the back
+  button steps through them:
+  - **Table** — the dense, comparative view: per-column summary metrics including
+    **duration**, the working-directory **path**, and a **source** chip.
+  - **Timeline** — vertical, grouped by day, at one of three densities: `cards`
+    (full detail per session), `compact` (one line each), and `to scale`
+    (positioned by real elapsed time, so the gaps between sessions are visible).
+  - **Calendar** — a month grid drawing each session as a bar across **every day it
+    covers** (a session here can run for days), and a day view placing sessions by
+    clock time with concurrent ones side by side.
 - **Session detail** (`/sessions/$id`) — metadata grid (with duration + recording
   source), token-usage breakdown, tool-call chips. The full start-path lives here
   (as "Working directory") rather than in a list column.
 - A **transcript viewer** that pages entries incrementally; each entry previews
   on one line and expands to raw JSON.
+- **Full-text search** with the matched terms **marked** — in the header dropdown,
+  on the results page, and carried into the session (`?q=`), which opens on the
+  matching entry rather than at the top of a five-thousand-entry transcript.
 - A **thin header** (`Header.tsx`): app title + build version (from `/api/model`),
-  a placeholder **search box**, a **settings** menu (theme toggle: light / dark /
+  the **search box**, a **settings** menu (theme toggle: light / dark /
   follow-system), and a **links** menu (services, API, GitHub repo, tech docs).
 
 ## Still planned
@@ -43,9 +54,6 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
   evaluate an existing npm dep (e.g. TanStack Virtual / `react-virtuoso`) rather
   than rolling our own; the transcript viewer already pages, this generalises it
   ([#8](../design/roadmap.md)).
-- **Config-driven Services menu.** The menu exists but its URLs are hard-coded to
-  the bundled dev defaults; feeding them from the `/` app manifest's `servicesMenu`
-  (so they follow a deployment's real ports/hosts) is [#14](../design/roadmap.md).
 - **Local-first browser caches** *(nice-to-have)* — persist the TanStack Query
   cache (e.g. IndexedDB) so revisits are instant and partially offline.
 - **Keyboard navigation** *(nice-to-have)* — list/detail/transcript navigable
@@ -65,6 +73,8 @@ packages/webui/
     ├── router.tsx             # code-based TanStack Router tree (basepath "/app")
     ├── theme.ts               # createAppTheme(mode) + codeBg(mode) + MONO stack
     ├── format.ts              # pure presentation helpers (no React)
+    ├── search-query.ts        # pure: /search URL state → API params, paging maths
+    ├── sessions-view.ts       # pure: interval/day/month maths for timeline + calendar
     ├── transcript-entry.ts    # raw JSONL entry → compact EntryView
     ├── api/
     │   ├── generated.ts       # orval snapshot: types + fetchers + query hooks
@@ -72,19 +82,31 @@ packages/webui/
     │   └── model.ts           # hand-written GET /api/model hook (header title/version)
     ├── routes/
     │   ├── root.tsx           # RootLayout app shell (Header + Outlet)
-    │   ├── sessions-list.tsx  # SessionsListPage — the "/" list
-    │   └── session-detail.tsx # SessionDetailPage — "/sessions/$id"
+    │   ├── sessions-list.tsx  # SessionsListPage — "/", switches the three projections
+    │   ├── session-detail.tsx # SessionDetailPage — "/sessions/$id" (+ ?q= highlight)
+    │   └── search-results.tsx # SearchResultsPage — "/search" (filters + paging)
     └── components/
         ├── Header.tsx         # thin top bar (title/version, search, settings, links)
         ├── SearchBox.tsx      # header search input → GET /api/search (sessions + content)
+        ├── HighlightedText.tsx# renders marked snippets / query terms as <mark>
         ├── SettingsMenu.tsx   # primary menu: theme toggle (+ config later)
         ├── LinksMenu.tsx      # secondary menu: services / API / GitHub / docs links
         ├── TranscriptView.tsx # incrementally-paged transcript accordion
+        ├── SpeakerTurnsView.tsx # one side of the conversation (You / Claude)
         ├── StatusChip.tsx     # session lifecycle chip (live / abandoned / ended)
         ├── SourceChip.tsx     # recording provenance chip (live / backfilled)
         ├── TokenUsageChips.tsx# token breakdown chips
-        └── states.tsx         # Loading / ErrorState / EmptyState
+        ├── states.tsx         # Loading / ErrorState / EmptyState
+        └── sessions/          # the three projections of the session list
+            ├── SessionsTable.tsx     # dense comparative table
+            ├── SessionsTimeline.tsx  # vertical timeline, three densities
+            └── SessionsCalendar.tsx  # month grid (day-spanning bars) + day time-grid
 ```
+
+The **pure** modules (`format.ts`, `search-query.ts`, `sessions-view.ts`,
+`transcript-entry.ts`) hold the logic worth unit-testing, out of the components: paging
+offsets and calendar placement are where the silent bugs live, and a component test
+would not catch a session drawn on the wrong day.
 
 ## Bootstrap & routing
 
@@ -95,8 +117,12 @@ active mode and persists the user's light/dark/system preference in
 `localStorage`), and a `RouterProvider`.
 
 `src/router.tsx` builds a **code-based** TanStack Router tree (no file-based
-plugin): a `RootLayout` root route with two children — `/` → `SessionsListPage`
-and `/sessions/$id` → `SessionDetailPage`. The router is created with
+plugin): a `RootLayout` root route with three children — `/` → `SessionsListPage`,
+`/sessions/$id` → `SessionDetailPage`, and `/search` → `SearchResultsPage`. Each
+validates the query-string state it owns (the list's `view`/`density`/`month`/`day`,
+the detail's `q`, the results page's `q`/filters/`page`), falling back to defaults
+rather than rendering nothing — that state arrives from whatever was pasted into the
+address bar. The router is created with
 `basepath: "/app"` because the SPA is served under `/app` in production
 ([ADR 0002](../design/decisions/0002-single-combined-container.md)), matching Vite's
 `base: "/app/"`. `RootLayout` (`routes/root.tsx`) is the shell: the sticky
@@ -160,17 +186,20 @@ in the generated snapshot. The header uses it for the title + build version.
   build version (from `GET /api/model` via `api/model.ts`, with a "Claude
   Transcripts" fallback while loading). Center: `SearchBox` — a debounced
   full-text search over `GET /api/search`, showing both **session** matches (project,
-  id, model) and **in-conversation** matches (turn text with a cropped snippet and a
-  role chip); selecting either navigates to that session. Degrades to a hint when
-  Meilisearch is disabled or unreachable rather than erroring. Right: `SettingsMenu` (a ⚙ button — the theme toggle
+  id, model) and **in-conversation** matches (a cropped snippet with the matched terms
+  **marked**, plus a role chip); selecting either navigates to that session, carrying
+  the query so it opens on the match. Degrades to a hint when
+  Meilisearch is disabled or unreachable rather than erroring. Below `sm` the toolbar
+  wraps and the search takes its own full-width row — squeezing it onto one line left
+  an unusable sliver pressed against the settings button. Right: `SettingsMenu` (a ⚙ button — the theme toggle
   light / dark / follow-system, plus a disabled "config coming soon") and
   `LinksMenu`.
 - **`LinksMenu`** (`components/LinksMenu.tsx`) — the secondary dropdown grouping
   quick links: **This app** (Scalar `/api/docs`, OpenAPI spec, `/api/model`);
   **Services** (CouchDB Fauxton + a `_all_docs` JSON link, Garage Web UI + buckets,
   Meilisearch UI + API); **Project** (GitHub repo, tech docs → the repo's `docs/`).
-  The service URLs are **placeholders** wired to the bundled dev ports — making
-  them manifest-driven (from `/api/model` `servicesMenu`) is [#14](../design/roadmap.md).
+  The service URLs come from `/api/model`'s `servicesMenu`, so they follow the
+  deployment's real ports and hosts rather than the bundled dev defaults.
 - **`StatusChip`** (`components/StatusChip.tsx`) / **`SourceChip`**
   (`components/SourceChip.tsx`) — the lifecycle chip (labels: **live** /
   **abandoned** / **ended**, each with an explanatory tooltip) and the provenance

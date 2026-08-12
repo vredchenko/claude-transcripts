@@ -6,6 +6,109 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.8] — 2026-08-12
+
+The webui gets two more ways to read a corpus, search stops making you hunt for your own
+query, and CI learns to check three claims the repo had been making on trust.
+
+### Added
+
+- **Two more projections of the session list.** The table answers "compare these
+  sessions" well and "what was I doing on Tuesday" badly. A session is an *interval* —
+  the corpus holds one that ran four days — so it now also renders as a **timeline**
+  (vertical, grouped by day, at three switchable densities including one spaced by real
+  elapsed time) and a **calendar** (a month grid drawing each session as a bar across
+  every day it covers, and a day view placing sessions by clock time with concurrent
+  ones side by side). The projection lives in the URL, so a view is linkable.
+
+  The placement arithmetic is pure and unit-tested, because every mistake in it is
+  silent: local time rather than UTC (`toISOString().slice(0,10)` files an evening
+  session under tomorrow west of Greenwich), day lengths computed per cell so a DST
+  transition doesn't drift the grid, half-open day boundaries so a session ending at
+  midnight doesn't paint a sliver on the next day.
+
+- **`GET /api/sessions` takes `from`/`to`**, matching on **overlap** rather than
+  containment — asking for a month must not drop the session that began the previous
+  week. The route already materialised every session before slicing, so this needed no
+  view or migration change.
+
+- **Search shows what matched, and takes you to it.** Meilisearch always knew which
+  tokens matched; the route never asked. It does now, for both indexes, and the query
+  rides along in `?q=` so a result opens the session *on the match* — expanded,
+  outlined, scrolled to — instead of at entry #0 of a five-thousand-entry transcript.
+  Session hits also say **why** they matched (`matchedIn`), and snippets carry 90 words
+  of context rather than 40.
+
+  The highlight marks are private-use codepoints, not `<em>`. Meilisearch's default
+  invites rendering a snippet as HTML, which would be stored XSS in an app whose whole
+  purpose is displaying other people's raw session logs.
+
+- **A browser test suite** (`bun run test:browser`) over **Chromium and Firefox** at two
+  widths, with every `/api` call answered from a synthetic corpus so it needs no stack
+  and runs in CI. It measures *geometry* as well as content, because the bugs this UI
+  grows pass every assertion about content while being visibly wrong. It found eight on
+  arrival, all fixed below.
+
+  Both engines earn their place: an overflowing row that Blink places over the pointer
+  (so a click never lands) is click-through in Gecko, and elsewhere Gecko's click lands
+  silently on the wrong element — the worse failure, and invisible with one engine.
+
+### Fixed
+
+- **Transcript rows escaped their card, in both directions at once.**
+  `.MuiAccordionSummary-content` is a flex container with no `min-width: 0`, so a
+  single unwrapped preview line — a path, a caveat block, anything without spaces —
+  forced the row to its max-content width and spilled it out over the controls beneath.
+  Fixed in the theme rather than at the call site: it is a property of the component,
+  and the next accordion would have inherited it.
+
+- **Every page scrolled sideways on a phone.** The header's search cell had the same
+  missing `min-width: 0` and pushed the menus off-screen. That, not the sessions table,
+  was the cause. Below `sm` the toolbar now wraps and the search takes its own row —
+  making it *fit* by letting it shrink produced a 20-pixel input jammed against the
+  settings button, which nothing overflowed and no geometry check could see.
+
+- **The session-detail metadata grid** packs with `auto-fill` instead of a fixed 2/4
+  columns that left a ragged hole and forced long values out of their cells; the
+  session-id heading wraps; and the header no longer renders `vv0.0.7` — the model's
+  `identity.version` already carries the `v`.
+
+- **Paging the calendar into an empty month** replaced the whole view with an empty
+  state, taking its own month navigation with it and stranding you there.
+
+- **The transcript's scroll-to-match honours `prefers-reduced-motion`.** Gliding
+  through thousands of rows unasked is a vestibular trigger, and it left the page moving
+  for a second after load, so anything clicked in that window landed somewhere other
+  than where it was aimed.
+
+### Changed
+
+- **CI checks three things the repo previously asserted on trust.**
+
+  - **Generated files must be reproducible.** `packages/webui/src/api/generated.ts`
+    spent weeks *hand-written* under a generated name, carrying a header admitting it
+    while the docs said clients are generated and must never be hand-edited; the compose
+    file drifted the other way, a regeneration silently dropping comments the generator
+    can't emit. Nothing could tell the difference, so nothing did. CI now regenerates
+    everything and fails on a diff. A file named "generated" that nobody regenerates is
+    worse than a hand-written one, because the name suppresses the scrutiny it needs.
+
+  - **The API contract must stay compatible.** Consumers are *generated* from the spec,
+    so a breaking change fails at somebody else's next codegen — or silently at runtime
+    in a CLI shipped a version ago. `bun run check:contract` diffs a branch's spec
+    against the base and fails on changes that break a consumer built from the older
+    one, comparing in the right direction: responses may gain fields, requests may relax.
+    A deliberate break passes when a commit declares it (`type!:` or `BREAKING CHANGE:`),
+    so it reaches this changelog rather than a bug report.
+
+  - **The webui must render correctly**, per the browser suite above.
+
+- **`openapi.json` is now committed.** [ADR 0019](docs/design/decisions/0019-openapi-source-of-truth-generated-clients.md)
+  called the spec the single source of truth while `.gitignore` called it a transient
+  build input; the consequence was that no contract change was reviewable in a diff or
+  comparable across commits. The reproducibility check is what makes committing a
+  generated file safe. ADR 0019 carries an amendment recording both.
+
 ## [0.0.7] — 2026-08-09
 
 Finishes what 0.0.6 started: the Services menu's last wrong link.
