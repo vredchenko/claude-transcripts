@@ -209,6 +209,28 @@ done.
   (or watching the repo) would give a first-class "what did this session change"
   record for analytics + recall. *Partially latent today* (Edit/Write inputs live
   in the transcript content) but not collected as structured diffs.
+- **File-history capture** *(Tier 2)* — Claude Code keeps its own pre-edit content
+  snapshots under `~/.claude/file-history/<session-id>/`, and they are **not** in the
+  transcript: the JSONL carries only `file-history-delta` pointers (a `trackingPath`
+  plus a `backupFileName`), and the `file-history-snapshot` entries observed in a real
+  corpus had an empty `trackedFileBackups`. So the only copy of that content sits on the
+  writer's disk and dies with the machine — a gap in the store's coverage, since the hook
+  captures the transcript and nothing else. Measured on one machine's history: 46 session
+  directories, 1,411 backup files, 14 MB. What it would buy is best stated as what's
+  missing without it — over a real corpus, only **60% of a repo's tracked files** (202 of
+  338) ever appear with full content anywhere in the transcripts. The shortfall is
+  structural rather than incidental: `Edit` records a *contextual* patch
+  (`old_string`/`new_string`) replayable only against a predecessor state, and most file
+  mutation never goes through `Edit`/`Write` at all — the same corpus shows 1,391 `Bash`
+  calls against 458 authoring calls, including `git checkout`, `bun run gen`,
+  `biome check` and `sed -i`, each of which rewrites files leaving no content behind.
+  Capturing this directory alongside the transcript closes most of that gap and is the
+  natural substrate for **Git-change capture** above (real before/after content, not
+  reconstructed). Privacy-sensitive in the same way the transcript is, and then some:
+  these are verbatim file bodies including **gitignored** ones — of 140 distinct tracked
+  paths in one project's deltas, the one git-ignored path was `.env`. So it belongs
+  behind the same masking treatment as secrets scanning (#11) and should be opt-in,
+  off by default.
 - **Claude Code API traffic capture** *(Tier 2/3)* — the model I/O (system prompt,
   tool schemas, exact request/response bodies, per-request token headers) is **not**
   in transcripts or anywhere else — it goes straight to the Anthropic API over TLS.
