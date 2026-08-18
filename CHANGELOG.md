@@ -6,6 +6,34 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The hook can mirror to a second instance.** A `mirrors` array in the hook's runtime
+  config writes every session to another instance as well as the local one, live
+  ([mirrors.md](docs/operate/mirrors.md)).
+
+  A mirror could not be expressed as a second `couch.url`, which is the whole reason
+  this is code rather than configuration: a remote instance's CouchDB and S3 are bound
+  to *its* localhost and are not reachable, and the webapi's `/api/couch` and `/api/s3`
+  proxies are read-only by design. The one write surface a remote instance offers is
+  `/api/ingest` — the same one `import` restores a bundle through — so a mirror is a
+  live, incremental import, and the document shapes were already known to travel.
+
+  The fan-out is a composite `CouchClient`/`BlobClient` rather than a change to the
+  handlers, so "write to two places" stays a config fact instead of something each of
+  the six handlers has to remember. Writes to all targets start together, so the local
+  store is never queued behind a remote one, and an event costs `max(local, mirror)`
+  rather than the sum. Every request is bounded by its own timeout — short for
+  per-event writes, since `PostToolUse` fires on every tool call inside a 5s hook
+  budget, and generous for the `SessionEnd` transcript upload.
+
+  There is no retry queue, and the documentation says so plainly: a write that fails
+  while the mirror is down is lost *to the mirror*, and the remedy is an
+  `export --since` / `import` backfill, which is idempotent. The local copy is never
+  affected either way.
+
 ## [0.0.9] — 2026-08-12
 
 An upgrade cleans up after itself.
