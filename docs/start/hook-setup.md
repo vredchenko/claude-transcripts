@@ -44,6 +44,9 @@ in from the repo-root `claude-transcripts.config.json` — see [`configuration.m
 }
 ```
 
+Add a `mirrors` array to write every session to a second instance as well as this
+one — see [mirrors.md](../operate/mirrors.md).
+
 Omit `blob` (or leave `accessKey` empty) to log event/summary docs to CouchDB
 only. Note S3 is the transcript's sole home (ADR 0014): without a `blob` backend,
 transcript content is not persisted anywhere — only the summary doc's

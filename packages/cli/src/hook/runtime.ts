@@ -22,6 +22,13 @@ import {
 } from "node:fs";
 import { hostname } from "node:os";
 import { S3Client } from "bun";
+import {
+  fanOutBlob,
+  fanOutCouch,
+  type MirrorTarget,
+  makeMirrorBlob,
+  makeMirrorCouch,
+} from "./mirror";
 
 export interface HookConfig {
   couch: { url: string; databases: Record<string, string>; auth?: string };
@@ -32,6 +39,12 @@ export interface HookConfig {
     secretKey?: string;
     buckets: Record<string, string>;
   };
+  /**
+   * Additional instances that receive the same writes, reached through their webapi
+   * (see {@link MirrorTarget}). Absent or empty writes to the local stores only,
+   * which is what every config written before mirrors existed says.
+   */
+  mirrors?: MirrorTarget[];
   features: Record<string, boolean>;
   system: { logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } } };
 }
@@ -53,7 +66,7 @@ export interface CouchClient {
 }
 
 /** CouchDB over plain HTTP with a short timeout — a slow store must not stall a session. */
-export function makeCouch(config: HookConfig): CouchClient {
+function makeDirectCouch(config: HookConfig): CouchClient {
   const root = config.couch.url;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.couch.auth) headers.Authorization = `Basic ${btoa(config.couch.auth)}`;
@@ -86,12 +99,24 @@ export function makeCouch(config: HookConfig): CouchClient {
   };
 }
 
+/**
+ * The hook's CouchDB writer: this machine's store, plus any configured mirrors.
+ *
+ * The fan-out lives here rather than in the handlers on purpose — a composite that
+ * satisfies {@link CouchClient} means "write to two places" is a config fact, not a
+ * thing every handler has to remember to do.
+ */
+export function makeCouch(config: HookConfig): CouchClient {
+  const mirrors = config.mirrors ?? [];
+  return fanOutCouch([makeDirectCouch(config), ...mirrors.map((m) => makeMirrorCouch(m))]);
+}
+
 export interface BlobClient {
   enabled: boolean;
   put(bucket: string, key: string, data: Buffer | string, contentType: string): Promise<void>;
 }
 
-export function makeBlob(config: HookConfig): BlobClient {
+function makeDirectBlob(config: HookConfig): BlobClient {
   const cfg = config.blob;
   const s3 = cfg?.accessKey
     ? new S3Client({
@@ -112,6 +137,12 @@ export function makeBlob(config: HookConfig): BlobClient {
       }
     },
   };
+}
+
+/** The hook's blob writer: local S3, plus any configured mirrors. */
+export function makeBlob(config: HookConfig): BlobClient {
+  const mirrors = config.mirrors ?? [];
+  return fanOutBlob([makeDirectBlob(config), ...mirrors.map((m) => makeMirrorBlob(m))]);
 }
 
 // ── Per-session state (survives the many short-lived hook processes) ──────────
