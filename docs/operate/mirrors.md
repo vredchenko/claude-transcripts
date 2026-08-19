@@ -61,6 +61,26 @@ No re-registration is needed. All hook events invoke the same binary against thi
 config, so adding `mirrors` covers every event at once. Sessions already running keep
 the config they started with — Claude Code snapshots hook settings at session start.
 
+Check it took:
+
+```console
+$ claude-transcripts hook status
+hook: settings   ~/.claude/settings.json
+hook: config     ~/.config/claude-transcripts/config.json
+hook: command    /usr/local/bin/claude-transcripts hook run
+hook: mirror     https://logs.example.com
+hook: registered for 11 event(s), mirroring to 1
+```
+
+### It survives a re-`setup`
+
+The rest of that file is generated from `config/` + `.env`, and `setup` / `install`
+rewrite it whenever the instance config changes. `mirrors` is kept across that rewrite
+rather than regenerated — it is the machine's own setting and no repo config knows it.
+Nothing else on a binary install records it either, so a plain rewrite would end
+mirroring silently, which is exactly the failure this feature cannot afford. To change
+or clear it, edit the key (an explicit value always wins).
+
 ### Choosing the timeouts
 
 `timeoutMs` is short on purpose. `PostToolUse` fires on every tool call and Claude Code

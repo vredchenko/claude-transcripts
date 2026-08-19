@@ -34,6 +34,22 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   `export --since` / `import` backfill, which is idempotent. The local copy is never
   affected either way.
 
+  `hook status` lists the mirrors the config names, and says how many it is writing to.
+  Mirroring is otherwise invisible — it is configured by hand, it writes somewhere else,
+  and it fails silently by design — so something had to report that it is on.
+
+### Fixed
+
+- **`setup` and `install` no longer discard the hook's `mirrors` config.** The runtime
+  config at `~/.config/claude-transcripts/config.json` is a projection of `config/` +
+  `.env` and is rewritten whole whenever either changes — which silently dropped
+  `mirrors`, since nothing in the repo config knows about it and, on a binary install
+  with no checkout, nothing else on the machine records it either. Mirroring would stop
+  with no error, and the hook's swallow-everything contract guaranteed nothing would
+  report it. The rewrite now carries machine-owned keys across; an explicit value still
+  wins, so a caller can set or clear them. `setup` also stopped keeping its own copy of
+  the writer, which is how the two paths drifted apart in the first place.
+
 ## [0.0.9] — 2026-08-12
 
 An upgrade cleans up after itself.

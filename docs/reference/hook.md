@@ -66,7 +66,14 @@ The hook reads its config from `CT_HOOK_CONFIG`, else the instance's
 No config means the hook does nothing, silently — that's the correct behaviour for an
 unconfigured machine, not an error.
 
+`setup` and `install` regenerate that file from `config/` + `.env`, so anything derived
+is safe to lose. `mirrors` ([mirrors.md](../operate/mirrors.md)) is not derived from
+either — it names other instances this machine reports into — so it is preserved across
+a rewrite rather than rebuilt. Pass it explicitly to change or clear it.
+
 ## Verifying it
 
 `claude-transcripts doctor` drives the whole write→read path and reports what worked.
-`claude-transcripts hook status` shows what's registered with Claude Code and where.
+`claude-transcripts hook status` shows what's registered with Claude Code and where, and
+lists any mirror the config names — mirroring is otherwise invisible, since it writes
+elsewhere and fails silently.
