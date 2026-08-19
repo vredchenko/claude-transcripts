@@ -23,12 +23,13 @@
  * changing `.env` only. On this machine, use `--no-hook` for dev so we never
  * register a second logger alongside the running one.
  */
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveCouchUrl } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { parseFlags } from "../lib/args";
+import { writeHookConfig } from "../lib/hook-config";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
 const HOOK_DIR = join(REPO_ROOT, "hooks");
@@ -69,12 +70,6 @@ function buildHookConfig(cfg: RepoConfig) {
       }
     : undefined;
   return { couch, blob, features: cfg.features, system: cfg.system };
-}
-
-function writeHookConfig(config: unknown): void {
-  mkdirSync(dirname(HOOK_CONFIG_PATH), { recursive: true });
-  writeFileSync(HOOK_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
-  chmodSync(HOOK_CONFIG_PATH, 0o600);
 }
 
 // ── Store provisioning ───────────────────────────────────────────────────────
@@ -275,7 +270,7 @@ export async function runSetup(argv: string[]): Promise<number> {
   }
 
   // 1. runtime config
-  writeHookConfig(hookConfig);
+  writeHookConfig(HOOK_CONFIG_PATH, hookConfig);
   console.log(`  wrote hook config → ${HOOK_CONFIG_PATH} (mode 600)`);
 
   // 2. provision stores. Meilisearch is not provisioned here: its indexes and their

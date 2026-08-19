@@ -4,7 +4,7 @@
  *   claude-transcripts hook run         # dispatch one payload from stdin (Claude Code calls this)
  *   claude-transcripts hook install     # register with Claude Code
  *   claude-transcripts hook uninstall   # deregister (leaves other tools' hooks alone)
- *   claude-transcripts hook status      # what's registered, and where
+ *   claude-transcripts hook status      # what's registered, where, and any mirrors
  *
  * `run` is what gets registered, so a user needs neither Bun nor a repo checkout —
  * the binary is the hook (installation.md). Registration MERGES into
@@ -164,6 +164,24 @@ function uninstall(): number {
   return 0;
 }
 
+/**
+ * Mirror targets from the hook's own config, for display.
+ *
+ * Read straight from the file rather than through `loadHookConfig` so that a config
+ * too broken to run still reports what it *says* — status exists to explain a hook
+ * that isn't working.
+ */
+function configuredMirrors(path: string): string[] {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as {
+      mirrors?: { url?: string }[];
+    };
+    return (parsed.mirrors ?? []).map((m) => m?.url ?? "(no url)");
+  } catch {
+    return [];
+  }
+}
+
 function status(): number {
   const paths = installPaths();
   const settings = readSettings(paths.claudeSettings);
@@ -173,11 +191,18 @@ function status(): number {
     `hook: config     ${paths.hookConfig} ${existsSync(paths.hookConfig) ? "" : "(MISSING — run `install`)"}`,
   );
   console.log(`hook: command    ${hookCommand()}`);
+  // Mirroring is otherwise invisible: it is configured by hand, writes to somewhere
+  // else, and fails silently by design (mirrors.md). Somewhere has to say it is on.
+  const mirrors = configuredMirrors(paths.hookConfig);
+  for (const url of mirrors) console.log(`hook: mirror     ${url}`);
   if (!found.length) {
     console.log("hook: not registered.");
     return 1;
   }
-  console.log(`hook: registered for ${found.length} event(s)`);
+  console.log(
+    `hook: registered for ${found.length} event(s)` +
+      (mirrors.length ? `, mirroring to ${mirrors.length}` : ""),
+  );
   return 0;
 }
 

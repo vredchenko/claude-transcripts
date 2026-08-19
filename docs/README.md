@@ -27,8 +27,8 @@ back; a web UI, a CLI, and agents read it. Nothing leaves your network.
   recording your first session. Written for someone running the project.
 - **[Development](develop/getting-started.md)** — setup, conventions, tests, and
   the generators. Written for someone changing the code.
-- **[Operations](operate/releasing.md)** — releasing, containers, migrations, and
-  application logging.
+- **[Operations](operate/releasing.md)** — releasing, containers, migrations,
+  application logging, and [mirroring to a second instance](operate/mirrors.md).
 - **[Reference](reference/webapi.md)** — per-component and per-surface detail:
   webapi, webui, CLI, the hook, routes, CouchDB documents.
 - **[Design & specification](design/specification.md)** — what the system is meant
