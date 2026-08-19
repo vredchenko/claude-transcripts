@@ -109,7 +109,9 @@ The committed template, in full — this is the current shape, not a target:
   `config/` and **bakes** the names + `features` + `system.logging` into the generated
   runtime config at `~/.config/claude-transcripts/config.json` (alongside the secrets
   from `.env`). Re-run `setup` after editing `config/config.json` — the hook reads the
-  baked copy, not the repo.
+  baked copy, not the repo. Settings that are the *machine's* own rather than a
+  projection of `config/` are carried across that rewrite instead of being regenerated;
+  [`mirrors`](../operate/mirrors.md) is the one such key today.
 - **docker-compose** uses `.env` only; its defaults mirror the committed template.
 
 ## Environment variables (`.env`)
