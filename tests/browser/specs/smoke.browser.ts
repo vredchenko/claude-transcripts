@@ -33,6 +33,37 @@ test.describe("sessions list", () => {
     await expect(page.getByText(`${SESSIONS.length} total`)).toBeVisible();
   });
 
+  test("names the machine each session ran on", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture values");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto();
+
+    // Two hosts in the corpus, and the project name alone can't tell them apart: the
+    // same checkout name on two machines is two different working copies.
+    await expect(await list.cell(0, "Host")).toHaveText(SESSIONS[0]!.hostname);
+    await expect(await list.cell(2, "Host")).toHaveText(SESSIONS[2]!.hostname);
+  });
+
+  test("splits runtime into active and idle", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture values");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto();
+
+    // The running session: 35 minutes of wall clock, 40% of it working.
+    await expect(await list.cell(0, "Runtime")).toHaveText("35m 0s");
+    await expect(await list.cell(0, "Active")).toHaveText("14m 0s");
+    await expect(await list.cell(0, "Idle")).toHaveText("21m 0s");
+
+    // The session with no derivable active time says so with a dash. Rendering it as
+    // "0s" would claim the session ran and did nothing, which is a different fact.
+    const bare = SESSIONS.indexOf(BARE_SESSION);
+    await expect(await list.cell(bare, "Active")).toHaveText("—");
+    await expect(await list.cell(bare, "Idle")).toHaveText("—");
+    await expect(await list.cell(bare, "Runtime")).toHaveText("4m 0s");
+  });
+
   test("shows the empty state when there is no history", async ({ page }) => {
     test.skip(LIVE, "needs a controlled empty corpus");
     await setupPage(page, { empty: true });

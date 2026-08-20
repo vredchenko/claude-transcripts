@@ -29,13 +29,22 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
   in the URL (`/?view=calendar&month=2026-03`) so a view is linkable and the back
   button steps through them:
   - **Table** — the dense, comparative view: per-column summary metrics including
-    **duration**, the working-directory **path**, and a **source** chip.
+    **runtime / active / idle**, the **project** and the **host** it ran on, and a
+    **source** chip.
   - **Timeline** — vertical, grouped by day, at one of three densities: `cards`
-    (full detail per session), `compact` (one line each), and `to scale`
-    (positioned by real elapsed time, so the gaps between sessions are visible).
+    (full detail per session, with a duration bar whose filled part is the active
+    time), `compact` (one line each), and `to scale` (positioned by real elapsed
+    time, so the gaps between sessions are visible).
   - **Calendar** — a month grid drawing each session as a bar across **every day it
     covers** (a session here can run for days), and a day view placing sessions by
-    clock time with concurrent ones side by side.
+    clock time with concurrent ones side by side. A calendar bar's length *is* the
+    wall-clock span, so the active/idle split is told in the bar's caption and its
+    tooltip rather than by shading part of the bar — idle time is scattered through a
+    session, not parked at one end of it.
+
+  All three read **active vs idle** time from the same `activeMs` field: wall-clock
+  runtime minus gaps longer than the configured idle threshold, so a session left open
+  in tmux over a weekend reads as the twenty minutes of work it was.
 - **Session detail** (`/sessions/$id`) — metadata grid (with duration + recording
   source), token-usage breakdown, tool-call chips. The full start-path lives here
   (as "Working directory") rather than in a list column.
@@ -176,17 +185,21 @@ in the generated snapshot. The header uses it for the title + build version.
 
 - **`SessionsListPage`** (`routes/sessions-list.tsx`) — fetches a page
   (`PAGE = 50`) and renders a stats-focused MUI table: session id (first 8 chars,
-  linked to detail), **started** time (session start), **duration**, **project**
-  (trailing `cwd` segment, full path on hover), model, a **source** chip (live /
-  backfilled), prompt / event / tool counts, total tokens, transcript size, and a
-  **status** chip. The full start-path is intentionally *not* a column (too long) —
+  linked to detail), **started** time (session start), **runtime** (wall-clock) split
+  into **active** and **idle**, **project** (trailing `cwd` segment, full path on
+  hover), **host** (the machine that recorded it, next to the project — the same
+  project name on two machines is two different working copies), model, a **source**
+  chip (live / backfilled), prompt / event / tool counts, total tokens, transcript
+  size, and a **status** chip. Active time comes from `activeMs` on the API response;
+  where the gateway can't derive it the two split columns read `—` rather than `0s`. The full start-path is intentionally *not* a column (too long) —
   it's on the detail view; the list stays compact. Paging is Previous/Next over a
   `skip` offset with a "N–M of total" label; `placeholderData: (prev) => prev`
   keeps the current page visible (dimmed) while the next loads. Every row links to
   its detail.
 - **`SessionDetailPage`** (`routes/session-detail.tsx`) — reads `$id` from the
   route, fetches one summary, and renders a back link, the id + status chip, a
-  metadata grid (started, **duration**, model, hostname, **recording** source,
+  metadata grid (started, **total runtime**, **active** + **idle** time, model,
+  hostname, **recording** source,
   end reason, prompt / event / error counts, transcript size), the working
   directory, a **Token usage** row (`TokenUsageChips`), and a **Tool calls** chip
   set sorted by count. Mounts `TranscriptView` when `hasTranscript`, else shows a
@@ -240,8 +253,10 @@ in the generated snapshot. The header uses it for the title + build version.
 
 - **`format.ts`** — pure, dependency-free: `formatBytes` (1024-based),
   `formatCount` (grouped integer), `formatTimestamp` (ISO → local
-  `YYYY-MM-DD HH:MM`), `formatDuration` (ms → `1h 2m` / `3m 4s` / `5s`, available
-  for future duration columns), `projectName` (trailing `cwd` segment),
+  `YYYY-MM-DD HH:MM`), `formatDuration` (ms → `1h 2m` / `3m 4s` / `5s`),
+  `durationSplit` / `durationSplitLabel` (wall-clock → active + idle, defensive about
+  an active figure that overshoots the runtime and about one that was never derived),
+  `projectName` (trailing `cwd` segment),
   `totalTools` (sum of a tool-count map).
 - **`transcript-entry.ts`** — `summarizeEntry(entry)` interprets a raw Claude
   Code JSONL entry into an `EntryView` (`kind`, one-line `preview`, `sidechain`,

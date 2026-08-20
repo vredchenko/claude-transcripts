@@ -74,7 +74,7 @@ for the design views.
   views; v2 (`session-index-view`) adds the `_design/session_index` per-session
   aggregate that lets the reader surface `running`/`incomplete` sessions (started
   but no `summary` doc yet) — a worked example of adding a view through a migration.
-  All eight are view-only; a unit test asserts it, so the first migration to set
+  All nine are view-only; a unit test asserts it, so the first migration to set
   `transformsDocs` fails that test and points at what import needs taught.
 - **Webapi routes** — `GET /api/migrate/status`, `POST /api/migrate/up`
   (`{ to?, dryRun? }`), `POST /api/migrate/down` (`{ steps?, dryRun? }`).

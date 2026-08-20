@@ -23,7 +23,13 @@ import {
 } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import type { SessionSummary } from "../../api/generated";
-import { formatDuration, formatTimestamp, projectName } from "../../format";
+import {
+  durationSplit,
+  durationSplitLabel,
+  formatDuration,
+  formatTimestamp,
+  projectName,
+} from "../../format";
 import {
   dayKey,
   dayPlacements,
@@ -68,15 +74,31 @@ interface Placed {
   interval: Interval;
 }
 
+/**
+ * What a bar says when you point at it.
+ *
+ * A calendar bar's *length* is already the wall-clock span — that's what placing it on
+ * a time axis means — so the active/idle split can only be told here, in words. Shading
+ * a fraction of the bar would put the idle time somewhere in particular, and idle time
+ * is scattered through a session rather than at one end of it.
+ */
 function sessionTitle(session: SessionSummary): string {
   return [
     projectName(session.cwd),
+    session.hostname || null,
     formatTimestamp(session.startTimestamp ?? session.timestamp),
-    formatDuration(session.durationMs),
+    durationSplitLabel(session.durationMs, session.activeMs),
     session.model,
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+/** The bar's own caption: total, and the working part of it when that's known. */
+function durationCaption(session: SessionSummary): string {
+  const split = durationSplit(session.durationMs, session.activeMs);
+  if (split.activeMs === undefined) return formatDuration(split.totalMs);
+  return `${formatDuration(split.totalMs)} · ${formatDuration(split.activeMs)} active`;
 }
 
 /** The month grid: six week rows, each session a bar spanning the days it covers. */
@@ -329,7 +351,7 @@ function DayGrid({ dayStart, placed }: { dayStart: number; placed: Placed[] }) {
                         <Box sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
                           {projectName(session.cwd)}
                         </Box>
-                        <Box sx={{ opacity: 0.8 }}>{formatDuration(session.durationMs)}</Box>
+                        <Box sx={{ opacity: 0.8 }}>{durationCaption(session)}</Box>
                       </>
                     )}
                   </Box>
