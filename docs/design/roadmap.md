@@ -301,7 +301,9 @@ done.
   ([database-choice.md](database-choice.md)) (#9) — the near-term ones are in
   [Tier 1 — open work](#tier-1--open-work); whether Meilisearch may live **outside**
   the bundled stack is [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md).
-- Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10)
+- Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10) — design sketched in
+  [plugin.md](plugin.md): skills that read the corpus back, plus a config-driven recall
+  policy injected at session start so history is consulted without being asked.
 
 **Webui (Tier 2)**
 - Configurable session-list columns + virtual scroll (#8)
@@ -315,7 +317,10 @@ done.
   at a closed port.
 - **Claude Code statusline indicator** — show a statusline in Claude Code when the
   external transcripts store is connected and logging, giving live confirmation the
-  hook is wired.
+  hook is wired. Designed as part of the plugin's visibility layer
+  ([plugin.md](plugin.md)) alongside a session-start banner and a
+  `/claude-transcripts:status` command — note a plugin may not set `statusLine`
+  itself, so registration is a CLI command.
 
 **Tier 3 — multiplayer & public release**
 - Masterless replication + auth/security ([tiers.md](tiers.md), [ADR 0015](decisions/0015-tiered-architecture.md))
