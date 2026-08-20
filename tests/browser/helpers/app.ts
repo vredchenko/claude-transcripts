@@ -101,6 +101,17 @@ export class SessionsListPage {
     return this.rows.nth(index).getByRole("link").first();
   }
 
+  /**
+   * A cell addressed by its column *heading* rather than its position, so adding a
+   * column doesn't renumber every assertion in the suite.
+   */
+  async cell(row: number, column: string): Promise<Locator> {
+    const headings = await this.table.locator("thead th").allInnerTexts();
+    const index = headings.findIndex((heading) => heading.trim() === column);
+    expect(index, `the table has no "${column}" column`).toBeGreaterThan(-1);
+    return this.rows.nth(row).locator("td").nth(index);
+  }
+
   get emptyState(): Locator {
     return this.page.getByText("No sessions recorded yet.");
   }

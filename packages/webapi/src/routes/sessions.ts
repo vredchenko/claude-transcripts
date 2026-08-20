@@ -3,11 +3,15 @@ import {
   type SessionAggregate,
   type SessionStatus,
   type SessionSummary,
-  sumActiveDurationMs,
 } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, idleThresholdMs, liveWindowMs } from "../config";
 import type { AppContext } from "../context";
+import {
+  type ActiveDurationCache,
+  activeDurations,
+  createActiveDurationCache,
+} from "../storage/active-duration";
 import { validationHook } from "./validation";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -266,27 +270,6 @@ function aggregateToSummary(
   };
 }
 
-/**
- * Active (working) duration for one session in ms, or undefined if not derivable.
- * Reads the session's per-event timestamps from the `session_index/aggregate` view
- * with `reduce=false` (one row per event/summary doc; each value's `first` is that
- * doc's own timestamp), then sums the intervals that fall within the idle threshold.
- * Only used on the session detail — the list stays wall-clock, since this is a
- * per-session scan (fine at Tier-1 volumes, not for every row of the list).
- */
-async function computeActiveMs(db: any, id: string, idleMs: number): Promise<number | undefined> {
-  try {
-    const res = await db.view("session_index", "aggregate", { key: id, reduce: false });
-    const stamps = (res.rows as any[])
-      .map((r) => r.value?.first)
-      .filter((t: unknown): t is string => typeof t === "string" && t.length > 0);
-    if (stamps.length < 2) return undefined;
-    return sumActiveDurationMs(stamps, idleMs);
-  } catch {
-    return undefined;
-  }
-}
-
 /** The S3 object key holding a session's byte-exact transcript. */
 function blobKey(id: string): string {
   return `${id}/transcript.jsonl`;
@@ -499,9 +482,37 @@ const crossTurnsRoute = createRoute({
   },
 });
 
+/**
+ * Attach `activeMs` to whichever of these sessions has one.
+ *
+ * `orderKey` is the session's newest known timestamp, which is exactly the handle the
+ * memo needs: append-only docs mean an ended session's answer never changes, and a
+ * running one recomputes as its activity moves.
+ */
+async function withActiveDurations(
+  sessions: SessionSummary[],
+  ctx: AppContext,
+  db: any,
+  cache: ActiveDurationCache,
+): Promise<SessionSummary[]> {
+  const active = await activeDurations(
+    db,
+    sessions.map((s) => ({ sessionId: s.sessionId, through: orderKey(s) })),
+    idleThresholdMs(ctx.config),
+    cache,
+  );
+  return sessions.map((s) => {
+    const ms = active.get(s.sessionId);
+    return ms === undefined ? s : { ...s, activeMs: ms };
+  });
+}
+
 export function sessionRoutes(ctx: AppContext) {
   // Loosely typed so CouchDB's `any` docs don't fight the OpenAPI return types.
   const app = new OpenAPIHono({ defaultHook: validationHook });
+  // Per app, not per process: two webapis in one process (or two tests) must not share
+  // a memo, and nothing here needs them to.
+  const activeCache = createActiveDurationCache();
   const route = app as unknown as {
     openapi: (r: unknown, h: (c: any) => unknown) => void;
   };
@@ -524,9 +535,14 @@ export function sessionRoutes(ctx: AppContext) {
     const windowed = all.filter((s) => overlapsRange(s, from, to));
     windowed.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
     const page = windowed.slice(skip, skip + limit);
+    // Active time for the page only, and cached per session: the split between working
+    // and idle time is what separates "ran for four days" from "worked for two hours",
+    // and every projection of this list shows it. Costs one extra view request per 100
+    // rows, and nothing at all once a page has been read.
+    const sessions = await withActiveDurations(page, ctx, db, activeCache);
     // Total is of the *filtered* set, so a paged client asking for one month doesn't
     // page against the size of the whole corpus.
-    return c.json({ sessions: page, totalCount: windowed.length });
+    return c.json({ sessions, totalCount: windowed.length });
   });
 
   route.openapi(detailRoute, async (c: any) => {
@@ -537,8 +553,6 @@ export function sessionRoutes(ctx: AppContext) {
     const res = await db.view("session_index", "aggregate", { group: true, reduce: true, key: id });
     const row: any = res.rows[0];
     const agg: SessionAggregate | undefined = isRealSession(row?.value) ? row.value : undefined;
-    // Active (working) time needs every event's timestamp, not just first/last.
-    const activeMs = await computeActiveMs(db, id, idleThresholdMs(ctx.config));
     // Ended sessions: read the summary doc directly (full fidelity), enriched with
     // the aggregate's start time for duration.
     let summary: SessionSummary;
@@ -557,7 +571,9 @@ export function sessionRoutes(ctx: AppContext) {
     if (!summary.hasTranscript) {
       summary.hasTranscript = await blobTranscriptExists(ctx, id);
     }
-    return c.json({ ...summary, activeMs });
+    // Active (working) time needs every event's timestamp, not just first/last.
+    const [enriched] = await withActiveDurations([summary], ctx, db, activeCache);
+    return c.json(enriched ?? summary);
   });
 
   /**

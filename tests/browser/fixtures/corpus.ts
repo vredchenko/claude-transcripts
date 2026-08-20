@@ -133,11 +133,14 @@ export const SESSIONS: Session[] = [
     source: "backfill",
     errorCount: 2,
   }),
-  // Nothing stored: no transcript, no token usage. Every "—" fallback at once.
+  // Nothing stored: no transcript, no token usage, and no derivable active time
+  // (too few events to measure a gap between, which is also what an instance that
+  // hasn't applied the event_times migration reports). Every "—" fallback at once.
   session({
     sessionId: "44444444-4444-4444-8444-444444444444",
     startTimestamp: iso(-2 * DAY - 90 * MINUTE),
     durationMs: 4 * MINUTE,
+    activeMs: undefined,
     cwd: "/srv/projects/tiny-tool",
     model: undefined,
     hasTranscript: false,

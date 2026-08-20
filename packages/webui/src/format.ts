@@ -52,3 +52,63 @@ export function totalTools(toolCounts: Record<string, number> | undefined): numb
   if (!toolCounts) return 0;
   return Object.values(toolCounts).reduce((a, b) => a + b, 0);
 }
+
+// ── Active vs idle time ─────────────────────────────────────────────────────────
+
+/**
+ * A session's wall-clock runtime broken into the time something was happening and the
+ * time it sat there.
+ *
+ * The distinction is the whole point of showing both: a session left open in tmux over
+ * a weekend reports three days of "runtime" and twenty minutes of work, and a list that
+ * only shows the first is actively misleading about where the effort went.
+ */
+export interface DurationSplit {
+  /** Wall-clock: first event to last. */
+  totalMs: number;
+  /** Working time, or undefined when the API couldn't derive it. */
+  activeMs?: number;
+  /** Wall-clock minus active; undefined exactly when `activeMs` is. */
+  idleMs?: number;
+  /** Active share of the total, 0–100. Undefined when there is nothing to divide. */
+  activePct?: number;
+}
+
+/**
+ * Split a runtime into active and idle.
+ *
+ * Defensive about the two ways the numbers can disagree, because both occur and both
+ * would otherwise render as nonsense: `activeMs` can exceed `durationMs` by a rounding
+ * step (they're derived from different timestamps), which would draw a negative idle
+ * bar; and a session can report active time with no duration at all, where the active
+ * figure is the better estimate of the total rather than a reason to show nothing.
+ */
+export function durationSplit(durationMs?: number, activeMs?: number): DurationSplit {
+  const total = Math.max(0, durationMs ?? 0);
+  if (activeMs === undefined || activeMs === null || Number.isNaN(activeMs)) {
+    return { totalMs: total };
+  }
+  const active = Math.max(0, activeMs);
+  const totalMs = Math.max(total, active);
+  const idleMs = totalMs - active;
+  return {
+    totalMs,
+    activeMs: active,
+    idleMs,
+    activePct: totalMs > 0 ? (active / totalMs) * 100 : undefined,
+  };
+}
+
+/**
+ * The split as one line of prose, for a tooltip: "1h 5m runtime · 24m active (37%) ·
+ * 41m idle". Says so plainly when active time isn't known, rather than implying the
+ * session was idle throughout.
+ */
+export function durationSplitLabel(durationMs?: number, activeMs?: number): string {
+  const split = durationSplit(durationMs, activeMs);
+  if (split.totalMs <= 0) return "No runtime recorded";
+  const runtime = `${formatDuration(split.totalMs)} runtime`;
+  if (split.activeMs === undefined) return `${runtime} · active time not recorded`;
+  const pct = split.activePct === undefined ? "" : ` (${Math.round(split.activePct)}%)`;
+  return `${runtime} · ${formatDuration(split.activeMs)} active${pct} · ${formatDuration(split.idleMs)} idle`;
+}
