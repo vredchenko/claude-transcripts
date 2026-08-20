@@ -8,7 +8,12 @@
  * the thing you searched for somewhere below.
  */
 import { expect, test } from "@playwright/test";
-import { MULTI_DAY_SESSION, SEARCH_METADATA_QUERY, SEARCH_QUERY } from "../fixtures/corpus";
+import {
+  MULTI_DAY_SESSION,
+  SEARCH_FOLDED_QUERY,
+  SEARCH_METADATA_QUERY,
+  SEARCH_QUERY,
+} from "../fixtures/corpus";
 import { LIVE, SearchResultsPage, SessionDetailPage, setupPage } from "../helpers/app";
 
 /** `<mark>` elements, whatever wraps them. */
@@ -83,12 +88,41 @@ test.describe("following a result into its session", () => {
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
+    await detail.selectReader("Raw");
 
     // The row the search led to is expanded on arrival: landing on a collapsed row
     // means the reader still has to hunt for the thing they searched for.
     const expanded = page.locator(".MuiAccordionSummary-root[aria-expanded='true']");
     await expect(expanded).toHaveCount(1);
     await expect(expanded).toContainText(new RegExp(SEARCH_QUERY, "i"));
+  });
+
+  test("marks the match in the turn it was said in", async ({ page }) => {
+    test.skip(LIVE, "fixture-specific transcript");
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
+
+    // The timeline is the default reader, so the match has to be findable there —
+    // marked, inside a dialogue turn, without the reader opening anything.
+    const marked = detail.turnCards.locator("mark").first();
+    await expect(marked).toBeVisible();
+    await expect(marked).toHaveText(new RegExp(SEARCH_QUERY, "i"));
+  });
+
+  test("opens the fold a match is hiding in", async ({ page }) => {
+    test.skip(LIVE, "fixture-specific transcript");
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    // A term that only occurs in a tool result — which the timeline folds away. A fold
+    // that stayed shut here would hide the very thing the reader searched for.
+    await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_FOLDED_QUERY}`);
+
+    // Exactly the one fold holding it, opened; the others stay shut.
+    await expect(detail.folds.and(page.locator("[aria-expanded='true']"))).toHaveCount(1);
+    const expanded = page.locator(".MuiAccordionSummary-root[aria-expanded='true']");
+    await expect(expanded).toHaveCount(1);
+    await expect(expanded).toContainText(new RegExp(SEARCH_FOLDED_QUERY, "i"));
   });
 
   test("states why the transcript is highlighted, and can clear it", async ({ page }) => {

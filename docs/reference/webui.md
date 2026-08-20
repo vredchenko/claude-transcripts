@@ -39,8 +39,11 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
 - **Session detail** (`/sessions/$id`) — metadata grid (with duration + recording
   source), token-usage breakdown, tool-call chips. The full start-path lives here
   (as "Working directory") rather than in a list column.
-- A **transcript viewer** that pages entries incrementally; each entry previews
-  on one line and expands to raw JSON.
+- A **transcript viewer** with two readers over the same paged entries: a
+  **conversation timeline** (the default) showing only dialogue turns and folding
+  every run of tool calls, tool results, attachments and system lines into one
+  openable line; and the **raw** list, where every stored entry previews on one line
+  and expands to raw JSON.
 - **Full-text search** with the matched terms **marked** — in the header dropdown,
   on the results page, and carried into the session (`?q=`), which opens on the
   matching entry rather than at the top of a five-thousand-entry transcript.
@@ -78,6 +81,7 @@ packages/webui/
     ├── search-query.ts        # pure: /search URL state → API params, paging maths
     ├── sessions-view.ts       # pure: interval/day/month maths for timeline + calendar
     ├── transcript-entry.ts    # raw JSONL entry → compact EntryView
+    ├── transcript-timeline.ts # pure: fold a transcript into dialogue + hidden runs
     ├── api/
     │   ├── generated.ts       # orval snapshot: types + fetchers + query hooks
     │   ├── http.ts            # orval mutator: unwrap + throw on non-2xx
@@ -93,7 +97,9 @@ packages/webui/
         ├── HighlightedText.tsx# renders marked snippets / query terms as <mark>
         ├── SettingsMenu.tsx   # primary menu: theme toggle (+ config later)
         ├── LinksMenu.tsx      # secondary menu: services / API / GitHub / docs links
-        ├── TranscriptView.tsx # incrementally-paged transcript accordion
+        ├── TranscriptView.tsx # incrementally-paged transcript: timeline | raw
+        ├── TranscriptTimeline.tsx # conversation reader: turns on a spine, rest folded
+        ├── TranscriptEntryRow.tsx # one raw line (preview → full text / JSON)
         ├── SpeakerTurnsView.tsx # one side of the conversation (You / Claude)
         ├── StatusChip.tsx     # session lifecycle chip (live / abandoned / ended)
         ├── SourceChip.tsx     # recording provenance chip (live / backfilled)
@@ -106,9 +112,10 @@ packages/webui/
 ```
 
 The **pure** modules (`format.ts`, `search-query.ts`, `sessions-view.ts`,
-`transcript-entry.ts`) hold the logic worth unit-testing, out of the components: paging
-offsets and calendar placement are where the silent bugs live, and a component test
-would not catch a session drawn on the wrong day.
+`transcript-entry.ts`, `transcript-timeline.ts`) hold the logic worth unit-testing, out
+of the components: paging offsets, calendar placement and "is this line dialogue?" are
+where the silent bugs live, and a component test would not catch a session drawn on the
+wrong day or a turn quietly folded out of sight.
 
 ## Bootstrap & routing
 
@@ -208,12 +215,24 @@ in the generated snapshot. The header uses it for the title + build version.
   chip (**live** vs **backfilled**), both used by the list and detail views.
 - **`TranscriptView`** (`components/TranscriptView.tsx`) — pages the transcript
   in blocks of `PAGE = 100` from `offset: 0`, growing `limit` on "Load more" so
-  entries accumulate (again with `placeholderData` to avoid flicker). Each entry
-  is an accordion: the summary shows its index, a kind chip (user / assistant /
-  system / summary, color-coded), a **subagent** chip for sidechain entries, an
-  **error** chip when the entry carries a tool error, and a one-line preview; the
-  details pane shows the raw entry as pretty-printed JSON. (Virtual scrolling is
-  the planned follow-up; incremental paging keeps long transcripts responsive.)
+  entries accumulate (again with `placeholderData` to avoid flicker), and switches
+  between the two readers (**Timeline** / **Raw**; timeline is the default).
+  (Virtual scrolling is the planned follow-up; incremental paging keeps long
+  transcripts responsive.)
+- **`TranscriptTimeline`** (`components/TranscriptTimeline.tsx`) — the conversation
+  reader. Dialogue turns sit on the same vertical spine the session timeline uses,
+  labelled **You** / **Claude** with their clock time, the tools that turn called, a
+  **subagent** chip for sidechain turns, and the text clamped to 14 lines with a
+  "Show more". A pause of a minute or more between turns is drawn as "*12m later*".
+  Everything that isn't dialogue collapses to one quiet line — `› 12 lines · Read ×3,
+  Bash` plus an error count — which opens in place to the exact `TranscriptEntryRow`s
+  the raw reader would have shown.
+- **`TranscriptEntryRow`** (`components/TranscriptEntryRow.tsx`) — one raw line, used
+  by the raw reader and inside an opened fold. An accordion: the summary shows its
+  index, a kind chip (user / assistant / system / summary, color-coded), a
+  **subagent** chip for sidechain entries, an **error** chip when the entry carries a
+  tool error, and a one-line preview; the details pane shows the full text, or the
+  raw entry as pretty-printed JSON when it has none.
 - **Shared states** (`components/states.tsx`) — `Loading` (centered spinner),
   `ErrorState` (MUI alert with the thrown message), and `EmptyState`.
 
@@ -228,6 +247,15 @@ in the generated snapshot. The header uses it for the title + build version.
   Code JSONL entry into an `EntryView` (`kind`, one-line `preview`, `sidechain`,
   `isError`). It is defensive by design: the webapi passes entries through
   verbatim, so unknown shapes still render (as raw JSON) rather than throwing.
+- **`transcript-timeline.ts`** — `buildTimeline(entries)` folds a page of entries
+  into `TurnNode`s (dialogue) and `HiddenNode`s (a run of everything else), a lossless
+  partition: every entry lands in exactly one node, in order. `isDialogue` is the
+  judgement call it exists for — a user prompt or assistant prose only, so an
+  assistant turn that is *just* tool calls, a slash-command echo, hook output and the
+  local-command caveat all fold away. `<system-reminder>` blocks are stripped from
+  displayed turn text (the raw reader still shows them). `summarizeHidden` writes a
+  fold's one-line label; `nodeIndexContaining` finds the node a search match is in, so
+  the fold hiding it opens on arrival.
 - **`theme.ts`** — a restrained dark MUI theme (backgrounds `#0e1116`/`#161b22`,
   primary `#58a6ff`) plus the exported `MONO` font stack used for ids, paths, and
   transcript JSON.

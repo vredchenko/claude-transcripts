@@ -269,6 +269,12 @@ export interface SearchTurnHit {
 export const SEARCH_QUERY = "retry";
 
 /**
+ * A term that occurs only in a tool result — i.e. only in a line the conversation
+ * timeline folds away. Used to prove a match still gets opened up rather than hidden.
+ */
+export const SEARCH_FOLDED_QUERY = "ENOENT";
+
+/**
  * `q=beacon` — a metadata query. It matches a session's `cwd` and no turn text, which
  * is the case that produces a session hit with a `matchedIn` explaining itself.
  */

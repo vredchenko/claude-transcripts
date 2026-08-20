@@ -18,16 +18,20 @@ Vite serves it on `7651` and proxies `/api` → webapi on `7650`.
 - `src/api/generated.ts` — the orval snapshot (fetchers + react-query hooks).
 - `src/routes/` — `root` (shell), `sessions-list`, `session-detail`.
 - `src/components/` — `Header` (title/version, search, settings, links menus),
-  `SearchBox`, `SettingsMenu`, `LinksMenu`, `TranscriptView` (lazy-paged),
-  `StatusChip`, `SourceChip`, `TokenUsageChips`, shared `states`.
-- `src/format.ts`, `src/transcript-entry.ts` — pure presentation helpers.
+  `SearchBox`, `SettingsMenu`, `LinksMenu`, `TranscriptView` (lazy-paged, switching
+  `TranscriptTimeline` / raw `TranscriptEntryRow`s), `StatusChip`, `SourceChip`,
+  `TokenUsageChips`, shared `states`.
+- `src/format.ts`, `src/transcript-entry.ts`, `src/transcript-timeline.ts` — pure
+  presentation helpers.
 
 Built (Tier 1): a thin header (title + build version, placeholder search box,
 theme toggle, and a links menu for services/API/GitHub/docs); a stats-focused
 paginated session list (duration, project, live/backfilled source, counts,
 status); session detail with metadata + token / tool breakdown + the full
-start-path; and a lazy transcript viewer (each entry previews, expands to raw
-JSON). Light + dark themes (persisted, follow-system default). Still planned:
+start-path; and a lazy transcript viewer with two readers — a conversation
+timeline (dialogue turns on a spine, tool calls/results and other machinery folded
+into openable one-liners) and the raw entry list (each entry previews, expands to
+raw JSON). Light + dark themes (persisted, follow-system default). Still planned:
 wiring search to Meilisearch, virtual scroll, making the links menu config-driven
 from `/api/model`, local-first cache, keyboard nav. The full visual pass is
 deferred per the roadmap. See docs/reference/webui.md.
