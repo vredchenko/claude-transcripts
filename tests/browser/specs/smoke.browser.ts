@@ -66,14 +66,45 @@ test.describe("session detail", () => {
 
     await expect(page.getByRole("heading", { name: MULTI_DAY_SESSION.sessionId })).toBeVisible();
     await expect(page.getByText("Started", { exact: true })).toBeVisible();
-    await expect(detail.transcriptRows).not.toHaveCount(0);
+    // The page opens on the conversation, not on the stored lines.
+    await expect(detail.turnCards).not.toHaveCount(0);
   });
 
-  test("a transcript row expands to its full content", async ({ page }) => {
+  test("the timeline shows dialogue and folds the machinery away", async ({ page }) => {
+    test.skip(LIVE, "fixture-specific transcript");
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId);
 
+    // Prose from both speakers is on the page as text, not behind a disclosure.
+    await expect(page.getByText(/bounded exponential backoff/)).toBeVisible();
+    await expect(page.getByText(/Can you add a retry policy/)).toBeVisible();
+    // ...and the tool results between them are not.
+    await expect(page.getByText(/publisher.ts:44/)).toHaveCount(0);
+    await expect(detail.folds).not.toHaveCount(0);
+  });
+
+  test("a folded run opens in place to the lines it stands for", async ({ page }) => {
+    test.skip(LIVE, "fixture-specific transcript");
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId);
+
+    const fold = detail.folds.filter({ hasText: "tool_result" }).first();
+    await fold.click();
+    const row = detail.transcriptRows.filter({ hasText: "publisher.ts:44" }).first();
+    await expect(row).toBeVisible();
+    await row.click();
+    await expect(page.getByText(/retry policy not configured/).first()).toBeVisible();
+  });
+
+  test("the raw reader shows every stored line", async ({ page }) => {
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId);
+    await detail.selectReader("Raw");
+
+    await expect(detail.transcriptRows).not.toHaveCount(0);
     const row = detail.transcriptRows.filter({ hasText: "retry policy" }).first();
     await row.click();
     await expect(page.getByText(/bounded exponential backoff|retry policy/).first()).toBeVisible();

@@ -63,10 +63,31 @@ test("the sessions list stays inside its container", async ({ page }) => {
   await expectNoOverflow(page, "sessions list");
 });
 
+test("the conversation timeline contains its turns", async ({ page }) => {
+  await setupPage(page);
+  const detail = new SessionDetailPage(page);
+  await detail.goto(MULTI_DAY_SESSION.sessionId);
+  await expect(detail.turnCards.first()).toBeVisible();
+  // A turn card renders its text in full rather than truncating it to one line, so
+  // the unbroken monster has to wrap inside the card instead of widening it.
+  await expectNoOverflow(page, "session detail (timeline)");
+});
+
+test("an opened fold contains the rows it stands for", async ({ page }) => {
+  await setupPage(page);
+  const detail = new SessionDetailPage(page);
+  const fold = detail.folds.first();
+  await detail.goto(MULTI_DAY_SESSION.sessionId);
+  await expect(fold).toBeVisible();
+  await fold.click();
+  await expectNoOverflow(page, "session detail (opened fold)");
+});
+
 test("session detail contains its transcript rows", async ({ page }) => {
   await setupPage(page);
   const detail = new SessionDetailPage(page);
   await detail.goto(MULTI_DAY_SESSION.sessionId);
+  await detail.selectReader("Raw");
   await expect(detail.transcriptRows.first()).toBeVisible();
   await expectNoOverflow(page, "session detail (collapsed)");
 });
@@ -75,6 +96,7 @@ test("an expanded transcript row contains its raw content", async ({ page }) => 
   await setupPage(page);
   const detail = new SessionDetailPage(page);
   await detail.goto(MULTI_DAY_SESSION.sessionId);
+  await detail.selectReader("Raw");
   // The unbroken line is the one that breaks things in both states: nowrap in the
   // summary, and an unwrappable <pre> once expanded.
   const row = detail.transcriptRows.filter({ hasText: "local-command-caveat" }).first();

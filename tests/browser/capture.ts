@@ -68,9 +68,22 @@ async function routes(): Promise<RouteSpec[]> {
     { name: "sessions-list", path: "/app/" },
     { name: "session-detail", path: `/app/sessions/${sessionId}` },
     {
-      name: "session-detail-expanded",
+      name: "session-detail-fold-open",
       path: `/app/sessions/${sessionId}`,
       prepare: async (page) => {
+        // The timeline's folded machinery, opened: the state where a run of raw rows
+        // has to sit inside the conversation without breaking its layout.
+        await page.getByTestId("timeline-fold").first().click();
+      },
+    },
+    {
+      name: "session-detail-raw",
+      path: `/app/sessions/${sessionId}`,
+      prepare: async (page) => {
+        await page
+          .getByRole("group", { name: "transcript reader" })
+          .getByRole("button", { name: "Raw" })
+          .click();
         await page.locator(".MuiAccordionSummary-root").first().click();
       },
     },
