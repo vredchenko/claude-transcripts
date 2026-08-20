@@ -31,6 +31,15 @@ resolves everything itself. The copies were retired along with the
   `~/.local/bin`, then `CT_HOME`), forwards the payload, and **always exits 0** —
   a missing or broken CLI must never turn into a failed hook.
 
+## Where this is going
+
+[docs/design/plugin.md](../docs/design/plugin.md) plans the next step: this directory
+becomes a full plugin — a statusline and session-start banner that show *whether* and
+*where* a session is being recorded, skills that let Claude read the corpus back, and a
+recall policy in `config/` that says when to consult history unprompted. The repo gains
+a `.claude-plugin/marketplace.json` so the plugin installs from here. None of it is
+built yet.
+
 ## Which install path to use
 
 `claude-transcripts hook install` is the normal one: it registers the binary with
