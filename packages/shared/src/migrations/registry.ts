@@ -189,6 +189,33 @@ const chunkEntryKind: Migration = {
   },
 };
 
+/**
+ * v9 — redeploy `_design/session_index` with an `event_times` view: one row per
+ * event/summary doc, keyed by session, valued with nothing but its timestamp.
+ *
+ * Active (working) duration is the wall-clock span minus idle gaps, so it needs every
+ * event's timestamp rather than the first and last. The detail page derived that from
+ * `aggregate` with `reduce=false`, which pulls the whole fat map value for every event
+ * — affordable for one session, not for a list of fifty. A string-valued view makes it
+ * cheap enough that the list, timeline and calendar can show the split too.
+ *
+ * Additive to the design doc (v2 still owns its existence), and view-only: nothing is
+ * rewritten, CouchDB just indexes docs that already exist. `down` leaves the view in
+ * place — an older reader ignores a view it doesn't query.
+ */
+const sessionIndexEventTimes: Migration = {
+  id: 9,
+  name: "session-index-event-times",
+  async up(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (add event_times view)`);
+    const { _rev, ...body } = SESSION_INDEX_DESIGN;
+    await ctx.putDoc(SESSION_INDEX_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (event_times left in place — additive)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
 export const MIGRATIONS: Migration[] = [
   initialSchema,
@@ -199,6 +226,7 @@ export const MIGRATIONS: Migration[] = [
   chunkEntriesView,
   sessionIndexChunkCoverage,
   chunkEntryKind,
+  sessionIndexEventTimes,
 ];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */

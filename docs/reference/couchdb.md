@@ -242,6 +242,28 @@ the `_count` reduce supplying the total in one query. Since chunks are flushed
 mid-session, it serves a live session's transcript-so-far; only full-content chunks
 (`couchFullContentChunks`) populate it, so byte-range-only chunks fall back to S3.
 
+### `_design/session_index` — one row per session
+
+Maps `event`, `summary` and `chunk` docs (added by migration v2; see
+[migrations](../operate/migrations.md)).
+
+| View | Key | Value | Reduce |
+|------|-----|-------|--------|
+| `aggregate` | `session_id` | a fixed-shape per-doc rollup (counts, first/last timestamp, `cwd`, `hostname`, the `summary` doc's fields, chunk coverage) | custom, merges the rollups |
+| `event_times` | `session_id` | `timestamp` | — |
+
+`aggregate` (queried with `group=true`) is what lets the reader list sessions that have
+**started but not ended** — `running` and `incomplete` ones have no `summary` doc, so
+the `sessions/by_date` view can't see them. Its reduce output is one bounded object per
+session, which is why the webapi disables CouchDB's `reduce_limit` on the bundled
+instance.
+
+`event_times` (v9) is the same documents reduced to nothing but their timestamps, so
+**active duration** — wall-clock minus gaps longer than
+`system.sessions.idleThresholdMs` — can be summed per session. One string per row is
+what makes it affordable for a whole page of the session list rather than one session
+at a time.
+
 ### `_design/session_meta` — running-session enrichment & token rollup
 
 | View | Key | Value | Reduce |

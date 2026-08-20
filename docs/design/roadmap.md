@@ -255,9 +255,12 @@ done.
   event), compute *active* duration by summing only intervals where something was
   happening (gaps beyond an idle threshold subtracted). Sessions left running in
   tmux otherwise inflate duration. Independent of full-content chunks (uses the
-  existing per-event timestamps). **Done**: `activeMs` is computed per session and
-  shown on the session detail; the list stays wall-clock at Tier-1 volumes, since it
-  needs a per-session scan.
+  existing per-event timestamps). **Done**: `activeMs` is computed per session from
+  the `session_index/event_times` view (v9) and reported by both the detail and the
+  list, which asks for a page's worth of timestamps in one request and memoises the
+  answer per session (append-only docs, so an ended session's is final). The webui
+  shows the active/idle split in all three projections — table columns, the timeline's
+  duration bar, and the calendar's tooltips.
 - **Combined-prompt provenance** *(nice-to-have, Tier 2/3)* — for each session,
   record and visualise the effective combined prompt (system prompt + CLAUDE.md
   layers + memory + appended instructions) so it's clear which instructions, and

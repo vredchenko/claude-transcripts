@@ -12,6 +12,8 @@ import { Box, Stack, Tooltip, Typography, useTheme } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import type { SessionSummary } from "../../api/generated";
 import {
+  durationSplit,
+  durationSplitLabel,
   formatCount,
   formatDuration,
   formatTimestamp,
@@ -56,28 +58,63 @@ function Marker({ status }: { status: SessionSummary["status"] }) {
   );
 }
 
-/** A duration drawn to scale against the longest session on screen. */
-function DurationBar({ ms, longestMs }: { ms: number | undefined; longestMs: number }) {
-  if (!ms || ms <= 0 || longestMs <= 0) return null;
+/**
+ * A duration drawn to scale against the longest session on screen, split into the
+ * time something was happening and the time the session sat open.
+ *
+ * The split is honest here in a way it wouldn't be on the calendar: this bar measures
+ * a *magnitude*, so the filled part is "this much of it was work". A calendar bar is
+ * positional — its length is when the session ran — and shading a fraction of it would
+ * claim the idle time was at one end, which is exactly what it isn't.
+ */
+function DurationBar({
+  durationMs,
+  activeMs,
+  longestMs,
+}: {
+  durationMs: number | undefined;
+  activeMs: number | undefined;
+  longestMs: number;
+}) {
+  const split = durationSplit(durationMs, activeMs);
+  if (split.totalMs <= 0 || longestMs <= 0) return null;
+  const { activePct } = split;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-      <Box
-        sx={{
-          height: 4,
-          borderRadius: 2,
-          bgcolor: "primary.main",
-          opacity: 0.55,
-          // Square-rooted so a 169-hour session doesn't render every ordinary one as
-          // a nub. The bar is for comparison at a glance, not for measurement.
-          width: `${Math.max(2, Math.sqrt(ms / longestMs) * 100)}%`,
-          maxWidth: 220,
-          minWidth: 4,
-        }}
-      />
-      <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-        {formatDuration(ms)}
-      </Typography>
-    </Box>
+    <Tooltip title={durationSplitLabel(durationMs, activeMs)}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+        <Box
+          sx={{
+            display: "flex",
+            height: 4,
+            borderRadius: 2,
+            overflow: "hidden",
+            // Square-rooted so a 169-hour session doesn't render every ordinary one as
+            // a nub. The bar is for comparison at a glance, not for measurement.
+            width: `${Math.max(2, Math.sqrt(split.totalMs / longestMs) * 100)}%`,
+            maxWidth: 220,
+            minWidth: 4,
+          }}
+        >
+          {/* One hue throughout: idle time is the same session, not another category.
+              Unknown active time fills the bar at the old single-segment weight rather
+              than drawing an empty one, which would read as "idle the whole way". */}
+          <Box
+            sx={{
+              width: activePct === undefined ? "100%" : `${activePct}%`,
+              bgcolor: "primary.main",
+              opacity: activePct === undefined ? 0.55 : 0.85,
+            }}
+          />
+          {activePct !== undefined && (
+            <Box sx={{ flex: 1, bgcolor: "primary.main", opacity: 0.2 }} />
+          )}
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+          {formatDuration(split.totalMs)}
+          {split.activeMs !== undefined && ` · ${formatDuration(split.activeMs)} active`}
+        </Typography>
+      </Box>
+    </Tooltip>
   );
 }
 
@@ -128,7 +165,11 @@ function CardRow({ session, longestMs }: { session: SessionSummary; longestMs: n
         {session.source && session.source !== "live" && <SourceChip source={session.source} />}
       </Stack>
 
-      <DurationBar ms={session.durationMs} longestMs={longestMs} />
+      <DurationBar
+        durationMs={session.durationMs}
+        activeMs={session.activeMs}
+        longestMs={longestMs}
+      />
 
       <Typography
         variant="caption"
@@ -137,6 +178,9 @@ function CardRow({ session, longestMs }: { session: SessionSummary; longestMs: n
       >
         {[
           session.model,
+          // The machine, for the same reason the table has a column for it: the same
+          // project on two hosts is two different working copies.
+          session.hostname || null,
           `${formatCount(session.promptCount)} prompt${session.promptCount === 1 ? "" : "s"}`,
           `${formatCount(session.eventCount)} events`,
           `${formatCount(totalTools(session.toolCounts))} tools`,
@@ -163,9 +207,14 @@ function CompactRow({ session }: { session: SessionSummary }) {
         {timeOfDay(session.startTimestamp ?? session.timestamp)}
       </Typography>
       <SessionLink session={session} />
-      <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-        {formatDuration(session.durationMs)}
-      </Typography>
+      {/* One line has room for the total and the working part of it; the tooltip
+          carries the arithmetic. */}
+      <Tooltip title={durationSplitLabel(session.durationMs, session.activeMs)}>
+        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+          {formatDuration(session.durationMs)}
+          {session.activeMs !== undefined && ` (${formatDuration(session.activeMs)} active)`}
+        </Typography>
+      </Tooltip>
       <Tooltip title={session.cwd || ""}>
         <Typography
           variant="caption"

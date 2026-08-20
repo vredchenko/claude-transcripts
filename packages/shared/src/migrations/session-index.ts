@@ -13,6 +13,13 @@
  * on re-reduce. Ended sessions carry their full rollup in `summary`, so the reader
  * needs no second fetch for them.
  *
+ * A second view, `event_times` (migration v9), maps the same docs to nothing but
+ * their timestamp, keyed by `session_id`. Active (working) duration needs *every*
+ * event's timestamp rather than the first and last, and reading them off `aggregate`
+ * with `reduce=false` pulls the whole fat map value per event — fine for one session
+ * on the detail page, far too much for a list of them. One string per row is what
+ * makes the list able to ask for a page's worth at a time.
+ *
  * The reduce output is bounded per session (a fixed-shape object + a small tools
  * map), but CouchDB's `reduce_limit` overflow guard can still reject
  * object-accumulating reduces. The webapi's boot (`ensure.ts`) sets
@@ -91,11 +98,26 @@ const AGGREGATE_REDUCE = `function (keys, values, rereduce) {
   return acc;
 }`;
 
+/**
+ * Every event/summary timestamp for a session, one row per doc, keyed by session id.
+ *
+ * Map-only and deliberately thin: the value is the timestamp string and nothing else,
+ * so a caller can pull the timestamps for fifty sessions in one query. `chunk` docs are
+ * skipped — they carry the transcript, not the session's activity, and a chunk flush
+ * says nothing about when the work happened.
+ */
+const EVENT_TIMES_MAP = `function (doc) {
+  if (!doc.session_id || !doc.timestamp) return;
+  if (doc.type !== "event" && doc.type !== "summary") return;
+  emit(doc.session_id, doc.timestamp);
+}`;
+
 export const SESSION_INDEX_DESIGN: DesignDoc = {
   _id: "_design/session_index",
   language: "javascript",
   views: {
     aggregate: { map: AGGREGATE_MAP, reduce: AGGREGATE_REDUCE },
+    event_times: { map: EVENT_TIMES_MAP },
   },
 };
 

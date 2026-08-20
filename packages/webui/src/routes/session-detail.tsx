@@ -18,7 +18,13 @@ import { StatusChip } from "../components/StatusChip";
 import { ErrorState, Loading } from "../components/states";
 import { TokenUsageChips } from "../components/TokenUsageChips";
 import { TranscriptView } from "../components/TranscriptView";
-import { formatBytes, formatCount, formatDuration, formatTimestamp } from "../format";
+import {
+  durationSplit,
+  formatBytes,
+  formatCount,
+  formatDuration,
+  formatTimestamp,
+} from "../format";
 import { MONO } from "../theme";
 
 type SpeakerFilter = "all" | "user" | "assistant";
@@ -81,6 +87,7 @@ export function SessionDetailPage() {
   const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
   const navigate = useNavigate();
   const theme = useTheme();
+  const split = durationSplit(session?.durationMs, session?.activeMs);
 
   return (
     <Box>
@@ -126,7 +133,11 @@ export function SessionDetailPage() {
                 {formatTimestamp(session.startTimestamp ?? session.timestamp)}
               </Field>
               <Field label="Total runtime">{formatDuration(session.durationMs)}</Field>
-              <Field label="Active time">{formatDuration(session.activeMs)}</Field>
+              {/* Active and idle together, because either alone invites the wrong
+                  reading: a session left open overnight is three hours of "runtime"
+                  and twenty minutes of work. */}
+              <Field label="Active time">{formatDuration(split.activeMs)}</Field>
+              <Field label="Idle time">{formatDuration(split.idleMs)}</Field>
               <Field label="Model">{session.model ?? "—"}</Field>
               <Field label="Hostname">{session.hostname || "—"}</Field>
               <Field label="Recording">
