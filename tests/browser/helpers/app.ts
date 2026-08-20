@@ -119,6 +119,25 @@ export class SessionDetailPage {
     return this.page.locator(".MuiAccordionSummary-root");
   }
 
+  /** The dialogue turns of the timeline reader — what the page opens on. */
+  get turnCards(): Locator {
+    return this.page.getByTestId("timeline-turn");
+  }
+
+  /** The one-line summaries standing in for a run of folded, non-dialogue lines. */
+  get folds(): Locator {
+    return this.page.getByTestId("timeline-fold");
+  }
+
+  get readerToggle(): Locator {
+    return this.page.getByRole("group", { name: "transcript reader" });
+  }
+
+  /** Switch between the conversation timeline and the raw line-by-line list. */
+  async selectReader(label: "Timeline" | "Raw"): Promise<void> {
+    await this.readerToggle.getByRole("button", { name: label }).click();
+  }
+
   get speakerFilter(): Locator {
     return this.page.getByRole("group", { name: "speaker filter" });
   }
