@@ -6,9 +6,55 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.10] — 2026-08-24
+
+Read a session as a conversation rather than as a log, see which of its hours were
+actually work, and mirror what the hook records to a second instance.
 
 ### Added
+
+- **Session detail opens on a conversation timeline.** A stored transcript is not a
+  conversation: most of its lines are tool calls, tool results, attachments,
+  file-history snapshots and system notices, and one row per stored line buries the
+  prompts and the replies among them. Dialogue turns now sit on the same vertical spine
+  the session list timeline uses — labelled *You* / *Claude* with their clock time, the
+  tools that turn called, a **subagent** chip for sidechain turns, and the text rendered
+  in full (clamped to 14 lines with a "Show more"). A pause of a minute or more between
+  turns is drawn as "*12m later*", measured turn-to-turn across whatever was folded.
+  Everything that isn't dialogue collapses into one quiet line — `› 12 lines · Read ×3,
+  Bash` plus an error count — which opens in place to the exact rows the raw reader
+  shows.
+
+  Hiding lines is only safe if nothing is lost, so that is the part held by a test
+  rather than by care: the fold is a **lossless partition** — every stored entry lands
+  in exactly one node, in order — and a **Raw** toggle still gives the full
+  line-by-line list. Arriving from a search still lands on the match: the matching turn
+  is outlined and scrolled to, or the fold hiding it opens itself. What counts as
+  dialogue lives in a pure, unit-tested module rather than in the component, because a
+  turn quietly folded out of sight is exactly the failure a component test doesn't
+  catch ([webui.md](docs/reference/webui.md)).
+
+- **Active vs idle time in every session projection, and the host that recorded it.**
+  Wall-clock runtime is the number that lies: a session left open in tmux over a weekend
+  reports three days of "runtime" and twenty minutes of work. `activeMs` already
+  existed, but only on session detail — a list couldn't afford it, because deriving it
+  meant reading the fat `session_index/aggregate` value for every event of every row. A
+  **v9 migration** adds `session_index/event_times`: the same event/summary docs keyed
+  by session, valued with nothing but their timestamp. One string per row is what makes
+  a page of sessions affordable in a single request.
+
+  The webapi computes the split for the page in batches and memoises it per session,
+  keyed by the newest timestamp it knows — docs are append-only, so an ended session's
+  answer is final and a running one recomputes exactly when new events land. The table
+  gains **runtime / active / idle** columns, the timeline fills the active share of each
+  duration bar, and the calendar tells the split in its bar captions and tooltips: a
+  calendar bar's *length* is the wall-clock span, so shading part of it would claim the
+  idle time sat at one end of the session, and it doesn't — it's scattered through.
+  Unknown active time renders as `—`, never `0s`, since "can't say" and "ran and did
+  nothing" are different claims; an instance that hasn't applied v9 has no such view,
+  and its list must still render. **Hostname** joins the table next to the project and
+  the timeline card's metadata line — the same project name on two machines is two
+  different working copies.
 
 - **The hook can mirror to a second instance.** A `mirrors` array in the hook's runtime
   config writes every session to another instance as well as the local one, live
@@ -826,6 +872,7 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.10]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.10
 [0.0.9]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.9
 [0.0.8]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.8
 [0.0.7]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.7
