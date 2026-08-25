@@ -6,6 +6,41 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The search follower no longer spins forever on its own checkpoint** ([#89]). The
+  `_changes` follower that keeps Meilisearch current stored its resume point *inside the
+  database it follows*. That write was itself a change, so the longpoll returned at once
+  with a one-doc batch, the batch held nothing indexable, and the handler checkpointed
+  again. Nothing throttled it but CouchDB's round-trip time.
+
+  Nothing was ever wrong with the *results* — indexing worked and coverage was complete,
+  which is why this ran unnoticed. What it cost was a permanent background burn on any
+  instance with `features.meilisearch: true`, the bundled stack included: one reported
+  deployment held 5.1M revisions of that single document, ~9.5 writes/sec on an idle
+  box, a pinned CPU core, and a 158 MB database file for 89 MB of live data. It also
+  made any resource measurement taken against a running instance meaningless.
+
+  The checkpoint is now a **local document** (`_local/search_checkpoint`). CouchDB
+  excludes local docs from `_changes` by design, so the feedback edge is gone at the
+  source rather than damped — the cheaper stopgap, checkpointing only when a batch
+  indexed something, would have left the loop latent, since a genuine batch still writes
+  a checkpoint that wakes the feed once more. Local docs are also not replicated, which
+  is what the checkpoint already was: an offset into one instance's change feed,
+  meaningless anywhere else. A `_local/` doc has no revision tree, so the write also
+  stopped reading its own `_rev` first — one round trip per batch instead of two.
+
+  An instance upgrading from an earlier version adopts the old doc's position on first
+  boot and then deletes it, so nothing written while it was down is skipped and
+  compaction can reclaim what the spin accumulated. Measured against a live CouchDB:
+  after one real write the database's `update_seq` advanced 21 → 67 in five seconds
+  before, and settles at once after.
+
+  Present since `d20304b feat(search): index live sessions by following CouchDB's change
+  feed`, so every release that shipped search carried it.
+
 ## [0.0.10] — 2026-08-25
 
 A session reads as a conversation, the list stops calling a weekend in tmux "runtime",
@@ -926,6 +961,7 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[#89]: https://github.com/vredchenko/claude-transcripts/issues/89
 [0.0.10]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.10
 [0.0.9]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.9
 [0.0.8]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.8

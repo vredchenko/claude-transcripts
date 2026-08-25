@@ -67,7 +67,10 @@ available.
 - **The `schema_version` marker.** The manifest carries the version; the target's own
   marker must keep describing the target.
 - **`search_checkpoint`.** Instance-specific — it names a position in *that* CouchDB's
-  change feed and is meaningless anywhere else.
+  change feed and is meaningless anywhere else. Since #89 it lives at
+  `_local/search_checkpoint`, and a local document is never returned by `_all_docs`, so
+  it cannot reach a bundle by construction. The id filter in `isExportableDoc` stays for
+  the instances and bundles that predate the move.
 - **Meilisearch indexes.** Derived state, rebuilt by `reindex`
   ([ADR 0009](decisions/0009-meilisearch-search.md)). Shipping them would bloat the
   bundle with something reconstructible.

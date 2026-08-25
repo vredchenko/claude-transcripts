@@ -146,6 +146,13 @@ engine costs a `reindex`, not data. Three write paths keep them current:
   direct writes, which never touch the webapi. It checkpoints its sequence, so a
   restart resumes rather than replaying; its *first* run starts at `now`, because
   bulk-loading an existing corpus is far cheaper via `reindex`.
+
+  The checkpoint is a **local document** (`_local/search_checkpoint`), which is not a
+  detail: CouchDB keeps local docs out of `_changes`, and an ordinary doc there made
+  the follower wake itself — the checkpoint write was a change, the batch held nothing
+  indexable, and it checkpointed again, about ten times a second forever (#89). An
+  instance upgrading from an earlier version adopts the old doc's position on first
+  boot and deletes it.
 - **`POST /api/search/reindex`** (`cli reindex`) clears and rebuilds. The reconciliation
   step for history that predates search, for an index rename, and for deletes.
 
