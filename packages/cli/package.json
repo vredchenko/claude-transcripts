@@ -1,6 +1,6 @@
 {
   "name": "@claude-transcripts/cli",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "type": "module",
   "description": "Claude Transcripts CLI — browse, search, back up, and administer your self-hosted Claude Code session history.",
   "license": "MIT",
