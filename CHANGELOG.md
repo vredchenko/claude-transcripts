@@ -6,7 +6,9 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.11] — 2026-08-25
+
+A single-fix release: search stops burning a CPU core on every instance that has it on.
 
 ### Fixed
 
@@ -962,6 +964,7 @@ of them had ever executed:
   publish if you want unauthenticated `docker pull`.
 
 [#89]: https://github.com/vredchenko/claude-transcripts/issues/89
+[0.0.11]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.11
 [0.0.10]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.10
 [0.0.9]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.9
 [0.0.8]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.8
