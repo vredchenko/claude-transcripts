@@ -6,9 +6,56 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.10] — 2026-08-25
+
+A session reads as a conversation, the list stops calling a weekend in tmux "runtime",
+and the hook can write to a second instance.
 
 ### Added
+
+- **Session detail opens on a conversation timeline.** A stored transcript is not a
+  conversation: most of its lines are tool calls, tool results, attachments,
+  file-history snapshots and system notices, and one row per line buries the prompts and
+  replies among them. The reader now shows dialogue turns on the same spine the session
+  list uses — labelled You / Claude with their time, the tools that turn called, and the
+  pause since the previous turn; long turns clamp to 14 lines.
+
+  Every run of non-dialogue lines folds into one quiet summary naming the tools that ran
+  and any errors, and opens in place to the exact rows the raw reader shows. The fold is
+  a lossless partition, so nothing is dropped, and a **Raw** toggle still gives the full
+  line-by-line list. Arriving from a search still lands on the match: the turn is
+  outlined, or the fold hiding it opens itself.
+
+  The folding decisions live in a pure, unit-tested module (`transcript-timeline.ts`) —
+  what counts as dialogue, the per-run tallies, the elapsed-time arithmetic — because
+  every mistake in them is a silently wrong summary rather than a crash. Both readers
+  share one row component, and the browser suite covers both.
+
+- **Runtime split into active and idle, and the host, in every projection.** The session
+  list showed wall-clock runtime only, which is the number that lies: a session left
+  open in tmux over a weekend reports three days of "runtime" and twenty minutes of
+  work. `activeMs` already existed, but only on the session detail — the list stayed
+  wall-clock because deriving it read the fat `session_index/aggregate` value for every
+  event of every row.
+
+  A **v9 migration** adds `session_index/event_times`: the same event and summary docs
+  keyed by session, valued with nothing but their timestamp. One string per row is what
+  makes a page of sessions affordable in one request. The webapi computes the split for
+  the page (batched 100 keys per view request) and memoises it per session, keyed by the
+  newest timestamp known — docs are append-only, so an ended session's answer is final
+  and a running one recomputes exactly when new events land. Migrations auto-apply on
+  boot, and any read failure costs the reader the split rather than the list: an
+  instance that hasn't applied v9 has no such view and still renders.
+
+  The webui shows runtime / active / idle as table columns, the active share as the
+  filled part of the timeline's duration bar, and the split in the calendar's bar
+  captions and tooltips — in words there, because a calendar bar's *length* is the
+  wall-clock span, so shading part of it would claim the idle time sat at one end. It
+  doesn't. Unknown active time renders as "—", never "0s": "can't say" and "ran and did
+  nothing" are different claims.
+
+  **hostname** joins the table next to the project, and the timeline card's metadata
+  line — the same project name on two machines is two different working copies.
 
 - **The hook can mirror to a second instance.** A `mirrors` array in the hook's runtime
   config writes every session to another instance as well as the local one, live
@@ -49,6 +96,59 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   report it. The rewrite now carries machine-owned keys across; an explicit value still
   wins, so a caller can set or clear them. `setup` also stopped keeping its own copy of
   the writer, which is how the two paths drifted apart in the first place.
+
+- **A checkout beside an install now finds the running webapi.** `install` allocates a
+  port block per instance precisely so an install and a checkout can coexist, which
+  means an install is frequently *not* on 7650 — while the CLI and the webui dev proxy
+  could both resolve to 7650 anyway and fail against a port nothing was listening on.
+  Four causes, one symptom:
+
+  - **`WEBAPI_HOST` chose the host; it no longer suppresses the lookup.** Both resolvers
+    treated a set host as evidence that a target had been named, and `.env.template`
+    ships one — so every checkout that copied the template skipped the installed
+    instance. The **port** pins the target now; the host only chooses the host for it.
+    An explicit `WEBAPI_PORT` still wins outright, and `.env.template` therefore ships it
+    commented out: a value copied from a template is indistinguishable from one somebody
+    meant.
+  - **A blank env var is no longer a choice.** `??` falls back only on `undefined`, so
+    `WEBAPI_PORT=` built `http://127.0.0.1:` and `WEBAPI_HOST=` built `http://:7650` —
+    malformed URLs that fail at the socket without mentioning the empty line that caused
+    them. Both halves use `||`.
+  - **`0.0.0.0` in an instance's `WEBAPI_HOST` is dialled as loopback.** That value
+    records what the webapi *binds*; it is not an address to connect to. Building
+    `http://0.0.0.0:<port>` happens to work on Linux and is not portable, so widening an
+    instance's bind address left the CLI unable to reach an instance running perfectly.
+    Only `0.0.0.0` — every other value is still used as written, and IPv6 `::` is left
+    alone rather than guessed at.
+  - **A dead target is now said rather than implied.** Vite reported a refused connection
+    as a bodiless 500, which reads as an application bug and starts the search in the SPA
+    instead of at the port. The dev server prints a notice at startup and answers 502 —
+    the fault is upstream — with a body naming the dead origin and the live instance to
+    use instead.
+
+  The CLI also resolves its base URL on first use rather than at import: the resolver
+  reads `instance.env` and consults four env vars, and doing that at module evaluation
+  put every command's load at the mercy of a fault inside it. Memoised, so a bulk command
+  reads the instance file once.
+
+### Changed
+
+- **The lint baseline is clean, and the dev server's invariants are tested.**
+  `bun run lint` reported 12 warnings and 2 infos on every clean checkout, none of them
+  actionable — which is the problem, because a genuinely new warning had nowhere to stand
+  out. Dead `biome-ignore` directives removed (the rule they suppressed is off globally),
+  `noTemplateCurlyInString` scoped off for the two files that deliberately *emit*
+  `${...}` as data, one real `useOptionalChain` finding fixed, and the biome config
+  migrated to the resolved binary's schema.
+
+  Two things the dev server depended on were asserted in prose and enforced by nobody.
+  `dev/webapi-target.ts` re-derives where an install keeps `instance.env` rather than
+  importing the CLI's `installPaths()` — the webui does not depend on the CLI package —
+  and a parity test now pins the two across the default location, `CT_HOME`,
+  `XDG_CONFIG_HOME`, and the precedence between them. It failed on its first run: given a
+  padded `XDG_CONFIG_HOME` the two resolved different paths. `vite.config.ts` is now
+  inside the tsconfig `include`, which immediately surfaced four implicit `any`s in the
+  proxy error handler it had grown.
 
 ## [0.0.9] — 2026-08-12
 
@@ -826,6 +926,7 @@ of them had ever executed:
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 
+[0.0.10]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.10
 [0.0.9]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.9
 [0.0.8]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.8
 [0.0.7]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.7
