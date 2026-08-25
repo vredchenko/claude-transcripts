@@ -44,6 +44,11 @@ export interface BundleManifest {
  * target's views. `schema_version` describes the *target's* position, and the manifest
  * already records the source's. `search_checkpoint` names an offset in one particular
  * CouchDB's change feed and means nothing anywhere else.
+ *
+ * The checkpoint moved to `_local/search_checkpoint` in #89 and no longer reaches
+ * `_all_docs` at all, so that clause now only catches the ordinary doc an instance
+ * predating that change still holds, and bundles already written from one. Both
+ * outlive the fix, so it stays.
  */
 export function isExportableDoc(id: string, type?: string): boolean {
   if (id.startsWith("_design/")) return false;

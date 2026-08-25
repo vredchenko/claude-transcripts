@@ -35,9 +35,15 @@ This doc has two halves: **(1) the document types and their schemas**, and
 | `session_start` *(planned)* | `session_start:<sessionId>` | session-start | once, at start (#15) |
 | `meta` *(planned)* | auto | enrichment endpoint | any time, append-only (#3/#7) |
 | `schema_version` *(planned)* | `schema_version` | migrations | on migrate |
+| `search_checkpoint` | `_local/search_checkpoint` | the search follower | per indexed batch |
 
 > Operational/app logs (`type:"log"`) live in a **separate database**, not this
 > one — see [app-logging.md](../operate/app-logging.md) / [ADR 0018](../design/decisions/0018-app-logging-into-couchdb.md).
+
+> The search checkpoint is a **local document**, so it appears in neither `_all_docs`
+> nor `_changes` and is not replicated. That is what keeps the follower from waking
+> itself on its own checkpoint write (#89) — see
+> [webapi.md](webapi.md#search-indexes-derived-state).
 
 ### `event`
 
