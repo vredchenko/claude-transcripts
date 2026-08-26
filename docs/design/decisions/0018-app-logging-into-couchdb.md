@@ -16,7 +16,9 @@ new piece of infrastructure when we already run a document store with an HTTP AP
 ## Decision
 
 Aggregate the **application's own logs into CouchDB, in a separate database** from
-the session data (e.g. `app-logs` alongside `claude-sessions`). All components —
+the session data (`claude-transcripts-app-logs` alongside
+`claude-transcripts-sessions`; both names were shorter when this was written and
+are per-instance configurable). All components —
 webapi, webui (client errors shipped via the webapi), CLI, hook — write their
 operational log/error records there, through the webapi (per
 [ADR 0016](0016-webapi-is-the-io-gateway.md)).

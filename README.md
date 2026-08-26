@@ -210,7 +210,8 @@ bun run cli setup            # verify later with: bun run cli setup --check
 This writes `~/.config/claude-transcripts/config.json`, ensures the CouchDB
 databases, probes the Garage bucket, and registers the logging hook in
 `~/.claude/settings.json` for all session events. Now run Claude Code anywhere —
-each session is logged; browse them at http://127.0.0.1:7651/app/.
+each session is logged; browse them at `http://127.0.0.1:<WEBAPI_PORT>/app` (7650 by
+default) — the same address `install` prints.
 
 > From a source checkout the hook runs `bun run <repo>/packages/cli/src/cli.tsx hook
 > run`, so keep this clone in place and `bun` on your `PATH`; an installed binary

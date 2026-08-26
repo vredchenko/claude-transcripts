@@ -37,11 +37,7 @@ runs Biome on staged files at commit time. Nothing else gates a merge.
 
 ## How the pieces fit
 
-```
-Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─┐
-                        ▲                             cli  ──┼─► webapi
-                        └───────── reads/writes ──────agents┘
-```
+![Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
 
 | Path | What it is |
 |------|------------|

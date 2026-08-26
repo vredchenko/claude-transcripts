@@ -1,9 +1,12 @@
 # Dev automation
 
-> **Status: planned (Tier 1).** This is **developer tooling**, kept **separate from
-> the [CLI](../reference/cli.md)** (the CLI is a user/admin product; these are repo build/dev
-> scripts). They live under `scripts/` and are run locally via `bun run` **and**
-> wrapped as CI/CD jobs (`.github/workflows/`) so local and CI behaviour match.
+> **Status: built.** Every script below exists and runs; the generators are wired
+> into `bun run gen:all`, which CI re-runs before diffing the working tree, so a
+> committed generated file that nobody regenerated fails the build. This is
+> **developer tooling**, kept **separate from the [CLI](../reference/cli.md)** (the CLI
+> is a user/admin product; these are repo build/dev scripts). They live under
+> `scripts/` and are run locally via `bun run` **and** wrapped as CI/CD jobs
+> (`.github/workflows/`) so local and CI behaviour match.
 
 ## Pattern
 
@@ -16,7 +19,7 @@ bun run scripts/<name>          # locally
 …and invoked by a thin CI workflow that calls the same script — one source of
 truth for the behaviour, no drift between local and CI.
 
-## Scripts (planned)
+## Scripts
 
 | Script | Does | Notes |
 |--------|------|-------|

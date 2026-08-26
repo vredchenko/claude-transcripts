@@ -43,8 +43,9 @@ un-flushed delta, not the whole session).
 - **Tail + offset:** the hook runtime reads new bytes from the last offset
   to EOF, consuming only **complete `\n`-terminated lines** (a partial trailing line
   is left for next time so we never split a JSON record). Offset state lives in
-  `/tmp/claude-transcripts-<sessionId>.chunk` (`{ offset, lastFlushMs }`), the same `/tmp` pattern
-  as `lib/counts.ts`. `/tmp` loss is recoverable — S3 still has the full transcript.
+  `/tmp/claude-transcripts-<sessionId>.chunkstate` (`{ offset, lastFlushMs }`), guarded by
+  a sibling `.chunklock` so concurrent hook processes can't interleave a flush.
+  `/tmp` loss is recoverable — S3 still has the full transcript.
 - **Batch policy:** flush when buffered entries ≥ `logging.chunk.maxEntriesPerChunk`
   (200) **or** `logging.chunk.flushIntervalMs` (15000ms) since the last flush —
   whichever first. `Stop` and `SessionEnd` always force a flush. Below the threshold
@@ -66,7 +67,7 @@ un-flushed delta, not the whole session).
   sequence counter, so it never collides across resumes even if `/tmp` state was lost.
 - **Append-only, no mutation.** Lifecycle stays *derived*: `SessionStart` event +
   presence of `summary:<id>` ⇒ ended; chunks-but-no-summary ⇒ running/incomplete.
-- **Pruning** (`lib/prune.ts`): placeholder only — truncate oversized string fields
+- **Pruning**: placeholder only — truncate oversized string fields
   and drop base64 image data, leaving a marker. Real policy is a later issue (ties to
   secrets masking #11). S3 keeps the un-pruned master.
 - **Resumes:** on `SessionStart` with `source` `startup`/`clear`, offset resets to 0.

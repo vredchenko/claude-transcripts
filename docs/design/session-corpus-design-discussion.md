@@ -4,7 +4,7 @@
 > final spec — owner will refine these into the formal docs and refresh issue #15.
 > Preserved here so the discussion isn't lost when we move dev off the live clone.
 > Builds on issue #15 (architecture redesign) and #4 (logging rework / chunking,
-> already partly implemented on this branch). See also `docs/mid-flight-chunking.md`.
+> already partly implemented on this branch). See also [`mid-flight-chunking.md`](mid-flight-chunking.md).
 
 ## North star (unchanged from #15)
 

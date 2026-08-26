@@ -27,7 +27,7 @@ live here, only in S3 ([ADR 0014](../design/decisions/0014-transcripts-live-in-s
 
 | Database | Holds | Notes |
 |----------|-------|-------|
-| `claude-sessions` (default) | Session corpus: `event`, `summary`, `chunk`, `session_start`, `meta`, `schema_version` | The primary store. |
+| `claude-transcripts-sessions` (default) | Session corpus: `event`, `summary`, `chunk`, `session_start`, `meta`, `schema_version` | The primary store. |
 | app-logs DB *(separate)* | `log` (operational/app logs) | Kept out of the corpus — see [app-logging.md](../operate/app-logging.md) / [ADR 0018](../design/decisions/0018-app-logging-into-couchdb.md). |
 
 ## Catalogue
@@ -38,12 +38,12 @@ field set, validation rules, retention).
 
 | `type` | `_id` | DB | Written by → when | Status | Purpose | Owner to define |
 |--------|-------|----|-------------------|--------|---------|-----------------|
-| [`event`](#event) | auto (CouchDB-assigned) | `claude-sessions` | per-event handlers → live, per hook event | **exists** | One marker doc per hook event; the per-session activity stream. | which events emit a doc; exact per-event marker fields; preview length caps |
-| [`summary`](#summary) | `summary:<sessionId>` | `claude-sessions` | session-end (live) / `backfill` → at session end | **exists** | The end-of-session rollup; a session is `ended` iff this exists. `source` is `"live"` (hook) or `"backfill"` (adopted transcript). | final rollup field set; `end_reason` vocabulary; `system_checks` shape |
-| [`chunk`](#chunk) | `chunk:<sessionId>:<byte_start>` | `claude-sessions` | `backfill` (reconstructed) · chunk-flush (live) | **exists** | Append-only byte-faithful slice of the transcript ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). Both `backfill` and the live mid-flight chunker emit them via the shared `sliceIntoChunks`. With `couchFullContentChunks` on, each chunk also embeds its parsed `entries[]` (`schema_version` 2, [ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)) via `buildChunkEntries`. | prune policy; map-reduce views over `entries[]` (speaker-split, per-turn search) |
-| [`session_start`](#session_start) | `session_start:<sessionId>` | `claude-sessions` | session-start → once, at start | **planned** | A first-class start record so a running session is queryable before any summary exists (feeds the `running` status + `start_meta` view). | does this replace/duplicate the `SessionStart` `event` doc? fields beyond start metadata |
-| [`meta`](#meta) | auto | `claude-sessions` | enrichment endpoint → any time, append-only | **planned** | Out-of-band enrichment attached to a session (host/actor attribution, tags, derived/extracted facts) without mutating existing docs. | the enrichment vocabulary; whether feature extraction (urls/repos/PRs) is `meta` or its own type; who may write it |
-| [`schema_version`](#schema_version) | `schema_version` | `claude-sessions` | migrations → on migrate | **exists** | Singleton recording the applied migration version plus the `applied[]` history. Written after **each** step, so an interrupted run stays consistent ([migrations.md](../operate/migrations.md)). | — |
+| [`event`](#event) | auto (CouchDB-assigned) | `claude-transcripts-sessions` | per-event handlers → live, per hook event | **exists** | One marker doc per hook event; the per-session activity stream. | which events emit a doc; exact per-event marker fields; preview length caps |
+| [`summary`](#summary) | `summary:<sessionId>` | `claude-transcripts-sessions` | session-end (live) / `backfill` → at session end | **exists** | The end-of-session rollup; a session is `ended` iff this exists. `source` is `"live"` (hook) or `"backfill"` (adopted transcript). | final rollup field set; `end_reason` vocabulary; `system_checks` shape |
+| [`chunk`](#chunk) | `chunk:<sessionId>:<byte_start>` | `claude-transcripts-sessions` | `backfill` (reconstructed) · chunk-flush (live) | **exists** | Append-only byte-faithful slice of the transcript ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). Both `backfill` and the live mid-flight chunker emit them via the shared `sliceIntoChunks`. With `couchFullContentChunks` on, each chunk also embeds its parsed `entries[]` (`schema_version` 2, [ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)) via `buildChunkEntries`. | prune policy; map-reduce views over `entries[]` (speaker-split, per-turn search) |
+| [`session_start`](#session_start) | `session_start:<sessionId>` | `claude-transcripts-sessions` | session-start → once, at start | **planned** | A first-class start record so a running session is queryable before any summary exists (feeds the `running` status + `start_meta` view). | does this replace/duplicate the `SessionStart` `event` doc? fields beyond start metadata |
+| [`meta`](#meta) | auto | `claude-transcripts-sessions` | enrichment endpoint → any time, append-only | **planned** | Out-of-band enrichment attached to a session (host/actor attribution, tags, derived/extracted facts) without mutating existing docs. | the enrichment vocabulary; whether feature extraction (urls/repos/PRs) is `meta` or its own type; who may write it |
+| [`schema_version`](#schema_version) | `schema_version` | `claude-transcripts-sessions` | migrations → on migrate | **exists** | Singleton recording the applied migration version plus the `applied[]` history. Written after **each** step, so an interrupted run stays consistent ([migrations.md](../operate/migrations.md)). | — |
 | [`log`](#log) | auto | app-logs DB *(separate)* | webapi/app → on log event | **planned** | Application/operational logs, kept out of the session corpus. | log schema; levels; retention; which subsystems emit |
 
 > **Candidate future types** (not yet committed — flagged for your call): a
@@ -153,13 +153,19 @@ an `event` doc and their exact marker fields.
 }
 ```
 
-### `schema_version` *(planned)*
+### `schema_version`
+
+Written by the [migration runner](../operate/migrations.md) after **each** step, so an
+interrupted run still leaves a consistent marker.
 
 ```jsonc
 {
   "_id": "schema_version",
   "type": "schema_version",
-  "version": 1               // TODO: single int vs per-type map
+  "version": 9,              // highest migration id applied; 0 = pristine
+  "applied": [               // ordered history: appended on up, popped on down
+    { "id": 1, "name": "initial-schema", "at": "2026-06-20T09:14:02.881Z" }
+  ]
 }
 ```
 
