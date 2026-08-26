@@ -3,17 +3,35 @@
   "version": "0.0.11",
   "type": "module",
   "description": "Claude Transcripts CLI — browse, search, back up, and administer your self-hosted Claude Code session history.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "transcripts",
+    "session-history",
+    "self-hosted",
+    "couchdb",
+    "s3",
+    "observability",
+    "bun",
+    "cli"
+  ],
   "license": "MIT",
+  "author": "vredchenko (https://github.com/vredchenko)",
+  "homepage": "https://vredchenko.github.io/claude-transcripts/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vredchenko/claude-transcripts.git",
     "directory": "packages/cli"
   },
+  "bugs": {
+    "url": "https://github.com/vredchenko/claude-transcripts/issues"
+  },
   "bin": {
     "claude-transcripts": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "engines": {
     "bun": ">=1.1.0"
