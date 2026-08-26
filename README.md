@@ -14,11 +14,13 @@ CLI (and AI agents) read it.
 
 Everything runs on your own infrastructure. Nothing leaves your network.
 
-```
-Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─┐
-                        ▲                             cli  ──┼─► webapi
-                        └───────── reads/writes ──────agents┘
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
+    <img src="docs/assets/architecture-light.svg" width="820"
+         alt="Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.">
+  </picture>
+</p>
 
 > ### ⚠️ Early — a preview, not something to depend on
 >

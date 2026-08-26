@@ -1,4 +1,13 @@
-import type { AppModel, HookCategory, ServiceDef } from "./types";
+import type {
+  AppModel,
+  DiagramLevel,
+  HookCategory,
+  IconKey,
+  ServiceDef,
+  TopologyEdgeKind,
+  TopologyLane,
+  TopologyNodeRole,
+} from "./types";
 
 /**
  * Projections — derive concrete artifacts from the model. Add new projectors here
@@ -195,4 +204,145 @@ function composeService(s: ServiceDef): Record<string, unknown> {
   svc.restart = s.restart ?? "unless-stopped";
   svc.networks = ["claude-transcripts"];
   return svc;
+}
+
+// ── Architecture diagram projection ──────────────────────────────────────────
+//
+// The model owns the *scene* (which nodes and edges exist at this level, what they
+// are called, what they mean); a renderer owns the *geometry* (pixels, colours,
+// fonts). `rank` lives here because "the gateway is downstream of the clients" is a
+// fact about the system; `x = 470` is a fact about a picture. That split is what
+// lets the SVG generator, and any later renderer, consume one description.
+//
+// Isomorphic like the rest of the model — no fs, no measurement — so the webui can
+// import this too.
+
+export interface DiagramNode {
+  key: string;
+  /** Resolved: the node's own `label`, else the ServiceDef's `name`. */
+  label: string;
+  caption?: string;
+  role: TopologyNodeRole;
+  icon?: IconKey;
+  rank: number;
+  lane: TopologyLane;
+  /** Resolved host port — only when the node is a service with one and `includePorts`. */
+  port?: number;
+  summary: string;
+  ref?: string;
+}
+
+export interface DiagramEdge {
+  from: string;
+  to: string;
+  kind: TopologyEdgeKind;
+  label?: string;
+  note?: string;
+}
+
+export interface DiagramGroup {
+  key: string;
+  title: string;
+  members: string[];
+}
+
+export interface ArchitectureDiagram {
+  level: DiagramLevel;
+  title: string;
+  subtitle: string;
+  /** rank ascending, then declaration order — stable across runs. */
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  groups: DiagramGroup[];
+  /** Accessible prose assembled from the node/edge summaries. Becomes `<desc>`. */
+  description: string;
+}
+
+export interface ArchitectureDiagramOptions {
+  /** Default `"compact"`. */
+  level?: DiagramLevel;
+  /** Default `false` — ports are an expanded-view detail. */
+  includePorts?: boolean;
+}
+
+/**
+ * Project the topology into a layout-free scene at one detail level.
+ *
+ * A node whose `requiresFeature` is off is dropped, and so is every edge touching
+ * it — without that orphan prune a disabled feature leaves arrows pointing into
+ * nowhere, and the picture would claim a deployment shape the config denies.
+ */
+export function toArchitectureDiagram(
+  model: AppModel,
+  opts: ArchitectureDiagramOptions = {},
+): ArchitectureDiagram {
+  const level = opts.level ?? "compact";
+  const wanted: DiagramLevel[] = level === "expanded" ? ["compact", "expanded"] : ["compact"];
+  const on = (feature?: string) => feature === undefined || model.features[feature] === true;
+
+  const byServiceKey = new Map(model.services.map((s) => [s.key, s]));
+
+  const kept = model.topology.nodes.filter(
+    (n) => wanted.includes(n.level) && on(n.requiresFeature),
+  );
+  const liveKeys = new Set(kept.map((n) => n.key));
+
+  const nodes: DiagramNode[] = kept
+    .map((n, i) => {
+      const svc = n.serviceKey ? byServiceKey.get(n.serviceKey) : undefined;
+      const node: DiagramNode = {
+        key: n.key,
+        label: n.label ?? svc?.name ?? n.key,
+        role: n.role,
+        rank: n.rank,
+        lane: n.lane,
+        summary: n.summary,
+      };
+      if (n.caption) node.caption = n.caption;
+      if (n.icon) node.icon = n.icon;
+      const port = opts.includePorts ? svc?.resolvedPorts?.[0]?.host : undefined;
+      if (port !== undefined) node.port = port;
+      if (n.ref) node.ref = n.ref;
+      return { node, i };
+    })
+    .sort((a, b) => a.node.rank - b.node.rank || a.i - b.i)
+    .map(({ node }) => node);
+
+  const edges: DiagramEdge[] = model.topology.edges
+    .filter(
+      (e) =>
+        wanted.includes(e.level) &&
+        on(e.requiresFeature) &&
+        liveKeys.has(e.from) &&
+        liveKeys.has(e.to),
+    )
+    .map((e) => {
+      const edge: DiagramEdge = { from: e.from, to: e.to, kind: e.kind };
+      if (e.label) edge.label = e.label;
+      if (e.note) edge.note = e.note;
+      return edge;
+    });
+
+  const groups: DiagramGroup[] = model.topology.groups
+    .filter((g) => wanted.includes(g.level))
+    .map((g) => ({ key: g.key, title: g.title, members: g.members.filter((m) => liveKeys.has(m)) }))
+    .filter((g) => g.members.length > 0);
+
+  const label = (key: string) => nodes.find((n) => n.key === key)?.label ?? key;
+  const description = [
+    ...nodes.map((n) => `${n.label} — ${n.summary}`),
+    ...edges.map((e) => `${label(e.from)} → ${label(e.to)}: ${e.note ?? e.label ?? e.kind}`),
+  ].join(" ");
+
+  return {
+    level,
+    title: model.identity.title,
+    // Deliberately not the version: gen-diagram builds from the committed config
+    // template with no env, so `identity.version` would be the "0.0.0-dev" fallback.
+    subtitle: "self-hosted history for your Claude Code sessions",
+    nodes,
+    edges,
+    groups,
+    description,
+  };
 }

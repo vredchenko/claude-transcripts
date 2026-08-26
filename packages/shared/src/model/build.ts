@@ -4,6 +4,7 @@ import { ENV_VARS } from "./env";
 import { HOOK_TYPES } from "./hooks";
 import { ROUTES } from "./routes";
 import { SERVICES } from "./services";
+import { TOPOLOGY } from "./topology";
 import type { AppConfigFile, AppModel, EnvLike, ServiceDef } from "./types";
 
 /**
@@ -71,6 +72,7 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
     actions: ACTIONS,
     bindings: BINDINGS,
     routes: ROUTES,
+    topology: TOPOLOGY,
     env: ENV_VARS,
     features: config.features,
     servicesMenu: buildServicesMenu(services, config.servicesMenu),

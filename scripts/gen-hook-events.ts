@@ -72,7 +72,7 @@ const doc = `<!-- GENERATED from the app model (@claude-transcripts/shared) by s
 # Claude Code hook events — when they fire, payloads & fixtures
 
 The authoritative catalogue of **every Claude Code hook event**, projected from the
-app model ([\`@claude-transcripts/shared\` HOOK_TYPES](../packages/shared/src/model/hooks.ts)):
+app model ([\`@claude-transcripts/shared\` HOOK_TYPES](../../packages/shared/src/model/hooks.ts)):
 the one-line trigger for each, a link to the official documentation, links to
 example **payload fixtures** under
 [\`tests/mock/claude-code/hooks/\`](${FIXTURES}/) (the inputs Claude Code sends a hook
@@ -99,8 +99,8 @@ Claude Code version exposes) is **generated** into \`compatibility.json\`
 - **What we do** — for **wired** events, the action handlers bound to it (projected
   from the model's BINDINGS; [actions.md](actions.md) lists what each does). For
   **ignored** events, *why* we intentionally don't handle it. Both come from the
-  model ([\`hooks.ts\`](../packages/shared/src/model/hooks.ts) +
-  [\`actions.ts\`](../packages/shared/src/model/actions.ts)) — wire an ignored event
+  model ([\`hooks.ts\`](../../packages/shared/src/model/hooks.ts) +
+  [\`actions.ts\`](../../packages/shared/src/model/actions.ts)) — wire an ignored event
   by adding a binding and regenerating.
 
 Events are ordered by **session lifecycle**: a session begins at the top and ends

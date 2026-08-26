@@ -24,6 +24,7 @@ truth for the behaviour, no drift between local and CI.
 | **regenerate-compatibility** | Regenerate `compatibility.json` from the external Claude Code source of truth | [compatibility.md](../start/compatibility.md) |
 | **mirror-images** | Pull the pinned third-party backing-service images and push them to the **GitHub Container Registry (GHCR)** | [ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md), [containers.md](../operate/containers.md) |
 | **release** | Stamp one lockstep semver across every component manifest (`--check` verifies without writing); CI does the building on the tag | [ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md), [releasing.md](../operate/releasing.md) |
+| **gen-diagram** | Render the architecture diagram from the app model's topology into committed SVGs | see below; consumed by the README and [architecture.md](../design/architecture.md) |
 | **build-docs** | Render `docs/*.md` (+ `decisions/`) into a self-contained static HTML site | see below; feeds GitHub Pages `/docs` and the combined image |
 | **migrate** *(via cli, not here)* | Schema/view migrations | lives in [cli/](../operate/tools.md), not `scripts/` |
 
@@ -68,6 +69,47 @@ generated clients are **committed** (regenerated in CI and checked) so a contrac
 change fails fast at the consumer. The CLI's `WebapiSink` (used by `backfill`) calls
 these functions; the raw transcript upload stays a direct mutator call (no JSON
 schema for a binary body).
+
+## Architecture diagram (gen-diagram)
+
+`bun run gen:diagram` (`scripts/gen-diagram.ts`) renders the architecture picture
+from the app model, writing three committed SVGs under `docs/assets/`. It replaced
+hand-typed ASCII that existed in five places, had drifted (`cli` in four of them,
+`CLI` in the fifth), and — more importantly — was **wrong**: every copy routed the
+hook *through* the webapi, when [ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)'s
+amendment is precisely that the hook writes to CouchDB and S3 **directly**.
+
+**The scene lives in the model**, not in the script:
+[`packages/shared/src/model/topology.ts`](../../packages/shared/src/model/topology.ts)
+declares the nodes and edges, and `toArchitectureDiagram()` in `model/project.ts`
+projects them — filtered by detail level, with feature-gated nodes (and every edge
+touching them) dropped. The generator owns only geometry. Node labels and ports are
+read *through* `serviceKey`, so renaming a service in `services.ts` moves the diagram
+too; `topology.test.ts` enforces that, along with `compact ⊆ expanded`.
+
+Three outputs from one scene, because the two consumers cannot share a file:
+
+| File | Consumer | Theming |
+|------|----------|---------|
+| `architecture-light.svg` / `architecture-dark.svg` | the README, behind `<picture>` | baked per file |
+| `architecture.svg` | [architecture.md](../design/architecture.md), and so the docs site | `prefers-color-scheme` |
+
+GitHub serves README SVGs through an image proxy in secure static mode, so
+`<picture>` is the reliable way to switch themes there; a docs page can't use it at
+all, because `build-docs` escapes raw HTML — hence the single theme-aware file. They
+live under `docs/` because that is the only tree the Pages build copies: a link
+escaping it is rewritten to a GitHub *blob HTML* URL and renders broken.
+
+**Determinism matters more here than elsewhere.** CI regenerates and diffs, so the
+generator reads `config.template.json` via `loadConfigTemplate` — never the gitignored
+`config.json` — and passes an empty env to `buildAppModel`. Otherwise a contributor's
+local port override or feature toggle would change the bytes and fail the drift gate
+on their PR for a reason CI can't reproduce. (The other generators are immune by
+accident: `gen-compose` emits `${VAR}` placeholders rather than resolved values.)
+
+Third-party marks are inlined from [`brand/icons/`](../../brand/icons/README.md) —
+an SVG in secure static mode cannot fetch anything external, so referencing them
+would simply render nothing.
 
 ## Docs static build (build-docs)
 
