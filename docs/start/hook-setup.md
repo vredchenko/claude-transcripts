@@ -1,6 +1,6 @@
 # Hook setup
 
-The hook (`hook/`) is the writer half of the project: a Claude Code plugin that
+The hook (`hooks/`) is the writer half of the project: a Claude Code plugin that
 logs every session's events, an end-of-session summary, and the full transcript
 to CouchDB + an S3-compatible blob store (Garage). The webapi/webui then read
 that data back.
@@ -14,38 +14,52 @@ that data back.
 
 ## 1. Configure
 
-Fill a `.env` (copy the repo-root `.env.example`) with your CouchDB credentials
-and S3 (Garage) key, then generate the hook config:
+`claude-transcripts install` does all of this for you — it generates the instance's
+secrets and ports, starts the backing services, provisions the stores, and writes the
+hook config. Reach for the steps below only when wiring the hook against stores you
+already run.
+
+From a source checkout, fill a `.env` (copy `.env.template`) with your CouchDB
+credentials and S3 (Garage) key, then write the hook's runtime config:
 
 ```bash
-cd hook
-ENV_FILE=../.env bash scripts/setup.sh
+bun run cli setup            # verify later with: bun run cli setup --check
 ```
 
-This writes `~/.config/claude-transcripts/config.json` (mode 600),
-creates the CouchDB database, and syncs the design docs + Mango index. Re-run
-with `FORCE=1` to regenerate the config.
-
-The config shape (the `db`/`bucket` names + `features`/`logging` blocks are baked
-in from the repo-root `claude-transcripts.config.json` — see [`configuration.md`](configuration.md)):
+That writes `~/.config/claude-transcripts/config.json` (mode 600) and ensures the
+CouchDB databases exist. The store names and the `features`/`system` blocks are
+projected from [`config/config.json`](configuration.md) (falling back to the committed
+`config.template.json`); the URLs and credentials come from `.env`:
 
 ```json
 {
-  "couch": { "url": "http://127.0.0.1:5984", "db": "claude-sessions", "auth": "user:pass" },
+  "couch": {
+    "url": "http://127.0.0.1:7652",
+    "databases": {
+      "sessions": "claude-transcripts-sessions",
+      "appLogs": "claude-transcripts-app-logs"
+    },
+    "auth": "user:pass"
+  },
   "blob": {
-    "endpoint": "http://127.0.0.1:3900",
+    "endpoint": "http://127.0.0.1:7653",
     "region": "garage",
     "accessKey": "...",
     "secretKey": "...",
-    "bucket": "claude-sessions"
+    "buckets": { "sessions": "claude-transcripts-sessions" }
   },
-  "features": { "s3Blobs": true },
-  "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } }
+  "features": { "s3Blobs": true, "midFlightChunking": true, "couchFullContentChunks": true },
+  "system": { "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } } }
 }
 ```
 
+`databases` and `buckets` are **keyed maps**, not single names — the system is
+designed for more than one of each, and consumers address them by logical key
+(`sessions`, `appLogs`) rather than by the deployed name.
+
 Add a `mirrors` array to write every session to a second instance as well as this
-one — see [mirrors.md](../operate/mirrors.md).
+one — see [mirrors.md](../operate/mirrors.md). It is the one key a rewrite preserves,
+since nothing else on the machine records it.
 
 Omit `blob` (or leave `accessKey` empty) to log event/summary docs to CouchDB
 only. Note S3 is the transcript's sole home (ADR 0014): without a `blob` backend,
@@ -55,12 +69,12 @@ transcript content is not persisted anywhere — only the summary doc's
 ## 2. Verify
 
 ```bash
-bun run scripts/smoke-test.ts
+claude-transcripts doctor
 ```
 
-Seeds one synthetic session through the whole write path (CouchDB doc, S3 blob
-round-trip, view queries) and prints PASS/FAIL. It cleans up after itself;
-pass `--keep` to leave the seeded session for the UI.
+Drives one synthetic session through the whole path — CouchDB doc, S3 blob
+round-trip, view queries, search — and prints what passed. It cleans up after
+itself.
 
 ## 3. Register the hook with Claude Code
 
@@ -91,8 +105,11 @@ Either route ends in the same place — `claude-transcripts hook run`
 **actions** bound to that event by the app model. One event can drive several actions;
 they run concurrently and settled, and the process always exits 0.
 
-Registered events: `SessionStart`, `UserPromptSubmit`, `PostToolUse`,
-`PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd`. Live
+Registered events (11, in lifecycle order): `SessionStart`, `UserPromptSubmit`,
+`PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `PreCompact`,
+`PostCompact`, `Stop`, `StopFailure`, `SessionEnd` — the full catalogue, including
+which events are deliberately *not* bound and why, is generated into
+[hook-events.md](../reference/hook-events.md). Live
 events write as they happen; `SessionEnd` writes the summary + transcript.
 
 To wire another supported event (`PreToolUse`, `Notification`, `PreCompact`, …), add

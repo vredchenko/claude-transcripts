@@ -45,11 +45,7 @@ Code keeps transcripts locally per machine, where they're easy to lose and hard 
 look across; this turns that into a **durable, queryable, self-hosted record** of
 your AI-assisted work on vendor-neutral backends you control.
 
-```
-Claude Code ──hook──► webapi ──► CouchDB + S3        webui ─┐
-                        ▲                             CLI  ──┼─► webapi
-                        └───────── reads/writes ──────agents┘
-```
+![Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
 
 ## 2. Objectives
 
@@ -179,7 +175,7 @@ truth. Eight events are wired today, all observe-only. The canonical hook list i
 
 ## 11. CouchDB conventions & design views
 
-A single append-only database (`claude-sessions`) of typed docs — `event`,
+A single append-only database (`claude-transcripts-sessions` by default) of typed docs — `event`,
 `summary:<id>`, and `chunk:<id>:<byte_start>` — every doc carrying a `type` and an
 explicit `timestamp`, keyed by Claude Code's own `session_id`. Map-reduce design
 views do the aggregation, owned by the migrations in `packages/shared/src/migrations/`

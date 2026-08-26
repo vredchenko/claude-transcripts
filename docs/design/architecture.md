@@ -29,7 +29,7 @@ the document/blob shapes. See [routes.md](../reference/routes.md) and [tiers.md]
 | `packages/webui/` | React + Vite + MUI SPA. Session list, detail, transcript viewer. |
 | `deploy/` | docker-compose stack (CouchDB + Garage + Meilisearch + app). |
 
-## Data model (CouchDB `claude-sessions`)
+## Data model (CouchDB `claude-transcripts-sessions`)
 
 - **event docs** (`type: "event"`) — one per hook event, POSTed live.
 - **summary docs** (`_id: "summary:<sessionId>"`, `type: "summary"`) — written at
@@ -43,17 +43,22 @@ Design docs (owned by the migrations in `packages/shared/src/migrations/`, appli
 - `events/by_session`, `events/by_type`
 - `tools/usage`, `tools/failures`, `tools/errors`
 - `activity/timeline`
+- `chunks/by_session`, `chunks/entry_count_by_session`, `chunks/entries_by_session`
 - `session_meta/start_meta` (running-session enrichment), `session_meta/tokens_by_date`
+- `session_index/aggregate` (one row per session), `session_index/event_times`
+- `speaker_split/by_role`, `speaker_split/by_role_time` (per-turn reads, [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md))
 
 Blobs live in S3 under `<bucket>/<sessionId>/{summary.json,transcript.jsonl}` —
 the transcript's sole durable home. The webapi reads transcripts from S3 only.
 
 ## Session status
 
-A session is `ended` once its summary doc lands. Before that it has only a
-`SessionStart` event: `running` if it logged activity within 15 min, else
-`incomplete` (died without a `SessionEnd`). Active sessions are surfaced on the
-first page only, bounded to starts from the last 36 h.
+A session is `ended` once its summary doc lands. Before that it is `running` if it
+logged activity within the **live window** — `system.sessions.liveWindowMs`, 24 h by
+default — and `incomplete` beyond it (it died without a `SessionEnd`). Separately,
+`system.sessions.idleThresholdMs` (5 min) is the gap above which time stops counting
+towards a session's *active* duration, which is what distinguishes real working time
+from a session left open in a terminal.
 
 ## Storage decisions
 
@@ -61,9 +66,10 @@ first page only, bounded to starts from the last 36 h.
   transcript bytes never go in CouchDB).
 - **Garage** — vendor-neutral S3 for durable transcript/summary blobs. Accessed
   via Bun's built-in `S3Client`, so MinIO / R2 / AWS work by changing env only.
-- **Meilisearch** — provisioned in the stack for phase-2 full-text search; not
-  used yet.
+- **Meilisearch** — full-text search over session metadata *and* conversation
+  content, served by `/api/search`. Derived and rebuildable (`claude-transcripts
+  reindex`), so losing it costs search and nothing else. It may be bundled or
+  external ([ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)).
 
-> Phase 1 recreates the prior multi-repo logging + viewer as one standalone
-> project. Search (Meilisearch wiring) and the items in [roadmap.md](roadmap.md)
-> are deliberately out of scope here.
+> Remaining scope lives in [roadmap.md](roadmap.md); what is in and out of Tier 1
+> is set out in [tiers.md](tiers.md).

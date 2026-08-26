@@ -54,8 +54,10 @@ bun run dev:webapi / dev:webui / dev:cli        # run a component
 bun run test:e2e                                # full write→read path (needs stack + webapi up)
 ```
 
-`bun run gen:all` refreshes every generated artifact (hooks bindings, compose files,
-compatibility matrix). Generated files are committed — regenerate, don't hand-edit.
+`bun run gen:all` refreshes every generated artifact (hooks bindings, hook-events doc,
+architecture diagram, compose files, inlined deploy assets, compatibility matrix).
+Generated files are committed — regenerate, don't hand-edit; CI re-runs `gen:all` and
+fails on a diff.
 
 ## Contributing
 

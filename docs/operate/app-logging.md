@@ -5,7 +5,8 @@
 
 The system's **own** logs — failures, errors, diagnostics from the **webapi,
 webui, CLI, and hook** — are aggregated into **CouchDB, in a database separate
-from the session data** (e.g. `app-logs` alongside `claude-sessions`). This is
+from the session data** (`claude-transcripts-app-logs` alongside
+`claude-transcripts-sessions`). This is
 distinct from the *session* corpus the product captures; keeping it in its own DB
 keeps operational noise out of the session views.
 

@@ -1,7 +1,8 @@
 # Installation & first run — design
 
-**Status: design, not built.** This specifies the end-user install path before any of
-it is written. It is aimed at **users**, not contributors: someone who wants their
+**Status: built.** `install.sh` and `claude-transcripts install` implement what this
+document specifies; it is kept as the rationale for *why* the install path has the
+shape it does. It is aimed at **users**, not contributors: someone who wants their
 Claude Code sessions recorded and has never seen this repo.
 
 The contributor path (`git clone` → `bun install` → `stack:up` → `dev:webapi`) stays

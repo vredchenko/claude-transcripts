@@ -37,7 +37,7 @@ and credentials only.
 - No external binary dependency for the hook; it only needs Bun.
 - One bucket to provision; bucket creation stays out-of-band (the app/hook never
   create buckets), documented per-backend in `deploy/README.md` and
-  `docs/hook-setup.md`.
+  [`docs/start/hook-setup.md`](../../start/hook-setup.md).
 - The hook and webapi share one mental model and one credential set.
 - Dual-write/mirroring is no longer supported in-project. Operators who want
   redundancy do it at the storage layer (replication) or via external tooling.

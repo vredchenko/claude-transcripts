@@ -18,6 +18,9 @@ UI, the API, ad-hoc inspection, and — by design — Claude Code itself).
 
 Use **CouchDB** as the primary store (database `claude-sessions`). What won it:
 
+> **Naming note (added later).** The database was called `claude-sessions` when this was decided; it is now `claude-transcripts-sessions` by default, and the name is per-instance configurable (`couchdb.databases` in `config/`). The decision is unchanged — only the default name is.
+
+
 - **Schemaless document fit.** Event docs of differing shapes coexist with no
   migrations; new fields (see "Future scope" in the README — CLI version, config
   fingerprint, host/user identity) just get written.

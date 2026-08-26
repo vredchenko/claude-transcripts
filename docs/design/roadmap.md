@@ -63,10 +63,10 @@ import decide whether a restore is sound.
 Remaining, and deferred deliberately: import cannot yet restore a bundle **across a
 document-reshaping migration**. Migrations are recorded per database, so importing
 old-shaped docs into a database that already counts the transform as applied would leave
-two shapes behind with nothing pending to fix them. No such migration exists — all eight
-are view-only — so import refuses that case (`transformsDocs`) rather than implementing a
-scoped replay that could not be tested against anything. The replay is work for whenever
-the first document migration is written.
+two shapes behind with nothing pending to fix them. No such migration exists — every
+migration so far is view-only — so import refuses that case (`transformsDocs`) rather
+than implementing a scoped replay that could not be tested against anything. The
+replay is work for whenever the first document migration is written.
 
 **Install & first run — done.** Getting from nothing to "sessions are being logged" is
 one command: `curl … | sh` fetches the binary and runs `claude-transcripts install`,
@@ -266,7 +266,7 @@ done.
   layers + memory + appended instructions) so it's clear which instructions, and
   from where, applied to every message.
 - **Self-built CouchDB migrations** — **done** for schema/views: a versioned up/down
-  engine with a marker doc, driven from the CLI and `/api/migrate/*`; eight migrations
+  engine with a marker doc, driven from the CLI and `/api/migrate/*`; nine migrations
   applied to date ([migrations.md](../operate/migrations.md),
   [ADR 0021](decisions/0021-self-built-couchdb-migrations.md)). The export/import
   **bundle** format is built on top of it ([bundles.md](bundles.md)). Remaining:

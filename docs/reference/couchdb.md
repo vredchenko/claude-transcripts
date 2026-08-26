@@ -1,7 +1,9 @@
 # CouchDB document types, schemas & design views
 
 CouchDB is the **primary store** ([ADR 0007](../design/decisions/0007-couchdb-primary-store.md)):
-a single database (`claude-sessions` by default) of heterogeneous, **append-only**
+a single database (`claude-transcripts-sessions` by default — the name is
+configurable per instance, see [configuration.md](../start/configuration.md)) of
+heterogeneous, **append-only**
 docs, with map-reduce design views doing the aggregation. Full-fidelity transcript
 bytes never live here — they go to S3 only
 ([ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md)).
@@ -34,7 +36,7 @@ This doc has two halves: **(1) the document types and their schemas**, and
 | [`chunk`](#chunk) | `chunk:<sessionId>:<byte_start>` | backfill / chunk-flush | on backfill, or live (chunking on) |
 | `session_start` *(planned)* | `session_start:<sessionId>` | session-start | once, at start (#15) |
 | `meta` *(planned)* | auto | enrichment endpoint | any time, append-only (#3/#7) |
-| `schema_version` *(planned)* | `schema_version` | migrations | on migrate |
+| [`schema_version`](couchdb-documents.md#schema_version) | `schema_version` | migrations | on migrate |
 | `search_checkpoint` | `_local/search_checkpoint` | the search follower | per indexed batch |
 
 > Operational/app logs (`type:"log"`) live in a **separate database**, not this
@@ -186,11 +188,11 @@ optionally reduce (count/sum). Two patterns recur:
 - **Cross-session aggregation** — group across all sessions by date / tool / hour
   to power lists, analytics, and timelines.
 
-The design docs are defined in **two mirrored places that must stay in sync**:
-`hooks/couchdb/claude-sessions/designs/*.json` (synced by `setup-views.sh`) and
-`packages/webapi/src/storage/ensure.ts` (auto-applied on webapi boot). All views
-are JavaScript map/reduce. (The [migration tool](../operate/migrations.md) will become the
-authoritative path for view changes over time.)
+The design docs have **one** source: the
+[migrations](../operate/migrations.md) in `packages/shared/src/migrations/`. The webapi
+applies any pending ones on boot (`packages/webapi/src/storage/ensure.ts`), so a view
+change ships as a new migration rather than an edit in place. All views are JavaScript
+map/reduce.
 
 ### `_design/sessions` — sessions by time & location
 
@@ -287,16 +289,9 @@ Deferred until validated against a running CouchDB ([mid-flight-chunking.md](../
 repos / PRs / issues / `/`-commands / models, and the cross-session "events of
 interest" views (single timeline, durations, active-vs-idle).
 
-## Mango index
+## Changing a view
 
-`indexes/type.json` defines `idx-type` on `{ fields: ["type"] }`, so filtering docs
-by `type` doesn't scan the whole DB. Index creation is non-fatal — an optimisation,
-not a correctness requirement.
-
-## Keeping the mirrors in sync
-
-When a view changes, edit **both** `hooks/couchdb/.../designs/*.json` and the
-matching design in `ensure.ts` (the map function bodies must match). The hook's
-`setup-views.sh` applies the former; the webapi applies the latter on every boot
-(idempotent upsert carrying `_rev` forward). Schema/view evolution is captured as
-versioned [migrations](../operate/migrations.md).
+Add a [migration](../operate/migrations.md); don't edit a design doc in place. The
+runner records each applied step in the `schema_version` doc, and the webapi applies
+anything pending on boot, so every instance converges on the same views without a
+manual step.
