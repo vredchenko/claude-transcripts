@@ -1,17 +1,13 @@
 # Architecture
 
-```
-                         ┌─────────────── webapi (the I/O gateway) ───────────────┐
- Claude Code ──hook──►   │  /api  app endpoints   /api/couch ▶ /api/s3 ▶ (R/O)    │
-   (session)             │  the single writer + the stability column              │
-   webui ─┐              └───┬───────────────┬───────────────┬───────────────────┘
-   CLI  ──┼─ HTTP clients ───┘               │               │
-   agents─┘                              CouchDB           Garage (S3)        Meilisearch
-                                      (source of truth)  (blobs/escrow)    (derived search)
-```
+![Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
 
-**Everything goes through the webapi** ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)):
-the hook writes through it, and the webui, CLI, and agents read/write through it.
+**Every read goes through the webapi** ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)):
+the webui, CLI, and agents all reach the stores through it, never around it. The one
+deliberate exception is **the hook, which writes to CouchDB and S3 directly**
+([amendment](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer))
+— recording a session must not depend on the webapi being up, which is also why the
+`_changes` follower exists and why hook-written docs get no write-time validation.
 The webapi is **non-optional** — the *stability column* whose contract holds even
 as internals change. It transparently proxies, **read-only**, to CouchDB
 (`/api/couch`) and S3 (`/api/s3`) where their native API is itself a useful

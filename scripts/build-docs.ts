@@ -13,7 +13,15 @@
  * Usage: `bun run scripts/build-docs.ts [--out <dir>]`  (default: build/docs)
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
 const REPO_ROOT = join(import.meta.dir, "..");
@@ -205,7 +213,16 @@ function rewriteLink(href: string): string {
     return `${GITHUB_BLOB}/${repoPath}`;
   }
 
-  if (!path.endsWith(".md")) return href;
+  // A relative asset (an image, say) that resolves inside docs/ must actually exist.
+  // Without this the check below only ever validated `.md`, so a missing diagram
+  // shipped as a broken <img> that nothing failed on and nobody saw until they
+  // opened the page.
+  if (!path.endsWith(".md")) {
+    if (!existsSync(join(DOCS_DIR, resolved))) {
+      brokenLinks.push(`${currentDir || "."}: ${href}`);
+    }
+    return href;
+  }
   if (!existsSync(join(DOCS_DIR, resolved))) {
     brokenLinks.push(`${currentDir || "."}: ${href}`);
   }
@@ -542,6 +559,17 @@ a{color:var(--clay-deep)}@media (prefers-color-scheme:dark){a{color:var(--clay)}
 
 // ── Build ─────────────────────────────────────────────────────────────────
 
+/** Recursive directory copy (Bun/Node built-ins only — this file takes no deps). */
+function copyTree(from: string, to: string): void {
+  mkdirSync(to, { recursive: true });
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    const src = join(from, entry.name);
+    const dst = join(to, entry.name);
+    if (entry.isDirectory()) copyTree(src, dst);
+    else copyFileSync(src, dst);
+  }
+}
+
 function main(): void {
   const outDir = parseOutDir(process.argv.slice(2));
   const pages = collectPages();
@@ -554,6 +582,13 @@ function main(): void {
   if (existsSync(favicon)) {
     writeFileSync(join(outDir, "favicon.svg"), readFileSync(favicon, "utf8"));
   }
+
+  // Static assets pages reference by relative path — today, the generated
+  // architecture diagram. Copied as a tree rather than named file by file, so adding
+  // one needs no change here. `collectPages` only ever reads `*.md` from the SECTIONS
+  // directories, so `docs/assets/` yields no page and no nav entry.
+  const assets = join(DOCS_DIR, "assets");
+  if (existsSync(assets)) copyTree(assets, join(outDir, "assets"));
 
   for (const page of pages) {
     const md = readFileSync(page.src, "utf8");

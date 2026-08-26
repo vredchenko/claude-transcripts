@@ -10,7 +10,8 @@ in sync with the masters here.
 | File | Use |
 |------|-----|
 | `logo.svg` | Horizontal lockup (mark + wordmark). Wordmark auto-adapts to light/dark via `prefers-color-scheme`. Use in the README, the site header, docs. |
-| `logo-mark.svg` | Icon-only mark. Use as the favicon, app-header glyph, and social/avatar icon. |
+| `logo-mark.svg` | Icon-only mark. Use as the favicon, app-header glyph, and social/avatar icon. Also stands in for the webapi in the generated architecture diagram. |
+| `icons/` | **Third-party** marks (CouchDB, Garage, Meilisearch, Claude) used in the generated architecture diagram. Not our brand, and not covered by this repo's LICENSE — see [`icons/README.md`](icons/README.md) for provenance and trademarks. |
 
 The mark is a stylised **transcript** — three conversation turns (a short user line,
 a longer reply, a short user line) on a rounded card.
