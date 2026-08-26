@@ -39,3 +39,7 @@ playwright-report/
 # to a real Claude Code source yet and stamps `generatedAt`, so committing it would
 # churn on every `gen:all`. Track it once the generator produces something stable.
 compatibility.json
+
+# Staged into packages/cli at npm-build time by scripts/build-cli-npm.ts
+# (npm includes LICENSE from the package dir; the tracked copy is at the repo root).
+packages/cli/LICENSE
