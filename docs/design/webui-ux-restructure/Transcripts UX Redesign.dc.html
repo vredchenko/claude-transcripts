@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin: 0; background: #eceff3; -webkit-font-smoothing: antialiased; }
+  a { color: #0969da; text-decoration: none; }
+  a:hover { color: #0550ae; text-decoration: underline; }
+  * { box-sizing: border-box; }
+</style>
+</helmet>
+
+<section style="display: flex; flex-direction: column; gap: 52px; padding: 52px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+  <div id="1a" style="display: flex; flex-direction: column; gap: 40px;">
+
+    <div style="display: flex; align-items: baseline; gap: 16px; max-width: 1400px;">
+      <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #fff; background: #1f2328; padding: 5px 9px; border-radius: 4px;">1a</span>
+      <div>
+        <div style="font-size: 25px; font-weight: 650; color: #1f2328; letter-spacing: -0.01em;">UX restructure — six screens, structure only</div>
+        <div style="font-size: 13.5px; color: #57606a; margin-top: 5px; max-width: 800px; line-height: 1.55; text-wrap: pretty;">Palette is deliberately untouched from <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12.5px;">theme.ts</span> — restyle is step 2. Two views (List + Calendar), one omnibox, chat-first transcript. Session identity stays project + cwd + id since first-prompt text isn't reliable.</div>
+      </div>
+    </div>
+
+    <!-- ═════════ 01 SESSION LIST ═════════ -->
+    <div style="display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; gap: 26px; align-items: flex-start; max-width: 1400px;">
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: #57606a; letter-spacing: 0.06em; padding-top: 3px; white-space: nowrap; width: 168px; flex: none;">01 · SESSION LIST</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 24px; font-size: 12.5px; color: #57606a; line-height: 1.5;">
+          <div>· Day grouping absorbs the whole TIMELINE view</div>
+          <div>· Sortable columns; filter chips live in the URL</div>
+          <div>· Active-vs-idle as one bar, not three columns</div>
+          <div>· Omnibox narrows in place — no round trip to a results page</div>
+          <div>· Row keeps cwd, tool mix, errors; id demoted to a subline</div>
+          <div>· Infinite scroll; pager removed</div>
+        </div>
+      </div>
+
+      <div style="width: 1400px; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+
+        <div style="display: flex; align-items: center; gap: 18px; padding: 10px 15px; background: #fff; border-bottom: 1px solid rgba(0,0,0,0.10);">
+          <div style="display: flex; align-items: center; gap: 8px; flex: none;">
+            <svg viewBox="0 0 32 32" role="img" aria-label="Claude Transcripts" style="width: 22px; height: 22px; flex: none; display: block;"><rect width="32" height="32" rx="7" fill="#D97757"></rect><rect x="7" y="8.5" width="12" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.96"></rect><rect x="7" y="14.6" width="18" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.74"></rect><rect x="7" y="20.7" width="9" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.96"></rect></svg>
+            <span style="font-size: 15px; font-weight: 650; color: #1f2328;">Claude Transcripts</span>
+            <span style="font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #8b949e;">v0.0.12</span>
+          </div>
+          <div style="flex: 1; display: flex; justify-content: center;">
+            <div style="width: 100%; max-width: 660px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.14); border-radius: 7px;">
+              <span style="color: #8b949e; font-size: 13px;">⌕</span>
+              <input value="{{ query }}" onInput="{{ onQuery }}" placeholder="Filter, search, or run a command — project:jobhunt errors:&gt;0" style="flex: 1; border: 0; outline: 0; background: transparent; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: #1f2328; min-width: 0;">
+              <span style="font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #8b949e; border: 1px solid rgba(0,0,0,0.14); border-radius: 4px; padding: 1px 5px;">⌘K</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px; flex: none;">
+            <div style="width: 29px; height: 29px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #57606a; font-size: 15px;" style-hover="background: #f6f8fa;">⚙</div>
+            <div style="height: 29px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #57606a;" style-hover="background: #f6f8fa;">⧉ Links ▾</div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; padding: 11px 15px; background: #fff; border-bottom: 1px solid rgba(0,0,0,0.10);">
+          <span style="font-size: 19px; font-weight: 650; color: #1f2328; letter-spacing: -0.01em;">Sessions</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #57606a; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.08); padding: 2px 7px; border-radius: 11px;">{{ countLabel }}</span>
+          <div style="display: flex; gap: 6px; margin-left: 12px;">
+            <sc-for list="{{ chips }}" as="chip" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 4px 0 9px; border: 1px solid rgba(9,105,218,0.35); background: rgba(9,105,218,0.07); border-radius: 13px;">
+                <span style="font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #0969da;">{{ chip.label }}</span>
+                <span onClick="{{ chip.remove }}" style="width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #0969da; cursor: pointer;" style-hover="background: rgba(9,105,218,0.16);">×</span>
+              </div>
+            </sc-for>
+            <div onClick="{{ addFilter }}" style="display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border: 1px dashed rgba(0,0,0,0.22); border-radius: 13px; font-size: 12px; color: #57606a; cursor: pointer;" style-hover="border-color: #0969da; color: #0969da;">+ Filter</div>
+          </div>
+          <div style="margin-left: auto; display: flex; border: 1px solid rgba(0,0,0,0.14); border-radius: 6px; overflow: hidden;">
+            <div style="padding: 5px 13px; font-size: 11.5px; font-weight: 650; letter-spacing: 0.05em; color: #1f2328; background: #eaeef2;">LIST</div>
+            <div style="padding: 5px 13px; font-size: 11.5px; font-weight: 650; letter-spacing: 0.05em; color: #57606a; background: #fff; border-left: 1px solid rgba(0,0,0,0.14);">CALENDAR</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 60px 1fr 150px 118px 128px 104px 84px 30px; align-items: center; gap: 12px; padding: 8px 15px; background: #f6f8fa; border-bottom: 1px solid rgba(0,0,0,0.10); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: #57606a;">
+          <div>TIME</div>
+          <div onClick="{{ sortByProject }}" style="display: flex; align-items: center; gap: 5px; cursor: pointer;">PROJECT · WORKING DIR <span style="color: #8b949e;">{{ arrowProject }}</span></div>
+          <div onClick="{{ sortByRuntime }}" style="display: flex; align-items: center; gap: 5px; cursor: pointer;">RUNTIME · ACTIVE <span style="color: #8b949e;">{{ arrowRuntime }}</span></div>
+          <div>HOST · MODEL</div>
+          <div>TOOL MIX</div>
+          <div onClick="{{ sortByTokens }}" style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 5px; cursor: pointer;"><span style="color: #8b949e;">{{ arrowTokens }}</span> TOKENS · TURNS</div>
+          <div style="text-align: center;">STATUS</div>
+          <div></div>
+        </div>
+
+        <div style="max-height: 700px; overflow: hidden; background: #fff;">
+          <sc-for list="{{ groups }}" as="group" hint-placeholder-count="3">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 15px 7px; background: #f6f8fa; border-bottom: 1px solid rgba(0,0,0,0.07);">
+                <span style="font-size: 12px; font-weight: 700; color: #1f2328;">{{ group.label }}</span>
+                <span style="font-size: 11.5px; color: #8b949e;">{{ group.sub }}</span>
+                <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.06);"></div>
+                <span style="font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #8b949e;">{{ group.totals }}</span>
+              </div>
+              <sc-for list="{{ group.rows }}" as="s" hint-placeholder-count="5">
+                <div style="display: grid; grid-template-columns: 60px 1fr 150px 118px 128px 104px 84px 30px; align-items: center; gap: 12px; padding: 8px 15px; border-bottom: 1px solid rgba(0,0,0,0.06); cursor: pointer;" style-hover="background: #f6f8fa;">
+                  <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: #57606a;">{{ s.time }}</div>
+                  <div style="min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-size: 13.5px; font-weight: 550; color: #0969da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.project }}</span>
+                      <sc-if value="{{ s.hasErrors }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 10.5px; font-weight: 600; color: #cf222e; background: rgba(207,34,46,0.08); border-radius: 3px; padding: 1px 5px; flex: none;">{{ s.errLabel }}</span>
+                      </sc-if>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px; margin-top: 2px;">
+                      <span style="font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #57606a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.cwd }}</span>
+                      <span style="color: #d0d7de; font-size: 11px;">·</span>
+                      <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e; flex: none;">{{ s.id }}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12.5px; color: #1f2328;">{{ s.durLabel }}</div>
+                    <div style="height: 4px; border-radius: 2px; background: rgba(0,0,0,0.07); margin-top: 4px; overflow: hidden;">
+                      <div style="height: 100%; border-radius: 2px; background: #0969da; width: {{ s.activePct }}%;"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: #57606a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.host }}</div>
+                    <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e; margin-top: 2px;">{{ s.model }}</div>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <sc-for list="{{ s.tools }}" as="t" hint-placeholder-count="3">
+                      <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #57606a; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.08); border-radius: 3px; padding: 1px 4px;">{{ t }}</span>
+                    </sc-for>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #1f2328;">{{ s.tokens }}</div>
+                    <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e; margin-top: 2px;">{{ s.turns }}</div>
+                  </div>
+                  <div style="display: flex; justify-content: center;"><span style="{{ s.statusStyle }}">{{ s.status }}</span></div>
+                  <div style="display: flex; justify-content: center;">
+                    <span onClick="{{ s.copy }}" title="Copy session id" style="width: 24px; height: 24px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #8b949e; cursor: pointer;" style-hover="background: rgba(0,0,0,0.06); color: #1f2328;">⧉</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 9px; padding: 15px; color: #8b949e; font-size: 12px;">
+            <span style="width: 12px; height: 12px; border: 2px solid rgba(0,0,0,0.12); border-top-color: #0969da; border-radius: 50%;"></span>
+            loading more as you scroll
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═════════ 02 OMNIBOX ═════════ -->
+    <div style="display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; gap: 26px; align-items: flex-start; max-width: 1400px;">
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: #57606a; letter-spacing: 0.06em; padding-top: 3px; white-space: nowrap; width: 168px; flex: none;">02 · OMNIBOX</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 24px; font-size: 12.5px; color: #57606a; line-height: 1.5;">
+          <div>· One field: filter, full-text, id-jump, commands</div>
+          <div>· <span style="font-family: ui-monospace, Menlo, monospace;">↵</span> narrows the list · <span style="font-family: ui-monospace, Menlo, monospace;">⇧↵</span> goes full-text</div>
+          <div>· Operators are suggested, never memorised</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 20px; width: 1400px;">
+        <sc-for list="{{ omniStates }}" as="o" hint-placeholder-count="3">
+          <div style="flex: 1; min-width: 0; background: #fff; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+            <div style="padding: 8px 12px; background: #f6f8fa; border-bottom: 1px solid rgba(0,0,0,0.09); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: #57606a;">{{ o.caption }}</div>
+            <div style="padding: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1.5px solid #0969da; border-radius: 7px; box-shadow: 0 0 0 3px rgba(9,105,218,0.10);">
+                <span style="color: #8b949e; font-size: 13px;">⌕</span>
+                <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: #1f2328; overflow: hidden; white-space: nowrap;">{{ o.typed }}</span>
+                <span style="width: 1px; height: 15px; background: #0969da;"></span>
+              </div>
+              <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 1px;">
+                <sc-for list="{{ o.sections }}" as="sec" hint-placeholder-count="2">
+                  <div>
+                    <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #8b949e; padding: 8px 8px 4px;">{{ sec.heading }}</div>
+                    <sc-for list="{{ sec.items }}" as="it" hint-placeholder-count="3">
+                      <div style="display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 5px; background: {{ it.bg }};">
+                        <span style="font-size: 12.5px; width: 15px; text-align: center; color: #57606a; flex: none;">{{ it.icon }}</span>
+                        <div style="min-width: 0; flex: 1;">
+                          <div style="font-size: 12.5px; color: #1f2328; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ it.label }}</div>
+                          <sc-if value="{{ it.hint }}" hint-placeholder-val="{{ true }}">
+                            <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ it.hint }}</div>
+                          </sc-if>
+                        </div>
+                        <sc-if value="{{ it.key }}" hint-placeholder-val="{{ true }}">
+                          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e; border: 1px solid rgba(0,0,0,0.12); border-radius: 4px; padding: 1px 4px; flex: none;">{{ it.key }}</span>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ═════════ 03 LINKS MENU ═════════ -->
+    <div style="display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; gap: 26px; align-items: flex-start; max-width: 1400px;">
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: #57606a; letter-spacing: 0.06em; padding-top: 3px; white-space: nowrap; width: 168px; flex: none;">03 · LINKS MENU</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 24px; font-size: 12.5px; color: #57606a; line-height: 1.5;">
+          <div>· 360px wide, icons, indented second level</div>
+          <div>· Permanent sublines instead of hover-only tooltips</div>
+          <div>· CouchDB expands to the real views from <span style="font-family: ui-monospace, Menlo, monospace;">designs.ts</span></div>
+        </div>
+      </div>
+
+      <div style="width: 1400px; height: 900px; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 10px 15px; background: #fff; border-bottom: 1px solid rgba(0,0,0,0.10);">
+          <svg viewBox="0 0 32 32" role="img" aria-label="Claude Transcripts" style="width: 22px; height: 22px; flex: none; display: block;"><rect width="32" height="32" rx="7" fill="#D97757"></rect><rect x="7" y="8.5" width="12" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.96"></rect><rect x="7" y="14.6" width="18" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.74"></rect><rect x="7" y="20.7" width="9" height="2.8" rx="1.4" fill="#ffffff" fill-opacity="0.96"></rect></svg>
+          <span style="font-size: 15px; font-weight: 650; color: #1f2328;">Claude Transcripts</span>
+          <div style="flex: 1;"></div>
+          <span style="font-size: 15px; color: #57606a;">⚙</span>
+          <span style="font-size: 13px; color: #0969da; font-weight: 600;">⧉ Links ▾</span>
+        </div>
+        <div style="position: absolute; top: 47px; right: 13px; width: 360px; background: #fff; border: 1px solid rgba(0,0,0,0.12); border-radius: 9px; box-shadow: 0 20px 48px rgba(31,35,40,0.22); padding: 6px;">
+          <sc-for list="{{ linkGroups }}" as="lg" hint-placeholder-count="4">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 9px 10px 5px;">
+                <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #8b949e; flex: none;">{{ lg.heading }}</span>
+                <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.07);"></div>
+              </div>
+              <sc-for list="{{ lg.links }}" as="l" hint-placeholder-count="4">
+                <div style="display: flex; align-items: flex-start; gap: 9px; padding: 5px 10px; margin-left: {{ l.indent }}px; border-radius: 6px; cursor: pointer;" style-hover="background: #f6f8fa;">
+                  <span style="font-size: 12.5px; width: 16px; text-align: center; color: #57606a; padding-top: 1px; flex: none;">{{ l.icon }}</span>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 12.5px; color: #1f2328;">{{ l.label }}</span>
+                      <sc-if value="{{ l.external }}" hint-placeholder-val="{{ false }}"><span style="font-size: 9.5px; color: #8b949e;">↗</span></sc-if>
+                    </div>
+                    <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #8b949e; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ l.hint }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═════════ 04 CALENDAR ═════════ -->
+    <div style="display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; gap: 26px; align-items: flex-start; max-width: 1400px;">
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: #57606a; letter-spacing: 0.06em; padding-top: 3px; white-space: nowrap; width: 168px; flex: none;">04 · CALENDAR</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 24px; font-size: 12.5px; color: #57606a; line-height: 1.5;">
+          <div>· Each day is a 24h lane; bars sit at their real hour and length</div>
+          <div>· Hover gives full session metadata, not a colour guess</div>
+          <div>· Bar opacity encodes active vs idle time</div>
+        </div>
+      </div>
+
+      <div style="width: 1400px; background: #fff; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 11px 15px; border-bottom: 1px solid rgba(0,0,0,0.10);">
+          <span style="font-size: 19px; font-weight: 650; color: #1f2328;">August 2026</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #57606a;">‹ ›</span>
+          <span style="font-size: 12px; color: #0969da; font-weight: 600;">TODAY</span>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 11px; color: #57606a;">
+            <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 22px; height: 8px; border-radius: 2px; background: #0969da;"></span> active</span>
+            <span style="display: flex; align-items: center; gap: 5px;"><span style="width: 22px; height: 8px; border-radius: 2px; background: rgba(9,105,218,0.22);"></span> idle</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 116px 1fr; border-bottom: 1px solid rgba(0,0,0,0.08); background: #f6f8fa;">
+          <div></div>
+          <div style="display: grid; grid-template-columns: repeat(24, 1fr); font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; color: #8b949e; padding: 4px 0;">
+            <sc-for list="{{ hours }}" as="h" hint-placeholder-count="24">
+              <div style="text-align: center;">{{ h }}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-for list="{{ calDays }}" as="d" hint-placeholder-count="8">
+          <div style="display: grid; grid-template-columns: 116px 1fr; border-bottom: 1px solid rgba(0,0,0,0.06); align-items: stretch;">
+            <div style="padding: 9px 12px; border-right: 1px solid rgba(0,0,0,0.08);">
+              <div style="font-size: 12.5px; font-weight: 600; color: #1f2328;">{{ d.label }}</div>
+              <div style="font-size: 10.5px; color: #8b949e; margin-top: 1px;">{{ d.sub }}</div>
+            </div>
+            <div style="position: relative; min-height: 52px; background-image: repeating-linear-gradient(to right, rgba(0,0,0,0.05) 0 1px, transparent 1px calc(100% / 24));">
+              <sc-for list="{{ d.bars }}" as="b" hint-placeholder-count="3">
+                <div style="position: absolute; height: 15px; border-radius: 3px; display: flex; align-items: center; padding: 0 5px; overflow: hidden; cursor: pointer; left: {{ b.left }}%; width: {{ b.width }}%; top: {{ b.top }}px; background: {{ b.bg }}; border: 1px solid {{ b.border }}; box-shadow: {{ b.ring }};">
+                  <span style="font-size: 9.5px; color: #1f2328; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ b.label }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ d.tip }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; left: 68%; top: 30px; width: 262px; background: #1f2328; border-radius: 7px; padding: 9px 11px; box-shadow: 0 12px 30px rgba(0,0,0,0.28); z-index: 5;">
+                  <div style="font-size: 12px; font-weight: 600; color: #fff;">{{ tipTitle }}</div>
+                  <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: rgba(255,255,255,0.55); margin-top: 1px;">{{ tipSub }}</div>
+                  <div style="height: 1px; background: rgba(255,255,255,0.14); margin: 7px 0;"></div>
+                  <sc-for list="{{ tipRows }}" as="r" hint-placeholder-count="5">
+                    <div style="display: flex; justify-content: space-between; gap: 14px; padding: 1.5px 0;">
+                      <span style="font-size: 10.5px; color: rgba(255,255,255,0.55);">{{ r.k }}</span>
+                      <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #fff;">{{ r.v }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ═════════ 05 SESSION DETAIL ═════════ -->
+    <div style="display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; gap: 26px; align-items: flex-start; max-width: 1400px;">
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: #57606a; letter-spacing: 0.06em; padding-top: 3px; white-space: nowrap; width: 168px; flex: none;">05 · SESSION DETAIL</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 24px; font-size: 12.5px; color: #57606a; line-height: 1.5;">
+          <div>· Chat only by default; metadata collapses to one strip</div>
+          <div>· Gutter badge per turn expands just that turn's tools</div>
+          <div>· Absolute + relative timestamps on every line</div>
+          <div>· Copy button per line; deep links to CouchDB doc + Garage object</div>
+          <div>· Empty-state names the fix, not the internal flag</div>
+          <div>· Turns lazy-load on scroll — LOAD MORE gone</div>
+        </div>
+      </div>
+
+      <div style="width: 1400px; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 11px 15px; background: #fff; border-bottom: 1px solid rgba(0,0,0,0.10);">
+          <span style="font-size: 12.5px; color: #0969da;">← All sessions</span>
+          <div style="width: 1px; height: 16px; background: rgba(0,0,0,0.10);"></div>
+          <span style="font-size: 15px; font-weight: 600; color: #0969da;">jcousteau</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #57606a;">7aa60fae</span>
+          <span onClick="{{ copyId }}" title="Copy full session id" style="width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #8b949e; cursor: pointer;" style-hover="background: #f6f8fa; color: #1f2328;">⧉</span>
+          <span style="font-size: 10.5px; font-weight: 600; color: #57606a; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.12); border-radius: 10px; padding: 2px 8px;">ended</span>
+          <div style="margin-left: auto; display: flex; gap: 6px;">
+            <sc-for list="{{ deepLinks }}" as="dl" hint-placeholder-count="3">
+              <div title="{{ dl.title }}" style="display: flex; align-items: center; gap: 5px; height: 27px; padding: 0 9px; border: 1px solid rgba(0,0,0,0.14); border-radius: 6px; font-size: 11.5px; color: #57606a; cursor: pointer;" style-hover="border-color: #0969da; color: #0969da;">
+                <span style="font-size: 11px;">{{ dl.icon }}</span>{{ dl.label }}<span style="font-size: 9px; color: #8b949e;">↗</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0; padding: 0 15px; background: #fff; border-bottom: 1px solid rgba(0,0,0,0.10); overflow: hidden;">
+          <sc-for list="{{ metaStrip }}" as="m" hint-placeholder-count="7">
+            <div style="padding: 9px 16px 9px 0; margin-right: 16px; border-right: 1px solid rgba(0,0,0,0.07); flex: none;">
+              <div style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; color: #8b949e;">{{ m.k }}</div>
+              <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #1f2328; margin-top: 2px;">{{ m.v }}</div>
+            </div>
+          </sc-for>
+          <div onClick="{{ toggleMeta }}" style="margin-left: auto; font-size: 11.5px; color: #0969da; cursor: pointer; white-space: nowrap; flex: none;">{{ metaToggleLabel }}</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: #fff; border-bottom: 1px solid rgba(0,0,0,0.10);">
+          <span style="font-size: 16px; font-weight: 650; color: #1f2328;">Transcript</span>
+          <span style="font-size: 11.5px; color: #8b949e;">{{ transcriptSub }}</span>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+            <div onClick="{{ toggleTools }}" style="display: flex; align-items: center; gap: 7px; height: 27px; padding: 0 10px; border: 1px solid rgba(0,0,0,0.14); border-radius: 6px; font-size: 11.5px; color: #57606a; cursor: pointer;" style-hover="border-color: #0969da;">
+              <span style="width: 24px; height: 14px; border-radius: 7px; padding: 2px; display: flex; background: {{ toolsTrackBg }}; justify-content: {{ toolsKnobPos }};">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: #fff;"></span>
+              </span>
+              Tool activity
+            </div>
+            <div style="display: flex; border: 1px solid rgba(0,0,0,0.14); border-radius: 6px; overflow: hidden;">
+              <sc-for list="{{ speakerTabs }}" as="t" hint-placeholder-count="3">
+                <div style="padding: 5px 12px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; cursor: pointer; color: {{ t.fg }}; background: {{ t.bg }};">{{ t.label }}</div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #fff; padding: 4px 0 0;">
+          <sc-for list="{{ turns }}" as="t" hint-placeholder-count="4">
+            <div>
+              <sc-if value="{{ t.gap }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 6px 15px 6px 96px;">
+                  <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.06);"></div>
+                  <span style="font-size: 10.5px; color: #8b949e; font-style: italic;">{{ t.gapLabel }}</span>
+                  <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.06);"></div>
+                </div>
+              </sc-if>
+
+              <div style="display: grid; grid-template-columns: 96px 1fr 84px; gap: 10px; padding: 7px 15px; align-items: flex-start;" style-hover="background: #fafbfc;">
+                <div style="text-align: right; padding-top: 2px;">
+                  <div style="font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #57606a;">{{ t.clock }}</div>
+                  <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #8b949e; margin-top: 1px;">{{ t.rel }}</div>
+                </div>
+
+                <div style="min-width: 0;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                    <span style="font-size: 12px; font-weight: 650; color: {{ t.nameFg }};">{{ t.who }}</span>
+                    <sc-if value="{{ t.toolCount }}" hint-placeholder-val="{{ true }}">
+                      <span onClick="{{ t.expand }}" title="{{ t.toolTitle }}" style="display: flex; align-items: center; gap: 4px; font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #57606a; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.10); border-radius: 10px; padding: 1px 7px; cursor: pointer;" style-hover="border-color: #0969da; color: #0969da;">{{ t.toolCount }}</span>
+                    </sc-if>
+                  </div>
+                  <div style="font-size: 13px; line-height: 1.55; color: #1f2328; text-wrap: pretty; padding: 8px 11px; border-radius: 6px; border-left: 3px solid {{ t.accent }}; background: {{ t.bubbleBg }};">{{ t.text }}</div>
+
+                  <sc-if value="{{ t.expanded }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top: 6px; border: 1px solid rgba(0,0,0,0.10); border-radius: 6px; overflow: hidden;">
+                      <sc-for list="{{ t.toolRows }}" as="tr" hint-placeholder-count="4">
+                        <div style="display: grid; grid-template-columns: 74px 84px 1fr 26px; gap: 10px; align-items: center; padding: 5px 9px; border-bottom: 1px solid rgba(0,0,0,0.05); background: #f6f8fa;">
+                          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e;">{{ tr.time }}</span>
+                          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #1f2328; background: #fff; border: 1px solid rgba(0,0,0,0.10); border-radius: 3px; padding: 1px 5px; text-align: center;">{{ tr.tool }}</span>
+                          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #57606a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ tr.preview }}</span>
+                          <span style="font-size: 10.5px; color: #8b949e; text-align: center; cursor: pointer;" style-hover="color: #1f2328;">⧉</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 3px; justify-content: flex-end; padding-top: 2px;">
+                  <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #8b949e;">{{ t.idx }}</span>
+                  <span onClick="{{ t.copy }}" title="Copy this turn as markdown" style="width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #8b949e; cursor: pointer;" style-hover="background: rgba(0,0,0,0.06); color: #1f2328;">⧉</span>
+                  <span title="Permalink to this turn" style="width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #8b949e; cursor: pointer;" style-hover="background: rgba(0,0,0,0.06); color: #1f2328;">#</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+
+          <div style="display: flex; align-items: center; justify-content: center; gap: 9px; padding: 16px; color: #8b949e; font-size: 12px; border-top: 1px solid rgba(0,0,0,0.06);">
+            <span style="width: 12px; height: 12px; border: 2px solid rgba(0,0,0,0.12); border-top-color: #0969da; border-radius: 50%;"></span>
+            loading turns as you scroll · 4 of 6
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═════════ 06 EMPTY STATE + SEARCH ═════════ -->
+    <div style="display: flex; flex-direction: column; gap: 13px;">
+      <div style="display: flex; gap: 26px; align-items: flex-start; max-width: 1400px;">
+        <div style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 700; color: #57606a; letter-spacing: 0.06em; padding-top: 3px; white-space: nowrap; width: 168px; flex: none;">06 · SEARCH + EMPTY</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 24px; font-size: 12.5px; color: #57606a; line-height: 1.5;">
+          <div>· Results group by session; turn hits nest under it</div>
+          <div>· Counts are honest (the "about 0 sessions" bug goes)</div>
+          <div>· Empty state gives the actual remedy, not a flag name</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 20px; width: 1400px; align-items: flex-start;">
+        <div style="flex: 1.55; min-width: 0; background: #fff; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 11px 15px; border-bottom: 1px solid rgba(0,0,0,0.10);">
+            <span style="font-size: 15px; font-weight: 650; color: #1f2328;">Results for</span>
+            <span style="font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: #1f2328; background: #f6f8fa; border: 1px solid rgba(0,0,0,0.10); border-radius: 4px; padding: 1px 6px;">buildEventDocs</span>
+            <span style="font-size: 11.5px; color: #8b949e;">12 sessions · 47 turns</span>
+            <div style="margin-left: auto; font-size: 11.5px; color: #0969da;">↩ narrow the list instead</div>
+          </div>
+          <sc-for list="{{ searchGroups }}" as="g" hint-placeholder-count="3">
+            <div style="border-bottom: 1px solid rgba(0,0,0,0.07);">
+              <div style="display: flex; align-items: center; gap: 9px; padding: 9px 15px; background: #f6f8fa;">
+                <span style="font-size: 13px; font-weight: 600; color: #0969da;">{{ g.project }}</span>
+                <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e;">{{ g.id }}</span>
+                <span style="font-size: 11px; color: #57606a;">{{ g.when }}</span>
+                <span style="margin-left: auto; font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #57606a; background: #fff; border: 1px solid rgba(0,0,0,0.10); border-radius: 10px; padding: 1px 8px;">{{ g.hits }}</span>
+              </div>
+              <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="2">
+                <div style="display: grid; grid-template-columns: 74px 1fr; gap: 10px; padding: 7px 15px; border-top: 1px solid rgba(0,0,0,0.05); cursor: pointer;" style-hover="background: #fafbfc;">
+                  <div>
+                    <div style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #57606a;">{{ r.time }}</div>
+                    <div style="font-size: 9.5px; font-weight: 600; color: #8b949e; margin-top: 1px;">{{ r.role }}</div>
+                  </div>
+                  <div style="font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 1.5; color: #57606a; overflow: hidden;">{{ r.pre }}<span style="background: #fff3c4; color: #1f2328; border-radius: 2px; padding: 0 2px;">{{ r.hit }}</span>{{ r.post }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+          <div style="background: #fff; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; padding: 26px 22px; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: #8b949e;">EMPTY STATE — SPEAKER SPLIT</div>
+            <div style="font-size: 15px; font-weight: 600; color: #1f2328; margin-top: 11px;">No chat turns were recorded for this session</div>
+            <div style="font-size: 12.5px; color: #57606a; line-height: 1.6; margin-top: 7px; text-wrap: pretty;">The hook stored byte ranges only, so there is nothing to split by speaker. The raw transcript is still available in object storage.</div>
+            <div style="display: flex; gap: 8px; margin-top: 15px;">
+              <div style="height: 30px; padding: 0 12px; border-radius: 6px; background: #0969da; color: #fff; font-size: 12px; display: flex; align-items: center; cursor: pointer;">Open raw transcript</div>
+              <div style="height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.14); color: #57606a; font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer;" style-hover="border-color: #0969da; color: #0969da;">How to enable full capture <span style="font-size: 9px;">↗</span></div>
+            </div>
+          </div>
+
+          <div style="background: #fff; border: 1px solid rgba(0,0,0,0.14); border-radius: 8px; padding: 22px; box-shadow: 0 10px 30px rgba(31,35,40,0.09);">
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; color: #8b949e;">OPEN QUESTIONS FOR YOU</div>
+            <div style="display: flex; flex-direction: column; gap: 11px; margin-top: 13px;">
+              <sc-for list="{{ questions }}" as="q" hint-placeholder-count="4">
+                <div style="display: flex; gap: 9px;">
+                  <span style="font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: #8b949e; padding-top: 2px; flex: none;">{{ q.n }}</span>
+                  <span style="font-size: 12.5px; color: #1f2328; line-height: 1.5; text-wrap: pretty;">{{ q.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1520, &quot;height&quot;: 1100 }
+}">
+const STATUS = {
+  live: "font-size:10.5px;font-weight:600;color:#1a7f37;background:rgba(26,127,55,0.08);border:1px solid rgba(26,127,55,0.30);border-radius:10px;padding:1px 8px;",
+  ended: "font-size:10.5px;font-weight:600;color:#57606a;background:#f6f8fa;border:1px solid rgba(0,0,0,0.12);border-radius:10px;padding:1px 8px;",
+  abandoned: "font-size:10.5px;font-weight:600;color:#9a6700;background:rgba(154,103,0,0.08);border:1px solid rgba(154,103,0,0.30);border-radius:10px;padding:1px 8px;",
+};
+
+const RAW = [
+  { label: "Thu 27 Aug", sub: "2026 · 7 sessions", totals: "3h 12m active · 8.1M tokens", rows: [
+    { time: "02:27", project: "jcousteau", cwd: "/home/jcousteau", id: "6186291f", durLabel: "12m 57s · all active", activePct: 100, host: "jcousteau-homebox", model: "—", tools: ["Bash 135", "Read 4", "+4"], tokens: "—", turns: "172 ev", status: "live", hasErrors: true, errLabel: "1 error" },
+    { time: "02:06", project: "tinkerlab.dev-homepage", cwd: "/srv/tinkerlab/www", id: "7ffff33a", durLabel: "24m 45s · 14m active", activePct: 60, host: "jcousteau-homebox", model: "opus-5[1m]", tools: ["Bash 31", "Edit 9"], tokens: "—", turns: "54 ev", status: "live", hasErrors: false, errLabel: "" },
+    { time: "01:45", project: "jobhunt", cwd: "/home/jcousteau/jobhunt", id: "8dc79f1b", durLabel: "45m 9s · 15m active", activePct: 34, host: "jcousteau-homebox", model: "—", tools: ["WebFetch 12", "Read 8"], tokens: "—", turns: "50 ev", status: "live", hasErrors: false, errLabel: "" },
+    { time: "00:54", project: "jcousteau", cwd: "/home/jcousteau", id: "7aa60fae", durLabel: "1h 32m · 16m active", activePct: 18, host: "jcousteau-homebox", model: "—", tools: ["Bash 27", "Skill 1", "+2"], tokens: "2,894,847", turns: "35 ev", status: "ended", hasErrors: false, errLabel: "" },
+    { time: "00:45", project: "the-longer-clock", cwd: "/home/jcousteau/clock", id: "701b5eb0", durLabel: "1h 39m · 19m active", activePct: 20, host: "jcousteau-homebox", model: "opus-5[1m]", tools: ["Edit 14", "Bash 9"], tokens: "4,111,468", turns: "36 ev", status: "ended", hasErrors: false, errLabel: "" },
+  ]},
+  { label: "Wed 26 Aug", sub: "2026 · 5 sessions", totals: "4h 6m active · 41.4M tokens", rows: [
+    { time: "20:41", project: "claude-transcripts", cwd: "/srv/claude-transcripts", id: "e94ffb25", durLabel: "5h 58m · 1h 14m active", activePct: 21, host: "jcousteau-homebox", model: "opus-5[1m]", tools: ["Bash 88", "Edit 41", "+6"], tokens: "—", turns: "132 ev", status: "live", hasErrors: false, errLabel: "" },
+    { time: "19:32", project: "claude-transcripts", cwd: "/srv/claude-transcripts", id: "3f48b07b", durLabel: "3h 30m · 1h 19m active", activePct: 38, host: "jcousteau-homebox", model: "opus-5[1m]", tools: ["Bash 201", "Read 74", "+9"], tokens: "66,980,807", turns: "373 ev", status: "ended", hasErrors: true, errLabel: "4 errors" },
+    { time: "16:26", project: "projects", cwd: "/home/jcousteau/projects", id: "1c40587b", durLabel: "— · no activity", activePct: 0, host: "jcousteau-homebox", model: "opus-5[1m]", tools: ["—"], tokens: "—", turns: "1 ev", status: "live", hasErrors: false, errLabel: "" },
+  ]},
+  { label: "Mon 24 Aug", sub: "2026 · 1 session", totals: "2h 0m active · 74.8M tokens", rows: [
+    { time: "13:56", project: "gable-2-garden", cwd: "/home/vredchenko/gable-2", id: "5fd53063", durLabel: "6h 33m · 2h 0m active", activePct: 31, host: "vredchenko-TUF-Gaming", model: "opus-5[1m]", tools: ["Bash 142", "Write 33", "+5"], tokens: "74,804,075", turns: "291 ev", status: "abandoned", hasErrors: true, errLabel: "2 errors" },
+  ]},
+];
+
+class Component extends DCLogic {
+  state = { query: "project:jobhunt errors:>0", sort: "time", dir: "desc", expanded: 1, showTools: false, showMeta: false };
+
+  arrow(key) { return this.state.sort === key ? (this.state.dir === "desc" ? "↓" : "↑") : "⇅"; }
+
+  renderVals() {
+    const q = this.state.query;
+    const groups = RAW.map((g) => ({
+      ...g,
+      rows: g.rows.map((r) => ({
+        ...r,
+        statusStyle: STATUS[r.status],
+        copy: (e) => { e.stopPropagation(); navigator.clipboard?.writeText(r.id); },
+      })),
+    }));
+
+    const turns = [
+      { who: "You", clock: "00:54:12", rel: "+0s", idx: "#5", accent: "#0969da", bubbleBg: "#f6f8fa", nameFg: "#0969da",
+        text: "across forge repos jcousteau-homebox-admin, ccp-* jcousteau-claude-kit, new homebox-admin repo, sf0 repo — just the main utilities repos not project-specific nor legacy. Can you find any open issues that look duplicate, outdated or otherwise dismissable.",
+        toolCount: null, gap: false },
+      { who: "Claude", clock: "01:02:05", rel: "+7m 53s", idx: "#152", accent: "#e8846b", bubbleBg: "#fff", nameFg: "#1f2328",
+        text: "Checked 86 open issues across the 9 repos you named (homebox-admin 33, homelab-admin 16, claude-kit 12, ccp-launcher 10, ccp-forgejo 6, sf0 6, ccp-cloudflare 3, ccp-couch 0). Nothing acted on. Here's what I'd flag, strongest evidence first.",
+        toolCount: "142 tool calls · 24 Bash", toolTitle: "Expand tool activity for this turn", gap: true, gapLabel: "5m 53s later" },
+      { who: "You", clock: "01:40:31", rel: "+38m 26s", idx: "#162", accent: "#0969da", bubbleBg: "#f6f8fa", nameFg: "#0969da",
+        text: "save all of this as new issue under jcousteau-homebox-admin repo for me to do later please, assign to me jcousteau and if you can set reminder for tomorrow lunchtime, if not — don't worry about it",
+        toolCount: null, gap: true, gapLabel: "37m 31s later" },
+      { who: "Claude", clock: "01:42:18", rel: "+40m 13s", idx: "#196", accent: "#e8846b", bubbleBg: "#fff", nameFg: "#1f2328",
+        text: "Both done. Issue created — homebox-admin#385 “Issue triage sweep 2026-08-27”, assigned to jcousteau. It carries the full report as a checkbox worklist in seven sections. Reminder set — one-shot cloud routine firing Fri 28 Aug, 12:25 BST.",
+        toolCount: "21 tool calls · 2 ToolSearch", toolTitle: "Collapse tool activity", gap: false },
+    ].map((t, i) => ({
+      ...t,
+      expanded: this.state.expanded === i && !!t.toolCount,
+      expand: () => this.setState({ expanded: this.state.expanded === i ? -1 : i }),
+      copy: () => navigator.clipboard?.writeText(t.text),
+      toolRows: !t.toolCount ? [] : [
+        { time: "01:02:11", tool: "Bash", preview: "gh issue list --repo jcousteau-homebox-admin --state open --limit 100", },
+        { time: "01:02:19", tool: "Bash", preview: "gh issue list --repo jcousteau-claude-kit --state open --json number,title" },
+        { time: "01:03:02", tool: "ToolSearch", preview: "forgejo issue search \"duplicate\"" },
+        { time: "01:03:44", tool: "Read", preview: "/srv/homebox-admin/CLAUDE.md" },
+      ],
+    }));
+
+    return {
+      query: q,
+      queryEcho: q,
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      countLabel: "3 of 452 shown",
+      chips: [
+        { label: "project:jobhunt", remove: () => {} },
+        { label: "errors:>0", remove: () => {} },
+      ],
+      addFilter: () => {},
+      sortByProject: () => this.setState({ sort: "project", dir: this.state.dir === "desc" ? "asc" : "desc" }),
+      sortByRuntime: () => this.setState({ sort: "runtime", dir: this.state.dir === "desc" ? "asc" : "desc" }),
+      sortByTokens: () => this.setState({ sort: "tokens", dir: this.state.dir === "desc" ? "asc" : "desc" }),
+      arrowProject: this.arrow("project"),
+      arrowRuntime: this.arrow("runtime"),
+      arrowTokens: this.arrow("tokens"),
+      groups,
+
+      omniStates: [
+        { caption: "A — TYPING PLAIN TEXT", typed: "buildEventDocs", sections: [
+          { heading: "TWO WAYS TO GO", items: [
+            { icon: "▤", label: "Narrow the session list", hint: "matches project, host, cwd, id", key: "↵", bg: "rgba(9,105,218,0.07)" },
+            { icon: "⌕", label: "Search inside transcripts", hint: "12 sessions · 47 turns", key: "⇧↵", bg: "transparent" },
+          ]},
+          { heading: "OPERATORS", items: [
+            { icon: "›", label: "project:claude-transcripts", hint: "by working directory", key: "", bg: "transparent" },
+            { icon: "›", label: "errors:>0  tokens:>1M", hint: "numeric comparison", key: "", bg: "transparent" },
+            { icon: "›", label: "host:  model:  source:", hint: "exact match, autocompleted", key: "", bg: "transparent" },
+          ]},
+        ]},
+        { caption: "B — RELATIVE DATES + RECENTS", typed: "last week ", sections: [
+          { heading: "INTERPRETED AS", items: [
+            { icon: "◷", label: "20 – 27 Aug 2026", hint: "started:2026-08-20..2026-08-27", key: "↵", bg: "rgba(9,105,218,0.07)" },
+            { icon: "◷", label: "yesterday · aug 19 · this month", hint: "other date phrases", key: "", bg: "transparent" },
+          ]},
+          { heading: "SAVED FILTERS", items: [
+            { icon: "★", label: "Long idle sessions", hint: "active:<10% runtime:>1h", key: "", bg: "transparent" },
+            { icon: "★", label: "Failed tool runs", hint: "errors:>0 last week", key: "", bg: "transparent" },
+            { icon: "↺", label: "project:jobhunt errors:>0", hint: "searched 2h ago", key: "", bg: "transparent" },
+          ]},
+        ]},
+        { caption: "C — ID JUMP + COMMANDS", typed: "7aa6", sections: [
+          { heading: "JUMP TO SESSION", items: [
+            { icon: "→", label: "7aa60fae-860d-4256-81ba-35e43e03814d", hint: "jcousteau · 27 Aug 00:54 · ended", key: "↵", bg: "rgba(9,105,218,0.07)" },
+          ]},
+          { heading: "COMMANDS", items: [
+            { icon: "◐", label: "Switch to dark theme", hint: "> theme dark", key: "", bg: "transparent" },
+            { icon: "⛁", label: "Open this session in CouchDB", hint: "> couch doc", key: "", bg: "transparent" },
+            { icon: "⇩", label: "Export current list as CSV", hint: "> export csv", key: "", bg: "transparent" },
+            { icon: "◫", label: "Open Meilisearch UI", hint: "> open meilisearch", key: "", bg: "transparent" },
+          ]},
+        ]},
+      ],
+
+      linkGroups: [
+        { heading: "THIS APP", links: [
+          { icon: "▤", label: "Technical docs", hint: "/docs", indent: 0, external: false },
+          { icon: "◈", label: "API reference (Scalar)", hint: "/api/docs", indent: 0, external: false },
+          { icon: "{ }", label: "OpenAPI spec", hint: "/api/openapi.json", indent: 0, external: false },
+          { icon: "{ }", label: "App model", hint: "/api/model — resolved ports & services", indent: 0, external: false },
+          { icon: "⇩", label: "Download CLI binary", hint: "/cli/download", indent: 0, external: false },
+        ]},
+        { heading: "COUCHDB", links: [
+          { icon: "⛁", label: "Fauxton", hint: ":7652/_utils — database admin UI", indent: 0, external: true },
+          { icon: "◱", label: "_design/sessions", hint: "by_date · by_cwd", indent: 16, external: true },
+          { icon: "◱", label: "_design/chunks", hint: "by_session · entries_by_session", indent: 16, external: true },
+          { icon: "◱", label: "_design/events", hint: "by_session · by_type", indent: 16, external: true },
+          { icon: "◱", label: "_design/tools", hint: "usage · failures · errors", indent: 16, external: true },
+          { icon: "◱", label: "_design/activity", hint: "timeline — events per hour", indent: 16, external: true },
+          { icon: "◱", label: "_design/session_meta", hint: "start_meta · tokens_by_date", indent: 16, external: true },
+        ]},
+        { heading: "SERVICES", links: [
+          { icon: "▦", label: "Garage · Web UI", hint: "object storage for raw transcripts", indent: 0, external: true },
+          { icon: "⌕", label: "Meilisearch · UI", hint: "index browser", indent: 0, external: true },
+          { icon: "⌕", label: "Meilisearch · API", hint: "/indexes — health & stats", indent: 0, external: true },
+        ]},
+        { heading: "PROJECT", links: [
+          { icon: "◇", label: "GitHub repository", hint: "vredchenko/claude-transcripts", indent: 0, external: true },
+          { icon: "◇", label: "Docs source (Markdown)", hint: "/tree/main/docs", indent: 0, external: true },
+        ]},
+      ],
+
+      hours: ["00","","02","","04","","06","","08","","10","","12","","14","","16","","18","","20","","22",""],
+      calDays: [
+        { label: "Thu 27", sub: "7 sessions · 3h 12m", tip: false, bars: [
+          { left: 2, width: 4, top: 6, bg: "rgba(9,105,218,0.55)", border: "rgba(9,105,218,0.7)", label: "jcousteau", ring: "none" },
+          { left: 7.5, width: 7, top: 6, bg: "rgba(9,105,218,0.30)", border: "rgba(9,105,218,0.5)", label: "tinkerlab.dev", ring: "none" },
+          { left: 3.5, width: 9, top: 24, bg: "rgba(232,132,107,0.40)", border: "rgba(232,132,107,0.7)", label: "jobhunt", ring: "none" },
+        ]},
+        { label: "Wed 26", sub: "5 sessions · 4h 6m", tip: true, bars: [
+          { left: 68, width: 25, top: 6, bg: "rgba(9,105,218,0.42)", border: "#0969da", label: "claude-transcripts · 5h 58m", ring: "0 0 0 3px rgba(9,105,218,0.22)" },
+          { left: 81, width: 15, top: 24, bg: "rgba(9,105,218,0.55)", border: "rgba(9,105,218,0.7)", label: "jcousteau", ring: "none" },
+        ]},
+        { label: "Tue 25", sub: "4 sessions · 42m", tip: false, bars: [
+          { left: 4, width: 16, top: 6, bg: "rgba(9,105,218,0.22)", border: "rgba(9,105,218,0.45)", label: "claude-transcripts · 37h 1m (spans days)", ring: "none" },
+          { left: 3.5, width: 3, top: 24, bg: "rgba(9,105,218,0.55)", border: "rgba(9,105,218,0.7)", label: "jobhunt", ring: "none" },
+        ]},
+        { label: "Mon 24", sub: "1 session · 2h 0m", tip: false, bars: [
+          { left: 58, width: 27, top: 6, bg: "rgba(154,103,0,0.28)", border: "rgba(154,103,0,0.55)", label: "gable-2-garden · abandoned", ring: "none" },
+        ]},
+        { label: "Wed 19", sub: "10 sessions · 2h 33m", tip: false, bars: [
+          { left: 1, width: 15, top: 6, bg: "rgba(9,105,218,0.35)", border: "rgba(9,105,218,0.55)", label: "jcousteau · 3h 32m", ring: "none" },
+          { left: 4.5, width: 11, top: 24, bg: "rgba(9,105,218,0.30)", border: "rgba(9,105,218,0.5)", label: "homelab-admin · 2h 43m", ring: "none" },
+          { left: 74, width: 12, top: 6, bg: "rgba(9,105,218,0.45)", border: "rgba(9,105,218,0.65)", label: "vredchenko · 2h 52m", ring: "none" },
+        ]},
+      ],
+      tipTitle: "claude-transcripts",
+      tipSub: "e94ffb25 · /srv/claude-transcripts",
+      tipRows: [
+        { k: "started", v: "26 Aug 20:41" },
+        { k: "runtime", v: "5h 58m" },
+        { k: "active", v: "1h 14m (21%)" },
+        { k: "model", v: "opus-5[1m]" },
+        { k: "prompts · tools", v: "8 · 132" },
+        { k: "status", v: "live" },
+      ],
+
+      copyId: () => navigator.clipboard?.writeText("7aa60fae-860d-4256-81ba-35e43e03814d"),
+      deepLinks: [
+        { icon: "⛁", label: "CouchDB doc", title: "Open the summary document in Fauxton" },
+        { icon: "▦", label: "Garage object", title: "Open the raw transcript object in Garage" },
+        { icon: "{ }", label: "API JSON", title: "/api/sessions/7aa60fae…" },
+      ],
+      metaStrip: [
+        { k: "STARTED", v: "27 Aug 00:54" },
+        { k: "RUNTIME", v: "1h 32m" },
+        { k: "ACTIVE", v: "16m 24s · 18%" },
+        { k: "MODEL", v: "—" },
+        { k: "HOST", v: "jcousteau-homebox" },
+        { k: "TOKENS", v: "2,894,847" },
+        { k: "PROMPTS · TOOLS", v: "2 · 31" },
+        { k: "ERRORS", v: "0" },
+        { k: "SIZE", v: "392 KB" },
+      ],
+      toggleMeta: () => this.setState({ showMeta: !this.state.showMeta }),
+      metaToggleLabel: this.state.showMeta ? "less ▴" : "cwd, end reason, cache split ▾",
+      transcriptSub: "6 turns · chat only · 194 tool lines hidden",
+      toggleTools: () => this.setState({ showTools: !this.state.showTools }),
+      toolsTrackBg: this.state.showTools ? "#0969da" : "rgba(0,0,0,0.20)",
+      toolsKnobPos: this.state.showTools ? "flex-end" : "flex-start",
+      speakerTabs: [
+        { label: "BOTH", fg: "#1f2328", bg: "#eaeef2" },
+        { label: "YOU", fg: "#57606a", bg: "#fff" },
+        { label: "CLAUDE", fg: "#57606a", bg: "#fff" },
+      ],
+      turns,
+
+      searchGroups: [
+        { project: "claude-transcripts", id: "b406bd32", when: "7 Aug 14:56", hits: "18 hits", rows: [
+          { time: "14:56:02", role: "CLAUDE", pre: "export ", hit: "buildEventDocs", post: "(jsonl: string, facts: SessionFacts, source: IngestSource): EventDoc[] { const entries = parseEntries(jsonl); …" },
+          { time: "14:56:41", role: "TOOL", pre: "// Index tool_result by tool_use_id, to classify each ", hit: "buildEventDocs", post: " success/failure. const results = new Map…" },
+        ]},
+        { project: "claude-transcripts", id: "4165b533", when: "30 Jul 03:03", hits: "6 hits", rows: [
+          { time: "03:03:17", role: "YOU", pre: "can you check whether ", hit: "buildEventDocs", post: " still needs the migration guard now that v6 redeploys the design doc" },
+        ]},
+        { project: "ERIC", id: "5827bce8", when: "29 May 19:07", hits: "2 hits", rows: [
+          { time: "19:07:55", role: "CLAUDE", pre: "borrowed the shape from ", hit: "buildEventDocs", post: " — same reduce, different key order" },
+        ]},
+      ],
+      questions: [
+        { n: "01", text: "Is per-turn timestamp precision available to the second, or only to the minute? The gutter assumes seconds." },
+        { n: "02", text: "Can the API return an active-time percentage per session, or does the list have to compute it from runtime minus idle?" },
+        { n: "03", text: "Does a stable per-turn anchor exist for permalinks — the byte_start from _design/chunks, or the entry index?" },
+        { n: "04", text: "Garage object keys: derivable client-side from session id, or must they come from the API?" },
+        { n: "05", text: "Should saved filters persist server-side, or is localStorage acceptable for now?" },
+      ],
+    };
+  }
+}
+
+</script>
+</body>
+</html>
