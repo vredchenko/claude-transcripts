@@ -1,22 +1,29 @@
+/**
+ * `/sessions/$id` — session detail page.
+ *
+ * Identity bar: back link, project name, 8-char id + copy, status chip, deep links.
+ * Metadata strip: horizontal scroll row of fields.
+ * Transcript section: speaker filter toggle (Both/You/Claude) + transcript viewer.
+ */
 import {
   Box,
+  Button,
   Chip,
-  Divider,
-  Paper,
+  IconButton,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
 import { Link, useNavigate, useParams, useSearch as useRouterSearch } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { useGetSession } from "../api/generated";
-import { SourceChip } from "../components/SourceChip";
+import { useAppModel } from "../api/model";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
 import { ErrorState, Loading } from "../components/states";
-import { TokenUsageChips } from "../components/TokenUsageChips";
 import { TranscriptView } from "../components/TranscriptView";
 import {
   durationSplit,
@@ -24,6 +31,8 @@ import {
   formatCount,
   formatDuration,
   formatTimestamp,
+  projectName,
+  totalTools,
 } from "../format";
 import { MONO } from "../theme";
 
@@ -31,159 +40,149 @@ type SpeakerFilter = "all" | "user" | "assistant";
 
 /** Query-string state this route owns. */
 export interface SessionDetailSearch {
-  /** Search terms that led here, marked in the transcript. See `router.tsx`. */
   q?: string;
 }
 
-/**
- * One labelled fact in the metadata grid.
- *
- * The label is a block with a fixed line box and the value sits on its own line, so
- * every cell in a grid row starts its value at the same height. Previously the label
- * was inline and the value's height varied with its content — a chip is taller than a
- * line of text — which left each row's values on slightly different baselines and made
- * a tidy grid read as a jumble.
- */
-function Field({ label, children }: { label: string; children: ReactNode }) {
+/** One labelled fact in the metadata strip. Omitted entirely if value is falsy. */
+function MetaField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box sx={{ flexShrink: 0 }}>
       <Typography
         variant="caption"
         component="div"
-        color="text.secondary"
-        sx={{
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          lineHeight: 1.6,
-          whiteSpace: "nowrap",
-        }}
+        color="text.disabled"
+        sx={{ textTransform: "uppercase", letterSpacing: 0.5, fontSize: 9.5, lineHeight: 1.4 }}
       >
         {label}
       </Typography>
-      <Typography
-        variant="body2"
-        component="div"
-        sx={{
-          // Values are ids, paths and hostnames: they must wrap inside their cell
-          // rather than widen the column and skew the whole grid.
-          overflowWrap: "anywhere",
-          minHeight: 24,
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
+      <Typography variant="body2" component="div" sx={{ fontFamily: MONO, fontSize: 12 }}>
         {children}
       </Typography>
     </Box>
   );
 }
 
-/** `/sessions/$id`: session metadata + the transcript viewer. */
 export function SessionDetailPage() {
   const { id } = useParams({ from: "/sessions/$id" });
   const { q } = useRouterSearch({ from: "/sessions/$id" }) as SessionDetailSearch;
   const query = q?.trim() || undefined;
   const { data: session, isPending, isError, error } = useGetSession(id);
+  const { data: model } = useAppModel();
   const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
   const navigate = useNavigate();
   const theme = useTheme();
-  const split = durationSplit(session?.durationMs, session?.activeMs);
+  const [copied, setCopied] = useState(false);
+
+  const copyId = useCallback(() => {
+    navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [id]);
+
+  const split = session ? durationSplit(session.durationMs, session.activeMs) : undefined;
+
+  // Deep link URLs built from servicesMenu.
+  const fauxtonUrl = model?.servicesMenu?.couchdbFauxton;
+  const couchDocUrl = fauxtonUrl ? `${fauxtonUrl}/#/database/sessions/summary:${id}` : undefined;
+  const garageUrl = model?.servicesMenu?.garageWebui;
+  const apiJsonUrl = `/api/sessions/${id}`;
 
   return (
     <Box>
-      <Link to="/" style={{ color: theme.palette.primary.main, textDecoration: "none" }}>
-        ← All sessions
-      </Link>
+      {/* Identity bar */}
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{ mb: 1.5, flexWrap: "wrap", gap: 0.5 }}
+      >
+        <Link to="/" style={{ color: theme.palette.primary.main, textDecoration: "none" }}>
+          ← All sessions
+        </Link>
 
-      {isPending && <Loading label="Loading session…" />}
-      {isError && <ErrorState error={error} />}
+        {isPending && <Loading label="Loading session…" />}
+        {isError && <ErrorState error={error} />}
+
+        {session && (
+          <>
+            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: 15, color: "primary.main" }}>
+              {projectName(session.cwd)}
+            </Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Typography sx={{ fontFamily: MONO, fontSize: 13 }}>
+                {session.sessionId.slice(0, 8)}
+              </Typography>
+              <Tooltip title={copied ? "Copied!" : "Copy full ID"}>
+                <IconButton size="small" onClick={copyId} sx={{ fontSize: 14 }}>
+                  {copied ? "✓" : "⎘"}
+                </IconButton>
+              </Tooltip>
+            </Stack>
+            <StatusChip status={session.status} />
+            <Box sx={{ flex: 1 }} />
+            {/* Deep-link buttons */}
+            {couchDocUrl && (
+              <Button size="small" href={couchDocUrl} target="_blank" rel="noopener noreferrer">
+                CouchDB
+              </Button>
+            )}
+            {garageUrl && (
+              <Button size="small" href={`${garageUrl}`} target="_blank" rel="noopener noreferrer">
+                Garage
+              </Button>
+            )}
+            <Button size="small" href={apiJsonUrl} target="_blank" rel="noopener noreferrer">
+              API JSON
+            </Button>
+          </>
+        )}
+      </Stack>
 
       {session && (
         <>
-          <Stack
-            direction="row"
-            spacing={2}
-            alignItems="center"
-            sx={{ mt: 1, mb: 2, flexWrap: "wrap", gap: 1 }}
+          {/* Metadata strip — horizontal scroll */}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 3,
+              overflowX: "auto",
+              py: 1.5,
+              px: 1,
+              mb: 2,
+              borderTop: 1,
+              borderBottom: 1,
+              borderColor: "divider",
+            }}
           >
-            <Typography
-              variant="h5"
-              // A session id is 36 unbroken characters and the heading is monospace,
-              // which is wider than the narrowest phone.
-              sx={{ fontFamily: MONO, overflowWrap: "anywhere", minWidth: 0 }}
-            >
-              {session.sessionId}
-            </Typography>
-            <StatusChip status={session.status} />
-          </Stack>
-
-          <Paper sx={{ p: 2, mb: 3 }}>
-            {/* Auto-fill rather than a fixed 2/4 columns: a fixed count leaves a
-                ragged hole wherever the field count isn't a multiple of it, and forces
-                a column width that long values (a hostname, a model id) then break out
-                of. This packs to whatever the width allows and every column is equal. */}
-            <Box
-              sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
-              }}
-            >
-              <Field label="Started">
-                {formatTimestamp(session.startTimestamp ?? session.timestamp)}
-              </Field>
-              <Field label="Total runtime">{formatDuration(session.durationMs)}</Field>
-              {/* Active and idle together, because either alone invites the wrong
-                  reading: a session left open overnight is three hours of "runtime"
-                  and twenty minutes of work. */}
-              <Field label="Active time">{formatDuration(split.activeMs)}</Field>
-              <Field label="Idle time">{formatDuration(split.idleMs)}</Field>
-              <Field label="Model">{session.model ?? "—"}</Field>
-              <Field label="Hostname">{session.hostname || "—"}</Field>
-              <Field label="Recording">
-                <SourceChip source={session.source} />
-              </Field>
-              <Field label="End reason">{session.endReason}</Field>
-              <Field label="Prompts">{formatCount(session.promptCount)}</Field>
-              <Field label="Events">{formatCount(session.eventCount)}</Field>
-              <Field label="Errors">{formatCount(session.errorCount)}</Field>
-              <Field label="Transcript size">{formatBytes(session.transcriptSize)}</Field>
-            </Box>
-
-            <Box sx={{ mt: 2 }}>
-              <Field label="Working directory">
-                <span style={{ fontFamily: MONO }}>{session.cwd || "—"}</span>
-              </Field>
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-
-            <Field label="Token usage">
-              <Box sx={{ mt: 0.5 }}>
-                <TokenUsageChips usage={session.tokenUsage} />
-              </Box>
-            </Field>
-
-            {Object.keys(session.toolCounts).length > 0 && (
-              <Box sx={{ mt: 2 }}>
-                <Field label="Tool calls">
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-                    {Object.entries(session.toolCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([name, count]) => (
-                        <Chip
-                          key={name}
-                          size="small"
-                          variant="outlined"
-                          label={`${name} ${count}`}
-                        />
-                      ))}
-                  </Box>
-                </Field>
-              </Box>
+            <MetaField label="STARTED">
+              {formatTimestamp(session.startTimestamp ?? session.timestamp)}
+            </MetaField>
+            {split && split.totalMs > 0 && (
+              <MetaField label="RUNTIME">{formatDuration(split.totalMs)}</MetaField>
             )}
-          </Paper>
+            {split?.activeMs !== undefined && (
+              <MetaField label="ACTIVE">{formatDuration(split.activeMs)}</MetaField>
+            )}
+            {session.model && <MetaField label="MODEL">{session.model}</MetaField>}
+            {session.hostname && <MetaField label="HOST">{session.hostname}</MetaField>}
+            {session.tokenUsage && (
+              <MetaField label="TOKENS">{formatCount(session.tokenUsage.total)}</MetaField>
+            )}
+            {session.promptCount > 0 && (
+              <MetaField label="PROMPTS">{formatCount(session.promptCount)}</MetaField>
+            )}
+            {totalTools(session.toolCounts) > 0 && (
+              <MetaField label="TOOLS">{formatCount(totalTools(session.toolCounts))}</MetaField>
+            )}
+            {session.errorCount > 0 && (
+              <MetaField label="ERRORS">{formatCount(session.errorCount)}</MetaField>
+            )}
+            {session.transcriptSize && session.transcriptSize > 0 && (
+              <MetaField label="SIZE">{formatBytes(session.transcriptSize)}</MetaField>
+            )}
+          </Box>
 
+          {/* Transcript toolbar */}
           <Stack
             direction="row"
             spacing={1}
@@ -193,16 +192,12 @@ export function SessionDetailPage() {
           >
             <Stack direction="row" spacing={1} alignItems="baseline" sx={{ flexWrap: "wrap" }}>
               <Typography variant="h6">Transcript</Typography>
-              {/* Arriving from a result, the highlighting needs a stated cause —
-                  otherwise it reads as the app having decided some words matter. The
-                  chip clears `?q=`, which is the only way back to a plain transcript
-                  short of editing the URL. */}
               {query && (
                 <Chip
                   size="small"
                   color="warning"
                   variant="outlined"
-                  label={`matches for “${query}”`}
+                  label={`matches for "${query}"`}
                   onDelete={() => navigate({ to: "/sessions/$id", params: { id }, search: {} })}
                 />
               )}
@@ -214,7 +209,7 @@ export function SessionDetailPage() {
               onChange={(_e, v: SpeakerFilter | null) => v && setSpeaker(v)}
               aria-label="speaker filter"
             >
-              <ToggleButton value="all">Full</ToggleButton>
+              <ToggleButton value="all">Both</ToggleButton>
               <ToggleButton value="user">You</ToggleButton>
               <ToggleButton value="assistant">Claude</ToggleButton>
             </ToggleButtonGroup>

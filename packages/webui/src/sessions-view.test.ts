@@ -1,18 +1,16 @@
 import { describe, expect, it } from "bun:test";
 import {
-  DAY_MS,
   dayKey,
   dayPlacements,
+  dayRollup,
   groupByDay,
   HOUR_MS,
   type Interval,
-  MINUTE_MS,
   monthKey,
   monthWeeks,
   overlapsDay,
   parseDay,
   parseMonth,
-  proportionalGaps,
   shiftMonth,
   startOfDay,
   startOfMonth,
@@ -318,50 +316,22 @@ describe("groupByDay", () => {
   });
 });
 
-describe("proportionalGaps", () => {
-  it("gives the first session no leading gap", () => {
-    expect(proportionalGaps([interval("a", at(2026, 3, 18), at(2026, 3, 18, 1))])[0]).toBe(0);
-  });
-
-  it("grows with the gap, but sub-linearly", () => {
-    // Newest first: each session precedes the older one in the array.
-    const build = (gapHours: number) => [
-      interval("new", at(2026, 3, 18, 12), at(2026, 3, 18, 13)),
-      interval(
-        "old",
-        at(2026, 3, 18, 12) - gapHours * HOUR_MS - HOUR_MS,
-        at(2026, 3, 18, 12) - gapHours * HOUR_MS,
-      ),
+describe("dayRollup", () => {
+  it("sums active time and tokens", () => {
+    const sessions = [
+      { activeMs: 1000, tokenUsage: { total: 100 } },
+      { activeMs: 2000, tokenUsage: { total: 200 } },
+      { tokenUsage: { total: 50 } },
+      { activeMs: 500 },
     ];
-    const oneHour = proportionalGaps(build(1))[1]!;
-    const fourHours = proportionalGaps(build(4))[1]!;
-    expect(fourHours).toBeGreaterThan(oneHour);
-    // Four times the gap is twice the distance, not four times.
-    expect(fourHours).toBeLessThan(oneHour * 4);
+    const rollup = dayRollup(sessions);
+    expect(rollup.activeMs).toBe(3500);
+    expect(rollup.tokens).toBe(350);
   });
 
-  it("caps the gap so a quiet month is not a blank screen", () => {
-    const gaps = proportionalGaps([
-      interval("new", at(2026, 3, 18), at(2026, 3, 18, 1)),
-      interval("old", at(2026, 3, 18) - 200 * DAY_MS, at(2026, 3, 18) - 200 * DAY_MS + HOUR_MS),
-    ]);
-    expect(gaps[1]).toBeLessThanOrEqual(260);
-  });
-
-  it("does not go negative when sessions overlap", () => {
-    const gaps = proportionalGaps([
-      interval("new", at(2026, 3, 18, 9), at(2026, 3, 18, 17)),
-      interval("old", at(2026, 3, 18, 8), at(2026, 3, 18, 12)),
-    ]);
-    expect(gaps[1]).toBe(0);
-  });
-
-  it("treats a minute-scale gap as small but present", () => {
-    const gaps = proportionalGaps([
-      interval("new", at(2026, 3, 18, 12), at(2026, 3, 18, 13)),
-      interval("old", at(2026, 3, 18, 11, 30), at(2026, 3, 18, 12) - 5 * MINUTE_MS),
-    ]);
-    expect(gaps[1]).toBeGreaterThanOrEqual(0);
-    expect(gaps[1]).toBeLessThan(30);
+  it("returns zeros for an empty list", () => {
+    const rollup = dayRollup([]);
+    expect(rollup.activeMs).toBe(0);
+    expect(rollup.tokens).toBe(0);
   });
 });

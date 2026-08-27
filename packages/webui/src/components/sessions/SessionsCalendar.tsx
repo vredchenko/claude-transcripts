@@ -1,15 +1,9 @@
 /**
- * Sessions as intervals on a calendar.
+ * Sessions as intervals on a calendar — now a vertical stack of 24h lanes, one
+ * per day. Each day is a row: left cell (day label + session count + active time),
+ * right cell (24h lane with session bars positioned by clock time).
  *
- * Two levels, because one can't serve both ends of this data. The **month** grid draws
- * each session as a bar across the days it actually covers — the corpus holds sessions
- * that ran for four days, and a calendar that dots them on their start date is simply
- * wrong about them. The **day** grid is a 24-hour column where a session is positioned
- * and sized by clock time, which is the only way to tell six short sessions in one
- * afternoon apart.
- *
- * All the placement arithmetic lives in `../../sessions-view.ts` and is tested there;
- * this file is layout.
+ * Month navigation (‹ ›, TODAY) retained. Click a bar to open the session detail.
  */
 import {
   Box,
@@ -25,48 +19,46 @@ import { Link } from "@tanstack/react-router";
 import type { SessionSummary } from "../../api/generated";
 import {
   durationSplit,
-  durationSplitLabel,
+  formatCount,
   formatDuration,
   formatTimestamp,
   projectName,
+  totalTools,
 } from "../../format";
 import {
   dayKey,
   dayPlacements,
+  groupByDay,
   type Interval,
-  monthWeeks,
-  overlapsDay,
   shiftMonth,
   toInterval,
-  weekBars,
 } from "../../sessions-view";
 import { MONO } from "../../theme";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/** Even-hour labels for the axis header. */
+const HOUR_LABELS = Array.from({ length: 12 }, (_, i) => i * 2);
 
-/** Bars taller than this are drawn with their label inside. */
-const LABEL_MIN_PCT = 6;
-
-/**
- * A stable colour per project, so the same work is the same colour across every cell
- * and month. Hashed rather than assigned from a list, because the set of projects is
- * whatever the reader happens to have — there's no fixed roster to map.
- */
+/** Stable colour per project via golden-angle-stepped hue hash. */
 function projectHue(cwd: string | undefined): number {
   let hash = 0;
   for (const char of cwd ?? "") hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  // Golden-angle steps spread neighbouring hashes to distant hues, so two projects
-  // rarely land on near-identical colours.
   return Math.abs(hash * 137.508) % 360;
 }
 
-function barColors(cwd: string | undefined, dark: boolean) {
-  const hue = projectHue(cwd);
-  return {
-    bg: `hsl(${hue} ${dark ? "45% 32%" : "70% 88%"})`,
-    border: `hsl(${hue} ${dark ? "50% 48%" : "55% 65%"})`,
-    text: dark ? "#e6edf3" : "#1f2328",
-  };
+/** Tooltip content for a session bar. */
+function sessionTooltip(s: SessionSummary): string {
+  return [
+    projectName(s.cwd),
+    `${s.sessionId.slice(0, 8)} · ${s.cwd}`,
+    `Started: ${formatTimestamp(s.startTimestamp ?? s.timestamp)}`,
+    `Runtime: ${formatDuration(s.durationMs)}`,
+    s.activeMs !== undefined ? `Active: ${formatDuration(s.activeMs)}` : null,
+    `Model: ${s.model ?? "—"}`,
+    `${formatCount(s.promptCount)} prompts · ${formatCount(totalTools(s.toolCounts))} tools`,
+    `Status: ${s.status}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 interface Placed {
@@ -74,308 +66,138 @@ interface Placed {
   interval: Interval;
 }
 
-/**
- * What a bar says when you point at it.
- *
- * A calendar bar's *length* is already the wall-clock span — that's what placing it on
- * a time axis means — so the active/idle split can only be told here, in words. Shading
- * a fraction of the bar would put the idle time somewhere in particular, and idle time
- * is scattered through a session rather than at one end of it.
- */
-function sessionTitle(session: SessionSummary): string {
-  return [
-    projectName(session.cwd),
-    session.hostname || null,
-    formatTimestamp(session.startTimestamp ?? session.timestamp),
-    durationSplitLabel(session.durationMs, session.activeMs),
-    session.model,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-/** The bar's own caption: total, and the working part of it when that's known. */
-function durationCaption(session: SessionSummary): string {
-  const split = durationSplit(session.durationMs, session.activeMs);
-  if (split.activeMs === undefined) return formatDuration(split.totalMs);
-  return `${formatDuration(split.totalMs)} · ${formatDuration(split.activeMs)} active`;
-}
-
-/** The month grid: six week rows, each session a bar spanning the days it covers. */
-function MonthGrid({
-  monthStart,
-  placed,
-  now,
-  onPickDay,
-}: {
-  monthStart: number;
-  placed: Placed[];
-  now: number;
-  onPickDay: (dayStart: number) => void;
-}) {
+/** One day's 24h lane with positioned session bars. */
+function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]; now: number }) {
   const theme = useTheme();
   const dark = theme.palette.mode === "dark";
-  const weeks = monthWeeks(monthStart);
-  const thisMonth = new Date(monthStart).getMonth();
-  // From the caller's fixed `now`, so the highlighted day matches the one every
-  // other part of this render measured against.
   const todayKey = dayKey(now);
-  const byId = new Map(placed.map((p) => [p.session.sessionId, p.session]));
+  const thisKey = dayKey(dayStart);
+  const isToday = thisKey === todayKey;
+
+  const date = new Date(dayStart);
+  const intervals = placed.map((p) => p.interval);
+  const placements = dayPlacements(dayStart, intervals);
+  const sessionsOnDay = placed.filter((p) => placements.has(p.interval.sessionId));
+  const activeMs = sessionsOnDay.reduce((sum, p) => sum + (p.session.activeMs ?? 0), 0);
 
   return (
-    <Paper variant="outlined" data-testid="calendar-month">
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-        {WEEKDAYS.map((label) => (
-          <Typography
-            key={label}
-            variant="caption"
-            color="text.secondary"
-            sx={{ p: 0.5, textAlign: "center", borderBottom: 1, borderColor: "divider" }}
-          >
-            {label}
-          </Typography>
-        ))}
+    <Box
+      data-testid="calendar-day-lane"
+      sx={{
+        display: "flex",
+        borderBottom: 1,
+        borderColor: "divider",
+        "&:hover": { bgcolor: "action.hover" },
+      }}
+    >
+      {/* Day label cell */}
+      <Box
+        sx={{
+          width: 120,
+          flexShrink: 0,
+          p: 1,
+          borderRight: 1,
+          borderColor: "divider",
+        }}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: isToday ? 700 : 400,
+            color: isToday ? "primary.main" : "text.primary",
+          }}
+        >
+          {date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {sessionsOnDay.length} session{sessionsOnDay.length === 1 ? "" : "s"}
+          {activeMs > 0 && ` · ${formatDuration(activeMs)}`}
+        </Typography>
       </Box>
 
-      {weeks.map((week) => {
-        const bars = weekBars(
-          week,
-          placed.map((p) => p.interval),
-        );
-        const lanes = Math.max(1, ...bars.map((b) => b.lane + 1));
-        return (
-          <Box key={week[0]} sx={{ position: "relative", borderBottom: 1, borderColor: "divider" }}>
-            {/* Day cells: the backdrop, and the click targets. */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-              {week.map((day) => {
-                const outside = new Date(day).getMonth() !== thisMonth;
-                const isToday = dayKey(day) === todayKey;
-                return (
-                  <Box
-                    key={day}
-                    onClick={() => onPickDay(day)}
-                    data-testid="calendar-day-cell"
-                    sx={{
-                      // Room for the day number plus every lane of bars, so a busy
-                      // week grows its row instead of clipping.
-                      minHeight: 34 + lanes * 20,
-                      borderRight: 1,
-                      borderColor: "divider",
-                      p: 0.5,
-                      cursor: "pointer",
-                      opacity: outside ? 0.45 : 1,
-                      "&:hover": { bgcolor: "action.hover" },
-                      "&:last-of-type": { borderRight: 0 },
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontFamily: MONO,
-                        fontWeight: isToday ? 700 : 400,
-                        color: isToday ? "primary.main" : "text.secondary",
-                      }}
-                    >
-                      {new Date(day).getDate()}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Box>
+      {/* 24h lane */}
+      <Box sx={{ flex: 1, position: "relative", minHeight: 36, minWidth: 0 }}>
+        {/* Hour gridlines at even hours */}
+        {HOUR_LABELS.map((h) => (
+          <Box
+            key={h}
+            sx={{
+              position: "absolute",
+              left: `${(h / 24) * 100}%`,
+              top: 0,
+              bottom: 0,
+              borderLeft: 1,
+              borderColor: "divider",
+              opacity: h === 0 ? 0 : 0.4,
+            }}
+          />
+        ))}
 
-            {/* Bars, absolutely positioned over the cells so one can span several. */}
-            {bars.map((bar) => {
-              const session = byId.get(bar.sessionId);
-              if (!session) return null;
-              const colors = barColors(session.cwd, dark);
-              return (
-                <Tooltip key={`${bar.sessionId}-${bar.column}`} title={sessionTitle(session)}>
-                  {/* The link is the positioned element and the Box inside it carries
-                      the visuals: MUI's `component={Link}` can't be typed against the
-                      router's typed params. */}
-                  <Link
-                    to="/sessions/$id"
-                    params={{ id: bar.sessionId }}
-                    data-testid="calendar-bar"
-                    style={{
-                      position: "absolute",
-                      left: `calc(${(bar.column / 7) * 100}% + 3px)`,
-                      width: `calc(${(bar.span / 7) * 100}% - 6px)`,
-                      top: 26 + bar.lane * 20,
-                      height: 17,
-                      textDecoration: "none",
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        height: "100%",
-                        bgcolor: colors.bg,
-                        color: colors.text,
-                        border: 1,
-                        borderColor: colors.border,
-                        // Open ends signal "this continues past the edge of the row",
-                        // so a multi-week session doesn't read as several separate ones.
-                        borderTopLeftRadius: bar.continuesLeft ? 0 : 4,
-                        borderBottomLeftRadius: bar.continuesLeft ? 0 : 4,
-                        borderTopRightRadius: bar.continuesRight ? 0 : 4,
-                        borderBottomRightRadius: bar.continuesRight ? 0 : 4,
-                        borderLeftWidth: bar.continuesLeft ? 0 : 1,
-                        borderRightWidth: bar.continuesRight ? 0 : 1,
-                        px: 0.5,
-                        fontSize: 11,
-                        lineHeight: "15px",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        "&:hover": { filter: "brightness(1.08)" },
-                      }}
-                    >
-                      {bar.continuesLeft ? "… " : ""}
-                      {projectName(session.cwd)}
-                    </Box>
-                  </Link>
-                </Tooltip>
-              );
-            })}
-          </Box>
-        );
-      })}
-    </Paper>
-  );
-}
+        {/* Session bars */}
+        {sessionsOnDay.map(({ session, interval }) => {
+          const place = placements.get(interval.sessionId);
+          if (!place) return null;
+          const hue = projectHue(session.cwd);
+          const split = durationSplit(session.durationMs, session.activeMs);
+          const activeRatio = split.activePct !== undefined ? split.activePct / 100 : 0.5;
+          const opacity = 0.2 + 0.35 * activeRatio;
+          // Horizontal positioning: start_hour / 24 for left, runtime_hours / 24 for width.
+          const leftPct = place.topPct; // dayPlacements topPct = clock position as %
+          const widthPct = Math.max(0.4, place.heightPct); // floored at 0.4%
+          const laneHeight = 100 / Math.max(1, place.laneCount);
 
-/** A 24-hour column for one day, sessions positioned and sized by clock time. */
-function DayGrid({ dayStart, placed }: { dayStart: number; placed: Placed[] }) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === "dark";
-  const placements = dayPlacements(
-    dayStart,
-    placed.map((p) => p.interval),
-  );
-  const onThisDay = placed.filter((p) => overlapsDay(p.interval, dayStart));
-
-  if (onThisDay.length === 0) {
-    return (
-      <Paper variant="outlined" sx={{ p: 3 }} data-testid="calendar-day">
-        <Typography color="text.secondary" variant="body2">
-          No sessions on this day.
-        </Typography>
-      </Paper>
-    );
-  }
-
-  return (
-    <Paper variant="outlined" sx={{ p: 1 }} data-testid="calendar-day">
-      <Box sx={{ display: "flex", minHeight: 720 }}>
-        {/* Hour ruler */}
-        <Box sx={{ width: 44, flexShrink: 0, position: "relative" }}>
-          {Array.from({ length: 24 }, (_, hour) => (
-            <Typography
-              key={hour}
-              variant="caption"
-              color="text.secondary"
-              sx={{
-                position: "absolute",
-                top: `${(hour / 24) * 100}%`,
-                right: 4,
-                fontFamily: MONO,
-                fontSize: 10,
-                transform: "translateY(-50%)",
-              }}
-            >
-              {String(hour).padStart(2, "0")}
-            </Typography>
-          ))}
-        </Box>
-
-        <Box sx={{ position: "relative", flex: 1, minWidth: 0 }}>
-          {/* Hour rules, behind the bars. */}
-          {Array.from({ length: 24 }, (_, hour) => (
-            <Box
-              key={hour}
-              sx={{
-                position: "absolute",
-                top: `${(hour / 24) * 100}%`,
-                left: 0,
-                right: 0,
-                borderTop: 1,
-                borderColor: "divider",
-                opacity: hour % 6 === 0 ? 1 : 0.4,
-              }}
-            />
-          ))}
-
-          {onThisDay.map(({ session, interval }) => {
-            const place = placements.get(interval.sessionId);
-            if (!place) return null;
-            const colors = barColors(session.cwd, dark);
-            const width = 100 / place.laneCount;
-            return (
-              <Tooltip key={session.sessionId} title={sessionTitle(session)}>
-                <Link
-                  to="/sessions/$id"
-                  params={{ id: session.sessionId }}
-                  data-testid="calendar-day-bar"
-                  style={{
-                    position: "absolute",
-                    top: `${place.topPct}%`,
-                    height: `${place.heightPct}%`,
-                    left: `calc(${place.lane * width}% + 2px)`,
-                    width: `calc(${width}% - 4px)`,
-                    textDecoration: "none",
+          return (
+            <Tooltip key={session.sessionId} title={sessionTooltip(session)}>
+              <Link
+                to="/sessions/$id"
+                params={{ id: session.sessionId }}
+                data-testid="calendar-session-bar"
+                style={{
+                  position: "absolute",
+                  left: `${leftPct}%`,
+                  width: `${widthPct}%`,
+                  top: `${place.lane * laneHeight}%`,
+                  height: `${laneHeight}%`,
+                  minHeight: 8,
+                  textDecoration: "none",
+                }}
+              >
+                <Box
+                  sx={{
+                    height: "100%",
+                    bgcolor: `hsla(${hue}, ${dark ? "45%, 50%" : "55%, 45%"}, ${opacity})`,
+                    borderRadius: 0.5,
+                    px: 0.5,
+                    fontSize: 10,
+                    lineHeight: "18px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    color: dark ? "#e6edf3" : "#1f2328",
+                    "&:hover": { filter: "brightness(1.15)" },
                   }}
                 >
-                  <Box
-                    sx={{
-                      height: "100%",
-                      bgcolor: colors.bg,
-                      color: colors.text,
-                      border: 1,
-                      borderColor: colors.border,
-                      // Square off whichever end runs past midnight, matching the
-                      // month grid's convention for "continues".
-                      borderTopLeftRadius: place.startsEarlier ? 0 : 4,
-                      borderTopRightRadius: place.startsEarlier ? 0 : 4,
-                      borderBottomLeftRadius: place.endsLater ? 0 : 4,
-                      borderBottomRightRadius: place.endsLater ? 0 : 4,
-                      px: 0.5,
-                      py: 0.25,
-                      overflow: "hidden",
-                      fontSize: 11,
-                      lineHeight: 1.35,
-                      "&:hover": { filter: "brightness(1.08)" },
-                    }}
-                  >
-                    {place.heightPct >= LABEL_MIN_PCT && (
-                      <>
-                        <Box sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                          {projectName(session.cwd)}
-                        </Box>
-                        <Box sx={{ opacity: 0.8 }}>{durationCaption(session)}</Box>
-                      </>
-                    )}
-                  </Box>
-                </Link>
-              </Tooltip>
-            );
-          })}
-        </Box>
+                  {widthPct > 3 ? projectName(session.cwd) : ""}
+                </Box>
+              </Link>
+            </Tooltip>
+          );
+        })}
       </Box>
-    </Paper>
+    </Box>
   );
 }
 
 export function SessionsCalendar({
   sessions,
   monthStart,
-  daySelected,
+  daySelected: _daySelected,
   now,
   onMonth,
-  onDay,
+  onDay: _onDay,
 }: {
   sessions: SessionSummary[];
   monthStart: number;
-  /** Local midnight of the day being examined, or undefined for the month view. */
   daySelected?: number;
   now: number;
   onMonth: (monthStart: number) => void;
@@ -385,22 +207,24 @@ export function SessionsCalendar({
     session,
     interval: toInterval(session, now),
   }));
+
   const monthLabel = new Date(monthStart).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
   });
 
+  // Group sessions by day for the vertical stack.
+  const dayGroups = groupByDay(placed, (p) => p.interval.start);
+
   return (
-    <Box>
+    <Box data-testid="calendar-lanes">
+      {/* Month navigation */}
       <Stack
         direction="row"
         spacing={1}
         alignItems="center"
         sx={{ mb: 1.5, flexWrap: "wrap", gap: 1 }}
       >
-        {/* One navigation per click. Clearing the day separately used to be a second
-            `navigate` in the same tick, and the router kept only one of the two — so
-            the month label never moved. `onMonth` clears the day itself. */}
         <IconButton
           size="small"
           aria-label="previous month"
@@ -418,44 +242,69 @@ export function SessionsCalendar({
         >
           ›
         </IconButton>
-        <Button
-          size="small"
-          // `now` rather than Date.now(): the page fixed it once for this render, and
-          // "Today" must agree with the day the grid is highlighting.
-          onClick={() => onMonth(now)}
-        >
+        <Button size="small" onClick={() => onMonth(now)}>
           Today
         </Button>
-        {daySelected !== undefined && (
-          <>
-            <Typography variant="body2" color="text.secondary">
-              ·{" "}
-              {new Date(daySelected).toLocaleDateString(undefined, {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </Typography>
-            <Button size="small" onClick={() => onDay(undefined)}>
-              Back to month
-            </Button>
-          </>
-        )}
+
+        {/* Legend */}
+        <Box sx={{ flex: 1 }} />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Box
+            sx={{
+              width: 12,
+              height: 12,
+              borderRadius: 0.5,
+              bgcolor: "primary.main",
+              opacity: 0.55,
+            }}
+          />
+          <Typography variant="caption" color="text.secondary">
+            active
+          </Typography>
+          <Box
+            sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "primary.main", opacity: 0.2 }}
+          />
+          <Typography variant="caption" color="text.secondary">
+            idle
+          </Typography>
+        </Stack>
       </Stack>
 
-      {daySelected === undefined ? (
-        <MonthGrid monthStart={monthStart} placed={placed} now={now} onPickDay={(d) => onDay(d)} />
-      ) : (
-        <DayGrid dayStart={daySelected} placed={placed} />
-      )}
+      {/* Hour axis header */}
+      <Box sx={{ display: "flex", borderBottom: 2, borderColor: "divider" }}>
+        <Box sx={{ width: 120, flexShrink: 0 }} />
+        <Box sx={{ flex: 1, position: "relative", height: 20 }}>
+          {HOUR_LABELS.map((h) => (
+            <Typography
+              key={h}
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                position: "absolute",
+                left: `${(h / 24) * 100}%`,
+                transform: "translateX(-50%)",
+                fontFamily: MONO,
+                fontSize: 10,
+              }}
+            >
+              {String(h).padStart(2, "0")}
+            </Typography>
+          ))}
+        </Box>
+      </Box>
 
-      {daySelected === undefined && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-          {placed.length === 0
-            ? "No sessions this month."
-            : "Sessions are drawn across every day they ran. Click a day for its hour-by-hour view."}
-        </Typography>
-      )}
+      {/* Day rows */}
+      <Paper variant="outlined" sx={{ borderTop: 0 }}>
+        {dayGroups.length === 0 ? (
+          <Typography color="text.secondary" variant="body2" sx={{ p: 3, textAlign: "center" }}>
+            No sessions this month.
+          </Typography>
+        ) : (
+          dayGroups.map((group) => (
+            <DayLane key={group.key} dayStart={group.dayStart} placed={group.items} now={now} />
+          ))
+        )}
+      </Paper>
     </Box>
   );
 }

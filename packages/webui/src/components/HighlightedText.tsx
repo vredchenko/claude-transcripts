@@ -16,7 +16,6 @@
 import { type HighlightSegment, splitByTerms, splitMarkedText } from "@claude-transcripts/shared";
 import { Box } from "@mui/material";
 import { useMemo } from "react";
-import { highlightBg, highlightFg } from "../theme";
 
 function Segments({ segments }: { segments: HighlightSegment[] }) {
   return (
@@ -29,8 +28,8 @@ function Segments({ segments }: { segments: HighlightSegment[] }) {
             sx={{
               // `mark` has a UA default background that ignores the theme; both
               // colours are set so the element looks the same in light and dark.
-              bgcolor: (theme) => highlightBg(theme.palette.mode),
-              color: (theme) => highlightFg(theme.palette.mode),
+              bgcolor: (theme) => theme.palette.highlight.bg,
+              color: (theme) => theme.palette.highlight.fg,
               // No padding: a match inside a word would otherwise push the rest of
               // the word away and change how the text reads.
               px: 0,

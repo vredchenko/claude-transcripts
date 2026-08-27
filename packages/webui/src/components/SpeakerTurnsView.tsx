@@ -1,4 +1,5 @@
-import { Box, Chip, Stack, Typography } from "@mui/material";
+import { Box, Button, Chip, Stack, Typography, useTheme } from "@mui/material";
+import { Link } from "@tanstack/react-router";
 import { type SpeakerRole, useGetSessionTurns } from "../api/generated";
 import { formatCount, formatTimestamp } from "../format";
 import { MONO } from "../theme";
@@ -17,21 +18,33 @@ export function SpeakerTurnsView({
 }: {
   sessionId: string;
   role: SpeakerRole;
-  /** Search terms to mark, when the reader arrived from a result. */
   query?: string;
 }) {
   const { data, isPending, isError, error } = useGetSessionTurns(sessionId, { role });
+  const theme = useTheme();
 
   if (isPending) return <Loading label="Loading turns…" />;
   if (isError) return <ErrorState error={error} />;
   if (!data || data.turns.length === 0) {
     return (
-      <EmptyState>
-        No turns to show. Speaker-split needs full-content chunks — sessions logged with
+      <EmptyState
+        title="No chat turns were recorded"
+        action={
+          <Stack direction="row" spacing={1} justifyContent="center">
+            <Button component={Link} to="/" size="small" variant="outlined">
+              Back to sessions
+            </Button>
+          </Stack>
+        }
+      >
+        Speaker-split needs full-content chunks — sessions logged with
         <code> couchFullContentChunks</code> off have none.
       </EmptyState>
     );
   }
+
+  const borderColor =
+    role === "user" ? theme.palette.speaker.user : theme.palette.speaker.assistant;
 
   return (
     <Box>
@@ -41,7 +54,6 @@ export function SpeakerTurnsView({
       </Typography>
       <Stack spacing={1}>
         {data.turns.map((turn, i) => (
-          // Turns are byte+index ordered and stable, so the index is a valid key.
           <Box
             key={i}
             sx={{
@@ -50,6 +62,8 @@ export function SpeakerTurnsView({
               borderRadius: 1,
               p: 1.5,
               bgcolor: "background.paper",
+              borderLeft: 3,
+              borderLeftColor: borderColor,
             }}
           >
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>

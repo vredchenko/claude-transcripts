@@ -337,27 +337,15 @@ export function groupByDay<T>(items: T[], startOf: (item: T) => number): DayGrou
     }));
 }
 
-/**
- * Vertical offsets for the proportional timeline: distance from the previous session,
- * scaled so real gaps are visible without a quiet fortnight becoming a blank screen.
- *
- * Linear spacing is unusable on this data — the gap between two sessions ranges from
- * seconds to months, so any pixels-per-hour that renders a busy afternoon puts the
- * next week's work several thousand pixels below. The square root compresses the long
- * gaps while keeping short ones distinguishable: an hour reads as clearly more than a
- * minute, and a month reads as more than a week without being 30× taller.
- */
-export function proportionalGaps(
-  intervals: Interval[],
-  pixelsPerRootHour = 26,
-  maxGapPx = 260,
-): number[] {
-  return intervals.map((interval, i) => {
-    const previous = intervals[i - 1];
-    if (!previous) return 0;
-    // Newest-first ordering: the previous item is the *later* session.
-    const gapMs = Math.max(0, previous.start - interval.end);
-    const gapPx = Math.sqrt(gapMs / HOUR_MS) * pixelsPerRootHour;
-    return Math.min(maxGapPx, Math.round(gapPx));
-  });
+/** Rollup stats for a day group: sum of active time and total tokens. */
+export function dayRollup<T extends { activeMs?: number; tokenUsage?: { total: number } }>(
+  sessions: T[],
+): { activeMs: number; tokens: number } {
+  let activeMs = 0;
+  let tokens = 0;
+  for (const s of sessions) {
+    activeMs += s.activeMs ?? 0;
+    tokens += s.tokenUsage?.total ?? 0;
+  }
+  return { activeMs, tokens };
 }

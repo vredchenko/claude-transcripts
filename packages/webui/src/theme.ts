@@ -2,18 +2,62 @@ import { createTheme } from "@mui/material";
 
 export type ColorMode = "light" | "dark";
 
-const FONT_STACK =
+export const FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+/** Monospace stack for ids, paths, and transcript JSON. */
+export const MONO =
+  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+
+/**
+ * Per-mode palette extensions: code surfaces, search highlights, and speaker
+ * accent colours. Keyed by ColorMode so a component can read the resolved value
+ * from `theme.palette.code.bg` instead of dispatching on the mode manually.
+ */
+const PALETTE: Record<
+  ColorMode,
+  {
+    code: { bg: string };
+    highlight: { bg: string; fg: string };
+    speaker: { user: string; assistant: string };
+  }
+> = {
+  dark: {
+    code: { bg: "#0d1117" },
+    highlight: { bg: "rgba(210, 153, 34, 0.38)", fg: "inherit" },
+    speaker: { user: "#58a6ff", assistant: "#D97757" },
+  },
+  light: {
+    code: { bg: "#f6f8fa" },
+    highlight: { bg: "#fff3c4", fg: "#1f2328" },
+    speaker: { user: "#0969da", assistant: "#D97757" },
+  },
+};
+
+// Augment MUI's palette types so `theme.palette.code` etc. typecheck.
+declare module "@mui/material/styles" {
+  interface Palette {
+    code: { bg: string };
+    highlight: { bg: string; fg: string };
+    speaker: { user: string; assistant: string };
+  }
+  interface PaletteOptions {
+    code?: { bg: string };
+    highlight?: { bg: string; fg: string };
+    speaker?: { user: string; assistant: string };
+  }
+}
 
 /**
  * Build the MUI theme for a color mode. Light is the primary target; dark is a
  * parallel palette selected via the header's theme toggle (see color-mode.tsx).
  * Components read semantic tokens (`primary.main`, `divider`, `text.secondary`,
  * `background.paper`) so they adapt to whichever mode is active — avoid hardcoding
- * mode-specific colors in components; use `codeBg(mode)` for code surfaces.
+ * mode-specific colors in components; use `theme.palette.code.bg` for code surfaces.
  */
 export function createAppTheme(mode: ColorMode) {
   const dark = mode === "dark";
+  const ext = PALETTE[mode];
   return createTheme({
     palette: {
       mode,
@@ -25,6 +69,9 @@ export function createAppTheme(mode: ColorMode) {
         ? { primary: "#e6edf3", secondary: "#8b949e" }
         : { primary: "#1f2328", secondary: "#57606a" },
       divider: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+      code: ext.code,
+      highlight: ext.highlight,
+      speaker: ext.speaker,
     },
     typography: { fontFamily: FONT_STACK },
     components: {
@@ -54,29 +101,3 @@ export function createAppTheme(mode: ColorMode) {
     },
   });
 }
-
-/** Neutral surface for code/JSON blocks, per mode. */
-export function codeBg(mode: ColorMode): string {
-  return mode === "dark" ? "#0d1117" : "#f6f8fa";
-}
-
-/**
- * The marker behind a search match. Amber in both modes, because a match has to read
- * as a match at a glance — but muted enough that a snippet with six of them is still
- * a sentence rather than a highlighter accident.
- *
- * The dark value is translucent on purpose: it sits over `background.paper` and over
- * `codeBg` (a raw transcript block), and a solid fill would fight one of them.
- */
-export function highlightBg(mode: ColorMode): string {
-  return mode === "dark" ? "rgba(210, 153, 34, 0.38)" : "#fff3c4";
-}
-
-/** Text colour on {@link highlightBg} — inherits in dark, darkens in light. */
-export function highlightFg(mode: ColorMode): string {
-  return mode === "dark" ? "inherit" : "#1f2328";
-}
-
-/** Monospace stack for ids, paths, and transcript JSON. */
-export const MONO =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';

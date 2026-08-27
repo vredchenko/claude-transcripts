@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import { useEffect, useRef } from "react";
 import type { TranscriptEntry } from "../api/generated";
-import { codeBg, MONO } from "../theme";
+import { MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
 import { TermHighlight } from "./HighlightedText";
 
@@ -129,7 +129,7 @@ export function TranscriptEntryRow({
             fontSize: 12,
             m: 0,
             p: 1.5,
-            bgcolor: codeBg(theme.palette.mode),
+            bgcolor: theme.palette.code.bg,
             border: 1,
             borderColor: "divider",
             borderRadius: 1,

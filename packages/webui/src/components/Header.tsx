@@ -4,7 +4,7 @@ import { useAppModel } from "../api/model";
 import logoMark from "../assets/logo-mark.svg";
 import { MONO } from "../theme";
 import { LinksMenu } from "./LinksMenu";
-import { SearchBox } from "./SearchBox";
+import { Omnibox } from "./Omnibox";
 import { SettingsMenu } from "./SettingsMenu";
 
 /**
@@ -84,7 +84,7 @@ export function Header() {
             px: { xs: 0, sm: 2 },
           }}
         >
-          <SearchBox />
+          <Omnibox />
         </Box>
 
         <Box

@@ -70,10 +70,6 @@ async function routes(): Promise<RouteSpec[]> {
 
   return [
     { name: "sessions-list", path: "/app/" },
-    // The other two projections of the same list. They render entirely different
-    // geometry from the table — bars laid across a grid, a spine of cards — so a
-    // report that only shot the table would miss most of what can go wrong.
-    { name: "sessions-timeline", path: "/app/?view=timeline" },
     { name: "sessions-calendar", path: `/app/?view=calendar${month}` },
     { name: "session-detail", path: `/app/sessions/${sessionId}` },
     {

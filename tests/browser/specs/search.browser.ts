@@ -38,12 +38,13 @@ test.describe("results page", () => {
     const search = new SearchResultsPage(page);
     await search.goto(SEARCH_QUERY);
 
+    // Turn results are grouped by session. The session group header has the project
+    // name, and each turn result has a timestamp.
     const firstResult = search.turnResults.first();
-    // The project it happened in, and a timestamp — the two facts that let you tell
-    // one result from another without opening them.
-    await expect(firstResult.getByText("beacon-service")).toBeVisible();
-    await expect(firstResult.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)).toBeVisible();
-    await expect(firstResult.getByText(MULTI_DAY_SESSION.sessionId)).toBeVisible();
+    await expect(firstResult.getByText(/\d{2}:\d{2}/)).toBeVisible();
+    // The session header above the turn should show the project.
+    await expect(page.getByText("beacon-service")).toBeVisible();
+    await expect(page.getByText(MULTI_DAY_SESSION.sessionId.slice(0, 8))).toBeVisible();
   });
 
   test("says which field a metadata hit matched on", async ({ page }) => {
@@ -77,7 +78,12 @@ test.describe("following a result into its session", () => {
     const search = new SearchResultsPage(page);
     await search.goto(SEARCH_QUERY);
 
-    await search.turnResults.first().getByRole("link").first().click();
+    // Turn results are grouped by session. Click the session group header link
+    // to navigate into the session.
+    await page
+      .getByRole("link", { name: /beacon/ })
+      .first()
+      .click();
     await expect(page).toHaveURL(new RegExp(`/app/sessions/[^?]+\\?q=${SEARCH_QUERY}`));
     await expect(page.getByRole("heading", { name: "Transcript", exact: true })).toBeVisible();
     await expect(marks(page).first()).toBeVisible();
@@ -130,7 +136,7 @@ test.describe("following a result into its session", () => {
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
 
-    const banner = page.getByText(`matches for “${SEARCH_QUERY}”`);
+    const banner = page.getByText(`matches for "${SEARCH_QUERY}"`);
     await expect(banner).toBeVisible();
 
     await page.getByTestId("CancelIcon").click();
