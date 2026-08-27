@@ -6,6 +6,69 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.12] — 2026-08-27
+
+The CLI reaches npm, and `search` starts working.
+
+### Added
+
+- **`@claude-transcripts/cli` is on npm** ([#102]). Every release so far built the
+  package and then skipped the publish, because no `NPM_TOKEN` was configured — the
+  step warned and moved on, so the binaries and images shipped while npm got nothing.
+  The token is configured and the `@claude-transcripts` scope now exists, so this is
+  the first release that actually publishes.
+
+  ```bash
+  bunx @claude-transcripts/cli install
+  ```
+
+  **It needs [Bun](https://bun.sh) on your `PATH`** — the CLI uses Bun's file,
+  hashing and subprocess APIs, so it does not run on Node, and `npx` works only where
+  Bun is already installed. If you don't have Bun, use the standalone binaries
+  attached to this release instead; they embed their own runtime and depend on
+  nothing.
+
+  The package itself was in no state to publish, and npm never lets a version be
+  republished, so that got fixed first: its landing page was the *contributor* README
+  (module layout, TODOs, and relative links that 404 on npmjs.com), it declared
+  `"license": "MIT"` while shipping no licence text, and it carried no `keywords`,
+  which on npm means unfindable. It now ships a user-facing README, the MIT licence,
+  and full registry metadata.
+
+- **The architecture diagram is generated from the app model.** The README and
+  `docs/design/architecture.md` render from `toDiagram`, in light and dark variants,
+  so the picture can't drift from the services and stores the model actually declares.
+
+### Fixed
+
+- **`claude-transcripts search` did nothing.** The command was in `CLI_SPEC`, so it
+  appeared in the help like any other, but it was never added to the `COMMANDS`
+  registry — and `cli.tsx` dispatches solely through that. `search anything` fell
+  through to the help screen: no error, no output, just the help text again, which
+  reads like a bad argument rather than a missing command. The webapi half
+  (`GET /api/search`) was complete the whole time.
+
+  It now prints both result sets the endpoint returns — sessions whose *metadata*
+  matched, and turns where the words were actually said — because they answer
+  different questions and showing one would silently drop half the index. Session
+  rows say which field matched. It passes through the endpoint's filters (`--cwd`,
+  `--model`, `--hostname`, `--source`, `--limit`, `--offset`), now recorded in
+  `CLI_SPEC` so the help stops under-describing it. An instance with search disabled
+  exits non-zero with the steps to enable it, rather than printing an empty table
+  that reads like "nothing matched".
+
+### Changed
+
+- **Every GitHub Action moved off the Node 20 runtime**, which GitHub now forces onto
+  Node 24 with a warning on every run. Each bump is the lowest major that actually
+  leaves Node 20 — which is not always the next one: `upload-artifact` v5 still
+  defaults to Node 20 (v6 is the first that doesn't), and `upload-pages-artifact` is
+  a composite that never appears in the warning at all while calling
+  `upload-artifact@v4` internally. The Node that runs `npm publish` went from 20
+  (past end-of-life) to 24.
+- **Docs, site and `CLAUDE.md` reconciled with the code** — several pages still
+  described intentions the implementation had since moved past.
+
 ## [0.0.11] — 2026-08-25
 
 A single-fix release: search stops burning a CPU core on every instance that has it on.
@@ -964,6 +1027,8 @@ of them had ever executed:
   publish if you want unauthenticated `docker pull`.
 
 [#89]: https://github.com/vredchenko/claude-transcripts/issues/89
+[#102]: https://github.com/vredchenko/claude-transcripts/issues/102
+[0.0.12]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.12
 [0.0.11]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.11
 [0.0.10]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.10
 [0.0.9]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.9
