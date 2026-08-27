@@ -40,9 +40,10 @@ test.describe("sessions list", () => {
     await list.goto();
 
     // Two hosts in the corpus — both must appear somewhere in the list. Day grouping
-    // reorders rows, so we check the page rather than positional indices.
-    await expect(page.getByText(SESSIONS[0]!.hostname).first()).toBeVisible();
-    await expect(page.getByText(SESSIONS[2]!.hostname).first()).toBeVisible();
+    // reorders rows, so we check the page rather than positional indices. The host
+    // column is hidden below `sm`, so check the DOM rather than visibility.
+    await expect(page.getByText(SESSIONS[0]!.hostname).first()).toBeAttached();
+    await expect(page.getByText(SESSIONS[2]!.hostname).first()).toBeAttached();
   });
 
   test("shows the empty state when there is no history", async ({ page }) => {
