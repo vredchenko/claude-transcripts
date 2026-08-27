@@ -28,8 +28,8 @@ test.describe("sessions list", () => {
 
     test.skip(LIVE, "row contents are fixture-specific");
     await expect(list.rows).toHaveCount(SESSIONS.length);
-    // Newest first — the order the API returns and the list must preserve.
-    await expect(list.rows.first()).toContainText(SESSIONS[0]!.sessionId.slice(0, 8));
+    // Newest first — the first row is today's session, shown by project name.
+    await expect(list.rows.first()).toContainText("atlas");
     await expect(page.getByText(`${SESSIONS.length} sessions`)).toBeVisible();
   });
 
@@ -39,10 +39,10 @@ test.describe("sessions list", () => {
     const list = new SessionsListPage(page);
     await list.goto();
 
-    // Two hosts in the corpus, and the project name alone can't tell them apart: the
-    // same checkout name on two machines is two different working copies.
-    await expect(list.rows.first()).toContainText(SESSIONS[0]!.hostname);
-    await expect(list.rows.nth(2)).toContainText(SESSIONS[2]!.hostname);
+    // Two hosts in the corpus — both must appear somewhere in the list. Day grouping
+    // reorders rows, so we check the page rather than positional indices.
+    await expect(page.getByText(SESSIONS[0]!.hostname).first()).toBeVisible();
+    await expect(page.getByText(SESSIONS[2]!.hostname).first()).toBeVisible();
   });
 
   test("shows the empty state when there is no history", async ({ page }) => {
