@@ -1,66 +1,87 @@
 /**
  * Root route: the session list, in whichever projection you asked for.
  *
- * The same corpus answers different questions depending on how it's drawn — a table
- * compares, a timeline shows recent work in order, a calendar shows *when* and for how
- * long. So the projection is a view of one list rather than three separate pages, and
- * it lives in the URL (`/?view=calendar&month=2026-03`) like the search route's state:
- * a particular view is linkable, and the back button steps through them.
- *
- * Table and timeline page through the newest sessions; the calendar instead asks for
- * the month it is showing (`from`/`to`), because a month is a window, not a page.
+ * Two projections: a day-grouped list (the default, replacing the old table and
+ * timeline) and a calendar. The list uses infinite scroll; the calendar fetches
+ * the month's range. All URL state is linkable and back-button-navigable.
  */
-import { Box, Button, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { Box, Chip, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { useNavigate, useSearch as useRouterSearch } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { getListSessionsQueryKey, useListSessions } from "../api/generated";
+import { useCallback, useMemo } from "react";
+import { getListSessionsQueryKey, type SessionSummary, useListSessions } from "../api/generated";
 import { SessionsCalendar } from "../components/sessions/SessionsCalendar";
-import { SessionsTable } from "../components/sessions/SessionsTable";
-import { SessionsTimeline, type TimelineDensity } from "../components/sessions/SessionsTimeline";
+import {
+  SessionsList,
+  SessionsListHeader,
+  type SortDir,
+  type SortField,
+} from "../components/sessions/SessionsList";
 import { EmptyState, ErrorState, Loading } from "../components/states";
 import { formatCount } from "../format";
-import { dayKey, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
-
-const PAGE = 50;
+import { useInfiniteSessionList } from "../hooks/useInfiniteSessionList";
+import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
+import { dayKey, groupByDay, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
 
 /**
  * How many sessions the calendar will draw for one month. Far above any plausible
- * month (the busiest in the author's corpus is a few dozen) and bounded so a
- * pathological range can't ask the gateway for everything at once.
+ * month and bounded so a pathological range can't ask the gateway for everything.
  */
 const CALENDAR_LIMIT = 500;
 
-export type SessionsView = "table" | "timeline" | "calendar";
+export type SessionsView = "list" | "calendar";
 
 /** Query-string state this route owns. */
 export interface SessionsRouteSearch {
   view?: SessionsView;
-  /** Timeline only. */
-  density?: TimelineDensity;
   /** Calendar only: `YYYY-MM`, and `YYYY-MM-DD` once a day is opened. */
   month?: string;
   day?: string;
+  /** Sorting. */
+  sort?: SortField;
+  dir?: SortDir;
+  /** Filter params. */
+  cwd?: string;
+  model?: string;
+  hostname?: string;
+  source?: string;
+  from?: string;
+  to?: string;
 }
 
 const VIEWS: { value: SessionsView; label: string }[] = [
-  { value: "table", label: "Table" },
-  { value: "timeline", label: "Timeline" },
+  { value: "list", label: "List" },
   { value: "calendar", label: "Calendar" },
 ];
 
-const DENSITIES: { value: TimelineDensity; label: string; hint: string }[] = [
-  { value: "cards", label: "Cards", hint: "Full detail per session" },
-  { value: "compact", label: "Compact", hint: "One line per session" },
-  { value: "proportional", label: "To scale", hint: "Spaced by real elapsed time" },
-];
+/** Client-side sort comparator from sort field + direction. */
+function sortSessions(sessions: SessionSummary[], sort?: SortField, dir?: SortDir) {
+  if (!sort) return sessions;
+  const sorted = [...sessions];
+  const mul = dir === "asc" ? 1 : -1;
+  sorted.sort((a, b) => {
+    switch (sort) {
+      case "started":
+        return (
+          mul * (a.startTimestamp ?? a.timestamp).localeCompare(b.startTimestamp ?? b.timestamp)
+        );
+      case "project":
+        return mul * a.cwd.localeCompare(b.cwd);
+      case "runtime":
+        return mul * ((a.durationMs ?? 0) - (b.durationMs ?? 0));
+      case "tokens":
+        return mul * ((a.tokenUsage?.total ?? 0) - (b.tokenUsage?.total ?? 0));
+      default:
+        return 0;
+    }
+  });
+  return sorted;
+}
 
 export function SessionsListPage() {
   const routeSearch = useRouterSearch({ from: "/" }) as SessionsRouteSearch;
   const navigate = useNavigate();
-  const [skip, setSkip] = useState(0);
 
-  const view = routeSearch.view ?? "table";
-  const density = routeSearch.density ?? "cards";
+  const view = routeSearch.view ?? "list";
 
   /**
    * Fixed for the lifetime of the render pass. A running session's extent is measured
@@ -72,11 +93,7 @@ export function SessionsListPage() {
   const monthStart = parseMonth(routeSearch.month, now);
   const daySelected = parseDay(routeSearch.day);
 
-  /**
-   * The calendar asks for everything its grid can show — including the leading and
-   * trailing days borrowed from the neighbouring months, which is why the range comes
-   * from the grid rather than from the month.
-   */
+  // ── Calendar data ───────────────────────────────────────────────────────────
   const calendarRange = useMemo(() => {
     const weeks = monthWeeks(monthStart);
     const first = weeks[0]?.[0] ?? monthStart;
@@ -89,68 +106,111 @@ export function SessionsListPage() {
     return { from: new Date(first).toISOString(), to: new Date(end).toISOString() };
   }, [monthStart]);
 
-  const params =
-    view === "calendar"
-      ? { limit: CALENDAR_LIMIT, skip: 0, from: calendarRange.from, to: calendarRange.to }
-      : { limit: PAGE, skip };
-
-  const { data, isPending, isError, error, isPlaceholderData } = useListSessions(params, {
-    // The generated hooks keep react-query options under `query`, leaving the sibling
-    // `request` slot for per-call fetch options. `queryKey` is typed as required even
-    // though the generated hook defaults it, so it's passed through the generated
-    // helper rather than spelled out — an invented key here would silently split the
-    // cache from every other caller of this route.
-    query: {
-      queryKey: getListSessionsQueryKey(params),
-      placeholderData: (prev) => prev,
+  const calendarQuery = useListSessions(
+    { limit: CALENDAR_LIMIT, skip: 0, from: calendarRange.from, to: calendarRange.to },
+    {
+      query: {
+        queryKey: getListSessionsQueryKey({
+          limit: CALENDAR_LIMIT,
+          skip: 0,
+          from: calendarRange.from,
+          to: calendarRange.to,
+        }),
+        placeholderData: (prev) => prev,
+        enabled: view === "calendar",
+      },
     },
-  });
+  );
+
+  // ── List data (infinite scroll) ─────────────────────────────────────────────
+  const listData = useInfiniteSessionList(
+    view === "list" ? { from: routeSearch.from, to: routeSearch.to } : undefined,
+  );
+
+  const sortedSessions = useMemo(
+    () => sortSessions(listData.sessions, routeSearch.sort, routeSearch.dir),
+    [listData.sessions, routeSearch.sort, routeSearch.dir],
+  );
+
+  // Re-group after sorting (groupByDay is already called inside the hook, but
+  // we need the sorted version).
+  const sortedDayGroups = useMemo(
+    () => groupByDay(sortedSessions, (s) => Date.parse(s.startTimestamp ?? s.timestamp) || 0),
+    [sortedSessions],
+  );
+
+  const sentinelRef = useIntersectionObserver(
+    () => listData.fetchNextPage(),
+    view === "list" && listData.hasNextPage === true && !listData.isFetchingNextPage,
+  );
 
   /** Replace part of the query string, leaving the rest alone. */
-  const setSearch = (next: Partial<SessionsRouteSearch>) =>
-    navigate({ to: "/", search: (old: SessionsRouteSearch) => ({ ...old, ...next }) });
+  const setSearch = useCallback(
+    (next: Partial<SessionsRouteSearch>) =>
+      navigate({ to: "/", search: (old: SessionsRouteSearch) => ({ ...old, ...next }) }),
+    [navigate],
+  );
 
-  if (isPending) return <Loading label="Loading sessions…" />;
-  if (isError) return <ErrorState error={error} />;
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (routeSearch.sort === field) {
+        // Toggle direction, then clear.
+        if (routeSearch.dir === "desc") setSearch({ sort: field, dir: "asc" });
+        else setSearch({ sort: undefined, dir: undefined });
+      } else {
+        setSearch({ sort: field, dir: "desc" });
+      }
+    },
+    [routeSearch.sort, routeSearch.dir, setSearch],
+  );
 
-  const sessions = data?.sessions ?? [];
-  const total = data?.totalCount ?? sessions.length;
-  const hasMore = skip + PAGE < total;
-  const paged = view !== "calendar";
+  // ── Active filter chips ─────────────────────────────────────────────────────
+  const filterKeys = ["cwd", "model", "hostname", "source", "from", "to"] as const;
+  const activeFilters = filterKeys.filter((k) => routeSearch[k]);
+
+  // ── Pending / error states ──────────────────────────────────────────────────
+  if (view === "list" && listData.isPending) return <Loading label="Loading sessions…" />;
+  if (view === "list" && listData.isError) return <ErrorState error={listData.error!} />;
+  if (view === "calendar" && calendarQuery.isPending) return <Loading label="Loading sessions…" />;
+  if (view === "calendar" && calendarQuery.isError)
+    return <ErrorState error={calendarQuery.error!} />;
+
+  const listTotal = listData.totalCount;
+  const listShown = listData.sessions.length;
 
   return (
     <Box>
+      {/* Toolbar */}
       <Stack
         direction="row"
         alignItems="center"
         justifyContent="space-between"
         sx={{ mb: 2, flexWrap: "wrap", gap: 1 }}
       >
-        <Stack direction="row" spacing={2} alignItems="baseline">
+        <Stack direction="row" spacing={1} alignItems="baseline">
           <Typography variant="h5">Sessions</Typography>
-          <Typography color="text.secondary" variant="body2">
-            {formatCount(total)} {view === "calendar" ? "this month" : "total"}
-          </Typography>
+          <Chip
+            size="small"
+            label={
+              activeFilters.length > 0
+                ? `${formatCount(listShown)} of ${formatCount(listTotal)} shown`
+                : `${formatCount(view === "calendar" ? (calendarQuery.data?.totalCount ?? 0) : listTotal)} sessions`
+            }
+            variant="outlined"
+          />
         </Stack>
 
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-          {view === "timeline" && (
-            <ToggleButtonGroup
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 0.5 }}>
+          {/* Active filter chips */}
+          {activeFilters.map((key) => (
+            <Chip
+              key={key}
               size="small"
-              exclusive
-              value={density}
-              onChange={(_e, value: TimelineDensity | null) =>
-                value && setSearch({ density: value })
-              }
-              aria-label="timeline density"
-            >
-              {DENSITIES.map((d) => (
-                <ToggleButton key={d.value} value={d.value} title={d.hint}>
-                  {d.label}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          )}
+              label={`${key}: ${routeSearch[key]}`}
+              onDelete={() => setSearch({ [key]: undefined })}
+            />
+          ))}
+
           <ToggleButtonGroup
             size="small"
             exclusive
@@ -158,9 +218,7 @@ export function SessionsListPage() {
             onChange={(_e, value: SessionsView | null) =>
               value &&
               setSearch({
-                view: value === "table" ? undefined : value,
-                // Leaving a stale `day` behind would open the calendar on a day the
-                // reader last looked at weeks ago.
+                view: value === "list" ? undefined : value,
                 day: undefined,
                 month: value === "calendar" ? (routeSearch.month ?? monthKey(now)) : undefined,
               })
@@ -176,50 +234,36 @@ export function SessionsListPage() {
         </Stack>
       </Stack>
 
-      {/* The calendar renders even with nothing to show. Replacing it with an empty
-          state takes its month navigation away with it, so paging into a quiet month
-          strands you there with no way back — an empty calendar is still a calendar,
-          and it says so itself. */}
+      {/* Calendar renders even with nothing — its month nav must remain reachable. */}
       {view === "calendar" ? (
         <SessionsCalendar
-          sessions={sessions}
+          sessions={calendarQuery.data?.sessions ?? []}
           monthStart={monthStart}
           daySelected={daySelected}
           now={now}
           onMonth={(next) => setSearch({ month: monthKey(next), day: undefined })}
           onDay={(next) => setSearch({ day: next === undefined ? undefined : dayKey(next) })}
         />
-      ) : sessions.length === 0 ? (
+      ) : listData.sessions.length === 0 ? (
         <EmptyState>No sessions recorded yet.</EmptyState>
-      ) : view === "table" ? (
-        <SessionsTable sessions={sessions} dimmed={isPlaceholderData} />
       ) : (
-        <Box sx={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
-          <SessionsTimeline sessions={sessions} density={density} now={now} />
-        </Box>
-      )}
+        <>
+          <SessionsListHeader sort={routeSearch.sort} dir={routeSearch.dir} onSort={handleSort} />
+          <SessionsList dayGroups={sortedDayGroups} />
 
-      {paged && sessions.length > 0 && (
-        <Stack
-          direction="row"
-          spacing={2}
-          justifyContent="center"
-          alignItems="center"
-          sx={{ mt: 2 }}
-        >
-          <Button
-            disabled={skip === 0 || isPlaceholderData}
-            onClick={() => setSkip((n) => Math.max(0, n - PAGE))}
-          >
-            Previous
-          </Button>
-          <Typography variant="body2" color="text.secondary">
-            {formatCount(skip + 1)}–{formatCount(Math.min(skip + PAGE, total))}
-          </Typography>
-          <Button disabled={!hasMore || isPlaceholderData} onClick={() => setSkip((n) => n + PAGE)}>
-            Next
-          </Button>
-        </Stack>
+          {/* Sentinel for infinite scroll */}
+          <div ref={sentinelRef} style={{ height: 1 }} />
+
+          {listData.isFetchingNextPage && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", textAlign: "center", py: 2 }}
+            >
+              Loading more sessions…
+            </Typography>
+          )}
+        </>
       )}
     </Box>
   );

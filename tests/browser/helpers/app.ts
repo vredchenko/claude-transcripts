@@ -60,56 +60,41 @@ export class SessionsListPage {
   }
 
   /** Switch projection through the toggle, as a reader would. */
-  async selectView(label: "Table" | "Timeline" | "Calendar"): Promise<void> {
+  async selectView(label: "List" | "Calendar"): Promise<void> {
     await this.page
       .getByRole("group", { name: "session view" })
       .getByRole("button", { name: label })
       .click();
   }
 
-  async selectDensity(label: "Cards" | "Compact" | "To scale"): Promise<void> {
-    await this.page
-      .getByRole("group", { name: "timeline density" })
-      .getByRole("button", { name: label })
-      .click();
+  /** The day-grouped session list container (absent when empty or errored). */
+  get list(): Locator {
+    return this.page.getByTestId("sessions-list");
   }
 
-  /** Bars in the calendar's month grid — one per session per week row it covers. */
-  get calendarBars(): Locator {
-    return this.page.getByTestId("calendar-bar");
-  }
-
-  get calendarDayBars(): Locator {
-    return this.page.getByTestId("calendar-day-bar");
-  }
-
-  get calendarDayCells(): Locator {
-    return this.page.getByTestId("calendar-day-cell");
-  }
-
-  /** The sessions table (absent when the list is empty or errored). */
-  get table(): Locator {
-    return this.page.getByRole("table");
-  }
-
+  /** Session rows in the grid — one per session. */
   get rows(): Locator {
-    return this.table.locator("tbody tr");
+    return this.page.getByTestId("session-row");
   }
 
-  /** The link in a row's first cell, which carries the shortened session id. */
-  rowLink(index: number): Locator {
-    return this.rows.nth(index).getByRole("link").first();
+  /** Navigate to a session by clicking its row. */
+  async clickRow(index: number): Promise<void> {
+    await this.rows.nth(index).click();
   }
 
-  /**
-   * A cell addressed by its column *heading* rather than its position, so adding a
-   * column doesn't renumber every assertion in the suite.
-   */
-  async cell(row: number, column: string): Promise<Locator> {
-    const headings = await this.table.locator("thead th").allInnerTexts();
-    const index = headings.findIndex((heading) => heading.trim() === column);
-    expect(index, `the table has no "${column}" column`).toBeGreaterThan(-1);
-    return this.rows.nth(row).locator("td").nth(index);
+  /** Session bars in the calendar's 24h day lanes. */
+  get calendarSessionBars(): Locator {
+    return this.page.getByTestId("calendar-session-bar");
+  }
+
+  /** Day lanes in the calendar. */
+  get calendarDayLanes(): Locator {
+    return this.page.getByTestId("calendar-day-lane");
+  }
+
+  /** The calendar container. */
+  get calendarLanes(): Locator {
+    return this.page.getByTestId("calendar-lanes");
   }
 
   get emptyState(): Locator {
@@ -153,7 +138,7 @@ export class SessionDetailPage {
     return this.page.getByRole("group", { name: "speaker filter" });
   }
 
-  async selectSpeaker(label: "Full" | "You" | "Claude"): Promise<void> {
+  async selectSpeaker(label: "Both" | "You" | "Claude"): Promise<void> {
     await this.speakerFilter.getByRole("button", { name: label }).click();
   }
 
@@ -170,13 +155,13 @@ export class SearchResultsPage {
     await expect(this.page.getByRole("heading", { name: /^Results for/ })).toBeVisible();
   }
 
-  /** Type into the header box and press Enter, as a user would. */
+  /** Type into the header omnibox and press Shift+Enter to search. */
   async searchFromHeader(query: string): Promise<void> {
-    const box = this.page.getByRole("textbox", { name: "Search sessions" });
+    const box = this.page.getByRole("textbox", { name: "Omnibox" });
     await box.fill(query);
-    // The box debounces at 250ms before it will act on Enter.
-    await this.page.waitForTimeout(400);
-    await box.press("Enter");
+    // The box debounces at 150ms before it will act on Enter.
+    await this.page.waitForTimeout(300);
+    await box.press("Shift+Enter");
   }
 
   get summaryLine(): Locator {
@@ -192,6 +177,6 @@ export class SearchResultsPage {
   }
 
   get emptyState(): Locator {
-    return this.page.getByText("No matches for that query.");
+    return this.page.getByText("No results for that query.");
   }
 }

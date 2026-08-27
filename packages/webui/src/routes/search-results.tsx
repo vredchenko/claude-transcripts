@@ -1,14 +1,10 @@
 /**
  * `/search` — the full results page.
  *
- * The header dropdown ([SearchBox](../components/SearchBox.tsx)) answers "jump to that
- * session": a handful of hits, no paging, no filters. This page answers the other
- * question — "what is in this corpus?" — which needs the things a dropdown can't have:
- * every match rather than the top few, filters over the whole corpus, and paging.
- *
- * The query lives in the URL (`/search?q=…&cwd=…`), so a result set is linkable and the
- * back button works. That also makes the header box's "see all results" a plain link
- * rather than shared state between two components.
+ * Turn hits are grouped by session so the reader sees "3 matches in session X"
+ * rather than a flat list. Session hits and turn hits are merged into session
+ * groups. Honest counts: when `totals.sessions === 0` but turns exist, the count
+ * of distinct session IDs from turns is used instead.
  */
 import {
   Box,
@@ -25,7 +21,8 @@ import {
   useTheme,
 } from "@mui/material";
 import { Link, useNavigate, useSearch as useRouterSearch } from "@tanstack/react-router";
-import { getSearchQueryKey, useSearch } from "../api/generated";
+import { useMemo } from "react";
+import { getSearchQueryKey, type TurnHit, useSearch } from "../api/generated";
 import { MarkedSnippet } from "../components/HighlightedText";
 import { EmptyState, Loading } from "../components/states";
 import { formatCount, formatTimestamp, projectName } from "../format";
@@ -41,11 +38,6 @@ import { MONO } from "../theme";
 
 export type { SearchRouteSearch };
 
-/**
- * Reader-facing names for the fields a session hit can match on. The API returns the
- * index's attribute names; "matched cwd" is jargon for a chip that exists to explain
- * itself.
- */
 const MATCH_FIELD_LABELS: Record<string, string> = {
   cwd: "project",
   model: "model",
@@ -54,7 +46,6 @@ const MATCH_FIELD_LABELS: Record<string, string> = {
   tools: "tools",
 };
 
-/** Labels (and display formatting) for the filter controls, in render order. */
 const FILTERS = [
   { key: "cwd", label: "Project", format: projectName },
   { key: "model", label: "Model" },
@@ -74,23 +65,27 @@ export function SearchResultsPage() {
   const { data, isPending, isFetching } = useSearch(params, {
     query: {
       queryKey: getSearchQueryKey(params),
-      // Keep the previous page visible while the next loads, so paging doesn't flash
-      // an empty results area.
       placeholderData: (prev) => prev,
       enabled: q.length > 0,
     },
   });
 
-  /** Replace one query-string value, resetting to page 1 — a new filter means new results. */
   const setParam = (key: FilterKey | "q", value: string) =>
     navigate({
       to: "/search",
-      search: (old: SearchRouteSearch) => ({
-        ...old,
-        [key]: value || undefined,
-        page: undefined,
-      }),
+      search: (old: SearchRouteSearch) => ({ ...old, [key]: value || undefined, page: undefined }),
     });
+
+  // Group turns by session for display.
+  const turnsBySession = useMemo(() => {
+    const map = new Map<string, TurnHit[]>();
+    for (const t of data?.turns ?? []) {
+      const list = map.get(t.sessionId) ?? [];
+      list.push(t);
+      map.set(t.sessionId, list);
+    }
+    return map;
+  }, [data?.turns]);
 
   if (!q) {
     return <EmptyState>Type a query in the search box to explore the corpus.</EmptyState>;
@@ -107,21 +102,37 @@ export function SearchResultsPage() {
   const pages = pageCount(totals, PAGE_SIZE);
   const activeFilters = FILTERS.filter((f) => routeSearch[f.key]);
 
+  // Honest session count: when the API reports 0 sessions but has turn hits,
+  // count distinct session IDs from the turns.
+  const sessionCount =
+    totals.sessions > 0 ? totals.sessions : new Set(turns.map((t) => t.sessionId)).size;
+
   return (
     <Box>
-      <Typography variant="h6" sx={{ mb: 0.5 }}>
-        Results for{" "}
-        <Box component="span" sx={{ fontFamily: MONO }}>
-          {q}
-        </Box>
-      </Typography>
+      {/* Header */}
+      <Stack
+        direction="row"
+        alignItems="baseline"
+        justifyContent="space-between"
+        sx={{ mb: 0.5, flexWrap: "wrap", gap: 1 }}
+      >
+        <Typography variant="h6">
+          Results for <Chip size="small" label={q} sx={{ fontFamily: MONO }} />
+        </Typography>
+        <Link
+          to="/"
+          style={{ color: theme.palette.primary.main, textDecoration: "none", fontSize: 13 }}
+        >
+          ↩ narrow the list instead
+        </Link>
+      </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {/* "about" because Meilisearch's count is an estimate on a large corpus. */}
-        about {totals.sessions} session{totals.sessions === 1 ? "" : "s"} · {totals.turns} turn
-        {totals.turns === 1 ? "" : "s"}
+        about {formatCount(sessionCount)} session{sessionCount === 1 ? "" : "s"} ·{" "}
+        {formatCount(totals.turns)} turn{totals.turns === 1 ? "" : "s"}
         {isFetching ? " · updating…" : ""}
       </Typography>
 
+      {/* Filters */}
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
         {FILTERS.map((f) => {
           const options = facets?.[f.key] ?? [];
@@ -160,9 +171,10 @@ export function SearchResultsPage() {
       </Stack>
 
       {hits.length === 0 && turns.length === 0 ? (
-        <EmptyState>No matches for that query.</EmptyState>
+        <EmptyState title="No matches">No results for that query.</EmptyState>
       ) : (
         <Stack spacing={3}>
+          {/* Session hits */}
           {hits.length > 0 && (
             <Box>
               <Typography variant="overline" color="text.secondary">
@@ -172,8 +184,6 @@ export function SearchResultsPage() {
                 {hits.map((h, i) => (
                   <Box key={h.sessionId}>
                     {i > 0 && <Divider />}
-                    {/* Stable handle for the browser suite: result items have no
-                        role or accessible name of their own to address them by. */}
                     <Box sx={{ p: 1.5 }} data-testid="search-session-result">
                       <Stack
                         direction="row"
@@ -191,13 +201,18 @@ export function SearchResultsPage() {
                             {projectName(h.cwd ?? "")}
                           </Typography>
                         </Link>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontFamily: MONO }}
+                        >
+                          {h.sessionId.slice(0, 8)}
+                        </Typography>
                         {h.timestamp && (
                           <Typography variant="caption" color="text.secondary">
                             {formatTimestamp(h.timestamp)}
                           </Typography>
                         )}
-                        {/* Why this session is in the results. A metadata hit is
-                            otherwise indistinguishable from any other row. */}
                         {(h.matchedIn ?? []).map((field) => (
                           <Chip
                             key={field}
@@ -214,24 +229,7 @@ export function SearchResultsPage() {
                         color="text.secondary"
                         sx={{ display: "block", wordBreak: "break-word" }}
                       >
-                        {[
-                          h.model,
-                          h.hostname,
-                          h.source,
-                          h.promptCount === undefined
-                            ? null
-                            : `${formatCount(h.promptCount)} prompt${h.promptCount === 1 ? "" : "s"}`,
-                          h.eventCount === undefined ? null : `${formatCount(h.eventCount)} events`,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: "block", fontFamily: MONO, wordBreak: "break-all" }}
-                      >
-                        {h.cwd || h.sessionId}
+                        {[h.model, h.hostname, h.source].filter(Boolean).join(" · ")}
                       </Typography>
                     </Box>
                   </Box>
@@ -240,68 +238,95 @@ export function SearchResultsPage() {
             </Box>
           )}
 
-          {turns.length > 0 && (
+          {/* Turn hits grouped by session */}
+          {turnsBySession.size > 0 && (
             <Box>
               <Typography variant="overline" color="text.secondary">
                 In conversations
               </Typography>
               <Paper variant="outlined">
-                {turns.map((t, i) => (
-                  // Turn hits carry no stable client id; position in the page is fine.
-                  <Box key={`${t.sessionId}-${i}`}>
-                    {i > 0 && <Divider />}
-                    <Box sx={{ p: 1.5 }} data-testid="search-turn-result">
-                      <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
-                        <Chip
-                          size="small"
-                          label={t.role}
-                          sx={{ height: 18, fontSize: 10, flexShrink: 0 }}
-                        />
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: theme.palette.text.primary,
-                            // A snippet can be one unbroken token; without these it
-                            // widens the row past the page instead of wrapping.
-                            minWidth: 0,
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          <MarkedSnippet snippet={t.snippet} />
-                        </Typography>
-                      </Stack>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="baseline"
-                        sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.5 }}
+                {[...turnsBySession.entries()].map(([sessionId, sessionTurns], gi) => (
+                  <Box key={sessionId}>
+                    {gi > 0 && <Divider sx={{ borderWidth: 2 }} />}
+                    {/* Session group header */}
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="baseline"
+                      sx={{
+                        px: 1.5,
+                        pt: 1.5,
+                        pb: 0.5,
+                        bgcolor: "action.hover",
+                        flexWrap: "wrap",
+                        gap: 0.5,
+                      }}
+                    >
+                      <Link
+                        to="/sessions/$id"
+                        params={{ id: sessionId }}
+                        search={{ q }}
+                        style={{ color: theme.palette.primary.main, textDecoration: "none" }}
                       >
-                        {/* `q` rides along so the session opens with the same terms
-                            marked, and scrolled to the first one. */}
-                        <Link
-                          to="/sessions/$id"
-                          params={{ id: t.sessionId }}
-                          search={{ q }}
-                          style={{ color: theme.palette.primary.main, textDecoration: "none" }}
-                        >
-                          <Typography component="span" variant="caption" sx={{ fontWeight: 600 }}>
-                            {projectName(t.cwd ?? "")}
-                          </Typography>
-                        </Link>
-                        {t.timestamp && (
-                          <Typography variant="caption" color="text.secondary">
-                            {formatTimestamp(t.timestamp)}
-                          </Typography>
-                        )}
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ fontFamily: MONO, wordBreak: "break-all" }}
-                        >
-                          {t.sessionId}
+                        <Typography component="span" sx={{ fontWeight: 600 }}>
+                          {projectName(sessionTurns[0]?.cwd ?? "")}
                         </Typography>
-                      </Stack>
-                    </Box>
+                      </Link>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ fontFamily: MONO }}
+                      >
+                        {sessionId.slice(0, 8)}
+                      </Typography>
+                      {sessionTurns[0]?.timestamp && (
+                        <Typography variant="caption" color="text.secondary">
+                          {formatTimestamp(sessionTurns[0].timestamp)}
+                        </Typography>
+                      )}
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`${sessionTurns.length} hit${sessionTurns.length === 1 ? "" : "s"}`}
+                        sx={{ height: 18, fontSize: 10 }}
+                      />
+                    </Stack>
+
+                    {/* Turn hits under this session */}
+                    {sessionTurns.map((t, ti) => (
+                      <Box key={`${sessionId}-${ti}`}>
+                        {ti > 0 && <Divider />}
+                        <Box sx={{ p: 1.5 }} data-testid="search-turn-result">
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="baseline"
+                            sx={{ minWidth: 0 }}
+                          >
+                            {t.timestamp && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontFamily: MONO, flexShrink: 0 }}
+                              >
+                                {formatTimestamp(t.timestamp).slice(11)}
+                              </Typography>
+                            )}
+                            <Chip
+                              size="small"
+                              label={t.role}
+                              sx={{ height: 18, fontSize: 10, flexShrink: 0 }}
+                            />
+                            <Typography
+                              variant="body2"
+                              sx={{ minWidth: 0, overflowWrap: "anywhere" }}
+                            >
+                              <MarkedSnippet snippet={t.snippet} />
+                            </Typography>
+                          </Stack>
+                        </Box>
+                      </Box>
+                    ))}
                   </Box>
                 ))}
               </Paper>

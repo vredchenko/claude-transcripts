@@ -53,9 +53,9 @@ function Marker({ variant }: { variant: "user" | "assistant" | "hidden" }) {
   const size = variant === "hidden" ? 7 : 11;
   const color =
     variant === "user"
-      ? theme.palette.info.main
+      ? theme.palette.speaker.user
       : variant === "assistant"
-        ? theme.palette.primary.main
+        ? theme.palette.speaker.assistant
         : theme.palette.divider;
   return (
     <Box
@@ -181,7 +181,7 @@ function TurnCard({ node, query, isMatch }: { node: TurnNode; query?: string; is
             // coloured edge; Claude's replies are the bulk of the text and stay plain.
             bgcolor: isUser ? "action.hover" : "background.paper",
             borderLeft: 3,
-            borderLeftColor: isUser ? "info.main" : "primary.main",
+            borderLeftColor: isUser ? theme.palette.speaker.user : theme.palette.speaker.assistant,
             ...(isMatch
               ? { outline: `2px solid ${theme.palette.warning.main}`, outlineOffset: -2 }
               : {}),

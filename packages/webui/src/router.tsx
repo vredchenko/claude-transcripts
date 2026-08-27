@@ -1,5 +1,4 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
-import type { TimelineDensity } from "./components/sessions/SessionsTimeline";
 import { RootLayout } from "./routes/root";
 import { SearchResultsPage, type SearchRouteSearch } from "./routes/search-results";
 import { SessionDetailPage, type SessionDetailSearch } from "./routes/session-detail";
@@ -15,44 +14,44 @@ import {
  */
 const rootRoute = createRootRoute({ component: RootLayout });
 
+const optionalString = (v: unknown): string | undefined =>
+  typeof v === "string" && v ? v : undefined;
+
 /**
  * The list route owns which projection is showing and what it's showing — so a
- * calendar month or a timeline density is linkable, and the back button steps through
- * them. Unknown values fall back to the defaults rather than rendering nothing, since
- * this state arrives from whatever someone pasted into the address bar.
+ * calendar month or a sort order is linkable, and the back button steps through
+ * them. Unknown values fall back to the defaults rather than rendering nothing.
  */
 const listRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: SessionsListPage,
   validateSearch: (search: Record<string, unknown>): SessionsRouteSearch => ({
-    view:
-      search.view === "timeline" || search.view === "calendar"
-        ? (search.view as SessionsView)
-        : undefined,
-    density:
-      search.density === "compact" ||
-      search.density === "proportional" ||
-      search.density === "cards"
-        ? (search.density as TimelineDensity)
-        : undefined,
-    month: typeof search.month === "string" ? search.month : undefined,
-    day: typeof search.day === "string" ? search.day : undefined,
+    view: search.view === "calendar" ? (search.view as SessionsView) : undefined,
+    month: optionalString(search.month),
+    day: optionalString(search.day),
+    sort: optionalString(search.sort) as SessionsRouteSearch["sort"],
+    dir: optionalString(search.dir) as SessionsRouteSearch["dir"],
+    cwd: optionalString(search.cwd),
+    model: optionalString(search.model),
+    hostname: optionalString(search.hostname),
+    source: optionalString(search.source),
+    from: optionalString(search.from),
+    to: optionalString(search.to),
   }),
 });
 
 /**
  * The detail route carries the search terms that led here (`?q=`), so arriving from a
  * result lands on the matched turn with the terms marked instead of at the top of a
- * five-thousand-entry transcript. Absent when the session was opened from the list,
- * which simply means nothing is highlighted.
+ * five-thousand-entry transcript.
  */
 const detailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sessions/$id",
   component: SessionDetailPage,
   validateSearch: (search: Record<string, unknown>): SessionDetailSearch => ({
-    q: typeof search.q === "string" && search.q ? search.q : undefined,
+    q: optionalString(search.q),
   }),
 });
 
@@ -65,12 +64,12 @@ const searchRoute = createRoute({
   path: "/search",
   component: SearchResultsPage,
   validateSearch: (search: Record<string, unknown>): SearchRouteSearch => ({
-    q: typeof search.q === "string" ? search.q : undefined,
+    q: optionalString(search.q),
     page: Number(search.page) > 1 ? Number(search.page) : undefined,
-    cwd: typeof search.cwd === "string" ? search.cwd : undefined,
-    model: typeof search.model === "string" ? search.model : undefined,
-    hostname: typeof search.hostname === "string" ? search.hostname : undefined,
-    source: typeof search.source === "string" ? search.source : undefined,
+    cwd: optionalString(search.cwd),
+    model: optionalString(search.model),
+    hostname: optionalString(search.hostname),
+    source: optionalString(search.source),
   }),
 });
 

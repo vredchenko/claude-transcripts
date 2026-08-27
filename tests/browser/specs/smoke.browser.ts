@@ -23,14 +23,14 @@ test.describe("sessions list", () => {
     const list = new SessionsListPage(page);
     await list.goto();
 
-    await expect(list.table).toBeVisible();
+    await expect(list.list).toBeVisible();
     await expect(list.rows).not.toHaveCount(0);
 
     test.skip(LIVE, "row contents are fixture-specific");
     await expect(list.rows).toHaveCount(SESSIONS.length);
     // Newest first — the order the API returns and the list must preserve.
-    await expect(list.rowLink(0)).toHaveText(SESSIONS[0]!.sessionId.slice(0, 8));
-    await expect(page.getByText(`${SESSIONS.length} total`)).toBeVisible();
+    await expect(list.rows.first()).toContainText(SESSIONS[0]!.sessionId.slice(0, 8));
+    await expect(page.getByText(`${SESSIONS.length} sessions`)).toBeVisible();
   });
 
   test("names the machine each session ran on", async ({ page }) => {
@@ -41,27 +41,8 @@ test.describe("sessions list", () => {
 
     // Two hosts in the corpus, and the project name alone can't tell them apart: the
     // same checkout name on two machines is two different working copies.
-    await expect(await list.cell(0, "Host")).toHaveText(SESSIONS[0]!.hostname);
-    await expect(await list.cell(2, "Host")).toHaveText(SESSIONS[2]!.hostname);
-  });
-
-  test("splits runtime into active and idle", async ({ page }) => {
-    test.skip(LIVE, "asserts fixture values");
-    await setupPage(page);
-    const list = new SessionsListPage(page);
-    await list.goto();
-
-    // The running session: 35 minutes of wall clock, 40% of it working.
-    await expect(await list.cell(0, "Runtime")).toHaveText("35m 0s");
-    await expect(await list.cell(0, "Active")).toHaveText("14m 0s");
-    await expect(await list.cell(0, "Idle")).toHaveText("21m 0s");
-
-    // The session with no derivable active time says so with a dash. Rendering it as
-    // "0s" would claim the session ran and did nothing, which is a different fact.
-    const bare = SESSIONS.indexOf(BARE_SESSION);
-    await expect(await list.cell(bare, "Active")).toHaveText("—");
-    await expect(await list.cell(bare, "Idle")).toHaveText("—");
-    await expect(await list.cell(bare, "Runtime")).toHaveText("4m 0s");
+    await expect(list.rows.first()).toContainText(SESSIONS[0]!.hostname);
+    await expect(list.rows.nth(2)).toContainText(SESSIONS[2]!.hostname);
   });
 
   test("shows the empty state when there is no history", async ({ page }) => {
@@ -72,7 +53,7 @@ test.describe("sessions list", () => {
     await expect(list.emptyState).toBeVisible();
   });
 
-  test("surfaces a failed read instead of an empty table", async ({ page }) => {
+  test("surfaces a failed read instead of an empty list", async ({ page }) => {
     test.skip(LIVE, "needs an induced failure");
     await setupPage(page, { failSessions: true });
     await page.goto("/app/");
@@ -83,7 +64,7 @@ test.describe("sessions list", () => {
     await setupPage(page);
     const list = new SessionsListPage(page);
     await list.goto();
-    await list.rowLink(0).click();
+    await list.clickRow(0);
     await expect(page).toHaveURL(/\/app\/sessions\//);
     await expect(page.getByRole("heading", { name: "Transcript", exact: true })).toBeVisible();
   });
@@ -95,8 +76,8 @@ test.describe("session detail", () => {
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId);
 
-    await expect(page.getByRole("heading", { name: MULTI_DAY_SESSION.sessionId })).toBeVisible();
-    await expect(page.getByText("Started", { exact: true })).toBeVisible();
+    await expect(page.getByText(MULTI_DAY_SESSION.sessionId.slice(0, 8))).toBeVisible();
+    await expect(page.getByText("STARTED")).toBeVisible();
     // The page opens on the conversation, not on the stored lines.
     await expect(detail.turnCards).not.toHaveCount(0);
   });
@@ -200,7 +181,7 @@ test("the app renders without logging errors", async ({ page }) => {
   const console_ = watchConsole(page);
   const list = new SessionsListPage(page);
   await list.goto();
-  await list.rowLink(0).click();
+  await list.clickRow(0);
   await expect(page.getByRole("heading", { name: "Transcript", exact: true })).toBeVisible();
   expect(console_.errors(), "the app logged console errors while rendering").toEqual([]);
 });

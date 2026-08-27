@@ -39,7 +39,7 @@ async function expectNoOverflow(page: Page, where: string) {
   );
 }
 
-test("the header search box stays usable at every width", async ({ page }) => {
+test("the header omnibox stays usable at every width", async ({ page }) => {
   await setupPage(page);
   const list = new SessionsListPage(page);
   await list.goto();
@@ -48,18 +48,15 @@ test("the header search box stays usable at every width", async ({ page }) => {
   // produced a ~20px input pressed against the settings button — no overflow, nothing
   // for the geometry audit to catch, and completely unusable. Below `sm` the toolbar
   // wraps and the field takes its own row instead.
-  const box = await page.getByRole("textbox", { name: "Search sessions" }).boundingBox();
+  const box = await page.getByRole("textbox", { name: "Omnibox" }).boundingBox();
   expect(box).not.toBeNull();
-  expect(box!.width, "the search field collapsed").toBeGreaterThan(180);
+  expect(box!.width, "the omnibox collapsed").toBeGreaterThan(180);
 });
 
 test("the sessions list stays inside its container", async ({ page }) => {
   await setupPage(page);
   const list = new SessionsListPage(page);
   await list.goto();
-  // The table is legitimately wider than a narrow viewport — it lives in a
-  // TableContainer that scrolls, which the audit knows to allow. What must not happen
-  // is the *page* scrolling with it.
   await expectNoOverflow(page, "sessions list");
 });
 
@@ -125,7 +122,7 @@ test("the header search dropdown contains long snippets", async ({ page }) => {
   test.skip(LIVE, "depends on what the corpus matches");
   await setupPage(page);
   await page.goto("/app/");
-  await page.getByRole("textbox", { name: "Search sessions" }).fill(SEARCH_QUERY);
+  await page.getByRole("textbox", { name: "Omnibox" }).fill(SEARCH_QUERY);
   await expect(page.getByText("In conversations")).toBeVisible();
   await expectNoOverflow(page, "search dropdown");
 });
