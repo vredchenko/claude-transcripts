@@ -56,7 +56,16 @@ export const CLI_SPEC: CliSpec = {
     {
       name: "search",
       summary: "Search the corpus",
-      args: [{ name: "query", required: true, description: "search text" }],
+      args: [
+        { name: "query", required: true, description: "search text" },
+        { name: "--limit", description: "results per section (default: the webapi's)" },
+        { name: "--offset", description: "skip this many results (paging)" },
+        { name: "--cwd", description: "only this project directory" },
+        { name: "--model", description: "only this model" },
+        { name: "--hostname", description: "only this host" },
+        { name: "--source", description: "only this provenance (live | backfill | ...)" },
+        { name: "--webapi", description: "webapi base URL (default: $CT_WEBAPI_URL)" },
+      ],
     },
     {
       name: "setup",

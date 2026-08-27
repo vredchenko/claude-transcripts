@@ -16,10 +16,10 @@ import {
 } from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
+import { num, pad, padL, project, row, when } from "../lib/format";
 
-function num(n: number | undefined): string {
-  return (n ?? 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+/** The sessions table right-aligns from PROMPTS on — the numeric tail. */
+const RIGHT_FROM = 4;
 
 function bytes(n: number | undefined): string {
   if (!n || n <= 0) return "—";
@@ -33,37 +33,23 @@ function bytes(n: number | undefined): string {
   return `${v < 10 && u > 0 ? v.toFixed(1) : Math.round(v)}${units[u]}`;
 }
 
-function project(cwd: string): string {
-  const parts = cwd.replace(/\/+$/, "").split("/");
-  return parts[parts.length - 1] || cwd || "—";
-}
-
 function tools(counts: Record<string, number> | undefined): number {
   return counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
 }
 
-function pad(s: string, w: number): string {
-  return s.length >= w ? s.slice(0, w) : s.padEnd(w);
-}
-
-function padL(s: string, w: number): string {
-  return s.length >= w ? s : s.padStart(w);
-}
-
-function row(cols: [string, number][]): string {
-  return cols.map(([s, w], i) => (i >= 4 ? padL(s, w) : pad(s, w))).join("  ");
-}
-
 function summaryLine(s: SessionSummary): string {
-  return row([
-    [s.sessionId.slice(0, 8), 8],
-    [(s.timestamp ?? "").replace("T", " ").slice(0, 16), 16],
-    [s.status, 10],
-    [project(s.cwd), 18],
-    [num(s.promptCount), 7],
-    [num(tools(s.toolCounts)), 6],
-    [s.tokenUsage ? num(s.tokenUsage.total) : "—", 9],
-  ]);
+  return row(
+    [
+      [s.sessionId.slice(0, 8), 8],
+      [when(s.timestamp), 16],
+      [s.status, 10],
+      [project(s.cwd), 18],
+      [num(s.promptCount), 7],
+      [num(tools(s.toolCounts)), 6],
+      [s.tokenUsage ? num(s.tokenUsage.total) : "—", 9],
+    ],
+    RIGHT_FROM,
+  );
 }
 
 async function showList(limit: number): Promise<number> {
@@ -74,15 +60,18 @@ async function showList(limit: number): Promise<number> {
     return 0;
   }
   console.log(
-    row([
-      ["SESSION", 8],
-      ["STARTED", 16],
-      ["STATUS", 10],
-      ["PROJECT", 18],
-      ["PROMPTS", 7],
-      ["TOOLS", 6],
-      ["TOKENS", 9],
-    ]),
+    row(
+      [
+        ["SESSION", 8],
+        ["STARTED", 16],
+        ["STATUS", 10],
+        ["PROJECT", 18],
+        ["PROMPTS", 7],
+        ["TOOLS", 6],
+        ["TOKENS", 9],
+      ],
+      RIGHT_FROM,
+    ),
   );
   for (const s of res.sessions) console.log(summaryLine(s));
   return 0;

@@ -16,6 +16,7 @@ import { runInstall } from "./install";
 import { runMigrate } from "./migrate";
 import { runProvision } from "./provision";
 import { runReindex } from "./reindex";
+import { runSearch } from "./search";
 import { runSessions } from "./sessions";
 import { runSetup } from "./setup";
 import { runStack } from "./stack";
@@ -37,4 +38,5 @@ export const COMMANDS: Record<string, CommandRunner> = {
   reindex: runReindex,
   doctor: runDoctor,
   sessions: runSessions,
+  search: runSearch,
 };
