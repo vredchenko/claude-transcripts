@@ -73,23 +73,49 @@ upgrades in place: it's idempotent and keeps your history.
 
 ## Commands
 
+<!-- gen:cli-docs:start — generated from CLI_SPEC by `bun run gen:cli-docs`; do not edit -->
+**Lifecycle**
+
 | Command | What it does |
 |---|---|
-| `install` | Set up everything: stores, app, and the Claude Code hook |
-| `uninstall` | Remove the instance (history is kept unless `--purge`) |
-| `stack <up\|down\|restart\|logs\|ps>` | Control the container stack |
-| `provision` | Create the CouchDB databases and the S3 bucket + key |
-| `hook <run\|install\|uninstall\|status>` | The Claude Code hook, and its registration |
-| `sessions [id]` | List sessions, or show one in detail |
-| `setup` | Register the hook + generate runtime config |
-| `export <dir>` | Export session data to a portable bundle |
-| `import <dir>` | Restore session data from a portable bundle |
-| `backfill` | Adopt on-disk `~/.claude` transcripts as first-class history |
-| `migrate <up\|down\|status>` | Run CouchDB migrations |
-| `reindex` | Rebuild the search indexes from CouchDB |
-| `doctor` | Smoke-test the write/read/search path end to end |
+| `install [options]` | Set up everything: stores, app, and the Claude Code hook |
+| `uninstall [options]` | Remove the instance (history is kept unless --purge) |
+| `setup [options]` | Install/register the hook + generate runtime config |
+| `provision` | Create the CouchDB databases and the Garage bucket + key |
+| `stack [action] [options]` | Control the container stack |
 
-Run `claude-transcripts` with no arguments for the full help, including every flag.
+**Daily use**
+
+| Command | What it does |
+|---|---|
+| `sessions [id] [options]` | List / inspect sessions (via the webapi) |
+| `search <query> [options]` | Search the corpus |
+| `backfill [options]` | Adopt on-disk ~/.claude transcripts as first-class history |
+
+**Portability**
+
+| Command | What it does |
+|---|---|
+| `export <dir> [options]` | Export session data to a portable bundle |
+| `import <dir> [options]` | Restore session data from a portable bundle |
+
+**Admin**
+
+| Command | What it does |
+|---|---|
+| `migrate [direction] [options]` | Run CouchDB migrations |
+| `reindex` | Rebuild the search indexes from CouchDB |
+| `doctor [options]` | Smoke-test the write/read/search path end-to-end |
+| `hook [action] [options]` | The Claude Code hook, and its registration |
+
+**Global options** (every command)
+
+- `--webapi <value>` — webapi base URL (default: $CT_WEBAPI_URL)
+- `--help` — show help for a command (alias: -h)
+- `--version` — print the CLI version (alias: -V)
+<!-- gen:cli-docs:end -->
+
+`claude-transcripts <command> --help` shows a command's arguments, options and examples.
 Full reference:
 [docs/reference/cli.md](https://github.com/vredchenko/claude-transcripts/blob/main/docs/reference/cli.md).
 

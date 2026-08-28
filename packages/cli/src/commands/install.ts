@@ -28,9 +28,8 @@ import {
 import { installPaths } from "../lib/paths";
 import { hasFailures, isPortFree, preflight, renderChecks } from "../lib/preflight";
 import { provisionCouch, provisionGarage } from "../lib/provision";
+import { DEV_VERSION, VERSION } from "../lib/version";
 import { runHook } from "./hook";
-
-const VERSION = process.env.CT_VERSION ?? "0.0.0-dev";
 
 function step(n: number, total: number, title: string): void {
   console.log(`\n[${n}/${total}] ${title}`);
@@ -76,7 +75,7 @@ async function warnOnVersionSkew(env: EnvMap): Promise<void> {
     const running = body.version ?? "unknown";
     // A `main` image reports "<last release>+<sha>", which never equals a release
     // version — so only compare when the CLI itself is a release.
-    if (VERSION !== "0.0.0-dev" && running !== VERSION) {
+    if (VERSION !== DEV_VERSION && running !== VERSION) {
       console.log(`  ! app image reports ${running}, but this CLI is ${VERSION}`);
       console.log("    they are versioned in lockstep — pin APP_TAG in the instance env");
     } else {
@@ -169,7 +168,7 @@ export async function runInstall(argv: string[]): Promise<number> {
     // `main`, because `latest` is the newest *release* and would pair a dev CLI with
     // an older app — which is how an install ended up running schema v5 against a
     // v7 CLI.
-    appTag: VERSION === "0.0.0-dev" ? "main" : VERSION,
+    appTag: VERSION === DEV_VERSION ? "main" : VERSION,
     meiliMasterKey: meiliKey,
   });
   console.log(`  ${firstRun ? "generated" : "reused"} ${paths.instanceEnv}`);

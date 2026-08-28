@@ -1,6 +1,7 @@
 export * from "./actions";
 export * from "./build";
 export * from "./cli";
+export * from "./cli-project";
 export * from "./env";
 export * from "./hooks";
 export * from "./project";

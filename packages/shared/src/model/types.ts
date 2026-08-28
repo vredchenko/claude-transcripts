@@ -189,19 +189,39 @@ export interface EnvVarDef {
   description: string;
 }
 
+/** How a CLI argument's value is read. Flags without `type`/`choices`/`default` are boolean. */
+export type CliArgType = "string" | "number" | "boolean";
+
 export interface CliArgDef {
+  /** Positional (`action`) or flag (`--limit`). */
   name: string;
   required?: boolean;
   description?: string;
+  /** Value type. Positionals default to `string`; flags default to `boolean`. */
+  type?: CliArgType;
+  /** Allowed values — feeds help, validation, and (later) completions. */
+  choices?: readonly string[];
+  /** Default shown in help; documentation only, the runner applies it. */
+  default?: string | number | boolean;
 }
+
+/** Help groups, in display order (see CLI_SPEC.groups). */
+export type CliGroup = "lifecycle" | "daily" | "portability" | "admin";
 
 export interface CliCommandDef {
   name: string;
   summary: string;
+  group: CliGroup;
   args?: CliArgDef[];
+  /** Invocation examples, without the binary name — help prefixes it. */
+  examples?: string[];
 }
 
 export interface CliSpec {
+  /** Ordered groups; every command's `group` must be one of these. */
+  groups: { key: CliGroup; title: string }[];
+  /** Flags every command accepts (`--webapi`, `--help`, `--version`). */
+  globalArgs: CliArgDef[];
   commands: CliCommandDef[];
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "claude-transcripts",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -27,7 +27,8 @@
     "gen:mock": "bun run scripts/regenerate-mock-fixtures.ts",
     "gen:compose": "bun run scripts/gen-compose.ts",
     "gen:compose-override": "bun run scripts/gen-compose-override.ts",
-    "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:diagram && bun run gen:compose && bun run gen:compose-override && bun run gen:assets && bun run gen:compat",
+    "gen:cli-docs": "bun run scripts/gen-cli-docs.ts",
+    "gen:all": "bun run gen:hooks && bun run gen:hook-events && bun run gen:diagram && bun run gen:compose && bun run gen:compose-override && bun run gen:assets && bun run gen:cli-docs && bun run gen:compat",
     "stack:up": "bun run scripts/stack.ts up",
     "stack:up:upstream": "bun run scripts/stack.ts up --upstream",
     "stack:up:local": "bun run scripts/stack.ts up --build --upstream",
