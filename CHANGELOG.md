@@ -21,6 +21,15 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   `--no-statusline`, and never overwrites a `statusLine` that isn't ours. The repo is
   now its own plugin marketplace (`.claude-plugin/marketplace.json`). Design:
   `docs/design/plugin.md`, P0–P1.
+- **Claude reads its history back.** The plugin ships a `recall` skill ("have we done
+  this before?") and a session-start primer that tells Claude, at turn zero, how many
+  sessions this directory has recorded and when to search them; the policy is a new
+  `recall` section of the config (mode `off | suggest | auto`, scope `project | host |
+  all`, limits, triggers, `excludeCwdGlobs`), resolved through the app model and
+  overridable per user via the plugin's `userConfig`
+  ([ADR 0029](docs/design/decisions/0029-recall-policy-config-driven-session-start.md)).
+  `GET /api/sessions` gained `cwd` and `hostname` filters for it. Default scope is
+  this project only.
 - **`search --json` and `sessions --json`** — the webapi response as-is, for scripts
   and for the recall skills that come next.
 

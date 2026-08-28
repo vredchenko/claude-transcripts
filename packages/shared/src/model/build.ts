@@ -2,6 +2,7 @@ import { ACTIONS, BINDINGS } from "./actions";
 import { CLI_SPEC } from "./cli";
 import { ENV_VARS } from "./env";
 import { HOOK_TYPES } from "./hooks";
+import { resolveRecall } from "./recall";
 import { ROUTES } from "./routes";
 import { SERVICES } from "./services";
 import { TOPOLOGY } from "./topology";
@@ -77,6 +78,7 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
     features: config.features,
     servicesMenu: buildServicesMenu(services, config.servicesMenu),
     system: config.system,
+    recall: resolveRecall(config.recall, env),
     cliSpec: CLI_SPEC,
   };
 }

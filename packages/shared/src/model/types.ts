@@ -12,6 +12,17 @@
 
 // ── Config file shape (config/config.json ↔ config.template.json) ──────────────
 
+/** The `recall` section of the config file — same shape as the resolved policy. */
+export interface RecallConfigFile {
+  mode: "off" | "suggest" | "auto";
+  scope: "project" | "host" | "all";
+  maxResults: number;
+  maxSnippetChars: number;
+  triggers: { priorWorkQuestion: boolean; repeatedError: boolean; beforeRederiving: boolean };
+  excludeCwdGlobs: string[];
+  primer: { onSessionStart: boolean; maxTokens: number };
+}
+
 export interface AppConfigFile {
   app?: { name?: string };
   system: {
@@ -38,6 +49,8 @@ export interface AppConfigFile {
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
   userSettings?: Record<string, unknown>;
+  /** When a live session consults its own history (model/recall.ts). Optional; defaulted. */
+  recall?: Partial<RecallConfigFile>;
 }
 
 export type EnvLike = Record<string, string | undefined>;
@@ -349,6 +362,8 @@ export interface AppModel {
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
   system: AppConfigFile["system"];
+  /** The resolved recall policy — consumers read this, never the config section. */
+  recall: RecallConfigFile;
   // (grows) — filled in as the project matures:
   apiSpec?: unknown; // the OpenAPI document (attached server-side)
   cliSpec?: CliSpec; // structured CLI params spec

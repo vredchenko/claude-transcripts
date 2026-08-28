@@ -59,7 +59,7 @@ Every hook receives these on stdin; per-event fields are layered on top.
 
 | Hook | Fires when | Docs | Examples | What we do |
 |------|------------|------|----------|------------|
-| `SessionStart` | A session begins, resumes, is cleared, or restarts after compaction — `source` ∈ `startup`/`resume`/`clear`/`compact`. The per-session entry point. | [ref](https://code.claude.com/docs/en/hooks#sessionstart) | [session-start/](../../tests/mock/claude-code/hooks/session-start/) | `seed-session-start` · `write-event-marker` · `announce-recording` |
+| `SessionStart` | A session begins, resumes, is cleared, or restarts after compaction — `source` ∈ `startup`/`resume`/`clear`/`compact`. The per-session entry point. | [ref](https://code.claude.com/docs/en/hooks#sessionstart) | [session-start/](../../tests/mock/claude-code/hooks/session-start/) | `seed-session-start` · `write-event-marker` · `announce-recording` · `inject-recall-policy` |
 | `Setup` | The CLI runs in init/maintenance mode (e.g. `--init-only`) — one-time environment setup. | [ref](https://code.claude.com/docs/en/hooks#setup) | [setup/](../../tests/mock/claude-code/hooks/setup/) | _ignored — Env/setup signal, not session activity._ |
 | `InstructionsLoaded` | `CLAUDE.md` / `.claude/rules/*.md` instruction files are loaded — `load_reason` records why. Observability of which instructions applied. | [ref](https://code.claude.com/docs/en/hooks#instructionsloaded) | [instructions-loaded/](../../tests/mock/claude-code/hooks/instructions-loaded/) | _ignored — Instruction-load audit — out of Tier-1 scope._ |
 

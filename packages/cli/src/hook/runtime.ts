@@ -21,6 +21,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { hostname } from "node:os";
+import type { RecallConfigFile } from "@claude-transcripts/shared";
 import { S3Client } from "bun";
 import {
   fanOutBlob,
@@ -47,6 +48,8 @@ export interface HookConfig {
   mirrors?: MirrorTarget[];
   features: Record<string, boolean>;
   system: { logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } } };
+  /** The deployment's recall section, if the config was written after it existed. */
+  recall?: Partial<RecallConfigFile>;
 }
 
 /** Load the runtime config, or null to silently do nothing (no install → no logging). */
@@ -412,6 +415,11 @@ export function makeChunkState(sessionId: string): ChunkStateStore {
 
 // ── Context ──────────────────────────────────────────────────────────────────
 
+export interface SessionStartOutput {
+  systemMessage?: string;
+  additionalContext?: string;
+}
+
 export interface HookContext {
   event: string;
   sessionId: string;
@@ -425,6 +433,13 @@ export interface HookContext {
   blob: BlobClient;
   counts: CountsStore;
   targets: TargetsStore;
+  /**
+   * What SessionStart will print. Claude Code parses hook stdout as ONE JSON object,
+   * so the actions that have something to say (`announce-recording`,
+   * `inject-recall-policy`) fill this in and the dispatcher emits it once, after all
+   * of them have settled.
+   */
+  output: SessionStartOutput;
   sessionsDb: string;
   sessionsBucket?: string;
 }
@@ -437,6 +452,7 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
   if (!event || !sessionId) return null;
   const targets = makeTargets(sessionId);
   return {
+    output: {},
     event,
     sessionId,
     cwd: payload?.cwd ?? "",

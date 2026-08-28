@@ -4,7 +4,7 @@
  * lands in a terminal, and the banner lands in the transcript.
  */
 import { describe, expect, test } from "bun:test";
-import { NOT_RECORDING_BANNER, recordingBanner, sessionStartOutput } from "./announce";
+import { NOT_RECORDING_BANNER, recordingBanner, sessionStartEnvelope } from "./announce";
 import { type HookConfig, redactUrl, resolveTargets } from "./runtime";
 
 const config: HookConfig = {
@@ -69,7 +69,17 @@ describe("recordingBanner", () => {
 
 test("the not-recording banner says how to fix it", () => {
   expect(NOT_RECORDING_BANNER).toContain("claude-transcripts install");
-  expect(sessionStartOutput(NOT_RECORDING_BANNER)).toEqual({ systemMessage: NOT_RECORDING_BANNER });
+  expect(sessionStartEnvelope({ systemMessage: NOT_RECORDING_BANNER })).toEqual({
+    systemMessage: NOT_RECORDING_BANNER,
+  });
+});
+
+test("the envelope carries the primer as SessionStart additionalContext, and is null when empty", () => {
+  expect(sessionStartEnvelope({})).toBeNull();
+  expect(sessionStartEnvelope({ systemMessage: "hi", additionalContext: "ctx" })).toEqual({
+    systemMessage: "hi",
+    hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "ctx" },
+  });
 });
 
 test("redactUrl leaves a non-URL alone", () => {

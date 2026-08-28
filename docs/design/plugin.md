@@ -1,10 +1,12 @@
 # The Claude Code plugin — visibility, recall, policy
 
-> **Status: P0 + P1 built (visibility); P2 (recall) and P3 not yet.** `search --json`,
-> `sessions --json`, the `announce-recording` banner, the statusline (`claude-transcripts
-> statusline`), `/claude-transcripts:status`, `subagentStatusLine` and the marketplace
-> file all exist — see [`hooks/README.md`](../../hooks/README.md). `hooks/` was **not**
-> renamed (open question 1: deferred; nothing installs by path yet). This is the plan for growing
+> **Status: P0–P2 built; P3 (depth) not yet.** Visibility: `announce-recording`, the
+> statusline (`claude-transcripts statusline`), `/claude-transcripts:status`,
+> `subagentStatusLine`, the marketplace file. Recall: the `recall` skill, the `recall`
+> config section resolved through the model ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)),
+> `inject-recall-policy`, plugin `userConfig`. See [`hooks/README.md`](../../hooks/README.md).
+> Deviations: the policy is a **section of the one config file**, not `config/recall.json`
+> (the loaders are single-file today); `hooks/` was **not** renamed (open question 1). This is the plan for growing
 > [`hooks/`](../../hooks/) from a write-only shim into a full Claude Code plugin that
 > (a) *shows* the user their session is being recorded and where, (b) gives Claude
 > **skills** for reading the corpus back, and (c) carries **config** that tells Claude
@@ -348,7 +350,7 @@ than `project`.
 |---|---|---|
 | **P0 — prerequisites** ✅ | `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time (`/tmp/claude-transcripts-<id>.targets`, credentials stripped) | — |
 | **P1 — visibility** ✅ | `.claude-plugin/marketplace.json`; plugin manifest grows; `announce-recording` action; `/claude-transcripts:status`; statusline renderer + `statusline install`; `subagentStatusLine` | roadmap *statusline indicator* |
-| **P2 — recall** | `recall` skill; `config/recall.json` + model projection; `inject-recall-policy`; `userConfig` | roadmap #10, Tier 2 recall |
+| **P2 — recall** ✅ | `recall` skill; `recall` config section + model projection ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)); `inject-recall-policy`; `userConfig` | roadmap #10, Tier 2 recall |
 | **P3 — depth** | `session-history` + `transcripts-admin` skills; optional MCP server; vector index for retrieval quality | #9 |
 
 P1 is independently shippable and useful on its own — it is the half that stops the

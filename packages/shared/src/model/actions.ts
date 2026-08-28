@@ -36,6 +36,11 @@ export const ACTIONS: ActionDef[] = [
     summary: "Tell the user, in the transcript, whether and where this session is recorded",
     implemented: false,
   },
+  {
+    key: "inject-recall-policy",
+    summary: "Prime the session with the recall policy + how much history this cwd has",
+    implemented: false,
+  },
   { key: "enrich-metadata", summary: "Post additional session metadata", implemented: false },
   {
     key: "extract-feature",
@@ -60,7 +65,12 @@ export const ACTIONS: ActionDef[] = [
 export const BINDINGS: HookActionBinding[] = [
   {
     event: "SessionStart",
-    actions: ["seed-session-start", "write-event-marker", "announce-recording"],
+    actions: [
+      "seed-session-start",
+      "write-event-marker",
+      "announce-recording",
+      "inject-recall-policy",
+    ],
   },
   {
     event: "UserPromptSubmit",
