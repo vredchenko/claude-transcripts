@@ -37,6 +37,7 @@ export function toManifest(model: AppModel) {
     },
     features: model.features,
     servicesMenu: model.servicesMenu,
+    recall: model.recall,
     hooks: {
       total: model.hooks.length,
       wired: model.hooks.filter((h) => h.wired).map((h) => h.event),

@@ -264,6 +264,8 @@ export type ListSessionsParams = {
   skip?: number | null;
   from?: string;
   to?: string;
+  cwd?: string;
+  hostname?: string;
 };
 
 export type GetSessionTranscriptParams = {

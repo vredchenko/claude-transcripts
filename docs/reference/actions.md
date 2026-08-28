@@ -20,6 +20,7 @@ action can be driven by several events; one event can drive several actions.
 | `write-summary` ✅ | At session end, compute the rollup + token usage and write `summary:<id>` | transcript, counts | CouchDB |
 | `upload-blobs` ✅ | Upload `summary.json` + `transcript.jsonl` to S3 | transcript, summary | S3 |
 | `seed-session-start` ✅ | Reset counters + chunk offset; write the resolved targets (stores, webapi, last-write time) for the statusline | hook payload, hook config | `/tmp`, CouchDB |
+| `inject-recall-policy` ✅ | Prime the session with the recall policy and how much history this cwd has (`additionalContext`, same JSON object as the banner); omitted when off, excluded, empty or the webapi is slow ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)) | hook config `recall`, webapi | stdout (context) |
 | `announce-recording` ✅ | Print the session-start banner — recording to *where*, or **not recording** — as hook JSON on stdout (the hook's only stdout use; `SessionStart` only) | targets | stdout (transcript) |
 | `enrich-metadata` | Post additional session metadata (actor/machine, harness config) to the schemaless meta endpoint | host/env | CouchDB (via webapi) |
 | `extract-feature` | Map-reduce-friendly feature extraction (URLs, repos, PRs, `/`-commands, models) | chunks/markers | CouchDB views |
@@ -37,7 +38,7 @@ The live `dispatch.ts` `REGISTRY` is the seed of the many-to-many table:
 
 | Event | Bound actions (today) |
 |-------|-----------------------|
-| `SessionStart` | `seed-session-start`, `write-event-marker`, `announce-recording` |
+| `SessionStart` | `seed-session-start`, `write-event-marker`, `announce-recording`, `inject-recall-policy` |
 | `UserPromptSubmit` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
 | `PostToolUse` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
 | `PostToolUseFailure` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |

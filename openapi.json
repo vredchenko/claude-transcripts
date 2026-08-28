@@ -648,6 +648,22 @@
             "required": false,
             "name": "to",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cwd",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "hostname",
+            "in": "query"
           }
         ],
         "responses": {

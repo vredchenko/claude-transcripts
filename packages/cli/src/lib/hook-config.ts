@@ -33,6 +33,9 @@ export function buildHookConfig(app: AppConfigFile, env: EnvMap) {
       : undefined,
     features: app.features,
     system: app.system,
+    // The recall policy travels with the hook so the session-start primer needs no
+    // repo and no app.json — resolved against the plugin's userConfig env at run time.
+    ...(app.recall ? { recall: app.recall } : {}),
   };
 }
 

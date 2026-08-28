@@ -73,7 +73,21 @@ The committed template, in full — this is the current shape, not a target:
   },
 
   // USER settings — reserved, empty for now
-  "userSettings": {}
+  "userSettings": {},
+
+  "recall": {                        // when a live session consults its own history (ADR 0029)
+    "mode": "auto",                  // off | suggest | auto
+    "scope": "project",              // project | host | all — keep `project` while secretsMasking is off
+    "maxResults": 5,
+    "maxSnippetChars": 400,
+    "triggers": {
+      "priorWorkQuestion": true,     // "did we…", "why is this…", "what did we decide…"
+      "repeatedError": true,         // an error that appears in past sessions
+      "beforeRederiving": true       // about to redo something that looks like prior work
+    },
+    "excludeCwdGlobs": [],           // directories never recalled from, nor primed in
+    "primer": { "onSessionStart": true, "maxTokens": 200 }
+  }
 }
 ```
 
@@ -96,6 +110,10 @@ The committed template, in full — this is the current shape, not a target:
   second database). Code refers to a store **by logical key** (`sessions`,
   `appLogs`), never a hard-coded name.
 - **`userSettings`** — placeholder for end-user preferences; empty in Tier 1.
+- **`recall`** — the recall policy, resolved by the app model (`model.recall`) and
+  baked into the hook's runtime config; the plugin's `userConfig` (`recall_mode`,
+  `recall_scope`, `max_results`) overrides it per user. Omit the section for the
+  defaults shown. Re-run `setup` after changing it.
 - **Secrets/endpoints** stay in `.env` (below): the bundled defaults are non-secret
   or empty ([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)), but
   `.env` always carries the **full endpoint paths** to CouchDB and S3.

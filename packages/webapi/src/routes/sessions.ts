@@ -335,6 +335,11 @@ function isRealSession(agg: SessionAggregate | undefined): agg is SessionAggrega
  * end (the summary's time, or the newest event for a live one) and `startTimestamp`
  * the earlier, so overlap is "ends after `from` and starts before `to`".
  */
+/** Exact directory match, tolerant of a trailing slash on either side. */
+function sameDir(a: string, b: string): boolean {
+  return a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+}
+
 function overlapsRange(
   session: SessionSummary,
   from: string | undefined,
@@ -370,6 +375,13 @@ const listRoute = createRoute({
        */
       from: z.string().optional(),
       to: z.string().optional(),
+      /**
+       * Narrow to one project directory / one host — exact match. What the recall
+       * primer asks at session start ("how many sessions does this cwd have?"), and
+       * what a "this project only" view needs without pulling the corpus.
+       */
+      cwd: z.string().optional(),
+      hostname: z.string().optional(),
     }),
   },
   responses: {
@@ -522,6 +534,8 @@ export function sessionRoutes(ctx: AppContext) {
     const skip = Number(c.req.query("skip") ?? 0);
     const from = c.req.query("from");
     const to = c.req.query("to");
+    const cwd = c.req.query("cwd");
+    const hostname = c.req.query("hostname");
     const db = ctx.couch.db("sessions");
     // One aggregate row per session (ended + running + incomplete), grouped by
     // session_id. Sorted + paginated in-memory — fine at Tier-1 volumes; a
@@ -532,7 +546,12 @@ export function sessionRoutes(ctx: AppContext) {
     const all: SessionSummary[] = res.rows
       .filter((r: any) => isRealSession(r.value))
       .map((r: any) => aggregateToSummary(String(r.key), r.value, now, windowMs));
-    const windowed = all.filter((s) => overlapsRange(s, from, to));
+    const windowed = all.filter(
+      (s) =>
+        overlapsRange(s, from, to) &&
+        (!cwd || sameDir(s.cwd, cwd)) &&
+        (!hostname || s.hostname === hostname),
+    );
     windowed.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
     const page = windowed.slice(skip, skip + limit);
     // Active time for the page only, and cached per session: the split between working

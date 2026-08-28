@@ -37,5 +37,18 @@
     "garageWebui": "http://127.0.0.1:7655/",
     "meilisearch": "http://127.0.0.1:7656/"
   },
-  "userSettings": {}
+  "userSettings": {},
+  "recall": {
+    "mode": "auto",
+    "scope": "project",
+    "maxResults": 5,
+    "maxSnippetChars": 400,
+    "triggers": {
+      "priorWorkQuestion": true,
+      "repeatedError": true,
+      "beforeRederiving": true
+    },
+    "excludeCwdGlobs": [],
+    "primer": { "onSessionStart": true, "maxTokens": 200 }
+  }
 }

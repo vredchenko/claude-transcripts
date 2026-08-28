@@ -63,12 +63,31 @@ resolves everything itself. The copies were retired along with the
   on PATH). Same resolution as the shim; prints `○ ct off` if the CLI is missing.
 - `settings.json` — `subagentStatusLine`, the one setting a plugin may carry.
 - `commands/status.md` — `/claude-transcripts:status`.
+- `skills/recall/SKILL.md` — the recall skill.
+
+## Recall — Claude reads the history back
+
+- **`recall` skill** (`skills/recall/`) — "have we done this before?" Loads on
+  *did we / why is this / what did we decide* questions, familiar errors, and before
+  re-deriving prior work. Runs `claude-transcripts search … --json`, reads the one or
+  two sessions that matter with `sessions <id> --json`, and answers **citing the
+  session id and date** — snippets only, never a whole transcript.
+- **The session-start primer** — the `inject-recall-policy` action tells Claude, at turn
+  zero, that history exists for *this* directory (`37 recorded sessions in scope, most
+  recent 2 days ago`), the command to search it, and the rules. Omitted when recall is
+  off, the cwd is excluded, or there is nothing recorded here.
+- **The policy** is the `recall` section of the instance config (mode `off | suggest |
+  auto`, scope `project | host | all`, limits, triggers, `excludeCwdGlobs`); this
+  plugin's `userConfig` (`recall_mode`, `recall_scope`, `max_results`, prompted at
+  enable time) overrides it per user
+  ([ADR 0029](../docs/design/decisions/0029-recall-policy-config-driven-session-start.md)).
+  Default scope is **this project** — widen it deliberately.
 
 ## Where this is going
 
-[docs/design/plugin.md](../docs/design/plugin.md) is the plan; the visibility half
-above is built. Next: **skills** that let Claude read the corpus back (`recall`), and
-a recall policy in `config/` that says when to consult history unprompted.
+[docs/design/plugin.md](../docs/design/plugin.md) is the plan; visibility (P1) and
+recall (P2) are built. Next: `session-history` and `transcripts-admin` skills, and
+possibly an MCP server once recall has earned permanent context space.
 
 ## Which install path to use
 

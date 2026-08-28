@@ -61,7 +61,7 @@ export async function dispatch(raw: string, configPath: string): Promise<Dispatc
     // identical otherwise, and the difference is a week of lost history. This is the
     // one thing that runs ahead of the config gate (docs/design/plugin.md, Part 1a).
     if ((payload as { hook_event_name?: string })?.hook_event_name === "SessionStart") {
-      emitSessionStart(NOT_RECORDING_BANNER);
+      emitSessionStart({ systemMessage: NOT_RECORDING_BANNER });
     }
     return { ran: false, actions: [] };
   }
@@ -81,5 +81,7 @@ export async function dispatch(raw: string, configPath: string): Promise<Dispatc
       }
     }),
   );
+  // One JSON object on stdout, and only for SessionStart (see HookContext.output).
+  if (ctx.event === "SessionStart") emitSessionStart(ctx.output);
   return { ran: true, event: ctx.event, actions };
 }

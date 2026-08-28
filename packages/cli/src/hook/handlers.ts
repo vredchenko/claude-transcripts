@@ -17,7 +17,8 @@ import {
   sumTranscriptTokens,
 } from "@claude-transcripts/shared";
 import { resolveWebapiUrl } from "../api/http";
-import { emitSessionStart, recordingBanner } from "./announce";
+import { recordingBanner } from "./announce";
+import { buildPrimer } from "./recall";
 import { commonFields, type HookContext, makeChunkState, resolveTargets } from "./runtime";
 
 export type Handler = (ctx: HookContext) => Promise<void>;
@@ -53,7 +54,18 @@ function safeWebapiUrl(): string | undefined {
  */
 const announceRecording: Handler = async (ctx) => {
   const targets = ctx.targets.read() ?? resolveTargets(ctx.config, safeWebapiUrl());
-  emitSessionStart(recordingBanner(targets, ctx.sessionId));
+  ctx.output.systemMessage = recordingBanner(targets, ctx.sessionId);
+};
+
+/**
+ * Prime the session with the recall policy and how much history this cwd has, so
+ * Claude knows there is something here to find — not merely that history is a concept.
+ * Omitted entirely when the policy is off, the cwd is excluded, the corpus for it is
+ * empty, or the webapi doesn't answer in time.
+ */
+const injectRecallPolicy: Handler = async (ctx) => {
+  const primer = await buildPrimer(ctx);
+  if (primer) ctx.output.additionalContext = primer;
 };
 
 const updateCounts: Handler = async (ctx) => {
@@ -246,6 +258,7 @@ const uploadBlobs: Handler = async (ctx) => {
 export const HANDLERS: Record<string, Handler> = {
   "seed-session-start": seedSessionStart,
   "announce-recording": announceRecording,
+  "inject-recall-policy": injectRecallPolicy,
   "update-counts": updateCounts,
   "write-event-marker": writeEventMarker,
   "flush-transcript-chunk": flushTranscriptChunk,
