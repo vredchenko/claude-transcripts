@@ -19,6 +19,12 @@ const WEBAPI: CliArgDef = {
   description: "webapi base URL (default: $CT_WEBAPI_URL)",
 };
 
+/** Machine-readable output — what a script, or a Claude Code skill, consumes. */
+const JSON_OUT: CliArgDef = {
+  name: "--json",
+  description: "print the webapi response as JSON instead of a table",
+};
+
 export const CLI_SPEC: CliSpec = {
   groups: [
     { key: "lifecycle", title: "Lifecycle" },
@@ -46,6 +52,7 @@ export const CLI_SPEC: CliSpec = {
         },
         { name: "--meili-key", description: "generate a Meilisearch master key" },
         { name: "--no-hook", description: "skip Claude Code registration" },
+        { name: "--no-statusline", description: "register the hook but not the statusline" },
         { name: "--no-app", description: "skip the app container (run the webapi yourself)" },
         { name: "--no-prune", description: "keep superseded app images" },
         { name: "--skip-preflight", description: "continue past failed preflight checks" },
@@ -109,8 +116,9 @@ export const CLI_SPEC: CliSpec = {
           type: "number",
           description: "rows to list (default 50) / transcript entries to preview (default 30)",
         },
+        JSON_OUT,
       ],
-      examples: ["sessions", "sessions --limit 10", "sessions 3f9a2c1e --limit 80"],
+      examples: ["sessions", "sessions --limit 10", "sessions 3f9a2c1e --limit 80 --json"],
     },
     {
       name: "search",
@@ -132,8 +140,9 @@ export const CLI_SPEC: CliSpec = {
           type: "string",
           description: "only this provenance (live | backfill | …)",
         },
+        JSON_OUT,
       ],
-      examples: ['search "retry policy"', "search deploy --cwd ~/proj --limit 5"],
+      examples: ['search "retry policy"', "search deploy --cwd ~/proj --limit 5 --json"],
     },
     {
       name: "backfill",
@@ -244,6 +253,22 @@ export const CLI_SPEC: CliSpec = {
         { name: "--dry-run", description: "with `install`: show the change without writing" },
       ],
       examples: ["hook status", "hook install --dry-run"],
+    },
+    {
+      name: "statusline",
+      group: "admin",
+      summary: "The Claude Code statusline indicator (recording / off), and its registration",
+      args: [
+        {
+          name: "action",
+          choices: ["render", "install", "uninstall", "status"],
+          default: "status",
+          description:
+            "`render` reads Claude Code's statusline JSON from stdin and prints one line (no network)",
+        },
+        { name: "--dry-run", description: "with `install`: show the change without writing" },
+      ],
+      examples: ["statusline install", "statusline status"],
     },
   ],
 };

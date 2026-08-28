@@ -1,6 +1,10 @@
 # The Claude Code plugin — visibility, recall, policy
 
-> **Status: design sketch, nothing built.** This is the plan for growing
+> **Status: P0 + P1 built (visibility); P2 (recall) and P3 not yet.** `search --json`,
+> `sessions --json`, the `announce-recording` banner, the statusline (`claude-transcripts
+> statusline`), `/claude-transcripts:status`, `subagentStatusLine` and the marketplace
+> file all exist — see [`hooks/README.md`](../../hooks/README.md). `hooks/` was **not**
+> renamed (open question 1: deferred; nothing installs by path yet). This is the plan for growing
 > [`hooks/`](../../hooks/) from a write-only shim into a full Claude Code plugin that
 > (a) *shows* the user their session is being recorded and where, (b) gives Claude
 > **skills** for reading the corpus back, and (c) carries **config** that tells Claude
@@ -342,8 +346,8 @@ than `project`.
 
 | Phase | Work | Closes |
 |---|---|---|
-| **P0 — prerequisites** | `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time | — |
-| **P1 — visibility** | `.claude-plugin/marketplace.json`; plugin manifest grows; `announce-recording` action; `/claude-transcripts:status`; statusline renderer + `statusline install`; `subagentStatusLine` | roadmap *statusline indicator* |
+| **P0 — prerequisites** ✅ | `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time (`/tmp/claude-transcripts-<id>.targets`, credentials stripped) | — |
+| **P1 — visibility** ✅ | `.claude-plugin/marketplace.json`; plugin manifest grows; `announce-recording` action; `/claude-transcripts:status`; statusline renderer + `statusline install`; `subagentStatusLine` | roadmap *statusline indicator* |
 | **P2 — recall** | `recall` skill; `config/recall.json` + model projection; `inject-recall-policy`; `userConfig` | roadmap #10, Tier 2 recall |
 | **P3 — depth** | `session-history` + `transcripts-admin` skills; optional MCP server; vector index for retrieval quality | #9 |
 

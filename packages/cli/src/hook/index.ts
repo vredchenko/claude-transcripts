@@ -12,6 +12,7 @@
  */
 import { buildAppModel } from "@claude-transcripts/shared";
 import { loadAppConfig } from "../lib/app-config";
+import { emitSessionStart, NOT_RECORDING_BANNER } from "./announce";
 import { HANDLERS } from "./handlers";
 import { buildContext, type HookConfig, loadHookConfig } from "./runtime";
 
@@ -54,7 +55,16 @@ export async function dispatch(raw: string, configPath: string): Promise<Dispatc
   }
 
   const config: HookConfig | null = loadHookConfig(configPath);
-  if (!config) return { ran: false, actions: [] }; // not installed → silently do nothing
+  if (!config) {
+    // Not installed → do nothing, but not *silently*: on SessionStart say so, in the
+    // transcript. A hook that can't record and a hook that is quietly recording look
+    // identical otherwise, and the difference is a week of lost history. This is the
+    // one thing that runs ahead of the config gate (docs/design/plugin.md, Part 1a).
+    if ((payload as { hook_event_name?: string })?.hook_event_name === "SessionStart") {
+      emitSessionStart(NOT_RECORDING_BANNER);
+    }
+    return { ran: false, actions: [] };
+  }
 
   const ctx = buildContext(payload, config);
   if (!ctx) return { ran: false, actions: [] };

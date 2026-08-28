@@ -30,6 +30,7 @@ import { hasFailures, isPortFree, preflight, renderChecks } from "../lib/preflig
 import { provisionCouch, provisionGarage } from "../lib/provision";
 import { DEV_VERSION, VERSION } from "../lib/version";
 import { runHook } from "./hook";
+import { runStatusline } from "./statusline";
 
 function step(n: number, total: number, title: string): void {
   console.log(`\n[${n}/${total}] ${title}`);
@@ -118,6 +119,7 @@ async function setUpSearch(webapiUrl: string): Promise<void> {
 export async function runInstall(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const noHook = options["no-hook"] === true;
+  const noStatusline = options["no-statusline"] === true;
   const noApp = options["no-app"] === true;
   const meiliKey = options["meili-key"] === true;
   const noPrune = options["no-prune"] === true;
@@ -267,6 +269,12 @@ export async function runInstall(argv: string[]): Promise<number> {
     console.log("  --no-hook: skipped registration");
   } else {
     await runHook(["install"]);
+    // The indicator is the other half of "is it working": the hook records, the
+    // statusline shows it. A statusLine the user already owns is left alone — the
+    // command prints how to compose the two and returns non-zero, which is not an
+    // install failure.
+    if (noStatusline) console.log("  --no-statusline: skipped the statusline indicator");
+    else await runStatusline(["install"]);
   }
 
   // ── 7. Search ─────────────────────────────────────────────────────────────

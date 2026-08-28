@@ -43,11 +43,15 @@ function readSettings(path: string): Record<string, unknown> & { hooks?: Setting
  * otherwise a contributor's registration would point at bare `bun`.
  */
 export function hookCommand(): string {
+  return `${cliInvocation()} hook run`;
+}
+
+/** How to invoke *this* CLI from a Claude Code setting — see {@link hookCommand}. */
+export function cliInvocation(): string {
   const exec = process.execPath;
   const isCompiled = !/\/bun$/.test(exec);
-  if (isCompiled) return `${exec} hook run`;
-  const entry = Bun.main;
-  return `${exec} run ${entry} hook run`;
+  if (isCompiled) return exec;
+  return `${exec} run ${Bun.main}`;
 }
 
 /**

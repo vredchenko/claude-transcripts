@@ -19,7 +19,8 @@ action can be driven by several events; one event can drive several actions.
 | `flush-transcript-chunk` ✅ | Tail the live transcript and append `chunk:` docs (size/time batched) | `transcript_path` | CouchDB |
 | `write-summary` ✅ | At session end, compute the rollup + token usage and write `summary:<id>` | transcript, counts | CouchDB |
 | `upload-blobs` ✅ | Upload `summary.json` + `transcript.jsonl` to S3 | transcript, summary | S3 |
-| `seed-session-start` ✅ | Reset counters + chunk offset; record start metadata | hook payload | `/tmp`, CouchDB |
+| `seed-session-start` ✅ | Reset counters + chunk offset; write the resolved targets (stores, webapi, last-write time) for the statusline | hook payload, hook config | `/tmp`, CouchDB |
+| `announce-recording` ✅ | Print the session-start banner — recording to *where*, or **not recording** — as hook JSON on stdout (the hook's only stdout use; `SessionStart` only) | targets | stdout (transcript) |
 | `enrich-metadata` | Post additional session metadata (actor/machine, harness config) to the schemaless meta endpoint | host/env | CouchDB (via webapi) |
 | `extract-feature` | Map-reduce-friendly feature extraction (URLs, repos, PRs, `/`-commands, models) | chunks/markers | CouchDB views |
 | `detect-memory-write` | Flag `Edit`/`Write` to `…/memory/`, `CLAUDE.md`, `AGENTS.md` as a memory save | tool input | CouchDB |
@@ -36,7 +37,7 @@ The live `dispatch.ts` `REGISTRY` is the seed of the many-to-many table:
 
 | Event | Bound actions (today) |
 |-------|-----------------------|
-| `SessionStart` | `seed-session-start`, `write-event-marker` |
+| `SessionStart` | `seed-session-start`, `write-event-marker`, `announce-recording` |
 | `UserPromptSubmit` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
 | `PostToolUse` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
 | `PostToolUseFailure` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |

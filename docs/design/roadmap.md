@@ -315,12 +315,12 @@ done.
   was passed through from `config/` as literal URLs carrying those same defaults — so
   on any instance whose port block `install` generated differently, every link pointed
   at a closed port.
-- **Claude Code statusline indicator** — show a statusline in Claude Code when the
-  external transcripts store is connected and logging, giving live confirmation the
-  hook is wired. Designed as part of the plugin's visibility layer
-  ([plugin.md](plugin.md)) alongside a session-start banner and a
-  `/claude-transcripts:status` command — note a plugin may not set `statusLine`
-  itself, so registration is a CLI command.
+- **Claude Code statusline indicator** — **done**: `claude-transcripts statusline`
+  renders `● ct rec …` / `◐ ct stalled …` / `○ ct off` from the hook's own scratch
+  state (no network), the session-start banner says where a session is recorded (or
+  that it isn't), and `/claude-transcripts:status` gives the long answer
+  ([plugin.md](plugin.md), [hooks/README.md](../../hooks/README.md)). A plugin may not
+  set `statusLine` itself, so registration is the CLI command (`install` runs it).
 
 **Tier 3 — multiplayer & public release**
 - Masterless replication + auth/security ([tiers.md](tiers.md), [ADR 0015](decisions/0015-tiered-architecture.md))
