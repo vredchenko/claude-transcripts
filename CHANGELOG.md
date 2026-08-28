@@ -6,7 +6,11 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.15] — 2026-08-28
+
+The plugin becomes visible, and Claude reads its history back. This is the whole of
+[`docs/design/plugin.md`](docs/design/plugin.md) except its optional MCP server and
+vector index, which are deliberately not built yet ([#112], [#113], [#114]).
 
 ### Added
 
@@ -38,6 +42,18 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   one session's — with `--json`.
 - **`search --json` and `sessions --json`** — the webapi response as-is, for scripts
   and for the recall skills that come next.
+
+## [0.0.14] — 2026-08-28
+
+The CLI gets a proper command surface ([#86]): `CLI_SPEC` in the app model is now the
+single source for help, pre-dispatch argument validation and the generated command
+reference (`packages/cli/README.md`, `docs/reference/cli.md`); `--version`; usage
+errors exit 2 so a typo is distinguishable from a command that ran and failed. Also
+the plugin design doc, `docs/design/plugin.md`.
+
+## [0.0.13] — 2026-08-27
+
+The webui gets a full UX restructure across all six screens ([#109]).
 
 ## [0.0.12] — 2026-08-27
 
@@ -1061,6 +1077,14 @@ of them had ever executed:
 
 [#89]: https://github.com/vredchenko/claude-transcripts/issues/89
 [#102]: https://github.com/vredchenko/claude-transcripts/issues/102
+[#86]: https://github.com/vredchenko/claude-transcripts/pull/86
+[#109]: https://github.com/vredchenko/claude-transcripts/pull/109
+[#112]: https://github.com/vredchenko/claude-transcripts/pull/112
+[#113]: https://github.com/vredchenko/claude-transcripts/pull/113
+[#114]: https://github.com/vredchenko/claude-transcripts/pull/114
+[0.0.15]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.15
+[0.0.14]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.14
+[0.0.13]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.13
 [0.0.12]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.12
 [0.0.11]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.11
 [0.0.10]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.10
