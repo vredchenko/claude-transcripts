@@ -227,10 +227,12 @@ it earns permanent context space.
 
 ### Prerequisite, and it is a real one
 
-`search` is in the model's `CLI_SPEC` but **is not in the CLI's `COMMANDS` registry** —
-`claude-transcripts search foo` currently falls through to the help UI. There is also no
-`--json` on `sessions`. Both skills above assume a machine-readable `search`. That work
-is a genuine blocker, not a detail, and is sequenced as P0 below.
+`claude-transcripts search` runs since 0.0.12 (it had been in the model's `CLI_SPEC`
+without a `COMMANDS` entry, and fell through to the help UI; a test now keeps the two
+lists equal in both directions — `packages/cli/src/commands/index.test.ts`). What is
+still missing is a machine-readable form: there is no `--json` on `search` or
+`sessions`, and both skills above assume one. That is a genuine blocker, not a detail,
+and is sequenced as P0 below.
 
 ---
 
@@ -340,7 +342,7 @@ than `project`.
 
 | Phase | Work | Closes |
 |---|---|---|
-| **P0 — prerequisites** | Implement `search` as a runnable command; `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time | the `CLI_SPEC` ↔ `COMMANDS` gap |
+| **P0 — prerequisites** | `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time | — |
 | **P1 — visibility** | `.claude-plugin/marketplace.json`; plugin manifest grows; `announce-recording` action; `/claude-transcripts:status`; statusline renderer + `statusline install`; `subagentStatusLine` | roadmap *statusline indicator* |
 | **P2 — recall** | `recall` skill; `config/recall.json` + model projection; `inject-recall-policy`; `userConfig` | roadmap #10, Tier 2 recall |
 | **P3 — depth** | `session-history` + `transcripts-admin` skills; optional MCP server; vector index for retrieval quality | #9 |
