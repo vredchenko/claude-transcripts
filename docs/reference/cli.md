@@ -79,43 +79,295 @@ webui offers a **download link** for it as a convenience
 
 ## Command surface
 
-The authoritative list is the app model's `cliSpec` — `claude-transcripts` with no
-arguments renders help straight from it, so this table and the binary can't disagree
-for long. As built:
+The authoritative list is the app model's `CLI_SPEC` (`packages/shared/src/model/cli.ts`).
+Four things project from it: the help screen (`claude-transcripts <command> --help`),
+argument validation before dispatch, this reference (generated below by
+`bun run gen:cli-docs`; CI fails if it is stale), and — not built yet — shell
+completions. Edit the spec, not this section.
 
+### Exit codes
+
+| Exit | Means |
+|---|---|
+| `0` | success; also `--help` / `--version` |
+| `1` | the command ran and failed (the message says why) |
+| `2` | usage error — unknown command, unknown option, bad value; help/usage goes to **stderr** |
+
+`--help`, `--version` and the usage errors are handled *before* a command runs, which
+is why `backfill --help` shows help rather than running a backfill, and why a script
+can tell a typo from a failure.
+
+<!-- gen:cli-docs:start — generated from CLI_SPEC by `bun run gen:cli-docs`; do not edit -->
 **Lifecycle**
 
-- `install` — set up everything: stores, app, search, and the Claude Code hook.
-  Idempotent; re-run it to upgrade.
-- `uninstall` — remove the instance (history survives unless `--purge`).
-- `stack` — control the container stack directly.
-- `provision` — create the CouchDB databases and the Garage bucket + key.
+| Command | What it does |
+|---|---|
+| `install [options]` | Set up everything: stores, app, and the Claude Code hook |
+| `uninstall [options]` | Remove the instance (history is kept unless --purge) |
+| `setup [options]` | Install/register the hook + generate runtime config |
+| `provision` | Create the CouchDB databases and the Garage bucket + key |
+| `stack [action] [options]` | Control the container stack |
 
-**Recording**
+**Daily use**
 
-- `hook run|install|uninstall|status` — the hook itself, and its registration with
-  Claude Code.
-- `setup` — write the hook's runtime config and register it (the host-side path).
+| Command | What it does |
+|---|---|
+| `sessions [id] [options]` | List / inspect sessions (via the webapi) |
+| `search <query> [options]` | Search the corpus |
+| `backfill [options]` | Adopt on-disk ~/.claude transcripts as first-class history |
 
-**Reading**
+**Portability**
 
-- `sessions [id]` — list sessions, or show one with a transcript preview.
-- `search` — query the corpus.
+| Command | What it does |
+|---|---|
+| `export <dir> [options]` | Export session data to a portable bundle |
+| `import <dir> [options]` | Restore session data from a portable bundle |
 
-**Data lifecycle**
+**Admin**
 
-- `backfill` — adopt on-disk `~/.claude` transcripts as first-class history;
-  `--force` re-processes one already adopted.
-- `export` / `import` — the portable bundle round-trip ([bundles.md](../design/bundles.md)).
-- `migrate status|up|down` — schema migrations ([migrations.md](../operate/migrations.md)).
-- `reindex` — rebuild the search indexes from CouchDB. They're derived state kept
-  current by the ingest routes and the `_changes` follower, so this is the
-  reconciliation step rather than the only path.
+| Command | What it does |
+|---|---|
+| `migrate [direction] [options]` | Run CouchDB migrations |
+| `reindex` | Rebuild the search indexes from CouchDB |
+| `doctor [options]` | Smoke-test the write/read/search path end-to-end |
+| `hook [action] [options]` | The Claude Code hook, and its registration |
 
-**Diagnosis**
+**Global options** (every command)
 
-- `doctor` — drive a synthetic session through write → read → search and remove it
-  again. `--keep` leaves it for inspection.
+- `--webapi <value>` — webapi base URL (default: $CT_WEBAPI_URL)
+- `--help` — show help for a command (alias: -h)
+- `--version` — print the CLI version (alias: -V)
+
+### `install [options]`
+
+Set up everything: stores, app, and the Claude Code hook
+
+| Option | |
+|---|---|
+| `--port-base <n>` | first port of the block (default 7650) |
+| `--meili-key` | generate a Meilisearch master key |
+| `--no-hook` | skip Claude Code registration |
+| `--no-app` | skip the app container (run the webapi yourself) |
+| `--no-prune` | keep superseded app images |
+| `--skip-preflight` | continue past failed preflight checks |
+| `--yes` | no prompts; take documented defaults |
+
+```bash
+claude-transcripts install
+claude-transcripts install --port-base 7700 --no-hook
+```
+
+### `uninstall [options]`
+
+Remove the instance (history is kept unless --purge)
+
+| Option | |
+|---|---|
+| `--purge` | also delete recorded history (destructive) |
+| `--yes` | skip the confirmation prompt |
+
+```bash
+claude-transcripts uninstall
+claude-transcripts uninstall --purge --yes
+```
+
+### `setup [options]`
+
+Install/register the hook + generate runtime config
+
+| Option | |
+|---|---|
+| `--check` | verify an existing install (read-only) |
+| `--no-hook` | config + provision stores only (no registration) |
+| `--project` | per-repo registration (placeholder — not built) |
+
+```bash
+claude-transcripts setup --check
+```
+
+### `provision`
+
+Create the CouchDB databases and the Garage bucket + key
+
+```bash
+claude-transcripts provision
+```
+
+### `stack [action] [options]`
+
+Control the container stack
+
+| Argument | |
+|---|---|
+| `action` | `logs` takes service names after it (up \| down \| restart \| logs \| ps; default ps) |
+
+| Option | |
+|---|---|
+| `--app` | include the app container |
+| `--volumes` | with `down`: delete the data volumes too |
+
+```bash
+claude-transcripts stack up --app
+claude-transcripts stack logs couchdb
+claude-transcripts stack down --volumes
+```
+
+### `sessions [id] [options]`
+
+List / inspect sessions (via the webapi)
+
+| Argument | |
+|---|---|
+| `id` | session id — show detail/transcript (omit to list) |
+
+| Option | |
+|---|---|
+| `--limit <n>` | rows to list (default 50) / transcript entries to preview (default 30) |
+
+```bash
+claude-transcripts sessions
+claude-transcripts sessions --limit 10
+claude-transcripts sessions 3f9a2c1e --limit 80
+```
+
+### `search <query> [options]`
+
+Search the corpus
+
+| Argument | |
+|---|---|
+| `query` | required. search text |
+
+| Option | |
+|---|---|
+| `--limit <n>` | results per section (default: the webapi's) |
+| `--offset <n>` | skip this many results (paging) |
+| `--cwd <value>` | only this project directory |
+| `--model <value>` | only this model |
+| `--hostname <value>` | only this host |
+| `--source <value>` | only this provenance (live \| backfill \| …) |
+
+```bash
+claude-transcripts search "retry policy"
+claude-transcripts search deploy --cwd ~/proj --limit 5
+```
+
+### `backfill [options]`
+
+Adopt on-disk ~/.claude transcripts as first-class history
+
+| Option | |
+|---|---|
+| `--dir <value>` | transcripts dir (default ~/.claude/projects) |
+| `--host <value>` | hostname to attribute (default: this host) |
+| `--actor <value>` | actor to attribute the history to |
+| `--chunk-size <n>` | entries per chunk doc (default 200) |
+| `--no-content` | byte-range chunks only (no turn content) |
+| `--force` | re-process sessions already adopted |
+| `--session <value>` | with --force: re-process only this session |
+| `--dry-run` | preview without writing |
+
+```bash
+claude-transcripts backfill --dry-run
+claude-transcripts backfill
+claude-transcripts backfill --force --session 3f9a2c1e
+```
+
+### `export <dir> [options]`
+
+Export session data to a portable bundle
+
+| Argument | |
+|---|---|
+| `dir` | required. destination directory |
+
+| Option | |
+|---|---|
+| `--since <value>` | only docs at/after this ISO timestamp |
+| `--session <value>` | only this session id |
+| `--no-blobs` | skip S3 transcripts (~1/10th the size) |
+
+```bash
+claude-transcripts export ./bundle
+claude-transcripts export ./bundle --since 2026-01-01 --no-blobs
+```
+
+### `import <dir> [options]`
+
+Restore session data from a portable bundle
+
+| Argument | |
+|---|---|
+| `dir` | required. bundle directory |
+
+| Option | |
+|---|---|
+| `--dry-run` | verify the bundle without writing |
+| `--no-blobs` | skip transcripts; restore docs only |
+
+```bash
+claude-transcripts import ./bundle --dry-run
+claude-transcripts import ./bundle
+```
+
+### `migrate [direction] [options]`
+
+Run CouchDB migrations
+
+| Argument | |
+|---|---|
+| `direction` | apply, roll back, or report (up \| down \| status; default status) |
+
+| Option | |
+|---|---|
+| `--to <n>` | with `up`: stop at this schema version |
+| `--steps <n>` | with `down`: how many to undo (default 1) |
+| `--dry-run` | report what would run without writing |
+
+```bash
+claude-transcripts migrate status
+claude-transcripts migrate up --dry-run
+claude-transcripts migrate down --steps 2
+```
+
+### `reindex`
+
+Rebuild the search indexes from CouchDB
+
+```bash
+claude-transcripts reindex
+```
+
+### `doctor [options]`
+
+Smoke-test the write/read/search path end-to-end
+
+| Option | |
+|---|---|
+| `--keep` | leave the synthetic session behind for inspection |
+
+```bash
+claude-transcripts doctor
+claude-transcripts doctor --keep
+```
+
+### `hook [action] [options]`
+
+The Claude Code hook, and its registration
+
+| Argument | |
+|---|---|
+| `action` | `run` reads one event payload from stdin (Claude Code calls this) (run \| install \| uninstall \| status; default status) |
+
+| Option | |
+|---|---|
+| `--dry-run` | with `install`: show the change without writing |
+
+```bash
+claude-transcripts hook status
+claude-transcripts hook install --dry-run
+```
+<!-- gen:cli-docs:end -->
 
 Not built, and listed here only so the gap is visible: `couch` / `s3` power-user
 passthroughs, and `meta post` enrichment.

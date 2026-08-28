@@ -122,6 +122,12 @@ no `tools/` dir.
   ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
   That bypass is why the `_changes` follower exists, and why hook-written docs get no
   write-time validation.
+- **`CLI_SPEC` is the CLI's source of truth** (`packages/shared/src/model/cli.ts`):
+  help, pre-dispatch argument validation, and the generated command reference
+  (`bun run gen:cli-docs` → `packages/cli/README.md` + `docs/reference/cli.md`) all
+  project from it. Add a flag to the spec, not just to the runner — an undeclared
+  flag is rejected before the runner runs. `commands/index.test.ts` keeps the spec and
+  the `COMMANDS` registry equal.
 - **OpenAPI spec is the contract source of truth**; the webui + cli consume
   clients **generated** from it (orval, `bun run gen:clients`). Don't hand-write
   request code.
