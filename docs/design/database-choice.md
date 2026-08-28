@@ -21,7 +21,8 @@ Several CouchDB traits carry weight in this design
 Weaknesses: JavaScript views are clunky and ad-hoc queries limited (Mango covers common
 cases; richer logic lives in the webapi), and heavy analytics is not its strength. If
 Tier 2 analytics hit that ceiling, the answer is an added analytical store, not a
-replacement.
+replacement. [storage-backend-evaluation.md](storage-backend-evaluation.md) (working
+notes, 2026-09) weighs CouchDB's write path, Fossil and a dozen alternatives in detail.
 
 Considered: SQLite/libSQL (small footprint, but no HTTP API or replication; fine for a
 local-only tool, which this isn't aiming to stay), SurrealDB (younger, different
