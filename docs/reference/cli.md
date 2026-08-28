@@ -114,6 +114,7 @@ can tell a typo from a failure.
 |---|---|
 | `sessions [id] [options]` | List / inspect sessions (via the webapi) |
 | `search <query> [options]` | Search the corpus |
+| `turns [session] [options]` | Speaker-split turns: one session, or one speaker across all sessions |
 | `backfill [options]` | Adopt on-disk ~/.claude transcripts as first-class history |
 
 **Portability**
@@ -254,6 +255,29 @@ Search the corpus
 ```bash
 claude-transcripts search "retry policy"
 claude-transcripts search deploy --cwd ~/proj --limit 5 --json
+```
+
+### `turns [session] [options]`
+
+Speaker-split turns: one session, or one speaker across all sessions
+
+| Argument | |
+|---|---|
+| `session` | session id — that session's turns (omit: all sessions) |
+
+| Option | |
+|---|---|
+| `--role <value>` | only this speaker (user \| assistant \| tool_result \| system \| other) |
+| `--from <value>` | all sessions: only turns at/after this ISO instant |
+| `--to <value>` | all sessions: only turns at/before this ISO instant |
+| `--limit <n>` | turns to show (default 50) |
+| `--skip <n>` | skip this many (paging) |
+| `--json` | print the webapi response as JSON instead of a table |
+
+```bash
+claude-transcripts turns --role user --limit 200
+claude-transcripts turns --role user --from 2026-08-01 --json
+claude-transcripts turns 3f9a2c1e --role assistant
 ```
 
 ### `backfill [options]`

@@ -63,7 +63,7 @@ resolves everything itself. The copies were retired along with the
   on PATH). Same resolution as the shim; prints `○ ct off` if the CLI is missing.
 - `settings.json` — `subagentStatusLine`, the one setting a plugin may carry.
 - `commands/status.md` — `/claude-transcripts:status`.
-- `skills/recall/SKILL.md` — the recall skill.
+- `skills/recall/`, `skills/session-history/`, `skills/transcripts-admin/` — the skills.
 
 ## Recall — Claude reads the history back
 
@@ -83,11 +83,21 @@ resolves everything itself. The copies were retired along with the
   ([ADR 0029](../docs/design/decisions/0029-recall-policy-config-driven-session-start.md)).
   Default scope is **this project** — widen it deliberately.
 
+- **`session-history` skill** — patterns across the corpus rather than one past
+  answer: what you keep asking for, which tools fail, where a topic recurs, cost and
+  time per project. Built on `claude-transcripts turns` (the cross-session,
+  speaker-split, time-ordered view), `sessions --json` and `search --json`;
+  aggregates and cites, never transcribes.
+- **`transcripts-admin` skill** — operate and troubleshoot: a symptom → command table
+  from each statusline/banner state (`ct off`, `ct ready`, `ct stalled`, *not
+  recording*) to the fix, plus backup/restore, migrate, reindex, backfill, upgrade and
+  uninstall — with the destructive ones gated on the user's say-so.
+
 ## Where this is going
 
-[docs/design/plugin.md](../docs/design/plugin.md) is the plan; visibility (P1) and
-recall (P2) are built. Next: `session-history` and `transcripts-admin` skills, and
-possibly an MCP server once recall has earned permanent context space.
+[docs/design/plugin.md](../docs/design/plugin.md) is the plan; P1–P3's skills are
+built. Still open from P3: an optional MCP server (once recall has earned permanent
+context space) and a vector index for retrieval quality.
 
 ## Which install path to use
 
