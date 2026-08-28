@@ -90,6 +90,7 @@ upgrades in place: it's idempotent and keeps your history.
 |---|---|
 | `sessions [id] [options]` | List / inspect sessions (via the webapi) |
 | `search <query> [options]` | Search the corpus |
+| `turns [session] [options]` | Speaker-split turns: one session, or one speaker across all sessions |
 | `backfill [options]` | Adopt on-disk ~/.claude transcripts as first-class history |
 
 **Portability**

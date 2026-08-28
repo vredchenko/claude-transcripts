@@ -30,6 +30,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   ([ADR 0029](docs/design/decisions/0029-recall-policy-config-driven-session-start.md)).
   `GET /api/sessions` gained `cwd` and `hostname` filters for it. Default scope is
   this project only.
+- **`session-history` and `transcripts-admin` skills**, completing the plugin's skill
+  set: patterns across the corpus (what you keep asking for, which tools fail, cost
+  per project) and a symptom → command troubleshooting table for every
+  statusline/banner state. **`claude-transcripts turns`** is new for it — one
+  speaker's turns across all sessions in time order (`--role`, `--from`/`--to`), or
+  one session's — with `--json`.
 - **`search --json` and `sessions --json`** — the webapi response as-is, for scripts
   and for the recall skills that come next.
 

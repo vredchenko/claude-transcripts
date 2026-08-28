@@ -145,6 +145,38 @@ export const CLI_SPEC: CliSpec = {
       examples: ['search "retry policy"', "search deploy --cwd ~/proj --limit 5 --json"],
     },
     {
+      name: "turns",
+      group: "daily",
+      summary: "Speaker-split turns: one session, or one speaker across all sessions",
+      args: [
+        { name: "session", description: "session id — that session's turns (omit: all sessions)" },
+        {
+          name: "--role",
+          type: "string",
+          choices: ["user", "assistant", "tool_result", "system", "other"],
+          description: "only this speaker",
+        },
+        {
+          name: "--from",
+          type: "string",
+          description: "all sessions: only turns at/after this ISO instant",
+        },
+        {
+          name: "--to",
+          type: "string",
+          description: "all sessions: only turns at/before this ISO instant",
+        },
+        { name: "--limit", type: "number", default: 50, description: "turns to show" },
+        { name: "--skip", type: "number", description: "skip this many (paging)" },
+        JSON_OUT,
+      ],
+      examples: [
+        "turns --role user --limit 200",
+        "turns --role user --from 2026-08-01 --json",
+        "turns 3f9a2c1e --role assistant",
+      ],
+    },
+    {
       name: "backfill",
       group: "daily",
       summary: "Adopt on-disk ~/.claude transcripts as first-class history",

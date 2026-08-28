@@ -1,6 +1,8 @@
 # The Claude Code plugin — visibility, recall, policy
 
-> **Status: P0–P2 built; P3 (depth) not yet.** Visibility: `announce-recording`, the
+> **Status: P0–P3 built, except P3's optional MCP server and vector index.** The
+> `session-history` and `transcripts-admin` skills exist, on a new `claude-transcripts
+> turns` command. Visibility: `announce-recording`, the
 > statusline (`claude-transcripts statusline`), `/claude-transcripts:status`,
 > `subagentStatusLine`, the marketplace file. Recall: the `recall` skill, the `recall`
 > config section resolved through the model ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)),
@@ -351,7 +353,7 @@ than `project`.
 | **P0 — prerequisites** ✅ | `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time (`/tmp/claude-transcripts-<id>.targets`, credentials stripped) | — |
 | **P1 — visibility** ✅ | `.claude-plugin/marketplace.json`; plugin manifest grows; `announce-recording` action; `/claude-transcripts:status`; statusline renderer + `statusline install`; `subagentStatusLine` | roadmap *statusline indicator* |
 | **P2 — recall** ✅ | `recall` skill; `recall` config section + model projection ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)); `inject-recall-policy`; `userConfig` | roadmap #10, Tier 2 recall |
-| **P3 — depth** | `session-history` + `transcripts-admin` skills; optional MCP server; vector index for retrieval quality | #9 |
+| **P3 — depth** | `session-history` + `transcripts-admin` skills ✅ (+ `claude-transcripts turns`); optional MCP server; vector index for retrieval quality — both still open | #9 |
 
 P1 is independently shippable and useful on its own — it is the half that stops the
 system being invisible. P2 is the half that makes it valuable.
