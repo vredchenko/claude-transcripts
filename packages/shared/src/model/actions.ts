@@ -31,6 +31,11 @@ export const ACTIONS: ActionDef[] = [
     summary: "Reset counters + seed the chunk offset at start",
     implemented: false,
   },
+  {
+    key: "announce-recording",
+    summary: "Tell the user, in the transcript, whether and where this session is recorded",
+    implemented: false,
+  },
   { key: "enrich-metadata", summary: "Post additional session metadata", implemented: false },
   {
     key: "extract-feature",
@@ -53,7 +58,10 @@ export const ACTIONS: ActionDef[] = [
 
 /** Seed mapping (the dispatch REGISTRY). Generalises to a configurable table. */
 export const BINDINGS: HookActionBinding[] = [
-  { event: "SessionStart", actions: ["seed-session-start", "write-event-marker"] },
+  {
+    event: "SessionStart",
+    actions: ["seed-session-start", "write-event-marker", "announce-recording"],
+  },
   {
     event: "UserPromptSubmit",
     actions: ["write-event-marker", "update-counts", "flush-transcript-chunk"],

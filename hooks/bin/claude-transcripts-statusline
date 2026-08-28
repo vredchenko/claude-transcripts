@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Statusline renderer for the Claude Transcripts plugin.
+#
+# Claude Code adds a plugin's bin/ to PATH and pipes the statusline JSON to this on
+# every refresh. It does one thing: find the installed CLI and let it render — the CLI
+# owns the state format, so there is exactly one implementation (plugin.md, Part 1b).
+# No network, no Bun, nothing that can fail loudly: if the CLI isn't there, print the
+# honest "off" state and exit 0.
+set -u
+candidates=()
+[ -n "${CT_HOME:-}" ] && candidates+=("$CT_HOME/bin/claude-transcripts")
+candidates+=("$HOME/.local/bin/claude-transcripts")
+for c in "${candidates[@]}"; do
+  if [ -x "$c" ]; then exec "$c" statusline render; fi
+done
+if command -v claude-transcripts >/dev/null 2>&1; then
+  exec claude-transcripts statusline render
+fi
+cat >/dev/null # drain stdin
+echo "○ ct off · claude-transcripts CLI not installed"
+exit 0

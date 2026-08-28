@@ -131,6 +131,7 @@ can tell a typo from a failure.
 | `reindex` | Rebuild the search indexes from CouchDB |
 | `doctor [options]` | Smoke-test the write/read/search path end-to-end |
 | `hook [action] [options]` | The Claude Code hook, and its registration |
+| `statusline [action] [options]` | The Claude Code statusline indicator (recording / off), and its registration |
 
 **Global options** (every command)
 
@@ -147,6 +148,7 @@ Set up everything: stores, app, and the Claude Code hook
 | `--port-base <n>` | first port of the block (default 7650) |
 | `--meili-key` | generate a Meilisearch master key |
 | `--no-hook` | skip Claude Code registration |
+| `--no-statusline` | register the hook but not the statusline |
 | `--no-app` | skip the app container (run the webapi yourself) |
 | `--no-prune` | keep superseded app images |
 | `--skip-preflight` | continue past failed preflight checks |
@@ -223,11 +225,12 @@ List / inspect sessions (via the webapi)
 | Option | |
 |---|---|
 | `--limit <n>` | rows to list (default 50) / transcript entries to preview (default 30) |
+| `--json` | print the webapi response as JSON instead of a table |
 
 ```bash
 claude-transcripts sessions
 claude-transcripts sessions --limit 10
-claude-transcripts sessions 3f9a2c1e --limit 80
+claude-transcripts sessions 3f9a2c1e --limit 80 --json
 ```
 
 ### `search <query> [options]`
@@ -246,10 +249,11 @@ Search the corpus
 | `--model <value>` | only this model |
 | `--hostname <value>` | only this host |
 | `--source <value>` | only this provenance (live \| backfill \| …) |
+| `--json` | print the webapi response as JSON instead of a table |
 
 ```bash
 claude-transcripts search "retry policy"
-claude-transcripts search deploy --cwd ~/proj --limit 5
+claude-transcripts search deploy --cwd ~/proj --limit 5 --json
 ```
 
 ### `backfill [options]`
@@ -366,6 +370,23 @@ The Claude Code hook, and its registration
 ```bash
 claude-transcripts hook status
 claude-transcripts hook install --dry-run
+```
+
+### `statusline [action] [options]`
+
+The Claude Code statusline indicator (recording / off), and its registration
+
+| Argument | |
+|---|---|
+| `action` | `render` reads Claude Code's statusline JSON from stdin and prints one line (no network) (render \| install \| uninstall \| status; default status) |
+
+| Option | |
+|---|---|
+| `--dry-run` | with `install`: show the change without writing |
+
+```bash
+claude-transcripts statusline install
+claude-transcripts statusline status
 ```
 <!-- gen:cli-docs:end -->
 

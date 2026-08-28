@@ -16,7 +16,9 @@ import {
   sliceIntoChunks,
   sumTranscriptTokens,
 } from "@claude-transcripts/shared";
-import { commonFields, type HookContext, makeChunkState } from "./runtime";
+import { resolveWebapiUrl } from "../api/http";
+import { emitSessionStart, recordingBanner } from "./announce";
+import { commonFields, type HookContext, makeChunkState, resolveTargets } from "./runtime";
 
 export type Handler = (ctx: HookContext) => Promise<void>;
 
@@ -28,6 +30,30 @@ const seedSessionStart: Handler = async (ctx) => {
     ctx.counts.reset();
     makeChunkState(ctx.sessionId).seed();
   }
+  // The resolved targets, for the statusline and the banner. Always rewritten: config
+  // can change between a session's start and its resume, and the file is cheap.
+  // `lastWriteMs` starts at 0 — "recording" is earned by a write landing, not claimed.
+  ctx.targets.write(resolveTargets(ctx.config, safeWebapiUrl()));
+};
+
+function safeWebapiUrl(): string | undefined {
+  try {
+    return resolveWebapiUrl();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Tell the user, in the transcript, that this session is recorded and where.
+ *
+ * Reads the targets `seed-session-start` just wrote rather than resolving again, so
+ * the banner and the statusline can't disagree. Actions run concurrently, so the seed
+ * may not have landed yet — resolve inline in that case; same inputs, same answer.
+ */
+const announceRecording: Handler = async (ctx) => {
+  const targets = ctx.targets.read() ?? resolveTargets(ctx.config, safeWebapiUrl());
+  emitSessionStart(recordingBanner(targets, ctx.sessionId));
 };
 
 const updateCounts: Handler = async (ctx) => {
@@ -196,6 +222,7 @@ const writeSummary: Handler = async (ctx) => {
     );
   }
   ctx.counts.clear();
+  ctx.targets.clear();
 };
 
 /** At SessionEnd, upload the byte-faithful transcript — S3 is its durable home. */
@@ -218,6 +245,7 @@ const uploadBlobs: Handler = async (ctx) => {
 /** Action key → implementation. Keys match the app model's `ActionDef`s. */
 export const HANDLERS: Record<string, Handler> = {
   "seed-session-start": seedSessionStart,
+  "announce-recording": announceRecording,
   "update-counts": updateCounts,
   "write-event-marker": writeEventMarker,
   "flush-transcript-chunk": flushTranscriptChunk,

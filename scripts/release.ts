@@ -19,6 +19,7 @@ const MANIFESTS = [
   "packages/webui/package.json",
   "packages/cli/package.json",
   "hooks/.claude-plugin/plugin.json",
+  ".claude-plugin/marketplace.json",
 ];
 
 const ROOT = join(import.meta.dir, "..");

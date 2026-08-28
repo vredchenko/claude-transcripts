@@ -86,6 +86,12 @@ export async function runSearch(argv: string[]): Promise<number> {
       ...(strOpt(options, "source") ? { source: strOpt(options, "source") } : {}),
     });
 
+    // Machine-readable: the webapi response as-is (the contract the skills read).
+    if (options.json === true) {
+      console.log(JSON.stringify(res, null, 2));
+      return res.enabled ? 0 : 1;
+    }
+
     // A disabled index isn't an error the user made, but it does mean the question
     // went unanswered — so say how to fix it and exit non-zero rather than printing
     // an empty result that reads like "nothing matched".

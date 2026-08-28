@@ -65,8 +65,14 @@ export interface CouchClient {
   putDoc(db: string, id: string, doc: object, timeoutMs?: number): Promise<void>;
 }
 
-/** CouchDB over plain HTTP with a short timeout — a slow store must not stall a session. */
-function makeDirectCouch(config: HookConfig): CouchClient {
+/**
+ * CouchDB over plain HTTP with a short timeout — a slow store must not stall a session.
+ *
+ * `onWrite` hears whether each write landed. It exists for the statusline: "recording"
+ * has to mean a store that recently accepted a doc, not merely a config file that
+ * names one ({@link TargetsStore}).
+ */
+function makeDirectCouch(config: HookConfig, onWrite?: (ok: boolean) => void): CouchClient {
   const root = config.couch.url;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.couch.auth) headers.Authorization = `Basic ${btoa(config.couch.auth)}`;
@@ -74,26 +80,28 @@ function makeDirectCouch(config: HookConfig): CouchClient {
   return {
     async postDoc(db, doc) {
       try {
-        await fetch(`${root}/${db}`, {
+        const res = await fetch(`${root}/${db}`, {
           method: "POST",
           headers,
           body: JSON.stringify(doc),
           signal: AbortSignal.timeout(5000),
         });
+        onWrite?.(res.ok);
       } catch {
-        // non-fatal
+        onWrite?.(false);
       }
     },
     async putDoc(db, id, doc, timeoutMs = 5000) {
       try {
-        await fetch(`${root}/${db}/${encodeURIComponent(id)}`, {
+        const res = await fetch(`${root}/${db}/${encodeURIComponent(id)}`, {
           method: "PUT",
           headers,
           body: JSON.stringify(doc),
           signal: AbortSignal.timeout(timeoutMs),
         });
+        onWrite?.(res.ok);
       } catch {
-        // non-fatal
+        onWrite?.(false);
       }
     },
   };
@@ -106,9 +114,9 @@ function makeDirectCouch(config: HookConfig): CouchClient {
  * satisfies {@link CouchClient} means "write to two places" is a config fact, not a
  * thing every handler has to remember to do.
  */
-export function makeCouch(config: HookConfig): CouchClient {
+export function makeCouch(config: HookConfig, onWrite?: (ok: boolean) => void): CouchClient {
   const mirrors = config.mirrors ?? [];
-  return fanOutCouch([makeDirectCouch(config), ...mirrors.map((m) => makeMirrorCouch(m))]);
+  return fanOutCouch([makeDirectCouch(config, onWrite), ...mirrors.map((m) => makeMirrorCouch(m))]);
 }
 
 export interface BlobClient {
@@ -200,6 +208,110 @@ export function makeCounts(sessionId: string): CountsStore {
         // already gone
       }
     },
+  };
+}
+
+/**
+ * Where this session is being recorded, resolved once at session start — the "where"
+ * half of the statusline, next to the counters' "how much". Credentials never go in
+ * here: it is read by a renderer that runs on every statusline refresh, and the line it
+ * prints lands in a terminal.
+ */
+export interface Targets {
+  /** CouchDB base URL with any userinfo stripped. */
+  couchUrl: string;
+  sessionsDb: string;
+  /** S3 bucket, if blob upload is configured. */
+  bucket?: string;
+  /** The webapi this machine's CLI resolves to — where the deep link points. */
+  webapiUrl?: string;
+  /** Feature flags that were on when the session started. */
+  features: string[];
+  /** Mirrors this machine also reports into (URLs only). */
+  mirrors: string[];
+  /** Epoch ms of the last write CouchDB accepted; 0 until one lands. */
+  lastWriteMs: number;
+  /** Epoch ms of the last write that failed after the last success; 0 if none. */
+  lastFailureMs: number;
+}
+
+export interface TargetsStore {
+  read(): Targets | null;
+  write(t: Targets): void;
+  /** Stamp the outcome of one CouchDB write. */
+  markWrite(ok: boolean): void;
+  clear(): void;
+}
+
+export function targetsFile(sessionId: string): string {
+  return `/tmp/claude-transcripts-${sessionId}.targets`;
+}
+
+export function makeTargets(sessionId: string): TargetsStore {
+  const file = targetsFile(sessionId);
+  const read = (): Targets | null => {
+    try {
+      return JSON.parse(readFileSync(file, "utf8")) as Targets;
+    } catch {
+      return null;
+    }
+  };
+  const write = (t: Targets): void => {
+    try {
+      writeFileSync(file, JSON.stringify(t));
+    } catch {
+      // non-fatal
+    }
+  };
+  return {
+    read,
+    write,
+    markWrite(ok) {
+      const t = read();
+      if (!t) return; // no session-start seed → nothing to annotate
+      if (ok) {
+        t.lastWriteMs = Date.now();
+        t.lastFailureMs = 0;
+      } else {
+        t.lastFailureMs = Date.now();
+      }
+      write(t);
+    },
+    clear() {
+      try {
+        unlinkSync(file);
+      } catch {
+        // already gone
+      }
+    },
+  };
+}
+
+/** Drop the `user:pass@` from a URL so it can be shown. Non-URLs pass through. */
+export function redactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.username = "";
+    u.password = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}
+
+/** The resolved targets for a config, before any write has happened. */
+export function resolveTargets(config: HookConfig, webapiUrl?: string): Targets {
+  return {
+    couchUrl: redactUrl(config.couch.url),
+    sessionsDb: config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB,
+    bucket: config.blob?.accessKey ? config.blob.buckets.sessions : undefined,
+    webapiUrl,
+    features: Object.entries(config.features ?? {})
+      .filter(([, on]) => on)
+      .map(([k]) => k),
+    mirrors: (config.mirrors ?? []).map((m) => redactUrl(m.url)),
+    lastWriteMs: 0,
+    lastFailureMs: 0,
   };
 }
 
@@ -312,14 +424,18 @@ export interface HookContext {
   couch: CouchClient;
   blob: BlobClient;
   counts: CountsStore;
+  targets: TargetsStore;
   sessionsDb: string;
   sessionsBucket?: string;
 }
+
+const DEFAULT_SESSIONS_DB = "claude-transcripts-sessions";
 
 export function buildContext(payload: any, config: HookConfig): HookContext | null {
   const event: string | undefined = payload?.hook_event_name;
   const sessionId: string | undefined = payload?.session_id;
   if (!event || !sessionId) return null;
+  const targets = makeTargets(sessionId);
   return {
     event,
     sessionId,
@@ -329,10 +445,11 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
     transcriptPath: payload?.transcript_path,
     payload,
     config,
-    couch: makeCouch(config),
+    couch: makeCouch(config, (ok) => targets.markWrite(ok)),
     blob: makeBlob(config),
     counts: makeCounts(sessionId),
-    sessionsDb: config.couch.databases.sessions ?? "claude-transcripts-sessions",
+    targets,
+    sessionsDb: config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB,
     sessionsBucket: config.blob?.buckets.sessions,
   };
 }

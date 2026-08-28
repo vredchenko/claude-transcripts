@@ -20,6 +20,7 @@ import { runSearch } from "./search";
 import { runSessions } from "./sessions";
 import { runSetup } from "./setup";
 import { runStack } from "./stack";
+import { runStatusline } from "./statusline";
 import { runUninstall } from "./uninstall";
 
 export type CommandRunner = (argv: string[]) => Promise<number>;
@@ -30,6 +31,7 @@ export const COMMANDS: Record<string, CommandRunner> = {
   stack: runStack,
   provision: runProvision,
   hook: runHook,
+  statusline: runStatusline,
   export: runExport,
   import: runImport,
   setup: runSetup,

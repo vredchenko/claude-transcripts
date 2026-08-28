@@ -6,6 +6,24 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The plugin shows that it is recording.** A `SessionStart` banner in the transcript
+  says where this session is being logged — or that it isn't, with the command that
+  fixes it; a statusline indicator (`● ct rec · 128 ev · 6 tools · 2s ago → …`) shows
+  it continuously, derived from the hook's own scratch state and a real recent write
+  rather than from "the plugin is installed" — a store that stops accepting writes
+  shows `◐ ct stalled`; and `/claude-transcripts:status` gives the full answer on
+  demand. `claude-transcripts statusline install|uninstall|status` registers the main
+  statusline (a plugin may only set `subagentStatusLine`); `install` does it unless
+  `--no-statusline`, and never overwrites a `statusLine` that isn't ours. The repo is
+  now its own plugin marketplace (`.claude-plugin/marketplace.json`). Design:
+  `docs/design/plugin.md`, P0–P1.
+- **`search --json` and `sessions --json`** — the webapi response as-is, for scripts
+  and for the recall skills that come next.
+
 ## [0.0.12] — 2026-08-27
 
 The CLI reaches npm, and `search` starts working.

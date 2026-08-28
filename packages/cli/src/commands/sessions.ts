@@ -5,7 +5,7 @@
  *
  *   claude-transcripts sessions                 # recent sessions
  *   claude-transcripts sessions <id>            # detail + transcript preview
- *   (both accept --limit <n> and --webapi <url>)
+ *   (all accept --limit <n>, --webapi <url> and --json)
  */
 import {
   getSession,
@@ -52,8 +52,12 @@ function summaryLine(s: SessionSummary): string {
   );
 }
 
-async function showList(limit: number): Promise<number> {
+async function showList(limit: number, json: boolean): Promise<number> {
   const res = await listSessions({ limit });
+  if (json) {
+    console.log(JSON.stringify(res, null, 2));
+    return 0;
+  }
   console.log(`sessions: ${num(res.totalCount)} total (${webapiUrl()})`);
   if (res.sessions.length === 0) {
     console.log("sessions: none recorded yet");
@@ -94,8 +98,15 @@ function entryLine(entry: TranscriptEntry, i: number): string {
   return `  ${padL(`#${i}`, 4)}  ${pad(entry.role, 12)} ${preview}`;
 }
 
-async function showDetail(id: string, limit: number): Promise<number> {
+async function showDetail(id: string, limit: number, json: boolean): Promise<number> {
   const s = await getSession(id);
+  if (json) {
+    // Session + transcript preview in one object — what a recall skill needs to cite a
+    // session and quote from it, without a second call.
+    const transcript = s.hasTranscript ? await getSessionTranscript(id, { limit }) : null;
+    console.log(JSON.stringify({ session: s, transcript }, null, 2));
+    return 0;
+  }
   console.log(`session ${s.sessionId}  [${s.status}]`);
   console.log(`  started    ${s.timestamp ?? "—"}`);
   console.log(`  project    ${s.cwd || "—"}`);
@@ -132,9 +143,10 @@ export async function runSessions(argv: string[]): Promise<number> {
   const limitOpt = strOpt(options, "limit");
   const limit = limitOpt ? Number(limitOpt) : positionals[0] ? 30 : 50;
   const id = positionals[0];
+  const json = options.json === true;
 
   try {
-    return id ? await showDetail(id, limit) : await showList(limit);
+    return id ? await showDetail(id, limit, json) : await showList(limit, json);
   } catch (err) {
     console.error(`sessions: failed — ${(err as Error).message}`);
     console.error(

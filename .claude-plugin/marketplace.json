@@ -1,0 +1,16 @@
+{
+  "name": "claude-transcripts",
+  "owner": { "name": "vredchenko" },
+  "metadata": {
+    "description": "Self-hosted history for Claude Code sessions — the recording hook, a statusline indicator, and (next) recall skills."
+  },
+  "plugins": [
+    {
+      "name": "claude-transcripts",
+      "source": "./hooks",
+      "description": "Log every session to CouchDB + S3, show that it's recording, and read the history back.",
+      "version": "0.0.14",
+      "category": "productivity"
+    }
+  ]
+}
