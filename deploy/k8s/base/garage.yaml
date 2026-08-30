@@ -1,0 +1,161 @@
+# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
+# Do NOT edit by hand — run `bun run gen:k8s` to regenerate, and change the model
+# (packages/shared/src/model/services.ts) instead. Inline edits here are lost silently.
+# Overrides belong in a kustomize overlay — see deploy/k8s/README.md.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: garage-meta
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: claude-transcripts
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: garage-data
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: claude-transcripts
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garage-config
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: claude-transcripts
+data:
+  garage.toml: |
+    # Garage (S3) — single-node config for the bundled stack. Mounted read-only at
+    # /etc/garage.toml. Secret-free on purpose: rpc_secret / admin_token /
+    # metrics_token are supplied via the GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN /
+    # GARAGE_METRICS_TOKEN env vars (see docker-compose.yml + the repo .env), so this
+    # file can live in git. Generate the secrets with: openssl rand -hex 32.
+
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "lmdb"
+
+    replication_factor = 1
+
+    rpc_bind_addr = "[::]:3901"
+    rpc_public_addr = "127.0.0.1:3901"
+
+    [s3_api]
+    s3_region = "garage"
+    api_bind_addr = "[::]:3900"
+
+    [admin]
+    api_bind_addr = "[::]:3903"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: claude-transcripts
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage
+      app.kubernetes.io/part-of: claude-transcripts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: garage
+        app.kubernetes.io/part-of: claude-transcripts
+    spec:
+      containers:
+        - name: garage
+          image: dxflrs/garage:v2.3.0
+          env:
+            - name: GARAGE_RPC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: claude-transcripts-env
+                  key: GARAGE_RPC_SECRET
+            - name: GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: claude-transcripts-env
+                  key: GARAGE_ADMIN_TOKEN
+            - name: GARAGE_METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: claude-transcripts-env
+                  key: GARAGE_METRICS_TOKEN
+          ports:
+            - name: s3-api
+              containerPort: 3900
+            - name: admin-api
+              containerPort: 3903
+          readinessProbe:
+            exec:
+              command:
+                - /garage
+                - status
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: garage-meta
+              mountPath: /var/lib/garage/meta
+            - name: garage-data
+              mountPath: /var/lib/garage/data
+            - name: garage-config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+              readOnly: true
+      volumes:
+        - name: garage-meta
+          persistentVolumeClaim:
+            claimName: garage-meta
+        - name: garage-data
+          persistentVolumeClaim:
+            claimName: garage-data
+        - name: garage-config
+          configMap:
+            name: garage-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: claude-transcripts
+spec:
+  selector:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: claude-transcripts
+  ports:
+    - name: s3-api
+      port: 3900
+      targetPort: 3900
+    - name: admin-api
+      port: 3903
+      targetPort: 3903

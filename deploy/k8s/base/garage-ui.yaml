@@ -1,0 +1,60 @@
+# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
+# Do NOT edit by hand — run `bun run gen:k8s` to regenerate, and change the model
+# (packages/shared/src/model/services.ts) instead. Inline edits here are lost silently.
+# Overrides belong in a kustomize overlay — see deploy/k8s/README.md.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage-ui
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage-ui
+    app.kubernetes.io/part-of: claude-transcripts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage-ui
+      app.kubernetes.io/part-of: claude-transcripts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: garage-ui
+        app.kubernetes.io/part-of: claude-transcripts
+    spec:
+      containers:
+        - name: garage-ui
+          image: khairul169/garage-webui:1.1.0
+          env:
+            - name: API_BASE_URL
+              value: http://garage:3903
+            - name: API_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: claude-transcripts-env
+                  key: GARAGE_ADMIN_TOKEN
+            - name: S3_ENDPOINT_URL
+              value: http://garage:3900
+            - name: S3_REGION
+              value: garage
+          ports:
+            - name: http
+              containerPort: 3909
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage-ui
+  namespace: claude-transcripts
+  labels:
+    app.kubernetes.io/name: garage-ui
+    app.kubernetes.io/part-of: claude-transcripts
+spec:
+  selector:
+    app.kubernetes.io/name: garage-ui
+    app.kubernetes.io/part-of: claude-transcripts
+  ports:
+    - name: http
+      port: 3909
+      targetPort: 3909

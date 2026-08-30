@@ -24,6 +24,8 @@
  * tags: deleting `v0.0.8` by ID would take `latest` with it when they point at the same
  * build. Untagged leftovers have no such reference and are removed by ID.
  */
+
+import { RELEASE_IMAGE_NS } from "@claude-transcripts/shared";
 import { $ } from "bun";
 import type { EnvMap } from "./instance-env";
 
@@ -46,7 +48,7 @@ const UNTAGGED = "<none>";
 
 /** The app image repository for an instance, matching what the compose files pull. */
 export function appImageRepo(env: EnvMap): string {
-  return `${env.IMAGE_NS ?? "ghcr.io/vredchenko"}/claude-transcripts-app`;
+  return `${env.IMAGE_NS ?? RELEASE_IMAGE_NS}/claude-transcripts-app`;
 }
 
 /**

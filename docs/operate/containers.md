@@ -30,6 +30,10 @@ The app container needs only to know *where* its backends are:
   app, all local to the stack (Tier 1 default). The backing-service **admin UIs**
   (Fauxton, Garage WebUI, Meilisearch) are bundled too and linked from the webui
   Services menu.
+- **Bundled, on Kubernetes** — the same stack as a generated kustomize base
+  (`deploy/k8s/`, [README](../../deploy/k8s/README.md)) for a single-node k3s or any
+  cluster with a default StorageClass
+  ([ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)).
 - **External** — run the app container alone, pointing its env at remote services
   (e.g. managed CouchDB + Cloudflare R2 + a hosted search). Nothing in the image
   assumes localhost.

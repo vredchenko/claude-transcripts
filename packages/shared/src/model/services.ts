@@ -1,5 +1,13 @@
 import type { ServiceDef } from "./types";
 
+/**
+ * Where the project's own releases are published (ADR 0012): the app image and the
+ * mirrored backing images (ADR 0024). Consumers that need a concrete, pullable image
+ * ref with no `IMAGE_NS` to hand (the CLI's installer, the Kubernetes base) fall back
+ * to this; a fork retargets it via `IMAGE_NS` / a kustomize `images:` override.
+ */
+export const RELEASE_IMAGE_NS = "ghcr.io/vredchenko";
+
 /** Reserved local dev port range. */
 export const DEV_PORT_RANGE = { start: 7650, end: 7661 } as const;
 
@@ -164,6 +172,9 @@ export const SERVICES: ServiceDef[] = [
       S3_ENDPOINT: "http://garage:3900",
       MEILI_HOST: "http://meilisearch:7700",
     },
+    // /health reports store reachability, not just liveness — so a pod goes Ready
+    // only once CouchDB answers. Kubernetes-only (see the field's doc).
+    httpHealth: { path: "/health", port: 7650 },
     notes: "webapi + webui SPA + Scalar + bundled CLI; serves /app + /api.",
   },
 ];

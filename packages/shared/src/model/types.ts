@@ -132,6 +132,12 @@ export interface ServiceDef {
   /** env_file for the container (compose), e.g. "../.env" */
   envFile?: string;
   healthcheck?: HealthcheckDef;
+  /**
+   * HTTP readiness endpoint, for orchestrators that probe over HTTP (Kubernetes
+   * `httpGet`). Separate from `healthcheck` because compose can only exec a command
+   * inside the image, and the app image ships no curl to exec.
+   */
+  httpHealth?: { path: string; port: number };
   restart?: string;
   /** compose profiles, e.g. ["app"] */
   profiles?: string[];

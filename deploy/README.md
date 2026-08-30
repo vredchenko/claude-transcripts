@@ -1,5 +1,8 @@
 # Deploy / dev stack
 
+> Running on **Kubernetes** (e.g. single-node k3s)? The same stack is generated as a
+> kustomize base under [`k8s/`](k8s/README.md).
+
 Backing services (CouchDB + Garage + Meilisearch + their admin UIs) and,
 optionally, the app — one `docker-compose.yml`, driven by the **stack runner** so
 it shares the repo-root `.env` with the host-run app.
