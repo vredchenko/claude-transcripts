@@ -34,3 +34,4 @@ Lightweight records of non-obvious decisions. See
 | [0027](0027-full-content-chunks-in-couchdb.md) | Full-content chunks in CouchDB (per-turn content, not just byte ranges) | Accepted (read + write paths done) |
 | [0028](0028-external-vs-bundled-meilisearch.md) | External vs bundled Meilisearch | **Open — undecided** |
 | [0029](0029-recall-policy-config-driven-session-start.md) | The recall policy is config-driven and injected at session start | Accepted |
+| [0030](0030-kubernetes-deploy-generated-from-the-model.md) | Kubernetes deploy (kustomize base) generated from the app model | Accepted |

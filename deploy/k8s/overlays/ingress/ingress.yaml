@@ -1,0 +1,40 @@
+# One host per web-facing service. Replace `.example.internal` with a domain you
+# resolve (wildcard DNS, /etc/hosts, or your tailnet's MagicDNS). Admin UIs are
+# reached the same way compose publishes them on 7652-7657 — just by name.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: claude-transcripts
+  namespace: claude-transcripts
+spec:
+  rules:
+    - host: claude-transcripts.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: app, port: { number: 7650 } } }
+    - host: couchdb.claude-transcripts.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: couchdb, port: { number: 5984 } } }
+    - host: garage.claude-transcripts.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: garage-ui, port: { number: 3909 } } }
+    - host: meilisearch.claude-transcripts.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: meilisearch, port: { number: 7700 } } }
+    - host: meilisearch-ui.claude-transcripts.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: meilisearch-ui, port: { number: 24900 } } }

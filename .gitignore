@@ -20,6 +20,9 @@ config/*.local.json
 # Backing-service state (bind-mounted by the compose stack)
 deploy/data/
 
+# The kustomize secretGenerator input (deploy/k8s/base/.env.template is the committed shape)
+deploy/k8s/**/.env
+
 # Generated API clients (regenerated from the OpenAPI spec) ARE committed.
 # packages/*/src/api/generated.ts   # uncomment if we choose not to commit them
 # `openapi.json` is committed too — it is the contract's source of truth (ADR 0019),

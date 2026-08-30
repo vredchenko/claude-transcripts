@@ -1,0 +1,24 @@
+# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
+# Do NOT edit by hand — run `bun run gen:k8s` to regenerate, and change the model
+# (packages/shared/src/model/services.ts) instead. Inline edits here are lost silently.
+# Overrides belong in a kustomize overlay — see deploy/k8s/README.md.
+#
+# Apply with:  kubectl apply -k deploy/k8s/base     (after: cp .env.template .env; edit)
+# The Secret is built from ./.env by the secretGenerator below; .env is gitignored.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: claude-transcripts
+resources:
+  - namespace.yaml
+  - couchdb.yaml
+  - garage.yaml
+  - garage-ui.yaml
+  - meilisearch.yaml
+  - meilisearch-ui.yaml
+  - app.yaml
+secretGenerator:
+  - name: claude-transcripts-env
+    envs:
+      - .env
+    options:
+      disableNameSuffixHash: true

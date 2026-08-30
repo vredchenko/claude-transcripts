@@ -55,7 +55,8 @@ bun run test:e2e                                # full write→read path (needs 
 ```
 
 `bun run gen:all` refreshes every generated artifact (hooks bindings, hook-events doc,
-architecture diagram, compose files, inlined deploy assets, compatibility matrix).
+architecture diagram, compose files, the k8s base, inlined deploy assets, compatibility
+matrix).
 Generated files are committed — regenerate, don't hand-edit; CI re-runs `gen:all` and
 fails on a diff.
 
@@ -92,7 +93,8 @@ Two kinds of components:
 Plus:
 - `scripts/` — **dev-only** automation (orval client gen, image mirroring,
   release). Run via `bun run scripts/<name>` and wrapped in CI.
-- `deploy/` — Docker Compose: CouchDB + Garage + Meilisearch + admin UIs.
+- `deploy/` — Docker Compose: CouchDB + Garage + Meilisearch + admin UIs; `deploy/k8s/`
+  the same stack as a generated kustomize base (ADR 0030).
 - `docs/` — design docs + ADRs.
 
 **Operational-utility rule:** dev-only → `scripts/`; user-useful → `cli/`. There is

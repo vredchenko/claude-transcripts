@@ -1,0 +1,20 @@
+# EXAMPLE overlay (hand-written; the base is generated). Exposes the stack through the
+# cluster's default Ingress controller (k3s ships Traefik) under one host per service.
+# Copy it, change the hosts, and — because the stack has no auth (ADR 0020) — make
+# sure whatever reaches those hosts is something you trust: a LAN, a VPN/tailnet,
+# or an auth-enforcing ingress in front.
+#
+#   kubectl apply -k deploy/k8s/overlays/ingress
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ingress.yaml
+# Point the base at a mirror instead of the public upstream images (ADR 0024), or
+# pin the app to a release. Names are the base's image refs, unchanged tag included.
+# images:
+#   - name: ghcr.io/vredchenko/claude-transcripts-app
+#     newName: registry.example.com/you/claude-transcripts-app
+#     newTag: v0.0.15
+#   - name: dxflrs/garage
+#     newName: registry.example.com/you/claude-transcripts-garage
