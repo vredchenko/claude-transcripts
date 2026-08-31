@@ -55,9 +55,37 @@ settled**: one failing action never stops another, errors go to stderr, and the 
 always exits 0.
 
 `bun run gen:hooks` projects the model into `hooks/hooks/hooks.json` (which events the
-plugin registers, and their timeouts). `SessionStart` / `SessionEnd` get 180 s because
-they do real work — seeding state, writing the summary, uploading the transcript;
-everything else gets 5 s, because it should never hold up a turn.
+plugin registers, their timeouts, and whether they are async). `SessionStart` /
+`SessionEnd` get 180 s because they do real work — seeding state, writing the summary,
+uploading the transcript; everything else gets 5 s.
+
+Eight of the eleven events are registered **`async: true`**, so Claude Code does not
+wait for the writer at all — a timeout caps how long a turn can be held up, it doesn't
+stop it being held up, and a synchronous `PostToolUse` costs ~130-160 ms on every tool
+call. Three events are deliberately left synchronous, and each would be a real bug
+otherwise:
+
+| event | why it must block |
+|---|---|
+| `SessionStart` | runs `announce-recording` + `inject-recall-policy`; Claude Code **discards an async hook's output**, so async would silently drop the banner and the recall primer |
+| `SessionEnd` | writes the summary and uploads the transcript — fire-and-forget at teardown risks being reaped mid-upload |
+| `UserPromptSubmit` | decision-shaped; Claude Code ignores `async` there, so setting it would be a lie in the registration |
+
+The split lives in `hookAsync()` (`packages/cli/src/hook/index.ts`), mirrored by
+`scripts/sync-hooks.ts` for the plugin, and is guarded by
+`packages/cli/src/hook/registration.test.ts` — which asserts against the real
+`BINDINGS`, so binding an output-producing action to an async event fails the suite
+rather than going quiet in the field.
+
+One consequence to know: on those eight events the exit code and stderr are discarded,
+so a broken writer no longer announces itself *through the hook*. It still shows up in
+`/claude-transcripts:status`, in the statusline (`◐ ct stalled`), and in the
+SessionStart banner — which is synchronous precisely because it is the channel that
+still works.
+
+`claude-transcripts hook install` writes the same flags, and **normalises an existing
+registration in place** rather than skipping it, so a re-run upgrades a settings.json
+written by an older version instead of leaving it synchronous forever.
 
 ## Runtime config
 

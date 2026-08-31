@@ -29,7 +29,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -40,7 +41,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -51,7 +53,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -62,7 +65,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -73,7 +77,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -84,7 +89,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -95,7 +101,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }
@@ -106,7 +113,8 @@
           {
             "type": "command",
             "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
-            "timeout": 5
+            "timeout": 5,
+            "async": true
           }
         ]
       }

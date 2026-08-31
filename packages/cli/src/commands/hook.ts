@@ -13,7 +13,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { dispatch, hookBindings, hookTimeout } from "../hook";
+import { dispatch, hookAsync, hookBindings, hookTimeout } from "../hook";
 import { parseFlags } from "../lib/args";
 import { installPaths } from "../lib/paths";
 
@@ -21,6 +21,7 @@ interface HookEntry {
   type?: string;
   command?: string;
   timeout?: number;
+  async?: boolean;
 }
 interface HookGroup {
   hooks: HookEntry[];
@@ -90,6 +91,7 @@ function install(argv: string[]): number {
 
   let added = 0;
   let replaced = 0;
+  let corrected = 0;
   for (const event of events) {
     const existing = hooks[event] ?? [];
     // Drop any registration of OURS that isn't the command we're about to write. It
@@ -109,13 +111,32 @@ function install(argv: string[]): number {
       });
       if (kept.length) cleaned.push({ ...g, hooks: kept });
     }
+    const timeout = hookTimeout(event);
+    const wantAsync = hookAsync(event);
+    // An existing registration of ours is normalised in place rather than skipped:
+    // `async` and the timeouts are properties of the event, not of the install, so a
+    // re-run must be able to correct one written by an older version. Skipping here is
+    // why a change like this would otherwise only ever reach new installs.
     if (cleaned.some((g) => g.hooks?.some((h) => h.command === command))) {
+      for (const g of cleaned) {
+        for (const h of g.hooks ?? []) {
+          if (h.command !== command) continue;
+          if (h.timeout !== timeout) {
+            h.timeout = timeout;
+            corrected++;
+          } else if (wantAsync ? h.async !== true : h.async !== undefined) {
+            corrected++;
+          }
+          if (wantAsync) h.async = true;
+          else delete h.async;
+        }
+      }
       hooks[event] = cleaned;
       continue;
     }
     hooks[event] = [
       ...cleaned,
-      { hooks: [{ type: "command", command, timeout: hookTimeout(event) }] },
+      { hooks: [{ type: "command", command, timeout, ...(wantAsync ? { async: true } : {}) }] },
     ];
     added++;
   }
@@ -123,14 +144,19 @@ function install(argv: string[]): number {
   if (options["dry-run"] === true) {
     console.log(
       `hook: would register ${added} event(s)` +
-        `${replaced ? `, replacing ${replaced} stale one(s)` : ""} in ${paths.claudeSettings}`,
+        `${replaced ? `, replacing ${replaced} stale one(s)` : ""}` +
+        `${corrected ? `, correcting ${corrected} existing one(s)` : ""} in ${paths.claudeSettings}`,
     );
     return 0;
   }
 
   mkdirSync(dirname(paths.claudeSettings), { recursive: true });
   writeFileSync(paths.claudeSettings, `${JSON.stringify({ ...settings, hooks }, null, 2)}\n`);
-  const suffix = replaced ? ` (replaced ${replaced} stale registration(s))` : "";
+  const notes = [
+    replaced ? `replaced ${replaced} stale registration(s)` : "",
+    corrected ? `corrected ${corrected} existing registration(s)` : "",
+  ].filter(Boolean);
+  const suffix = notes.length ? ` (${notes.join(", ")})` : "";
   console.log(
     added
       ? `hook: registered ${added} event(s)${suffix} → ${paths.claudeSettings}`
@@ -139,7 +165,8 @@ function install(argv: string[]): number {
   // Claude Code snapshots hook config when a session starts, so anything already open
   // keeps the old (or no) registration until it restarts. Silence here is the bug we
   // spent a day diagnosing once.
-  if (added) console.log("hook: restart any open Claude Code session for it to take effect.");
+  if (added || corrected)
+    console.log("hook: restart any open Claude Code session for it to take effect.");
   return 0;
 }
 
