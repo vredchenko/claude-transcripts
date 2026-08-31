@@ -6,6 +6,70 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.16] — 2026-08-31
+
+The landing page took nine seconds. It doesn't any more — roughly a second of that was
+the browser fetching an uncompressed bundle it already had, and the other eight were a
+single CouchDB query re-reducing the entire corpus on every request ([#107]).
+
+### Fixed
+
+- **The session list no longer re-reduces the whole corpus per request.**
+  `session_index/aggregate` reduces in JavaScript, and CouchDB can serve a reduce from
+  the values stored in its btree nodes only when a node's whole span falls inside one
+  group — grouped per session it never does, so every `GET /api/sessions` pushed
+  essentially every document back through the `couchjs` query server. Measured at ~20 ms
+  per session, growing with each session recorded: **8.0 s at 463 sessions**. A session's
+  rollup only changes when that session gets new documents and the `_changes` feed says
+  which ones those are, so the grouped query now runs **once** at boot and thereafter
+  only the sessions a change batch touched are re-read. The list is **8,000–8,700 ms →
+  5–70 ms** ([#118]).
+
+  It is a cache and behaves like one: while cold, and after any failed load, the route
+  queries CouchDB exactly as before — a broken index costs latency, never correctness —
+  and a failed *re*load keeps the last good answer rather than serving an empty one.
+  `POST /api/search/reindex` still reads CouchDB deliberately, because it is the
+  reconciliation path. A full reload every 15 minutes backstops a dead feed, and
+  `/health` gained a `sessionIndex` block (`ready`, `sessions`, `loadedAt`, `updatedAt`,
+  `error`) so staleness is visible rather than inferred.
+
+- **Responses are compressed, and static assets are cacheable.** Neither had any header
+  at all: the SPA bundle was re-downloaded uncompressed on every visit, with no
+  `Cache-Control` and no `ETag`. Vite's content-hashed `assets/` are now served
+  `public, max-age=31536000, immutable`; the shell and the (never hashed) docs tree get
+  `no-cache` plus an `ETag`, so a revalidation costs a 304 rather than a re-download.
+  Hashed assets deliberately get no `ETag` — they are never revalidated, so hashing
+  670 KB per request would produce a header no client sends back. The bundle is
+  **686,773 → 213,700 B** on the wire and `/api/sessions?limit=50` **31 KB → 3,262 B**
+  ([#116]).
+
+### Changed
+
+- **hono 4.6.14 → 4.13.5.** `compress()` gained `Vary: Accept-Encoding` upstream in
+  4.13.0 (honojs/hono#5137), so the local workaround for it is gone. Its `threshold`
+  option is still ineffective and is still worked around here: the option is tested
+  against `Content-Length`, and a `Response` built by a handler has none — per the Fetch
+  standard that header is added by the server when it serialises the response — so
+  without this every response was encoded, including short ones that grew in the process
+  ([#120]).
+- **`search-follower` is now `changes-follower`, and runs even when search is off.** It
+  serves two readers now, and the session index needs the feed regardless of
+  Meilisearch. One feed with two consumers rather than two learning the same facts. Its
+  checkpoint document keeps the id `_local/search_checkpoint`: the id *is* the persisted
+  state, and renaming it would restart every existing instance's feed from `now`.
+  **Operators:** instances running with Meilisearch disabled now hold a longpoll change
+  feed against CouchDB where previously they held none.
+
+### Known
+
+- `session_index/aggregate`'s reduce picks `cwd`, `model` and `hostname` arbitrarily
+  when a session's documents disagree, so two *identical* CouchDB queries can return
+  different values — and because `cwd` is a filter, a session can appear and disappear
+  between identical requests. Long-standing, surfaced while verifying the above, and not
+  changed by it ([#119]).
+- `GET /api/sessions/{id}/turns` fetches a session's entire transcript to serve one page
+  ([#117]).
+
 ## [0.0.15] — 2026-08-28
 
 The plugin becomes visible, and Claude reads its history back. This is the whole of
@@ -1082,6 +1146,13 @@ of them had ever executed:
 [#112]: https://github.com/vredchenko/claude-transcripts/pull/112
 [#113]: https://github.com/vredchenko/claude-transcripts/pull/113
 [#114]: https://github.com/vredchenko/claude-transcripts/pull/114
+[#107]: https://github.com/vredchenko/claude-transcripts/issues/107
+[#117]: https://github.com/vredchenko/claude-transcripts/issues/117
+[#119]: https://github.com/vredchenko/claude-transcripts/issues/119
+[#116]: https://github.com/vredchenko/claude-transcripts/pull/116
+[#118]: https://github.com/vredchenko/claude-transcripts/pull/118
+[#120]: https://github.com/vredchenko/claude-transcripts/pull/120
+[0.0.16]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.16
 [0.0.15]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.15
 [0.0.14]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.14
 [0.0.13]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.13

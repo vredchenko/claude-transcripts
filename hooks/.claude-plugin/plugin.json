@@ -1,6 +1,6 @@
 {
   "name": "claude-transcripts",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Claude Transcripts — log every session to CouchDB + S3, show that it's recording, and read the history back.",
   "keywords": [
     "session-logging",
