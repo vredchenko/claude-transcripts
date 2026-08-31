@@ -1,6 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { apiReference } from "@scalar/hono-api-reference";
 import { serveStatic } from "hono/bun";
+import { etag } from "hono/etag";
+import { cacheControlFor, compression, isSpaAssetPath } from "./caching";
 import { dbName } from "./config";
 import type { AppContext } from "./context";
 import { ingestRoutes } from "./routes/ingest";
@@ -43,6 +45,11 @@ async function checkCouch(ctx: AppContext) {
 
 export function buildServer(ctx: AppContext) {
   const app = new OpenAPIHono();
+
+  // Compression, mounted **before every route** — a `use("*")` registered after the
+  // routes matches none of them, and the only symptom is uncompressed responses.
+  // See `caching.ts` for what this adds over hono's `compress()` on its own.
+  app.use("*", compression());
 
   // Surface the cause of a failure instead of a bare "Internal Server Error".
   // Tier 1 is a single user on localhost, so the message is safe to return —
@@ -105,14 +112,32 @@ export function buildServer(ctx: AppContext) {
   // Serve the built webui SPA at /app in production (CT_STATIC_DIR set).
   const staticDir = ctx.config.webapi.staticDir;
   if (staticDir) {
+    // An ETag only pays for itself where the client will actually revalidate. The
+    // hashed assets are served `immutable` for a year and never will, so hashing
+    // 670 KB of bundle on every request would buy a header nobody sends back — the
+    // shell, which *is* revalidated on every visit, is a different story.
+    const shellEtag = etag();
+    app.use("/app/*", async (c, next) =>
+      isSpaAssetPath(c.req.path) ? next() : shellEtag(c, next),
+    );
     app.use(
       "/app/*",
-      serveStatic({ root: staticDir, rewriteRequestPath: (p) => p.replace(/^\/app/, "") }),
+      serveStatic({
+        root: staticDir,
+        rewriteRequestPath: (p) => p.replace(/^\/app/, ""),
+        onFound: (path, c) => c.header("Cache-Control", cacheControlFor("spa", path)),
+      }),
     );
     app.get("/app", (c) => c.redirect("/app/"));
     app.get("/app/*", async () => {
       const index = Bun.file(`${staticDir}/index.html`);
-      return new Response(await index.bytes(), { headers: { "content-type": "text/html" } });
+      return new Response(await index.bytes(), {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          // The shell names the hashed assets, so it must never be the stale part.
+          "cache-control": cacheControlFor("spa", "index.html"),
+        },
+      });
     });
   }
 
@@ -122,11 +147,15 @@ export function buildServer(ctx: AppContext) {
   const docsDir = ctx.config.webapi.docsDir;
   if (docsDir) {
     app.get("/docs", (c) => c.redirect("/docs/"));
+    // Nothing in the docs build is content-hashed, so every page revalidates —
+    // which an ETag turns into a 304 instead of a re-download.
+    app.use("/docs/*", etag());
     app.use(
       "/docs/*",
       serveStatic({
         root: docsDir,
         rewriteRequestPath: (p) => p.replace(/^\/docs\/?/, "/"),
+        onFound: (path, c) => c.header("Cache-Control", cacheControlFor("docs", path)),
       }),
     );
   }
