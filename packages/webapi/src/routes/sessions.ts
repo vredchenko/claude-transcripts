@@ -538,12 +538,20 @@ export function sessionRoutes(ctx: AppContext) {
     const hostname = c.req.query("hostname");
     const db = ctx.couch.db("sessions");
     // One aggregate row per session (ended + running + incomplete), grouped by
-    // session_id. Sorted + paginated in-memory — fine at Tier-1 volumes; a
-    // time-keyed view is the Tier-2 move if the corpus outgrows it.
-    const res = await db.view("session_index", "aggregate", { group: true, reduce: true });
+    // session_id, then sorted + paginated in memory.
+    //
+    // Grouped, that view costs ~20 ms per session *every time* — its JavaScript
+    // reduce can't be served from CouchDB's stored btree reductions, so the whole
+    // corpus goes back through the query server on each request (8 s at 463
+    // sessions, #107). The index answers the same question from memory, patched
+    // per session off the change feed. It is a cache, so when it is cold or its
+    // last load failed we ask CouchDB directly and simply pay the old price.
+    const rows = ctx.sessionIndex.ready
+      ? ctx.sessionIndex.rows()
+      : (await db.view("session_index", "aggregate", { group: true, reduce: true })).rows;
     const now = Date.now();
     const windowMs = liveWindowMs(ctx.config);
-    const all: SessionSummary[] = res.rows
+    const all: SessionSummary[] = rows
       .filter((r: any) => isRealSession(r.value))
       .map((r: any) => aggregateToSummary(String(r.key), r.value, now, windowMs));
     const windowed = all.filter(

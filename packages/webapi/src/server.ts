@@ -84,6 +84,10 @@ export function buildServer(ctx: AppContext) {
       version: ctx.model.identity.version,
       startedAt: ctx.boot.startedAt,
       stores: { couch },
+      // Reported because a stale session index is otherwise invisible: the list keeps
+      // answering, just with an older set. `ready: false` means it is cold or its last
+      // load failed and the list is querying CouchDB directly — slow, but correct.
+      sessionIndex: ctx.sessionIndex.status(),
     });
   });
 

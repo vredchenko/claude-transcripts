@@ -37,6 +37,8 @@ data (the only writes it does are idempotent schema setup on boot).
 | `src/storage/blob-store.ts` | `BlobStore` interface (`get`, `stat`). |
 | `src/storage/s3-blob-store.ts` | `S3BlobStore` — `Bun.S3Client` implementation (path-style, vendor-neutral). |
 | `src/storage/ensure.ts` | `ensureCouchDbs` — creates the DB, upserts every design doc, creates the Mango index. |
+| `src/storage/session-index.ts` | Per-session aggregates held in memory, patched from the change feed — what makes the session list fast. |
+| `src/storage/changes-follower.ts` | Follows CouchDB `_changes`; feeds the session index (always) and Meilisearch (when search is on). |
 
 ## Configuration (`config.ts`)
 
@@ -83,6 +85,11 @@ from the same definitions (no hand-written spec).
   unreachable server) and `stores.couch.provisioned` reporting whether boot-time
   provisioning — database creation plus [migrations](../operate/migrations.md) —
   completed, with `provisioningError` when it didn't.
+- **Is the session list being served from memory?** `sessionIndex` reports
+  `ready`, how many `sessions` are held, when it last fully `loadedAt` and was last
+  patched (`updatedAt`), and any `error`. `ready: false` means the list is querying
+  CouchDB directly — correct, but slow. This is reported because a stale index is
+  otherwise invisible: the list keeps answering, just with an older set.
 
 Boot deliberately never blocks on the stores ([index.ts](../../packages/webapi/src/index.ts)):
 the webapi must come up so you can *see* what is wrong. That makes this
@@ -235,6 +242,46 @@ artefacts to `assets/` and leaves the shell and anything from `public/` unhashed
 the docs build has an `assets/` directory of its own that is *not* hashed. An ETag is
 computed only where a client will actually revalidate — hashing a 670 KB bundle on
 every request to produce a header no client will ever send back is pure cost.
+
+## The session index
+
+`GET /api/sessions` needs one aggregate row per session, and gets it from
+`session_index/aggregate` — a view whose reduce is **JavaScript**. CouchDB can serve
+a reduce from the values stored in its btree nodes only when a node's whole span
+falls inside one group; grouped per session it never does, so each request pushed
+essentially the entire corpus back through the `couchjs` query server. Measured on a
+real instance: **~20 ms per session, every request**, which at 463 sessions and 49 k
+documents made the landing page an 8-second wait ([#107](https://github.com/vredchenko/claude-transcripts/issues/107)).
+
+`src/storage/session-index.ts` stops asking. A session's rollup changes only when
+that session gets new documents, and `_changes` says exactly which sessions those
+are — so the grouped query runs **once** at boot, and after that only the sessions a
+change batch touched are re-read (`keys=[…]`). The route then filters, sorts and
+paginates in memory, which is what it already did with the view's rows.
+
+|  | before | after |
+|---|---|---|
+| `GET /api/sessions?limit=50` | 8,000–8,700 ms | **5–70 ms** |
+| one change batch touching a session | — | ~95 ms |
+| full (re)load | — | ~8 s, at boot and every 15 min |
+
+Three properties it is built to keep:
+
+- **It is a cache, not a source of truth.** Rows are stored exactly as the view
+  returns them, and every judgement about what a row *means* stays in the route.
+  `POST /api/search/reindex` deliberately still queries CouchDB: it is the
+  reconciliation path, and rebuilding one cache from another could not detect the
+  drift it exists to fix.
+- **It fails soft.** While cold, and after any failed load, `ready` is false and the
+  route queries the view exactly as before. A broken index costs latency, never
+  correctness — and a failed *re*load keeps serving the last good answer rather than
+  an empty one.
+- **It self-heals.** The change feed is the update path, but a feed that died would
+  leave a silently stale list, so a full reload runs every 15 minutes as a backstop
+  and `/health` reports the index's state.
+
+Because the index needs the feed, `changes-follower.ts` runs even when Meilisearch is
+off — one feed with two consumers rather than two feeds learning the same facts.
 
 ## `packages/shared`
 

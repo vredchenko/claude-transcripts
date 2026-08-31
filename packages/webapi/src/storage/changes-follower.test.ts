@@ -1,5 +1,5 @@
 /**
- * The search follower's checkpoint.
+ * The change follower's checkpoint.
  *
  * The bug these guard against (#89) was not a failure: indexing stayed correct while
  * the follower wrote 5.1M revisions of its own checkpoint into the database it was
@@ -9,7 +9,7 @@
  * about its value still passes.
  */
 import { describe, expect, test } from "bun:test";
-import { type CheckpointStore, readCheckpoint, writeCheckpoint } from "./search-follower";
+import { type CheckpointStore, readCheckpoint, writeCheckpoint } from "./changes-follower";
 
 /** A fake database that records every call and answers from a fixed doc map. */
 function fakeStore(docs: Record<string, any> = {}) {

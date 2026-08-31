@@ -13,6 +13,7 @@ import { buildServer } from "./server";
 import type { BlobStore } from "./storage/blob-store";
 import { makeCouch } from "./storage/couch";
 import { Meili } from "./storage/meili";
+import { createSessionIndex } from "./storage/session-index";
 
 // Route registration never touches the backends — only the handlers do — so a
 // no-op blob store and a (lazily-constructed, never-called) couch handle suffice.
@@ -44,6 +45,12 @@ export function buildOpenApiDocument(): unknown {
     // Spec generation registers routes without ever serving one, so no boot
     // provisioning happens (and /health is never called) — a stub suffices.
     boot: { startedAt: new Date().toISOString(), couchProvisioned: false },
+    // Never loaded, so never queried: routes only read it while handling a request.
+    sessionIndex: createSessionIndex({
+      async view() {
+        throw new Error("spec build: not callable");
+      },
+    }),
   });
   return model.apiSpec;
 }
