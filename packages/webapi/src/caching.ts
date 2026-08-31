@@ -58,28 +58,6 @@ export function cacheControlFor(kind: StaticKind, path: string): string {
   return kind === "spa" && isSpaAssetPath(path) ? IMMUTABLE : REVALIDATE;
 }
 
-/** Append a value to `Vary` without duplicating one that is already there. */
-function appendVary(headers: Headers, value: string): void {
-  const existing = headers.get("Vary");
-  if (existing === null || existing === "") {
-    headers.set("Vary", value);
-    return;
-  }
-  // `Vary: *` already means "varies by everything"; narrowing it would be a lie.
-  if (existing.trim() === "*") return;
-  const listed = existing.split(",").some((v) => v.trim().toLowerCase() === value.toLowerCase());
-  if (!listed) headers.set("Vary", `${existing}, ${value}`);
-}
-
-/**
- * Would the client take a compressed body at all? Only a cheap pre-check, so we
- * don't buffer a body for nothing — `compress` does the real content negotiation.
- */
-function acceptsCompression(c: Context): boolean {
-  const accept = c.req.header("Accept-Encoding");
-  return accept !== undefined && /\b(?:gzip|deflate|\*)\b/i.test(accept);
-}
-
 /**
  * A CouchDB change feed proxied through `/api/couch` streams for as long as the
  * client holds it open. `CompressionStream` waits for enough input to emit a block,
@@ -149,19 +127,22 @@ const noop: Next = async () => {};
 /**
  * Compress responses — a wrapper around hono's `compress()`, not a replacement.
  *
- * The wrapper earns its place by fixing two things the stock middleware gets wrong
- * here:
+ * The wrapper exists for one reason: **`threshold` does not work.** The option is
+ * tested against `Content-Length`, and a `Response` built by a handler has none —
+ * per the Fetch standard that header is added by the server when it serialises the
+ * response, not by the constructor, so `new Response(body).headers.get()` returns
+ * null on Bun *and* on Node. The threshold therefore never fires for anything a
+ * route returns, and every response was encoded: a 15-byte JSON body went out as 31
+ * bytes of gzip, and all of them became `transfer-encoding: chunked`. So we size the
+ * body here — peeking at the stream rather than buffering it, so large responses
+ * stay streamed — and hand a small one straight back with a real `Content-Length`.
  *
- * 1. **It never sets `Vary: Accept-Encoding`.** Without that header a shared cache
- *    is free to store the gzipped body and hand it to the next client, whether or
- *    not that client asked for one. We set it on every compressible response,
- *    compressed or not, which is the form that stays correct either way.
- * 2. **Its `threshold` is inert under Bun.** The option is tested against
- *    `Content-Length`, and a Hono response on Bun carries none — so *every*
- *    response was being encoded, including ones that grew in the process (a 15-byte
- *    JSON body left as 31 bytes of gzip), and all of them became
- *    `transfer-encoding: chunked`. So we size the body ourselves, and hand a small
- *    one straight back with a real `Content-Length` instead.
+ * `Vary: Accept-Encoding` used to be missing too, and this wrapper set it. Hono fixed
+ * that in **4.13.0** (honojs/hono#5137), which is why the dependency is pinned at or
+ * above that: `compress()` now sets `Vary` itself, before it negotiates, so a response
+ * left uncompressed because the client asked for no encoding still carries it.
+ * Anything this wrapper short-circuits *before* handing off gets no `Vary`, and
+ * correctly so — those are the responses that do not vary by encoding at all.
  *
  * Binary responses need no exclusion list: hono's `COMPRESSIBLE_CONTENT_TYPE_REGEX`
  * already declines `application/octet-stream` (the CLI download, proxied blobs) and
@@ -192,9 +173,7 @@ export function compression(): MiddlewareHandler {
     const type = res.headers.get("Content-Type");
     if (type === null || !COMPRESSIBLE_CONTENT_TYPE_REGEX.test(type)) return;
 
-    appendVary(res.headers, "Accept-Encoding");
-
-    if (isChangeFeed(c) || !acceptsCompression(c)) return;
+    if (isChangeFeed(c)) return;
 
     const declared = res.headers.get("Content-Length");
     if (declared !== null) {

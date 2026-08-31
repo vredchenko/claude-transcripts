@@ -16,7 +16,7 @@
     },
     "packages/cli": {
       "name": "@claude-transcripts/cli",
-      "version": "0.0.7",
+      "version": "0.0.15",
       "bin": {
         "claude-transcripts": "dist/cli.js",
       },
@@ -33,23 +33,23 @@
     },
     "packages/shared": {
       "name": "@claude-transcripts/shared",
-      "version": "0.0.7",
+      "version": "0.0.15",
     },
     "packages/webapi": {
       "name": "@claude-transcripts/webapi",
-      "version": "0.0.7",
+      "version": "0.0.15",
       "dependencies": {
         "@claude-transcripts/shared": "workspace:*",
         "@hono/zod-openapi": "^0.18.3",
         "@scalar/hono-api-reference": "^0.5.165",
-        "hono": "^4.6.14",
+        "hono": "^4.13.5",
         "nano": "^10.1.4",
         "zod": "^3.24.1",
       },
     },
     "packages/webui": {
       "name": "@claude-transcripts/webui",
-      "version": "0.0.7",
+      "version": "0.0.15",
       "dependencies": {
         "@claude-transcripts/shared": "workspace:*",
         "@emotion/react": "^11.13.3",
@@ -709,7 +709,7 @@
 
     "hoist-non-react-statics": ["hoist-non-react-statics@3.3.2", "", { "dependencies": { "react-is": "^16.7.0" } }, "sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw=="],
 
-    "hono": ["hono@4.12.31", "", {}, "sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg=="],
+    "hono": ["hono@4.13.5", "", {}, "sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw=="],
 
     "hookable": ["hookable@5.5.3", "", {}, "sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ=="],
 
