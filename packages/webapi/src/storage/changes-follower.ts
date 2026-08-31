@@ -1,12 +1,19 @@
 /**
- * Keeps the Meilisearch indexes current by following CouchDB's `_changes` feed.
+ * Follows CouchDB's `_changes` feed and keeps two readers current from it: the
+ * in-memory session index, and the Meilisearch indexes.
  *
  * Indexing used to happen only as a side effect of `/api/ingest/*`, which left a hole:
  * the hook writes straight to CouchDB, so a live-recorded session was never searchable
  * until someone ran a manual reindex. Following the change feed closes that without
  * coupling the writer to the reader — whoever writes a doc, by whatever path, the
- * index catches up. It also keeps the hook free of a hard dependency on the webapi
+ * readers catch up. It also keeps the hook free of a hard dependency on the webapi
  * being up, which matters because the hook must never block a session.
+ *
+ * It now feeds the session index too (#107), which is why the feed runs even when
+ * search is switched off: the change feed is the only thing that knows which sessions
+ * moved, and that is exactly what makes re-reducing the whole corpus per request
+ * avoidable. One feed, two consumers — a second follower would double the load on
+ * CouchDB to learn the same facts.
  *
  * Scope, deliberately: **upserts only**. Docs here are append-only by invariant
  * ([ADR 0016]), so deletion is an out-of-band admin action; `POST /api/search/reindex`
@@ -41,6 +48,9 @@ import {
  * outside this instance ([bundles.md](../../../../docs/design/bundles.md)).
  */
 const CHECKPOINT_ID = "_local/search_checkpoint";
+// Named for search because that is what first wrote it. Deliberately unchanged when
+// this module grew a second consumer: the id *is* the persisted state, and renaming
+// it would silently restart every existing instance's feed from `now`.
 
 /** Where the resume point lived before #89, adopted and removed on the first run after. */
 const LEGACY_CHECKPOINT_ID = "search_checkpoint";
@@ -48,7 +58,7 @@ const LEGACY_CHECKPOINT_ID = "search_checkpoint";
 /** The doc `type` both the local and the legacy checkpoint carry. */
 const CHECKPOINT_TYPE = "search_checkpoint";
 
-export interface SearchFollower {
+export interface ChangesFollower {
   stop(): void;
 }
 
@@ -127,15 +137,59 @@ export async function writeCheckpoint(db: CheckpointStore, seq: string): Promise
 }
 
 /**
- * Start following the feed. Returns null when search is off, so the caller can log it.
+ * Project a batch of changed docs into Meilisearch. Only called when search is on.
+ *
+ * Split out of the batch handler so that handler reads as the two things it does —
+ * patch the session index, then index for search — rather than as one long block in
+ * which the search half hides the other.
+ */
+async function indexForSearch(ctx: AppContext, db: any, docs: any[]): Promise<void> {
+  const sessionDocs = docs.filter((d) => d.type === "summary").map((d) => toSessionSearchDoc(d));
+  const turnDocs = docs.filter((d) => d.type === "chunk").flatMap((d) => toTurnSearchDocs(d));
+
+  // A session becomes findable as soon as it starts, not when it ends. Event docs
+  // name the sessions that moved; re-project the ones still without a summary from
+  // the aggregate, which is the only place a running session's rollup exists.
+  //
+  // Projecting from the event doc itself would be cheaper and wrong: Meilisearch's
+  // add-or-replace would let a sparse event-shaped row overwrite the complete
+  // record an ended session already has.
+  const touched = new Set(
+    docs.filter((d) => d.type === "event" && d.session_id).map((d) => String(d.session_id)),
+  );
+  const alreadyEnded = new Set(docs.filter((d) => d.type === "summary").map((d) => d.session_id));
+  const pending = [...touched].filter((id) => !alreadyEnded.has(id));
+  if (pending.length) {
+    // The session index was patched from this same batch a moment ago, so when it is
+    // warm the rollups are already in memory and this costs no round trip at all.
+    const rows = ctx.sessionIndex.ready
+      ? pending.map((key) => ({ key, value: ctx.sessionIndex.get(key) }))
+      : (
+          await db.view("session_index", "aggregate", {
+            group: true,
+            reduce: true,
+            keys: pending,
+          })
+        ).rows;
+    for (const row of rows as any[]) {
+      if (!row?.value || row.value.summary) continue;
+      sessionDocs.push(toRunningSessionSearchDoc(String(row.key), row.value));
+    }
+  }
+
+  if (sessionDocs.length)
+    await ctx.meili.index(indexName(ctx.config, SESSIONS_INDEX_KEY), sessionDocs);
+  if (turnDocs.length) await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), turnDocs);
+}
+
+/**
+ * Start following the feed.
  *
  * The first run starts at `now` rather than replaying all of history: an existing
- * corpus is bulk-loaded far more cheaply by `reindex` than by streaming every past
- * change through the indexer.
+ * corpus is bulk-loaded far more cheaply by `reindex` (search) and a single grouped
+ * query (the session index) than by streaming every past change through them.
  */
-export function startSearchFollower(ctx: AppContext): SearchFollower | null {
-  if (!ctx.meili.enabled) return null;
-
+export function startChangesFollower(ctx: AppContext): ChangesFollower {
   const db = ctx.couch.db("sessions") as any;
   let stopped = false;
 
@@ -155,47 +209,22 @@ export function startSearchFollower(ctx: AppContext): SearchFollower | null {
     feed.on("batch", async (batch: any[]) => {
       try {
         const docs = batch.map((c) => c?.doc).filter((d) => d && !d._deleted);
-        const sessionDocs = docs
-          .filter((d) => d.type === "summary")
-          .map((d) => toSessionSearchDoc(d));
-        const turnDocs = docs.filter((d) => d.type === "chunk").flatMap((d) => toTurnSearchDocs(d));
 
-        // A session becomes findable as soon as it starts, not when it ends. Event docs
-        // name the sessions that moved; re-project the ones still without a summary from
-        // the aggregate, which is the only place a running session's rollup exists.
-        //
-        // Projecting from the event doc itself would be cheaper and wrong: Meilisearch's
-        // add-or-replace would let a sparse event-shaped row overwrite the complete
-        // record an ended session already has.
-        const touched = new Set(
-          docs.filter((d) => d.type === "event" && d.session_id).map((d) => String(d.session_id)),
-        );
-        const alreadyEnded = new Set(
-          docs.filter((d) => d.type === "summary").map((d) => d.session_id),
-        );
-        const pending = [...touched].filter((id) => !alreadyEnded.has(id));
-        if (pending.length) {
-          const agg = await db.view("session_index", "aggregate", {
-            group: true,
-            reduce: true,
-            keys: pending,
-          });
-          for (const row of agg.rows as any[]) {
-            if (!row?.value || row.value.summary) continue;
-            sessionDocs.push(toRunningSessionSearchDoc(String(row.key), row.value));
-          }
-        }
+        // Every doc type the aggregate maps over — `event`, `summary` and `chunk` —
+        // changes the answer for its session, so all three are re-read. This runs
+        // first so the search projection below sees the fresh rollups.
+        await ctx.sessionIndex.refresh([
+          ...new Set(docs.filter((d) => d.session_id).map((d) => String(d.session_id))),
+        ]);
 
-        if (sessionDocs.length)
-          await ctx.meili.index(indexName(ctx.config, SESSIONS_INDEX_KEY), sessionDocs);
-        if (turnDocs.length)
-          await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), turnDocs);
+        if (ctx.meili.enabled) await indexForSearch(ctx, db, docs);
 
         const last = batch[batch.length - 1];
         if (last?.seq) await writeCheckpoint(db, String(last.seq));
       } catch (err) {
-        // Never let an indexing failure stop the feed — the next reindex reconciles.
-        console.error("[search] indexing a change batch failed (continuing):", err);
+        // Never let a batch failure stop the feed — the periodic index reload and
+        // `POST /api/search/reindex` are the reconciliation paths.
+        console.error("[changes] handling a change batch failed (continuing):", err);
       } finally {
         // In `wait` mode nano pauses the feed *before* emitting the batch and waits
         // for an explicit resume — there's no done-callback on the event. Miss this
@@ -206,7 +235,7 @@ export function startSearchFollower(ctx: AppContext): SearchFollower | null {
 
     feed.on("error", (err: unknown) => {
       // nano retries transient errors itself; anything surfacing here is worth seeing.
-      console.error("[search] changes feed error:", err);
+      console.error("[changes] feed error:", err);
     });
   })();
 

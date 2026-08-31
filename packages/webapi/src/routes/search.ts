@@ -340,6 +340,10 @@ export function searchRoutes(ctx: AppContext) {
     // it ended, so the sessions you'd most want to search for were the missing ones.
     // The aggregate has a row per session either way; take the rows that carry no
     // summary, and leave the ended ones to the projection above.
+    // Deliberately queried from CouchDB rather than read from `ctx.sessionIndex`,
+    // even though the index holds exactly these rows: reindex is the reconciliation
+    // path, the thing you run when you suspect a reader has drifted. Rebuilding one
+    // cache from another would make it unable to detect the drift it exists to fix.
     const aggregate = await db.view("session_index", "aggregate", { group: true, reduce: true });
     for (const row of aggregate.rows as any[]) {
       const agg = row?.value;
