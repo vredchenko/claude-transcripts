@@ -204,6 +204,38 @@ In production the combined image sets `CT_STATIC_DIR` to the built SPA
 UI ([ADR 0002](../design/decisions/0002-single-combined-container.md)). In dev the var is
 unset and Vite serves the UI, proxying `/api` to this service.
 
+### Compression and caching
+
+`src/caching.ts` supplies both, and `server.ts` mounts them.
+
+**Compression** wraps hono's `compress()` and applies to every response, API JSON
+included. The wrapper exists because the stock middleware, on Bun, never sets `Vary:
+Accept-Encoding` and cannot honour its own size threshold — Hono responses arrive
+without a `Content-Length` to test, so *every* response was encoded, including short
+ones that got bigger in the process. The wrapper sizes the body itself and hands a
+small one back untouched with a real `Content-Length`. Binary bodies (the CLI
+download, proxied blobs) and `text/event-stream` are excluded by content type;
+CouchDB change feeds proxied through `/api/couch?feed=continuous` are excluded
+explicitly, because buffering one into compression blocks would stall it.
+
+The middleware must be registered **before** the routes it wraps. A `use("*")` added
+afterwards matches nothing, and the only symptom is that responses come back
+uncompressed.
+
+**Caching** turns on whether a file's URL changes when its bytes do:
+
+| Served from | `Cache-Control` | ETag |
+|---|---|---|
+| `/app/assets/*` — Vite's content-hashed bundles | `public, max-age=31536000, immutable` | no |
+| `/app/*` — the `index.html` shell | `no-cache` | yes |
+| `/docs/*` — never content-hashed | `no-cache` | yes |
+
+The split is by **directory**, not by the shape of a filename: Vite writes hashed
+artefacts to `assets/` and leaves the shell and anything from `public/` unhashed, and
+the docs build has an `assets/` directory of its own that is *not* hashed. An ETag is
+computed only where a client will actually revalidate — hashing a 670 KB bundle on
+every request to produce a header no client will ever send back is pure cost.
+
 ## `packages/shared`
 
 `packages/shared/src/index.ts` holds cross-cutting domain types + helpers. The
