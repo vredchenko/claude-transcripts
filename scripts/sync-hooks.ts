@@ -23,12 +23,22 @@ for (const b of model.bindings) bindings[b.event] = b.actions;
 
 // hooks.json: register every bound event, routed through the plugin's shim.
 const LONG_TIMEOUT = new Set(["SessionStart", "SessionEnd"]);
+// Fire-and-forget everywhere it is safe, so the writer never holds up a turn. The three
+// exclusions each matter: SessionStart emits the banner and the recall primer and
+// SessionEnd uploads the transcript — Claude Code discards an async hook's output and
+// does not wait for it — and UserPromptSubmit is decision-shaped, where async is
+// ignored. Mirrors `hookAsync` in packages/cli/src/hook/index.ts; keep the two in step.
+const SYNCHRONOUS = new Set(["SessionStart", "SessionEnd", "UserPromptSubmit"]);
 const command = "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts";
 const hooks: Record<string, unknown> = {};
 for (const event of Object.keys(bindings)) {
-  hooks[event] = [
-    { hooks: [{ type: "command", command, timeout: LONG_TIMEOUT.has(event) ? 180 : 5 }] },
-  ];
+  const entry: Record<string, unknown> = {
+    type: "command",
+    command,
+    timeout: LONG_TIMEOUT.has(event) ? 180 : 5,
+  };
+  if (!SYNCHRONOUS.has(event)) entry.async = true;
+  hooks[event] = [{ hooks: [entry] }];
 }
 
 await Bun.write(

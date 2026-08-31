@@ -38,6 +38,32 @@ export function hookTimeout(event: string): number {
   return LONG_TIMEOUT_EVENTS.has(event) ? 180 : 5;
 }
 
+/**
+ * Events registered fire-and-forget (`async: true`), so the writer never holds up a turn.
+ *
+ * A timeout caps the delay; it does not remove it. Measured against a tailnet instance,
+ * a synchronous `PostToolUse` costs ~130-160 ms — paid on *every* tool call, which is
+ * the difference between "a small append" and a tax on the whole session.
+ *
+ * The three exclusions are deliberate, and each would be a real bug if included:
+ *  - `SessionStart` runs `announce-recording` + `inject-recall-policy`, both of which
+ *    write into the session. Claude Code discards an async hook's output, so this would
+ *    silently drop the banner and the recall primer.
+ *  - `SessionEnd` writes the summary and uploads the transcript. Fire-and-forget at
+ *    teardown risks being reaped mid-upload, which loses data.
+ *  - `UserPromptSubmit` is decision-shaped; Claude Code ignores `async` there, so
+ *    claiming it would be a lie in the registration.
+ *
+ * Everything else binds only to `write-event-marker` / `update-counts` /
+ * `flush-transcript-chunk` — pure writes with nothing session-visible. Mirrors
+ * `scripts/sync-hooks.ts`, which writes the same flags into the plugin's registration.
+ */
+const SYNCHRONOUS_EVENTS = new Set(["SessionStart", "SessionEnd", "UserPromptSubmit"]);
+
+export function hookAsync(event: string): boolean {
+  return !SYNCHRONOUS_EVENTS.has(event);
+}
+
 export interface DispatchResult {
   /** False when we deliberately did nothing (no config, or an unusable payload). */
   ran: boolean;
