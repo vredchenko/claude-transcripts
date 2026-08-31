@@ -16,16 +16,19 @@
   "userConfig": {
     "recall_mode": {
       "type": "string",
+      "title": "Recall mode",
       "description": "When Claude consults session history unprompted: off | suggest | auto (default: the instance's config, normally auto)",
       "required": false
     },
     "recall_scope": {
       "type": "string",
+      "title": "Recall scope",
       "description": "Which sessions count: project (this directory) | host | all (default: project)",
       "required": false
     },
     "max_results": {
       "type": "string",
+      "title": "Max results",
       "description": "Maximum search results a recall may use (default 5)",
       "required": false
     }
