@@ -52,10 +52,50 @@ export interface HookConfig {
   recall?: Partial<RecallConfigFile>;
 }
 
+/** Chunk tunables to fall back on; the same values the generated config template writes. */
+const DEFAULT_CHUNK = { maxEntriesPerChunk: 200, flushIntervalMs: 15000 } as const;
+
+/**
+ * Fill in what a hand-written config is allowed to leave out.
+ *
+ * `HookConfig.system` is declared non-optional, but nothing enforced that at the
+ * boundary: `loadHookConfig` cast the parse result and handed it on, so a config
+ * missing the key parsed cleanly and then threw on first dereference — inside a
+ * handler, where the error is caught and logged and the session carries on. The
+ * observed failure was a machine whose chunk flush had never once run, with no
+ * symptom anywhere except an empty search index.
+ *
+ * A config is written by hand often enough (mirrors.md tells you to edit it, and a
+ * client-only install has no `config/` to regenerate from) that "parses, therefore
+ * usable" has to be true. Defaults here rather than guards at each use site, so the
+ * next optional key doesn't reproduce the same bug somewhere else.
+ */
+export function normalizeHookConfig(raw: HookConfig): HookConfig {
+  const chunk = raw.system?.logging?.chunk;
+  return {
+    ...raw,
+    system: {
+      ...raw.system,
+      logging: {
+        ...raw.system?.logging,
+        chunk: {
+          maxEntriesPerChunk: chunk?.maxEntriesPerChunk ?? DEFAULT_CHUNK.maxEntriesPerChunk,
+          flushIntervalMs: chunk?.flushIntervalMs ?? DEFAULT_CHUNK.flushIntervalMs,
+        },
+      },
+    },
+  };
+}
+
 /** Load the runtime config, or null to silently do nothing (no install → no logging). */
 export function loadHookConfig(path: string): HookConfig | null {
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as HookConfig;
+    const raw = JSON.parse(readFileSync(path, "utf8")) as HookConfig;
+    // A config with no `couch` block cannot be made usable by defaulting — there is
+    // nowhere to write. Reject it here, where the caller already handles null and says
+    // so on SessionStart, rather than letting buildContext throw past every handler.
+    if (!raw?.couch?.url) return null;
+    return normalizeHookConfig(raw);
   } catch {
     return null;
   }
