@@ -55,8 +55,29 @@ describe("recordingBanner", () => {
     const t = resolveTargets(config, "http://127.0.0.1:7650");
     expect(recordingBanner(t, "abc123")).toBe(
       "Claude Transcripts — recording to couchdb://127.0.0.1:7652/claude-transcripts-sessions" +
-        " + s3://claude-transcripts-sessions + 1 mirror(s) · http://127.0.0.1:7650/app/sessions/abc123",
+        " + s3://claude-transcripts-sessions + mirrors: mirror.example.net:7650" +
+        " · http://127.0.0.1:7650/app/sessions/abc123",
     );
+  });
+
+  // A bare count let the banner headline a store that was dead while a mirror held
+  // everything; the reader could not tell where their history was going without
+  // opening the config. Naming them costs one line and answers it.
+  test("names mirror hosts rather than counting them, without credentials", () => {
+    const t = resolveTargets(
+      {
+        ...config,
+        mirrors: [
+          { url: "https://user:pw@a.example.net" },
+          { url: "https://b.example.net:7650/base" },
+        ],
+      },
+      "http://127.0.0.1:7650",
+    );
+    const banner = recordingBanner(t, "abc123");
+    expect(banner).toContain("mirrors: a.example.net, b.example.net:7650");
+    expect(banner).not.toContain("mirror(s)");
+    expect(banner).not.toContain("user:pw");
   });
 
   test("without a webapi there is no link", () => {
