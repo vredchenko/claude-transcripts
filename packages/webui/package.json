@@ -1,6 +1,6 @@
 {
   "name": "@claude-transcripts/webui",
-  "version": "0.0.16",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {

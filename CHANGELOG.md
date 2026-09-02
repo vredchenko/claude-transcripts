@@ -6,6 +6,111 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] — 2026-09-02
+
+A two-machine audit started with "why does the laptop still point at a dead local
+CouchDB" and found something worse on the other box: it had recorded **36 sessions with
+no searchable content at all**, while every indicator it had said healthy. `doctor`
+reported 9/9 throughout, because `doctor` exercises the read path. Ten fixes came out of
+it, and they are all the same shape — a stated contract the code no longer honoured,
+failing in a way that pointed at the wrong component ([#127], [#128], [#130], [#131],
+[#134], [#135], [#136], [#137], [#138]).
+
+The minor bump is the Bun floor: installs below 1.3.3 are now formally unsupported, and
+the version number should say so.
+
+### Breaking
+
+- **`engines.bun` is `>=1.3.3`, up from `>=1.1.0`.** The compression middleware added in
+  0.0.16 needs `CompressionStream`, which Bun implements from 1.3.3. The declared floor
+  was never raised, and CI pins `bun-version: latest` in all five workflows, so CI
+  structurally could not see it: anyone satisfying the *declared* floor got a 500 on every
+  compressible response and a stack trace naming hono rather than their own runtime. A new
+  `floor` CI job now installs the version read out of `package.json` with `jq` and runs the
+  suite against it, so raising `engines` moves the tested floor with it rather than leaving
+  a second place to forget ([#130]).
+
+### Added
+
+- **Per-store write health, and a statusline that names the store taking the writes.**
+  `Targets` carried one outcome pair for the whole fan-out and labelled it with the direct
+  store's URL unconditionally, so a machine whose real store is a mirror could only be
+  reported wrongly: counting the direct store alone showed a permanent `◐ ct stalled` on a
+  machine recording perfectly well, and counting any store would have shown a confident
+  `● ct rec` naming a host that had accepted nothing for weeks. `StoreHealth[]` records
+  each store separately, and a dead primary with a live mirror now reads
+  `● ct rec (mirror) … → <mirror>`. `stores` is optional, because a targets file written by
+  an older binary genuinely has none — it lives in `/tmp` per session and survives an
+  upgrade mid-session ([#137]).
+- **`backfill --repair`** — for a session already adopted but with no turn content, writes
+  the missing chunk docs and re-uploads the transcript, touching neither the summary nor
+  the event markers. It refuses a session still running, and one that already has turns
+  (chunk ids are keyed by byte offset, so the hook's flush offsets will not line up with a
+  whole-file partition and both sets would survive). This is the recovery path for exactly
+  the failure this release describes ([#138]).
+- **`backfill --replace-live`**, the deliberate opt-in to the old destructive `--force`
+  behaviour. A separate word rather than a second `--force`, so it cannot be reached by
+  escalating a habit ([#131]).
+
+### Fixed
+
+- **`hook status` could not see plugin-provided registration, and `hook install` would
+  double-write.** `isOurCommand` matched only a command containing `hook run`, which the
+  plugin's `bun run …/dispatch.ts` never does. On a plugin-managed box the command reported
+  a bare "not registered" — whose obvious remedy silently wrote every event into CouchDB
+  twice, permanently. `status` now reports plugin registration and exits 0; `install`
+  refuses unless `--force`; `uninstall` says logging continues via the plugin ([#127]).
+- **A config that parses is not a config that works.** `loadHookConfig` was a bare
+  `JSON.parse(...) as HookConfig` with no defaults and no validation, while
+  `HookConfig.system` is declared non-optional — so a config missing `system` parsed
+  cleanly and only exploded on first dereference, inside a `catch` that logged and moved
+  on. Config is now normalized at load, and `dispatch`'s `buildContext` call is inside the
+  try/catch its own docstring promised ("Never throws"), so a config without a `couch`
+  block no longer kills the event outright ([#128]).
+- **`backfill --force` silently downgraded live-recorded sessions.** It deletes the summary
+  and every event marker before rebuilding from the transcript, while its help said only
+  "re-process" — and the destructive step runs before anything is written, so a wrong call
+  could not be undone from inside the command. That is right for redoing a reconstruction
+  and wrong for a `source: "live"` record, which carries provenance the transcript cannot
+  yield again. It now refuses live records and says why ([#131]).
+- **A runtime without `CompressionStream` serves uncompressed instead of 500.** The guard
+  sits immediately before the encode step, not at the top of the middleware — skipping the
+  early body-sizing loses `Content-Length` restoration on responses that arrive without
+  one, trading a 500 for a subtler wrong answer, and two existing tests caught that.
+  `Vary: Accept-Encoding` is still set when degrading, so a shared cache stays correct if
+  the same deployment later restarts on a runtime that can encode ([#134]).
+- **Mirror writes report their outcome.** `makeMirrorCouch` discarded the `Response`, so a
+  mirror returning 500 to every write was indistinguishable from one accepting them. With
+  the statusline change above, a total mirror outage had *two* independent reasons to look
+  identical to perfect health ([#137]).
+
+### Changed
+
+- **`upgrade` is marked NOT IMPLEMENTED where it is designed.** It was listed in the design
+  doc's command surface and referenced from `install.sh`, but is absent from `CLI_SPEC`.
+  The user-facing install page now documents what upgrading actually is — download the
+  release binary, verify its `.sha256`, replace it — and says plainly not to re-run
+  `install` on a client-only setup, which would try to provision a container stack the
+  machine was never meant to have ([#136]).
+- **Deliberate test failures no longer print stack traces that look like failures.** Three
+  `session-index` tests break their fake view on purpose and the production code correctly
+  logs each with its stack; printed from *passing* tests, three stacks per suite run read
+  exactly like a failing suite. They were misread as a flaky test and the misreading was
+  published in a PR comment before anyone checked. The assertions are now stronger, not
+  silenced: each pins that the failure is reported at all ([#135]).
+- **Observer events register async**, so the writer never blocks a turn ([#124]).
+- **Plugin `userConfig` entries carry a `title`** ([#122]).
+
+### Known
+
+- `--repair` reads the transcript from disk, so a session whose local `.jsonl` has aged out
+  cannot be repaired even when its `transcript.jsonl` is still in S3. The bytes exist;
+  repair cannot reach them.
+- `--dry-run` short-circuits the existence check, so it cannot preview a `--repair` run —
+  every session reports as a fresh adopt.
+- `release-cli.yml` stamps the compiled binary `v0.1.0` while npm publishes `0.1.0`; the
+  leading `v` disagrees between the two.
+
 ## [0.0.16] — 2026-08-31
 
 The landing page took nine seconds. It doesn't any more — roughly a second of that was
@@ -1152,6 +1257,18 @@ of them had ever executed:
 [#116]: https://github.com/vredchenko/claude-transcripts/pull/116
 [#118]: https://github.com/vredchenko/claude-transcripts/pull/118
 [#120]: https://github.com/vredchenko/claude-transcripts/pull/120
+[#122]: https://github.com/vredchenko/claude-transcripts/pull/122
+[#124]: https://github.com/vredchenko/claude-transcripts/pull/124
+[#127]: https://github.com/vredchenko/claude-transcripts/pull/127
+[#128]: https://github.com/vredchenko/claude-transcripts/pull/128
+[#130]: https://github.com/vredchenko/claude-transcripts/pull/130
+[#131]: https://github.com/vredchenko/claude-transcripts/pull/131
+[#134]: https://github.com/vredchenko/claude-transcripts/pull/134
+[#135]: https://github.com/vredchenko/claude-transcripts/pull/135
+[#136]: https://github.com/vredchenko/claude-transcripts/pull/136
+[#137]: https://github.com/vredchenko/claude-transcripts/pull/137
+[#138]: https://github.com/vredchenko/claude-transcripts/pull/138
+[0.1.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.1.0
 [0.0.16]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.16
 [0.0.15]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.15
 [0.0.14]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.14
