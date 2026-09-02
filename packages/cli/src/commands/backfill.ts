@@ -22,6 +22,14 @@
  * duplicate, and chunks are keyed by byte offset, so re-chunking would leave the old
  * ones alongside the new). The S3 transcript is never deleted, only overwritten.
  *
+ * `--repair` is the additive path: for a session that is already adopted but has no
+ * readable turn content — the shape a host leaves behind when its hook was never
+ * configured to write `chunk` docs — it writes the missing chunks and re-uploads the
+ * transcript, and touches neither the summary nor the event markers. It refuses a session
+ * that is still running (its transcript is a moving target) and one that already has
+ * turns (chunk ids are keyed by byte offset, so the hook's offsets will not line up with
+ * a whole-file partition and both sets would survive); that case wants `--replace-live`.
+ *
  * `--force` refuses **live-recorded** sessions unless `--replace-live` is also given.
  * `--force` exists to redo a reconstruction; a `source: "live"` record was written by
  * the hook as the session happened and carries provenance the transcript cannot yield
@@ -47,13 +55,30 @@ import { deriveSessionFacts } from "../lib/transcript";
  */
 export type ReingestPlan =
   | { action: "adopt" }
-  | { action: "skip"; reason: "already-adopted" | "live-record" };
+  | { action: "repair" }
+  | { action: "skip"; reason: "already-adopted" | "live-record" | "running" | "has-turns" };
 
 export function planReingest(
   existing: ExistingSession | null,
-  opts: { force: boolean; replaceLive: boolean },
+  opts: { force: boolean; replaceLive: boolean; repair?: boolean; hasTurns?: boolean },
 ): ReingestPlan {
   if (!existing) return { action: "adopt" };
+
+  // `--repair` adds what is missing instead of replacing what is there: a session whose
+  // hook wrote no chunk docs has a perfectly good summary and event markers and no
+  // readable content. Rebuilding the whole record to get the content back would throw
+  // away the half that survived.
+  if (opts.repair) {
+    // A live session is still being written; its transcript is a moving target and the
+    // hook will chunk the rest itself once it is configured to.
+    if (existing.status === "running") return { action: "skip", reason: "running" };
+    // Anything already readable is out of scope. Chunk ids are keyed by byte offset, and
+    // the hook's offsets will not line up with a whole-file partition, so writing over a
+    // partially-chunked session leaves both sets behind. That case wants --replace-live.
+    if (opts.hasTurns) return { action: "skip", reason: "has-turns" };
+    return { action: "repair" };
+  }
+
   if (!opts.force) return { action: "skip", reason: "already-adopted" };
   // `--force` exists to redo a reconstruction. A live record was written by the hook as
   // the session happened and carries provenance the transcript cannot yield again, so
@@ -81,6 +106,9 @@ export async function runBackfill(argv: string[]): Promise<number> {
   // session with a reconstruction. Deliberately a separate word rather than a second
   // `--force`, so it cannot be reached by escalating a habit.
   const replaceLive = options["replace-live"] === true;
+  // Add missing chunk docs to an already-adopted session, leaving its summary and event
+  // markers alone. The recovery path for a host whose hook never wrote chunks.
+  const repair = options.repair === true;
   // `--session <id>` narrows a forced run to one session, so redoing a single session
   // doesn't mean re-processing an entire machine's history. (Single-valued, matching
   // `export --session`; the flag parser doesn't do repeats.)
@@ -93,6 +121,11 @@ export async function runBackfill(argv: string[]): Promise<number> {
     console.error("backfill: adopted anyway and existing ones are skipped).");
     return 2;
   }
+  if (repair && (force || replaceLive)) {
+    console.error("backfill: --repair cannot be combined with --force or --replace-live —");
+    console.error("backfill: repair adds what is missing, those replace what is there.");
+    return 2;
+  }
   if (replaceLive && !force) {
     console.error("backfill: --replace-live only applies with --force (it widens what --force");
     console.error("backfill: may overwrite; on its own it would widen nothing).");
@@ -103,6 +136,12 @@ export async function runBackfill(argv: string[]): Promise<number> {
   console.log(`backfill: scanning ${root} → ${sink.label}${dryRun ? " (dry-run)" : ""}  [${who}]`);
   const found = await discoverTranscripts(root);
   console.log(`backfill: ${found.length} transcript(s) found`);
+  if (repair) {
+    console.log(
+      "backfill: --repair — adding missing chunk docs only; summaries and event markers " +
+        "are left untouched",
+    );
+  }
   if (force) {
     const scope = only.size ? `${only.size} named session(s)` : "every already-adopted session";
     console.log(
@@ -121,6 +160,7 @@ export async function runBackfill(argv: string[]): Promise<number> {
   let sidechains = 0;
   let reprocessed = 0;
   let refusedLive = 0;
+  let repaired = 0;
   for (const t of found) {
     try {
       if (only.size && !only.has(t.sessionId)) {
@@ -128,7 +168,10 @@ export async function runBackfill(argv: string[]): Promise<number> {
         continue;
       }
       const existing = dryRun ? null : await sink.existingSession(t.sessionId);
-      const plan = planReingest(existing, { force, replaceLive });
+      // Only asked in repair mode, and only when there is a record to repair — an extra
+      // round trip per session is not worth paying on an ordinary run.
+      const hasTurns = repair && existing ? await sink.hasTurns(t.sessionId) : false;
+      const plan = planReingest(existing, { force, replaceLive, repair, hasTurns });
       if (plan.action === "skip") {
         if (plan.reason === "live-record") {
           console.warn(
@@ -138,7 +181,26 @@ export async function runBackfill(argv: string[]): Promise<number> {
           );
           refusedLive++;
         }
+        // Repair's two refusals are ordinary and expected on a whole-machine run, so they
+        // are reported quietly — but reported, because "nothing happened" and "everything
+        // was already fine" look identical otherwise.
+        if (plan.reason === "running") {
+          console.log(`  · ${t.sessionId}: skipped — still running`);
+        }
+        if (plan.reason === "has-turns") {
+          console.log(`  · ${t.sessionId}: skipped — already has turn content`);
+        }
         skipped++;
+        continue;
+      }
+      if (plan.action === "repair") {
+        const jsonl = await readTranscript(t.path);
+        const facts = deriveSessionFacts(jsonl, { hostname: host, sessionIdHint: t.sessionId });
+        const chunks = buildChunkDocs(jsonl, facts, "backfill", maxEntriesPerChunk, withContent);
+        await sink.putChunks(chunks);
+        await sink.putTranscript(t.sessionId, new TextEncoder().encode(jsonl));
+        console.log(`  + ${t.sessionId}: added ${chunks.length} chunk doc(s)`);
+        repaired++;
         continue;
       }
       if (existing) {
@@ -169,7 +231,8 @@ export async function runBackfill(argv: string[]): Promise<number> {
   }
 
   console.log(
-    `backfill: ${written} backfilled${reprocessed ? ` (${reprocessed} re-processed)` : ""}, ` +
+    `backfill: ${written} backfilled${repaired ? `, ${repaired} repaired` : ""}` +
+      `${reprocessed ? ` (${reprocessed} re-processed)` : ""}, ` +
       `${skipped} skipped${refusedLive ? ` (${refusedLive} live, not replaced)` : ""}, ` +
       `${failed} failed`,
   );
