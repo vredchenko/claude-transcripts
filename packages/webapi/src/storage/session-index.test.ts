@@ -30,6 +30,32 @@ function agg(events: number): SessionAggregate {
   };
 }
 
+/**
+ * Run `fn` with `console.error` captured, returning what it logged.
+ *
+ * The three tests below break the view deliberately, and the production code correctly
+ * logs the failure *with its stack* — that is the right behaviour for a real outage. But
+ * printed from a **passing** test, three stacks per full-suite run read exactly like a
+ * suite that is failing. That has already cost real time: the stacks were misread as a
+ * flaky test and the misreading was published in a PR comment before anyone checked.
+ *
+ * Capturing keeps the assertion that matters (the failure *is* logged, loudly) and drops
+ * the noise that made a green run look red.
+ */
+async function withCapturedErrors(fn: () => Promise<void>): Promise<unknown[][]> {
+  const original = console.error;
+  const captured: unknown[][] = [];
+  console.error = (...args: unknown[]) => {
+    captured.push(args);
+  };
+  try {
+    await fn();
+  } finally {
+    console.error = original;
+  }
+  return captured;
+}
+
 /** A fake view over a mutable corpus, recording how it was queried. */
 function fakeView(corpus: Record<string, SessionAggregate>) {
   const calls: Record<string, unknown>[] = [];
@@ -93,8 +119,9 @@ describe("load", () => {
     view.breakWith("couch is down");
     const index = createSessionIndex(view.db);
 
-    await index.load();
+    const logged = await withCapturedErrors(() => index.load());
 
+    expect(logged).toHaveLength(1);
     expect(index.ready).toBe(false);
     expect(index.rows()).toEqual([]);
     expect(index.status().error).toContain("couch is down");
@@ -106,8 +133,9 @@ describe("load", () => {
     await index.load();
 
     view.breakWith("couch went away");
-    await index.load();
+    const logged = await withCapturedErrors(() => index.load());
 
+    expect(logged).toHaveLength(1);
     // The dangerous outcome would be an empty-but-ready index: a list that renders
     // "no sessions" as though that were the truth.
     expect(index.ready).toBe(true);
@@ -193,8 +221,10 @@ describe("refresh", () => {
     await index.load();
 
     view.breakWith("transient");
-    await index.refresh(["a"]);
+    const logged = await withCapturedErrors(() => index.refresh(["a"]));
 
+    // A missed patch must still be reported — silent staleness is the worse failure.
+    expect(logged).toHaveLength(1);
     expect(index.ready).toBe(true);
     expect(index.get("a")?.events).toBe(1);
   });
