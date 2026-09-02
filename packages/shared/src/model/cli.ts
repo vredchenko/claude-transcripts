@@ -283,6 +283,10 @@ export const CLI_SPEC: CliSpec = {
           description: "`run` reads one event payload from stdin (Claude Code calls this)",
         },
         { name: "--dry-run", description: "with `install`: show the change without writing" },
+        {
+          name: "--force",
+          description: "with `install`: register even if the plugin already does",
+        },
       ],
       examples: ["hook status", "hook install --dry-run"],
     },

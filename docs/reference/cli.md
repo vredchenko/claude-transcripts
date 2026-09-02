@@ -390,6 +390,7 @@ The Claude Code hook, and its registration
 | Option | |
 |---|---|
 | `--dry-run` | with `install`: show the change without writing |
+| `--force` | with `install`: register even if the plugin already does |
 
 ```bash
 claude-transcripts hook status
