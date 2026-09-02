@@ -11,7 +11,7 @@
  * Pure: takes the resolved targets, returns the text. The handler decides what to do
  * with it, and the tests don't need a session to check the wording.
  */
-import type { SessionStartOutput, Targets } from "./runtime";
+import { hostOf, type SessionStartOutput, type Targets } from "./runtime";
 
 /** Where a recorded session can be opened, if the instance has a webapi URL. */
 export function sessionLink(webapiUrl: string | undefined, sessionId: string): string | null {
@@ -21,7 +21,12 @@ export function sessionLink(webapiUrl: string | undefined, sessionId: string): s
 export function recordingBanner(targets: Targets, sessionId: string): string {
   const where = [`couchdb://${targets.couchUrl.replace(/^https?:\/\//, "")}/${targets.sessionsDb}`];
   if (targets.bucket) where.push(`s3://${targets.bucket}`);
-  if (targets.mirrors.length) where.push(`${targets.mirrors.length} mirror(s)`);
+  // Name the mirrors rather than counting them. A bare "+ 1 mirror(s)" let a banner
+  // headline a store that was dead while the mirror held everything — the reader could
+  // not tell where their history was actually going without opening the config.
+  if (targets.mirrors.length) {
+    where.push(`mirrors: ${targets.mirrors.map(hostOf).join(", ")}`);
+  }
   const link = sessionLink(targets.webapiUrl, sessionId);
   return `Claude Transcripts — recording to ${where.join(" + ")}${link ? ` · ${link}` : ""}`;
 }
