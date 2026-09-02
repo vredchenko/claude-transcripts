@@ -38,6 +38,27 @@ claude-transcripts uninstall --purge    # deletes it too (asks first)
 
 Install is a composition, so any phase can be re-run on its own — `stack up`,
 `provision`, `hook install` — and a failure tells you which one resumes from there.
+
+### Upgrading
+
+There is no `upgrade` command yet. Replace the binary and verify it:
+
+```sh
+V=v0.1.0; P=linux-x64      # or linux-arm64, darwin-x64, darwin-arm64
+cd ~/Downloads
+curl -fLO "https://github.com/vredchenko/claude-transcripts/releases/download/$V/claude-transcripts-$P"
+curl -fLO "https://github.com/vredchenko/claude-transcripts/releases/download/$V/claude-transcripts-$P.sha256"
+sha256sum -c "claude-transcripts-$P.sha256"
+install -m 755 "claude-transcripts-$P" ~/.local/bin/claude-transcripts
+```
+
+If you also run the app, its image tag moves separately — **the binary and the server
+version drift independently**, and a schema mismatch makes ingest reject documents
+quietly. Upgrade both.
+
+Do **not** re-run `install` to upgrade a **client-only** setup — one where the hook writes
+to stores hosted elsewhere and there are no local containers. `install` provisions an
+instance, so it would try to stand up a stack the machine was never meant to have.
 The design, including the edge cases it handles, is in
 [installation.md (design)](../design/installation.md).
 
