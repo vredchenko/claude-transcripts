@@ -1,17 +1,25 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { listSessions, type SessionsResponse } from "../api/generated";
+import { useUserSettings } from "../api/model";
 import { groupByDay } from "../sessions-view";
-
-const PAGE = 50;
 
 /**
  * Wraps `useInfiniteQuery` over `GET /api/sessions`, accumulating pages as the
  * reader scrolls. Exposes sessions, day groups, and paging controls.
+ *
+ * The page size is deployment config (`userSettings.sessionListPageSize`), not a
+ * constant: it is the one number that trades round trips against time-to-first-row,
+ * and the right answer depends on the corpus and the machine serving it.
  */
 export function useInfiniteSessionList(params?: { from?: string; to?: string }) {
+  const { sessionListPageSize: pageSize } = useUserSettings();
+
   const query = useInfiniteQuery<SessionsResponse>({
-    queryKey: ["/api/sessions", "infinite", params],
-    queryFn: ({ pageParam }) => listSessions({ limit: PAGE, skip: pageParam as number, ...params }),
+    // The page size is part of the identity of these pages: changing it must start a
+    // fresh list rather than append differently-sized pages onto the cached ones.
+    queryKey: ["/api/sessions", "infinite", pageSize, params],
+    queryFn: ({ pageParam }) =>
+      listSessions({ limit: pageSize, skip: pageParam as number, ...params }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((n, p) => n + p.sessions.length, 0);

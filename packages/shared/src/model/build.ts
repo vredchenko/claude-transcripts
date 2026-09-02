@@ -7,6 +7,7 @@ import { ROUTES } from "./routes";
 import { SERVICES } from "./services";
 import { TOPOLOGY } from "./topology";
 import type { AppConfigFile, AppModel, EnvLike, ServiceDef } from "./types";
+import { resolveUserSettings } from "./user-settings";
 
 /**
  * Assemble the app model from config + env. Pure + isomorphic — the Bun server
@@ -79,6 +80,7 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
     servicesMenu: buildServicesMenu(services, config.servicesMenu),
     system: config.system,
     recall: resolveRecall(config.recall, env),
+    userSettings: resolveUserSettings(config.userSettings),
     cliSpec: CLI_SPEC,
   };
 }
