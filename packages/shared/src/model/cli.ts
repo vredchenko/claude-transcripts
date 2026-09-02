@@ -199,7 +199,14 @@ export const CLI_SPEC: CliSpec = {
           description: "entries per chunk doc",
         },
         { name: "--no-content", description: "byte-range chunks only (no turn content)" },
-        { name: "--force", description: "re-process sessions already adopted" },
+        {
+          name: "--force",
+          description: "re-process adopted sessions (deletes their derived docs, then rebuilds)",
+        },
+        {
+          name: "--replace-live",
+          description: "with --force: also replace live-recorded sessions (loses hook provenance)",
+        },
         {
           name: "--session",
           type: "string",

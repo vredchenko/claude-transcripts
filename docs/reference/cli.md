@@ -291,7 +291,8 @@ Adopt on-disk ~/.claude transcripts as first-class history
 | `--actor <value>` | actor to attribute the history to |
 | `--chunk-size <n>` | entries per chunk doc (default 200) |
 | `--no-content` | byte-range chunks only (no turn content) |
-| `--force` | re-process sessions already adopted |
+| `--force` | re-process adopted sessions (deletes their derived docs, then rebuilds) |
+| `--replace-live` | with --force: also replace live-recorded sessions (loses hook provenance) |
 | `--session <value>` | with --force: re-process only this session |
 | `--dry-run` | preview without writing |
 
