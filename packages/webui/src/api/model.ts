@@ -1,3 +1,8 @@
+import {
+  DEFAULT_USER_SETTINGS,
+  resolveUserSettings,
+  type UserSettings,
+} from "@claude-transcripts/shared";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 
 /**
@@ -9,6 +14,8 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 export interface AppModelInfo {
   identity?: { title?: string; version?: string; slug?: string; codename?: string };
   servicesMenu?: Record<string, string>;
+  /** Reader tunables — page sizes for the list and the transcript. */
+  userSettings?: Partial<UserSettings>;
 }
 
 async function fetchAppModel(): Promise<AppModelInfo> {
@@ -25,4 +32,20 @@ export function useAppModel(): UseQueryResult<AppModelInfo, Error> {
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
   });
+}
+
+/**
+ * The resolved reader tunables — always a complete object.
+ *
+ * The views ask for a page size on their very first render, before `/api/model` has
+ * answered (and possibly after it has failed). Returning the defaults in that window,
+ * rather than `undefined`, is what lets the list and the transcript start fetching
+ * immediately instead of waiting on an introspection endpoint they don't otherwise
+ * need. The gateway already resolves and clamps these; re-resolving here covers the
+ * pre-answer window and an older webapi that doesn't serve the field yet.
+ */
+export function useUserSettings(): UserSettings {
+  const { data } = useAppModel();
+  if (!data?.userSettings) return DEFAULT_USER_SETTINGS;
+  return resolveUserSettings(data.userSettings);
 }

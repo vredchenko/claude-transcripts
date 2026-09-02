@@ -340,4 +340,7 @@ export const APP_MODEL = {
   },
   servicesMenu: {} as Record<string, string>,
   features: { meilisearch: true },
+  // The reader tunables the webui asks this endpoint for. Mirrors the shipped
+  // defaults; the views fall back to the same numbers if the field is absent.
+  userSettings: { sessionListPageSize: 100, transcriptPageSize: 100, transcriptAutoLoadMax: 2000 },
 };

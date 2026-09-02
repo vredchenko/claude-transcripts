@@ -37,7 +37,11 @@
     "garageWebui": "http://127.0.0.1:7655/",
     "meilisearch": "http://127.0.0.1:7656/"
   },
-  "userSettings": {},
+  "userSettings": {
+    "sessionListPageSize": 100,
+    "transcriptPageSize": 100,
+    "transcriptAutoLoadMax": 2000
+  },
   "recall": {
     "mode": "auto",
     "scope": "project",

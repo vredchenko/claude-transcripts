@@ -10,6 +10,10 @@
  * just TypeScript. Facets marked "(grows)" are placeholders to fill in later.
  */
 
+// `user-settings.ts` imports nothing, so naming its type here is a plain dependency
+// rather than the cycle that made `RecallConfigFile` a local duplicate below.
+import type { UserSettings } from "./user-settings";
+
 // ── Config file shape (config/config.json ↔ config.template.json) ──────────────
 
 /** The `recall` section of the config file — same shape as the resolved policy. */
@@ -48,7 +52,8 @@ export interface AppConfigFile {
   meilisearch?: { indexes: Record<string, string> };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
-  userSettings?: Record<string, unknown>;
+  /** Reader-facing tunables (page sizes). Partial — {@link resolveUserSettings} fills the rest. */
+  userSettings?: Partial<UserSettings>;
   /** When a live session consults its own history (model/recall.ts). Optional; defaulted. */
   recall?: Partial<RecallConfigFile>;
 }
@@ -368,6 +373,8 @@ export interface AppModel {
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
   system: AppConfigFile["system"];
+  /** The resolved reader tunables — consumers read this, never the config section. */
+  userSettings: UserSettings;
   /** The resolved recall policy — consumers read this, never the config section. */
   recall: RecallConfigFile;
   // (grows) — filled in as the project matures:
