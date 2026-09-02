@@ -64,8 +64,14 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
 
 - **Virtual scroll + configurable columns** for the long lists/transcripts —
   evaluate an existing npm dep (e.g. TanStack Virtual / `react-virtuoso`) rather
-  than rolling our own; the transcript viewer already pages, this generalises it
-  ([#8](../design/roadmap.md)).
+  than rolling our own ([#8](../design/roadmap.md)). Both surfaces now page and
+  scroll-load; what's missing is windowing the DOM, which is what would let the
+  transcript drop its `transcriptAutoLoadMax` ceiling entirely.
+- **Sorting the session list** — would need `sort`/`dir` on `GET /api/sessions`
+  (the handler already materialises and sorts the whole filtered set in memory before
+  slicing, so it's a comparator swap) plus a flat, ungrouped rendering for any order
+  that isn't chronological. Not client-side: with infinite scroll that only ever sorts
+  the pages already fetched.
 - **Local-first browser caches** *(nice-to-have)* — persist the TanStack Query
   cache (e.g. IndexedDB) so revisits are instant and partially offline.
 - **Keyboard navigation** *(nice-to-have)* — list/detail/transcript navigable
@@ -170,7 +176,10 @@ It exports:
   - `useListSessions({ limit, skip })` → `GET /api/sessions` — the list.
   - `useGetSession(id)` → `GET /api/sessions/{id}` — detail (disabled until `id`).
   - `useGetSessionTranscript(id, { limit, offset })` →
-    `GET /api/sessions/{id}/transcript` — paged for the viewer's "Load more".
+    `GET /api/sessions/{id}/transcript` — the single-page hook. The viewer instead
+    wraps the raw `getSessionTranscript` fetcher in `useInfiniteTranscript`, since
+    orval's react-query generator emits `useQuery` only (same reason
+    `useInfiniteSessionList` wraps `listSessions`).
 
 Hook options are nested: react-query options go under `query`, per-call fetch options
 under `request` — `useListSessions(params, { query: { placeholderData: … } })`.
@@ -183,19 +192,33 @@ in the generated snapshot. The header uses it for the title + build version.
 
 ## Views
 
-- **`SessionsListPage`** (`routes/sessions-list.tsx`) — fetches a page
-  (`PAGE = 50`) and renders a stats-focused MUI table: session id (first 8 chars,
-  linked to detail), **started** time (session start), **runtime** (wall-clock) split
-  into **active** and **idle**, **project** (trailing `cwd` segment, full path on
-  hover), **host** (the machine that recorded it, next to the project — the same
-  project name on two machines is two different working copies), model, a **source**
-  chip (live / backfilled), prompt / event / tool counts, total tokens, transcript
-  size, and a **status** chip. Active time comes from `activeMs` on the API response;
-  where the gateway can't derive it the two split columns read `—` rather than `0s`. The full start-path is intentionally *not* a column (too long) —
-  it's on the detail view; the list stays compact. Paging is Previous/Next over a
-  `skip` offset with a "N–M of total" label; `placeholderData: (prev) => prev`
-  keeps the current page visible (dimmed) while the next loads. Every row links to
-  its detail.
+- **`SessionsListPage`** (`routes/sessions-list.tsx`) — the default projection: a
+  day-grouped CSS grid (`components/sessions/SessionsList.tsx`), not a table. Each day
+  gets a header with its rollup (session count, active time, tokens); each row carries
+  clock time, **project** (trailing `cwd` segment, full path on hover) over the full
+  `cwd`, **runtime** with an active/idle bar, **host** over model (the machine that
+  recorded it — the same project name on two machines is two different working copies),
+  the top-2 **tool mix**, total **tokens** over turn/tool counts, a **status** chip, and
+  a copy-id button. Active time comes from `activeMs` on the API response; where the
+  gateway can't derive it the split reads `—` rather than `0s`. Every row links to its
+  detail.
+
+  **Paging is infinite scroll**, not Previous/Next: `useInfiniteSessionList` accumulates
+  `skip` pages and `useIntersectionObserver` fires the next one 600px before the reader
+  reaches the end. Page size is `userSettings.sessionListPageSize` (default 100) and is
+  part of the query key, so changing the config starts a fresh list rather than appending
+  differently-sized pages.
+
+  **The column headings are labels, not controls.** They were briefly sortable, but the
+  list is grouped by day and `groupByDay` re-sorts each group by start time, so the
+  chosen order never reached the screen — the arrow moved and the rows didn't. A sort
+  over only the pages fetched so far would have been misleading anyway, with the next
+  page arriving underneath it in server order. The list has one order, newest first; a
+  real sort would have to be a `sort`/`dir` param on `GET /api/sessions` (the handler
+  already materialises and sorts the whole filtered set before slicing).
+- **`SessionsCalendar`** (`components/sessions/SessionsCalendar.tsx`) — the other
+  projection, a month grid; it fetches the visible weeks' range in one call
+  (`CALENDAR_LIMIT = 500`) rather than paging.
 - **`SessionDetailPage`** (`routes/session-detail.tsx`) — reads `$id` from the
   route, fetches one summary, and renders a back link, the id + status chip, a
   metadata grid (started, **total runtime**, **active** + **idle** time, model,
@@ -226,10 +249,22 @@ in the generated snapshot. The header uses it for the title + build version.
   (`components/SourceChip.tsx`) — the lifecycle chip (labels: **live** /
   **abandoned** / **ended**, each with an explanatory tooltip) and the provenance
   chip (**live** vs **backfilled**), both used by the list and detail views.
-- **`TranscriptView`** (`components/TranscriptView.tsx`) — pages the transcript
-  in blocks of `PAGE = 100` from `offset: 0`, growing `limit` on "Load more" so
-  entries accumulate (again with `placeholderData` to avoid flicker), and switches
-  between the two readers (**Timeline** / **Raw**; timeline is the default).
+- **`TranscriptView`** (`components/TranscriptView.tsx`) — pages the transcript via
+  `useInfiniteTranscript`, one disjoint `offset` block at a time
+  (`userSettings.transcriptPageSize`, default 100), and switches between the two readers
+  (**Timeline** / **Raw**; timeline is the default). Three things pull the next block:
+  the **scroll sentinel** (600px lookahead, the same `useIntersectionObserver` the list
+  uses), **background prefetch** while the tab is visible — so arriving at a session and
+  immediately searching finds the text already loaded — and, once
+  `userSettings.transcriptAutoLoadMax` (default 2 000) entries are in, a **"Load the
+  remaining N entries"** button. That ceiling exists because nothing here is virtualised
+  yet; past it, pulling the rest is the reader's explicit choice.
+
+  This replaced a viewer that pinned `offset: 0` and grew `limit`. It read as
+  incremental (`placeholderData` kept the old entries on screen) but re-fetched the whole
+  prefix every time, so reaching entry 2 000 in blocks of 100 moved two hundred thousand
+  entries over the wire. It also had a bespoke auto-load loop for search arrivals, which
+  the background prefetch now subsumes.
   (Virtual scrolling is the planned follow-up; incremental paging keeps long
   transcripts responsive.)
 - **`TranscriptTimeline`** (`components/TranscriptTimeline.tsx`) — the conversation
