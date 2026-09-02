@@ -92,7 +92,19 @@ export async function dispatch(raw: string, configPath: string): Promise<Dispatc
     return { ran: false, actions: [] };
   }
 
-  const ctx = buildContext(payload, config);
+  // `buildContext` constructs the store clients, and a client constructor reads the
+  // config eagerly — so a config this function cannot use throws here, outside the
+  // per-handler catch below, past this function's "never throws" contract, and out
+  // through the hook process. Recording is the one thing that must not turn a broken
+  // config into a broken session, so the same swallow applies at construction as at
+  // dispatch: log it once and do nothing.
+  let ctx: ReturnType<typeof buildContext>;
+  try {
+    ctx = buildContext(payload, config);
+  } catch (err) {
+    console.error("[hook] could not build context (ignored):", err);
+    return { ran: false, actions: [] };
+  }
   if (!ctx) return { ran: false, actions: [] };
 
   const actions = hookBindings()[ctx.event] ?? [];
