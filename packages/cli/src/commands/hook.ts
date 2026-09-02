@@ -16,6 +16,7 @@ import { dirname } from "node:path";
 import { dispatch, hookAsync, hookBindings, hookTimeout } from "../hook";
 import { parseFlags } from "../lib/args";
 import { installPaths } from "../lib/paths";
+import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
 
 interface HookEntry {
   type?: string;
@@ -88,6 +89,22 @@ function install(argv: string[]): number {
   const settings = readSettings(paths.claudeSettings);
   const hooks: SettingsHooks = settings.hooks ?? {};
   const events = Object.keys(hookBindings());
+
+  // Refuse rather than silently double-write. The plugin registers the same events and
+  // both routes end at this same binary, so registering here as well makes every event
+  // land twice in CouchDB — permanently, and with nothing to report it, since the hook
+  // swallows everything by design. This is the one failure `status` could not warn
+  // about before, and the message it printed ("not registered") actively invited it.
+  const plugin = pluginRegistration(paths.claudeSettings, settings);
+  if (plugin && options.force !== true) {
+    console.error(`hook: the plugin ${plugin.key} already registers these events.`);
+    console.error("hook: registering here as well would write every event twice.");
+    console.error("hook: pick one route —");
+    console.error(`hook:   keep the plugin  → nothing to do (\`hook status\` explains it)`);
+    console.error(`hook:   use this binary  → disable the plugin, then re-run`);
+    console.error("hook: --force registers anyway.");
+    return 1;
+  }
 
   let added = 0;
   let replaced = 0;
@@ -192,6 +209,10 @@ function uninstall(): number {
   }
   writeFileSync(paths.claudeSettings, `${JSON.stringify({ ...settings, hooks }, null, 2)}\n`);
   console.log(`hook: removed ${removed} registration(s) from ${paths.claudeSettings}`);
+  // Deregistering here does not mean recording stopped — say which it is, so nobody
+  // reads a successful uninstall as "logging is off" (or the reverse).
+  const plugin = pluginRegistration(paths.claudeSettings, settings);
+  if (plugin) console.log(`hook: still recording via the plugin ${plugin.key}.`);
   return 0;
 }
 
@@ -213,20 +234,43 @@ function configuredMirrors(path: string): string[] {
   }
 }
 
+/** How the plugin's registration reads on the status line. */
+function pluginSummary(plugin: PluginRegistration): string {
+  const version = plugin.version ? ` v${plugin.version}` : "";
+  const count = plugin.events?.length;
+  return `${plugin.key}${version}${count ? ` — registers ${count} event(s)` : ""}`;
+}
+
 function status(): number {
   const paths = installPaths();
   const settings = readSettings(paths.claudeSettings);
   const found = findRegistered(settings);
+  const plugin = pluginRegistration(paths.claudeSettings, settings);
   console.log(`hook: settings   ${paths.claudeSettings}`);
   console.log(
     `hook: config     ${paths.hookConfig} ${existsSync(paths.hookConfig) ? "" : "(MISSING — run `install`)"}`,
   );
   console.log(`hook: command    ${hookCommand()}`);
+  if (plugin) console.log(`hook: plugin     ${pluginSummary(plugin)}`);
   // Mirroring is otherwise invisible: it is configured by hand, writes to somewhere
   // else, and fails silently by design (mirrors.md). Somewhere has to say it is on.
   const mirrors = configuredMirrors(paths.hookConfig);
   for (const url of mirrors) console.log(`hook: mirror     ${url}`);
+  // Both routes registered is the failure worth shouting about: every event is written
+  // twice and nothing else will ever say so.
+  if (plugin && found.length) {
+    console.log(`hook: DOUBLE-REGISTERED — ${found.length} event(s) here AND via the plugin.`);
+    console.log("hook: every event is being written twice. Run `hook uninstall` to keep");
+    console.log("hook: the plugin's registration, or disable the plugin to keep this one.");
+    return 1;
+  }
   if (!found.length) {
+    // Registered by the plugin is registered. Saying "not registered" here is what sent
+    // people to `hook install`, which is precisely what must not be run in this state.
+    if (plugin) {
+      console.log("hook: registered by the plugin (nothing in settings.json — correct).");
+      return 0;
+    }
     console.log("hook: not registered.");
     return 1;
   }
