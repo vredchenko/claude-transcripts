@@ -75,9 +75,20 @@ Docker volumes keep the actual data, so reinstalling never touches history.
 ```
 claude-transcripts install      [--yes] [--no-hook] [--port-base N] [--dir PATH] [--version V]
 claude-transcripts uninstall    [--purge]
-claude-transcripts upgrade
+claude-transcripts upgrade      NOT IMPLEMENTED — see below
 claude-transcripts doctor
 ```
+
+> **`upgrade` does not exist.** It is designed here and referenced from `install.sh`, but
+> it is absent from `CLI_SPEC` and from the generated command reference. Until it is
+> built, upgrading is: download the release binary for your platform, verify its
+> `.sha256`, and replace the one on your `PATH`.
+>
+> Do **not** substitute `install` for it, which is what the README used to imply. `install`
+> provisions an instance — it brings up the container stack and the stores. On a
+> **client-only** install (the hook writing to stores that live somewhere else, with no
+> local containers at all) running it would try to stand up a stack the machine was never
+> meant to have.
 
 `install` is the composition. Each phase is also reachable on its own, which is what
 makes the whole thing resumable and debuggable:
@@ -163,8 +174,9 @@ The ones that will actually happen, and what each should do.
 - *Re-run of a completed install.* Must be a no-op that re-verifies, not a reinstall.
 - *Resume after a partial failure.* Every phase re-entrant; nothing assumes a clean
   slate.
-- *An older version is installed.* That's `upgrade`: new binary, new assets, new image
-  tag, `migrate up`. Migrations run forward only, and never on a downgrade.
+- *An older version is installed.* That's `upgrade` (**not implemented** — see the note
+  under Command surface): new binary, new assets, new image tag, `migrate up`. Migrations
+  run forward only, and never on a downgrade.
 - *The images the upgrade superseded.* Compose pulls but never prunes, so each release
   passed through leaves a few hundred megabytes behind, and the upgrade that eventually
   fails is the one with no room left to pull. Install reclaims them — but only its own
