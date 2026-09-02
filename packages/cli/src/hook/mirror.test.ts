@@ -46,6 +46,53 @@ afterEach(() => {
 
 const TARGET = { url: "https://logs.example.com" };
 
+describe("makeMirrorCouch write reporting", () => {
+  test("a landed write reports success", async () => {
+    const seenOk: boolean[] = [];
+    await makeMirrorCouch(TARGET, (ok) => seenOk.push(ok)).postDoc("db", {
+      type: "event",
+      session_id: "s1",
+    });
+    expect(seenOk).toEqual([true]);
+  });
+
+  test("an unreachable mirror reports failure instead of nothing", async () => {
+    stubFetch(true);
+    const seenOk: boolean[] = [];
+    await makeMirrorCouch(TARGET, (ok) => seenOk.push(ok)).postDoc("db", {
+      type: "event",
+      session_id: "s1",
+    });
+    expect(seenOk).toEqual([false]);
+  });
+
+  test("a rejected write reports failure — the response used to be discarded", async () => {
+    globalThis.fetch = (async () =>
+      new Response("nope", { status: 500 })) as unknown as typeof fetch;
+    const seenOk: boolean[] = [];
+    await makeMirrorCouch(TARGET, (ok) => seenOk.push(ok)).postDoc("db", {
+      type: "event",
+      session_id: "s1",
+    });
+    expect(seenOk).toEqual([false]);
+  });
+
+  test("a doc with no ingest route reports nothing at all", async () => {
+    // Not an attempt, so neither a success nor a failure: reporting either would make
+    // the statusline describe a write that was never going to happen.
+    const seenOk: boolean[] = [];
+    await makeMirrorCouch(TARGET, (ok) => seenOk.push(ok)).postDoc("db", { type: "mystery" });
+    expect(seenOk).toEqual([]);
+  });
+
+  test("still never throws, and still reports, when the callback is absent", async () => {
+    stubFetch(true);
+    expect(
+      makeMirrorCouch(TARGET).postDoc("db", { type: "event", session_id: "s1" }),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe("makeMirrorCouch", () => {
   test("posts an event doc to the events endpoint, wrapped in `docs`", async () => {
     await makeMirrorCouch(TARGET).postDoc("ignored-db", { type: "event", session_id: "s1" });
