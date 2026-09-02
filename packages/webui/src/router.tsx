@@ -19,7 +19,7 @@ const optionalString = (v: unknown): string | undefined =>
 
 /**
  * The list route owns which projection is showing and what it's showing — so a
- * calendar month or a sort order is linkable, and the back button steps through
+ * calendar month or an active filter is linkable, and the back button steps through
  * them. Unknown values fall back to the defaults rather than rendering nothing.
  */
 const listRoute = createRoute({
@@ -30,8 +30,6 @@ const listRoute = createRoute({
     view: search.view === "calendar" ? (search.view as SessionsView) : undefined,
     month: optionalString(search.month),
     day: optionalString(search.day),
-    sort: optionalString(search.sort) as SessionsRouteSearch["sort"],
-    dir: optionalString(search.dir) as SessionsRouteSearch["dir"],
     cwd: optionalString(search.cwd),
     model: optionalString(search.model),
     hostname: optionalString(search.hostname),

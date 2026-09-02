@@ -2,25 +2,21 @@
  * Root route: the session list, in whichever projection you asked for.
  *
  * Two projections: a day-grouped list (the default, replacing the old table and
- * timeline) and a calendar. The list uses infinite scroll; the calendar fetches
- * the month's range. All URL state is linkable and back-button-navigable.
+ * timeline) and a calendar. The list uses infinite scroll, newest first — its one
+ * order, since the day grouping *is* the ordering; the calendar fetches the month's
+ * range. All URL state is linkable and back-button-navigable.
  */
 import { Box, Chip, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { useNavigate, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
-import { getListSessionsQueryKey, type SessionSummary, useListSessions } from "../api/generated";
+import { getListSessionsQueryKey, useListSessions } from "../api/generated";
 import { SessionsCalendar } from "../components/sessions/SessionsCalendar";
-import {
-  SessionsList,
-  SessionsListHeader,
-  type SortDir,
-  type SortField,
-} from "../components/sessions/SessionsList";
+import { SessionsList, SessionsListHeader } from "../components/sessions/SessionsList";
 import { EmptyState, ErrorState, Loading } from "../components/states";
 import { formatCount } from "../format";
 import { useInfiniteSessionList } from "../hooks/useInfiniteSessionList";
 import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
-import { dayKey, groupByDay, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
+import { dayKey, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
 
 /**
  * How many sessions the calendar will draw for one month. Far above any plausible
@@ -36,9 +32,6 @@ export interface SessionsRouteSearch {
   /** Calendar only: `YYYY-MM`, and `YYYY-MM-DD` once a day is opened. */
   month?: string;
   day?: string;
-  /** Sorting. */
-  sort?: SortField;
-  dir?: SortDir;
   /** Filter params. */
   cwd?: string;
   model?: string;
@@ -52,30 +45,6 @@ const VIEWS: { value: SessionsView; label: string }[] = [
   { value: "list", label: "List" },
   { value: "calendar", label: "Calendar" },
 ];
-
-/** Client-side sort comparator from sort field + direction. */
-function sortSessions(sessions: SessionSummary[], sort?: SortField, dir?: SortDir) {
-  if (!sort) return sessions;
-  const sorted = [...sessions];
-  const mul = dir === "asc" ? 1 : -1;
-  sorted.sort((a, b) => {
-    switch (sort) {
-      case "started":
-        return (
-          mul * (a.startTimestamp ?? a.timestamp).localeCompare(b.startTimestamp ?? b.timestamp)
-        );
-      case "project":
-        return mul * a.cwd.localeCompare(b.cwd);
-      case "runtime":
-        return mul * ((a.durationMs ?? 0) - (b.durationMs ?? 0));
-      case "tokens":
-        return mul * ((a.tokenUsage?.total ?? 0) - (b.tokenUsage?.total ?? 0));
-      default:
-        return 0;
-    }
-  });
-  return sorted;
-}
 
 export function SessionsListPage() {
   const routeSearch = useRouterSearch({ from: "/" }) as SessionsRouteSearch;
@@ -127,18 +96,6 @@ export function SessionsListPage() {
     view === "list" ? { from: routeSearch.from, to: routeSearch.to } : undefined,
   );
 
-  const sortedSessions = useMemo(
-    () => sortSessions(listData.sessions, routeSearch.sort, routeSearch.dir),
-    [listData.sessions, routeSearch.sort, routeSearch.dir],
-  );
-
-  // Re-group after sorting (groupByDay is already called inside the hook, but
-  // we need the sorted version).
-  const sortedDayGroups = useMemo(
-    () => groupByDay(sortedSessions, (s) => Date.parse(s.startTimestamp ?? s.timestamp) || 0),
-    [sortedSessions],
-  );
-
   const sentinelRef = useIntersectionObserver(
     () => listData.fetchNextPage(),
     view === "list" && listData.hasNextPage === true && !listData.isFetchingNextPage,
@@ -149,19 +106,6 @@ export function SessionsListPage() {
     (next: Partial<SessionsRouteSearch>) =>
       navigate({ to: "/", search: (old: SessionsRouteSearch) => ({ ...old, ...next }) }),
     [navigate],
-  );
-
-  const handleSort = useCallback(
-    (field: SortField) => {
-      if (routeSearch.sort === field) {
-        // Toggle direction, then clear.
-        if (routeSearch.dir === "desc") setSearch({ sort: field, dir: "asc" });
-        else setSearch({ sort: undefined, dir: undefined });
-      } else {
-        setSearch({ sort: field, dir: "desc" });
-      }
-    },
-    [routeSearch.sort, routeSearch.dir, setSearch],
   );
 
   // ── Active filter chips ─────────────────────────────────────────────────────
@@ -248,8 +192,8 @@ export function SessionsListPage() {
         <EmptyState>No sessions recorded yet.</EmptyState>
       ) : (
         <>
-          <SessionsListHeader sort={routeSearch.sort} dir={routeSearch.dir} onSort={handleSort} />
-          <SessionsList dayGroups={sortedDayGroups} />
+          <SessionsListHeader />
+          <SessionsList dayGroups={listData.dayGroups} />
 
           {/* Sentinel for infinite scroll */}
           <div ref={sentinelRef} style={{ height: 1 }} />
