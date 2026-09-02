@@ -74,17 +74,43 @@ describe("cacheControlFor", () => {
   });
 });
 
-describe("compression", () => {
-  test("compresses a large asset and declares that it varies by encoding", async () => {
-    const res = await get(`/app/assets/${HASHED}`, GZIP);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-encoding")).toBe("gzip");
-    expect(res.headers.get("vary")?.toLowerCase()).toContain("accept-encoding");
+/**
+ * hono's `compress()` needs `CompressionStream`, which Bun did not provide before
+ * 1.3.3. `engines.bun` declares that floor and CI tests at it, so the encoding tests
+ * below always run where it matters — but a contributor on an older Bun should see the
+ * degraded behaviour verified rather than a red suite they cannot fix.
+ */
+const CAN_COMPRESS = typeof globalThis.CompressionStream === "function";
 
-    const body = new Uint8Array(await res.arrayBuffer());
-    expect(body.byteLength).toBeLessThan(BUNDLE.length);
-    expect(new TextDecoder().decode(Bun.gunzipSync(body))).toBe(BUNDLE);
-  });
+describe("compression", () => {
+  test.skipIf(!CAN_COMPRESS)(
+    "compresses a large asset and declares that it varies by encoding",
+    async () => {
+      const res = await get(`/app/assets/${HASHED}`, GZIP);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-encoding")).toBe("gzip");
+      expect(res.headers.get("vary")?.toLowerCase()).toContain("accept-encoding");
+
+      const body = new Uint8Array(await res.arrayBuffer());
+      expect(body.byteLength).toBeLessThan(BUNDLE.length);
+      expect(new TextDecoder().decode(Bun.gunzipSync(body))).toBe(BUNDLE);
+    },
+  );
+
+  test.skipIf(CAN_COMPRESS)(
+    "without CompressionStream, serves the body uncompressed instead of failing",
+    async () => {
+      // The failure this replaces was a 500 on every compressible response, thrown
+      // inside hono, with a stack naming hono rather than the runtime.
+      const res = await get(`/app/assets/${HASHED}`, GZIP);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-encoding")).toBeNull();
+      expect(await res.text()).toBe(BUNDLE);
+      // Still advertised, so a cache filled here stays correct if this deployment is
+      // later restarted on a runtime that can encode.
+      expect(res.headers.get("vary")?.toLowerCase()).toContain("accept-encoding");
+    },
+  );
 
   test("leaves the body alone when the client asks for no encoding", async () => {
     const res = await get(`/app/assets/${HASHED}`);

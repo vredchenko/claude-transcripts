@@ -152,7 +152,31 @@ const noop: Next = async () => {};
  * it should wrap silently matches nothing, and every response comes back
  * uncompressed with no error to say why.
  */
+/**
+ * Can this runtime actually compress?
+ *
+ * hono's `compress()` reaches straight for `CompressionStream`, which Bun did not
+ * provide until 1.3.3. Below that it throws *inside* the middleware, so every
+ * compressible response became a 500 whose stack named hono rather than the runtime —
+ * a broken server pointing at the wrong component.
+ *
+ * `engines.bun` now declares the floor and CI tests at it, so this should be
+ * unreachable in a supported install. It is here because the failure it replaces was
+ * so misleading: serving uncompressed is strictly better than serving nothing, and a
+ * reader of the log learns the real cause in one line instead of chasing a library
+ * that is behaving correctly.
+ */
+const CAN_COMPRESS = typeof globalThis.CompressionStream === "function";
+
 export function compression(): MiddlewareHandler {
+  // Warn once at construction, not per request: a line per response would bury the
+  // one fact worth reading, and the answer cannot change while the process lives.
+  if (!CAN_COMPRESS) {
+    console.warn(
+      "[webapi] CompressionStream is unavailable — serving responses uncompressed. " +
+        "This runtime is below the supported floor (see `engines.bun`); on Bun, 1.3.3 or newer.",
+    );
+  }
   const encode = compress({ threshold: THRESHOLD });
 
   return async function compression(c, next) {
@@ -186,6 +210,22 @@ export function compression(): MiddlewareHandler {
         return;
       }
       c.res = new Response(peeked, res);
+    }
+
+    // Degrade here rather than at the top: everything above — the sizing, and the
+    // `Content-Length` it restores on a body that arrived without one — is worth doing
+    // whether or not this runtime can encode, and skipping it would trade a 500 for a
+    // subtler wrong answer.
+    if (!CAN_COMPRESS) {
+      // Advertise the variance anyway. A shared cache populated by this process has to
+      // stay correct if the same deployment is later restarted on a runtime that CAN
+      // compress; without `Vary` it would hand a stored identity response to a client
+      // that asked for gzip and would now get it.
+      const vary = c.res.headers.get("Vary");
+      if (!vary?.toLowerCase().includes("accept-encoding")) {
+        c.res.headers.append("Vary", "Accept-Encoding");
+      }
+      return;
     }
 
     // `compress` post-processes whatever `c.res` currently holds, so a no-op `next`
