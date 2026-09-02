@@ -32,6 +32,8 @@ export interface ResetCounts {
  */
 export interface ExistingSession {
   source: string;
+  /** `running` while a session is still live; repair must not touch those. */
+  status?: string;
 }
 
 export interface SessionSink {
@@ -43,6 +45,14 @@ export interface SessionSink {
    * record is.
    */
   existingSession(sessionId: string): Promise<ExistingSession | null>;
+  /**
+   * Does this session have readable turn content?
+   *
+   * Turns come only from full-content `chunk` docs, so this answers the question
+   * `--repair` exists for — "is anything searchable here?" — without needing a chunk
+   * count the read API doesn't expose.
+   */
+  hasTurns(sessionId: string): Promise<boolean>;
   /**
    * Drop a session's derived docs so it can be ingested again.
    *
@@ -64,6 +74,9 @@ export class DryRunSink implements SessionSink {
   readonly label = "dry-run";
   async existingSession(): Promise<ExistingSession | null> {
     return null;
+  }
+  async hasTurns(): Promise<boolean> {
+    return false;
   }
   async resetSession(sessionId: string): Promise<ResetCounts> {
     console.log(`  [dry-run] DELETE ${sessionId}  (summary + event + chunk docs)`);
@@ -96,6 +109,12 @@ export class WebapiSink implements SessionSink {
   readonly label = webapiUrl();
   async existingSession(sessionId: string): Promise<ExistingSession | null> {
     return getOrNull<ExistingSession>(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  }
+  async hasTurns(sessionId: string): Promise<boolean> {
+    const res = await getOrNull<{ turns?: unknown[] }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/turns?limit=1`,
+    );
+    return (res?.turns?.length ?? 0) > 0;
   }
   async resetSession(sessionId: string): Promise<ResetCounts> {
     const res = await resetSession(sessionId);
