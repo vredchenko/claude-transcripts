@@ -142,6 +142,19 @@ export async function exists(path: string): Promise<boolean> {
 }
 
 /**
+ * GET a JSON resource, or null when it isn't there.
+ *
+ * `exists` answers only yes/no, which is enough for idempotency but not for deciding
+ * *how* a session may be re-ingested — that turns on what the stored record says about
+ * itself. Same 404-tolerant contract, one step further.
+ */
+export async function getOrNull<T>(path: string): Promise<T | null> {
+  const res = await fetch(`${base()}${path}`);
+  if (!res.ok) return null;
+  return (await res.json()) as T;
+}
+
+/**
  * Stream a file up as the request body, without reading it into memory.
  *
  * Transcripts dominate a bundle (~100MB across 43 sessions on a real instance), so a

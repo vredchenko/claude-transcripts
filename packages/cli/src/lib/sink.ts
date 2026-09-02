@@ -13,7 +13,7 @@
  * the destination swappable — e.g. a future direct-backend `HostSink`.
  */
 import { ingestChunks, ingestEvents, ingestSummary, resetSession } from "../api/generated";
-import { exists, putRaw, setWebapiUrl, webapiUrl } from "../api/http";
+import { getOrNull, putRaw, setWebapiUrl, webapiUrl } from "../api/http";
 import type { ChunkDoc, EventDoc, SummaryDoc } from "./session-docs";
 
 /** What a reset removed, for reporting. */
@@ -23,9 +23,26 @@ export interface ResetCounts {
   chunks: number;
 }
 
+/**
+ * What is already stored for a session, as far as re-ingestion needs to care.
+ *
+ * `source` is the load-bearing field: a `live` record was written by the hook as the
+ * session happened and carries provenance no reconstruction can recover, while a
+ * `backfill` record was itself reconstructed and is safe to rebuild.
+ */
+export interface ExistingSession {
+  source: string;
+}
+
 export interface SessionSink {
-  /** Already ingested? (idempotency — skip work already done.) */
-  hasSummary(sessionId: string): Promise<boolean>;
+  /**
+   * The stored record for this session, or null if there is none.
+   *
+   * Replaces a bare "already ingested?" boolean: idempotency only needs yes/no, but
+   * deciding whether a re-ingest would *downgrade* the record needs to know what the
+   * record is.
+   */
+  existingSession(sessionId: string): Promise<ExistingSession | null>;
   /**
    * Drop a session's derived docs so it can be ingested again.
    *
@@ -45,8 +62,8 @@ export interface SessionSink {
 /** Prints what it *would* do; never touches a backend. The `--dry-run` sink. */
 export class DryRunSink implements SessionSink {
   readonly label = "dry-run";
-  async hasSummary(): Promise<boolean> {
-    return false;
+  async existingSession(): Promise<ExistingSession | null> {
+    return null;
   }
   async resetSession(sessionId: string): Promise<ResetCounts> {
     console.log(`  [dry-run] DELETE ${sessionId}  (summary + event + chunk docs)`);
@@ -77,8 +94,8 @@ export class DryRunSink implements SessionSink {
  */
 export class WebapiSink implements SessionSink {
   readonly label = webapiUrl();
-  async hasSummary(sessionId: string): Promise<boolean> {
-    return exists(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  async existingSession(sessionId: string): Promise<ExistingSession | null> {
+    return getOrNull<ExistingSession>(`/api/sessions/${encodeURIComponent(sessionId)}`);
   }
   async resetSession(sessionId: string): Promise<ResetCounts> {
     const res = await resetSession(sessionId);
