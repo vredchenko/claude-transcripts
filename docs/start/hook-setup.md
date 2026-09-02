@@ -98,6 +98,13 @@ claude plugin install /absolute/path/to/claude-transcripts/hooks
 That form still requires the CLI to be installed: the plugin is a shim that pipes each
 payload to `claude-transcripts hook run`.
 
+> **Pick one route, not both.** The plugin and `hook install` register the same eleven
+> events and both end at the same writer, so with both active every event is recorded
+> **twice** — permanently, and silently, because the hook swallows errors by design.
+> `hook install` and `setup` both detect an enabled plugin and decline to register
+> alongside it; `claude-transcripts hook status` tells you which route a machine is on.
+> To switch from the plugin to the binary, disable the plugin first, then re-run.
+
 ### Architecture
 
 Either route ends in the same place — `claude-transcripts hook run`
