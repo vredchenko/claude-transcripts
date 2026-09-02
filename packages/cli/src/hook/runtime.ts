@@ -157,9 +157,19 @@ function makeDirectCouch(config: HookConfig, onWrite?: (ok: boolean) => void): C
  * satisfies {@link CouchClient} means "write to two places" is a config fact, not a
  * thing every handler has to remember to do.
  */
-export function makeCouch(config: HookConfig, onWrite?: (ok: boolean) => void): CouchClient {
+export function makeCouch(
+  config: HookConfig,
+  onWrite?: (ok: boolean, storeIndex: number) => void,
+): CouchClient {
   const mirrors = config.mirrors ?? [];
-  return fanOutCouch([makeDirectCouch(config, onWrite), ...mirrors.map((m) => makeMirrorCouch(m))]);
+  // Mirrors report their outcome too, but against their OWN index — reporting them
+  // into a single shared pair would let a healthy mirror mark a dead primary as
+  // recording, and the label the statusline prints is the primary's. The indices
+  // here are the contract `resolveTargets` seeds `stores` in.
+  return fanOutCouch([
+    makeDirectCouch(config, onWrite && ((ok) => onWrite(ok, 0))),
+    ...mirrors.map((m, i) => makeMirrorCouch(m, onWrite && ((ok) => onWrite(ok, i + 1)))),
+  ]);
 }
 
 export interface BlobClient {
@@ -260,6 +270,28 @@ export function makeCounts(sessionId: string): CountsStore {
  * here: it is read by a renderer that runs on every statusline refresh, and the line it
  * prints lands in a terminal.
  */
+/**
+ * One store's write health, kept per store rather than for the fan-out as a whole.
+ *
+ * A single outcome pair could not express "the primary is dead but the mirror is
+ * fine", which is the ordinary state of a machine that reports into a shared
+ * instance. Collapsing the two made the indicator wrong whichever way it resolved:
+ * counting only the direct store showed a permanent failure on a machine that was
+ * recording correctly, and counting any store showed a confident green dot labelled
+ * with a host that had accepted nothing for weeks.
+ *
+ * Never carries credentials — labels come from {@link redactUrl}.
+ */
+export interface StoreHealth {
+  /** `db@host` for the direct store, `host` for a mirror. */
+  label: string;
+  kind: "direct" | "mirror";
+  /** Epoch ms of the last write this store accepted; 0 until one lands. */
+  lastWriteMs: number;
+  /** Epoch ms of the last write this store rejected after its last success; 0 if none. */
+  lastFailureMs: number;
+}
+
 export interface Targets {
   /** CouchDB base URL with any userinfo stripped. */
   couchUrl: string;
@@ -272,17 +304,32 @@ export interface Targets {
   features: string[];
   /** Mirrors this machine also reports into (URLs only). */
   mirrors: string[];
-  /** Epoch ms of the last write CouchDB accepted; 0 until one lands. */
+  /**
+   * Per-store health: index 0 is the direct store, then mirrors in config order.
+   *
+   * Optional because it genuinely is absent on a targets file written by an older
+   * binary — the file lives in `/tmp` per session and survives an upgrade mid-session.
+   * A renderer must handle that rather than assume the key.
+   */
+  stores?: StoreHealth[];
+  /**
+   * Aggregate of {@link stores} (the best outcome across them).
+   *
+   * Kept for one release because the targets file lives in `/tmp` per session: a
+   * session that started under an older binary and continues after an upgrade hands
+   * the renderer a file with no `stores` key, and showing "off" at a live session
+   * would be a worse lie than the one being fixed. Delete both next release.
+   */
   lastWriteMs: number;
-  /** Epoch ms of the last write that failed after the last success; 0 if none. */
+  /** See {@link lastWriteMs}. */
   lastFailureMs: number;
 }
 
 export interface TargetsStore {
   read(): Targets | null;
   write(t: Targets): void;
-  /** Stamp the outcome of one CouchDB write. */
-  markWrite(ok: boolean): void;
+  /** Stamp the outcome of one CouchDB write against one store (0 = direct). */
+  markWrite(ok: boolean, storeIndex?: number): void;
   clear(): void;
 }
 
@@ -309,14 +356,28 @@ export function makeTargets(sessionId: string): TargetsStore {
   return {
     read,
     write,
-    markWrite(ok) {
+    markWrite(ok, storeIndex = 0) {
       const t = read();
       if (!t) return; // no session-start seed → nothing to annotate
+      const now = Date.now();
+      // A file written by an older binary has no `stores`; annotate what is there
+      // rather than inventing entries whose labels we would have to guess.
+      const store = t.stores?.[storeIndex];
+      if (store) {
+        if (ok) {
+          store.lastWriteMs = now;
+          store.lastFailureMs = 0;
+        } else {
+          store.lastFailureMs = now;
+        }
+      }
+      // The flat pair stays the aggregate: any store accepting a write means the
+      // session is being recorded somewhere, which is what the old renderer asked.
       if (ok) {
-        t.lastWriteMs = Date.now();
+        t.lastWriteMs = now;
         t.lastFailureMs = 0;
-      } else {
-        t.lastFailureMs = Date.now();
+      } else if (!t.stores?.some((x) => x.lastWriteMs > x.lastFailureMs)) {
+        t.lastFailureMs = now;
       }
       write(t);
     },
@@ -342,6 +403,13 @@ export function redactUrl(url: string): string {
   }
 }
 
+/** `host:port` from a URL, credentials stripped — short enough for a statusline. */
+export function hostOf(url: string): string {
+  return redactUrl(url)
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+}
+
 /** The resolved targets for a config, before any write has happened. */
 export function resolveTargets(config: HookConfig, webapiUrl?: string): Targets {
   return {
@@ -353,6 +421,22 @@ export function resolveTargets(config: HookConfig, webapiUrl?: string): Targets 
       .filter(([, on]) => on)
       .map(([k]) => k),
     mirrors: (config.mirrors ?? []).map((m) => redactUrl(m.url)),
+    // Order matters and is the contract `markWrite`'s index relies on: the direct
+    // store first, then mirrors exactly as `makeCouch` fans them out.
+    stores: [
+      {
+        label: `${config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB}@${hostOf(config.couch.url)}`,
+        kind: "direct",
+        lastWriteMs: 0,
+        lastFailureMs: 0,
+      },
+      ...(config.mirrors ?? []).map((m) => ({
+        label: hostOf(m.url),
+        kind: "mirror" as const,
+        lastWriteMs: 0,
+        lastFailureMs: 0,
+      })),
+    ],
     lastWriteMs: 0,
     lastFailureMs: 0,
   };
@@ -501,7 +585,7 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
     transcriptPath: payload?.transcript_path,
     payload,
     config,
-    couch: makeCouch(config, (ok) => targets.markWrite(ok)),
+    couch: makeCouch(config, (ok, storeIndex) => targets.markWrite(ok, storeIndex)),
     blob: makeBlob(config),
     counts: makeCounts(sessionId),
     targets,

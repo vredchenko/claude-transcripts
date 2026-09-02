@@ -79,23 +79,32 @@ function ingestRoute(doc: Record<string, unknown>): { path: string; body: unknow
 }
 
 /** A {@link CouchClient} that writes through a remote instance's ingest surface. */
-export function makeMirrorCouch(target: MirrorTarget): CouchClient {
+export function makeMirrorCouch(
+  target: MirrorTarget,
+  onWrite?: (ok: boolean) => void,
+): CouchClient {
   const base = baseUrl(target);
   const headers = { "Content-Type": "application/json", ...authHeaders(target) };
   const fallback = target.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const send = async (doc: Record<string, unknown>, timeoutMs: number): Promise<void> => {
     const route = ingestRoute(doc);
+    // A doc with no ingest route was never going to be written; reporting it either way
+    // would make the statusline describe an attempt that did not happen.
     if (!route) return;
     try {
-      await fetch(`${base}${route.path}`, {
+      const res = await fetch(`${base}${route.path}`, {
         method: "POST",
         headers,
         body: JSON.stringify(route.body),
         signal: AbortSignal.timeout(timeoutMs),
       });
+      // The response was previously discarded, so a mirror returning 500 to every write
+      // was indistinguishable from one accepting them. Failures stay non-fatal — a
+      // mirror must never block a session — but they are no longer invisible.
+      onWrite?.(res.ok);
     } catch {
-      // non-fatal
+      onWrite?.(false);
     }
   };
 
