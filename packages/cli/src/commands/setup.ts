@@ -19,9 +19,9 @@
  *     per-repo is stubbed (registerProject).
  *
  * Backend-agnostic: endpoints + secrets come from `.env` (Bun auto-loads it), so
- * this points at a localhost stack or an external cluster (e.g. sf0homebox) by
- * changing `.env` only. On this machine, use `--no-hook` for dev so we never
- * register a second logger alongside the running one.
+ * this points at a bundled localhost stack or an external cluster by changing `.env`
+ * only. In a source checkout, use `--no-hook` so a dev run never registers a second
+ * logger alongside the one already recording.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -30,12 +30,17 @@ import { resolveCouchUrl } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { parseFlags } from "../lib/args";
 import { writeHookConfig } from "../lib/hook-config";
+import { installPaths } from "../lib/paths";
+import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
 const HOOK_DIR = join(REPO_ROOT, "hooks");
 const HOOK_CONFIG_PATH =
   process.env.CT_HOOK_CONFIG ?? join(homedir(), ".config", "claude-transcripts", "config.json");
-const GLOBAL_SETTINGS = join(homedir(), ".claude", "settings.json");
+// Via installPaths, not homedir(), so `CT_HOME` relocates it. `plugin.ts` derives the
+// plugins directory from whatever path it is handed precisely so a sandboxed run reads
+// the sandbox's plugins; passing it a real ~/.claude path would defeat that.
+const GLOBAL_SETTINGS = installPaths().claudeSettings;
 const PROJECT_SETTINGS = join(process.cwd(), ".claude", "settings.json");
 
 interface RepoConfig {
@@ -141,12 +146,30 @@ async function probeGarage(blob: ReturnType<typeof buildHookConfig>["blob"]): Pr
 
 type SettingsHooks = Record<string, Array<{ hooks: Array<{ command?: string }> }>>;
 
-function readSettings(path: string): { hooks?: SettingsHooks } {
+/**
+ * The whole settings object, not just `hooks` — the plugin's registration lives under
+ * `enabledPlugins`, and reading only `hooks` is what let this file conclude "nothing is
+ * registered" on a machine that was recording perfectly well.
+ */
+function readSettings(path: string): Record<string, unknown> & { hooks?: SettingsHooks } {
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
+}
+
+/**
+ * The plugin registration that makes registering here redundant, or null.
+ *
+ * Exported for the test: what was missing was never the detector — `plugin.ts` has
+ * been able to see this all along — but this file asking it.
+ */
+export function globalRegistrationBlockedBy(
+  settingsPath: string = GLOBAL_SETTINGS,
+): PluginRegistration | null {
+  return pluginRegistration(settingsPath, readSettings(settingsPath));
 }
 
 /** Our dispatch command (absolute path — settings.json can't use ${CLAUDE_PLUGIN_ROOT}). */
@@ -216,6 +239,17 @@ function reportExisting(): void {
   console.log(
     `  existing registration → global: ${g ? "yes" : "no"}, this project: ${p ? "yes" : "no"}`,
   );
+  // Reported separately because it is a different mechanism, and because omitting it
+  // was actively misleading: a plugin-registered machine records every event and this
+  // line still said "no", which reads as "nothing is set up here".
+  const plugin = globalRegistrationBlockedBy();
+  if (plugin) {
+    const version = plugin.version ? ` v${plugin.version}` : "";
+    const count = plugin.events?.length;
+    console.log(
+      `  existing registration → plugin: ${plugin.key}${version}${count ? ` (${count} events)` : ""}`,
+    );
+  }
 }
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
@@ -287,7 +321,27 @@ export async function runSetup(argv: string[]): Promise<number> {
   } else if (project) {
     registerProject();
   } else {
-    registerGlobal(false);
+    // Skip rather than double-write. The plugin registers the same events and both
+    // routes end at `claude-transcripts hook run`, so registering here as well makes
+    // every event land twice in CouchDB — permanently, and silently, because the hook
+    // swallows everything by design.
+    //
+    // `hook install` has refused this since it learned to look; `setup` never did, and
+    // `setup` is the command the docs tell you to run first and the one `install`
+    // calls. The guard was on the door you reach for second.
+    //
+    // Skipped, not failed: steps 1 and 2 did real work, and a machine recording via
+    // the plugin is already in the state `setup` exists to produce. Nothing is wrong
+    // here, so nothing should exit non-zero.
+    const plugin = globalRegistrationBlockedBy();
+    if (plugin) {
+      console.log(`  the plugin ${plugin.key} already registers these events — skipped.`);
+      console.log("  registering here as well would write every event twice.");
+      console.log("  keep the plugin        → nothing to do (`hook status` explains it)");
+      console.log("  use this binary instead → disable the plugin, then re-run setup");
+    } else {
+      registerGlobal(false);
+    }
   }
 
   console.log("setup: done. Verify with `claude-transcripts doctor` (write→read→search).");
