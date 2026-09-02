@@ -208,6 +208,10 @@ export const CLI_SPEC: CliSpec = {
           description: "with --force: also replace live-recorded sessions (loses hook provenance)",
         },
         {
+          name: "--repair",
+          description: "add missing chunk docs to adopted sessions; leaves summary + events alone",
+        },
+        {
           name: "--session",
           type: "string",
           description: "with --force: re-process only this session",

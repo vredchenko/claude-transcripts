@@ -13,6 +13,7 @@ import { planReingest } from "./backfill";
 
 const live = { source: "live" };
 const backfilled = { source: "backfill" };
+const running = { source: "live", status: "running" };
 
 describe("planReingest", () => {
   test("a session with nothing stored is adopted", () => {
@@ -60,6 +61,61 @@ describe("planReingest", () => {
     // in here deliberately rather than inherit the guard by accident.
     expect(planReingest({ source: "doctor" }, { force: true, replaceLive: false })).toEqual({
       action: "adopt",
+    });
+  });
+});
+
+/**
+ * `--repair` is the additive counterpart: it adds the chunk docs a misconfigured hook
+ * never wrote, and touches neither the summary nor the event markers. Its refusals are
+ * what keep it additive.
+ */
+describe("planReingest, --repair", () => {
+  const repair = { force: false, replaceLive: false, repair: true };
+
+  test("an adopted session with no turn content is repaired", () => {
+    expect(planReingest(live, { ...repair, hasTurns: false })).toEqual({ action: "repair" });
+  });
+
+  test("a backfilled session with no turn content is repaired too", () => {
+    // `--no-content`, or an older CLI that wrote byte-range-only chunks, leaves the same
+    // shape: a good record with nothing readable in it.
+    expect(planReingest(backfilled, { ...repair, hasTurns: false })).toEqual({
+      action: "repair",
+    });
+  });
+
+  test("a session that already has turns is left alone", () => {
+    // Chunk ids are keyed by byte offset; the hook's offsets will not line up with a
+    // whole-file partition, so writing over a partially-chunked session leaves both sets.
+    expect(planReingest(live, { ...repair, hasTurns: true })).toEqual({
+      action: "skip",
+      reason: "has-turns",
+    });
+  });
+
+  test("a running session is left alone — its transcript is still moving", () => {
+    expect(planReingest(running, { ...repair, hasTurns: false })).toEqual({
+      action: "skip",
+      reason: "running",
+    });
+  });
+
+  test("a running session is skipped as running even if it somehow has turns", () => {
+    expect(planReingest(running, { ...repair, hasTurns: true })).toEqual({
+      action: "skip",
+      reason: "running",
+    });
+  });
+
+  test("a session with nothing stored is adopted normally, not repaired", () => {
+    expect(planReingest(null, { ...repair, hasTurns: false })).toEqual({ action: "adopt" });
+  });
+
+  test("without --repair, an adopted session with no turns is still just skipped", () => {
+    expect(planReingest(live, { force: false, replaceLive: false, hasTurns: false })).toEqual({
+      action: "skip",
+      reason: "already-adopted",
     });
   });
 });
