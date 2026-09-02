@@ -24,6 +24,19 @@ describe("resolveTargets stores", () => {
     expect(t.stores?.[1]?.label).toBe("logs.example.com");
   });
 
+  test("always seeds at least the direct store — an empty `stores` cannot arise here", () => {
+    // A renderer has to decide what an empty array means, and the honest answer is
+    // "we never produce one": every config has a direct store, because `couch` is the
+    // one block that cannot be defaulted. Pinned because the statusline now relies on
+    // it to tell "nothing tried yet" apart from "nothing to try".
+    const noMirrors = {
+      couch: { url: "http://c:5984", databases: { sessions: "s" } },
+      features: {},
+    } as unknown as HookConfig;
+    expect(resolveTargets(noMirrors).stores).toHaveLength(1);
+    expect(resolveTargets(noMirrors).stores?.[0]?.kind).toBe("direct");
+  });
+
   test("labels carry no credentials", () => {
     const t = resolveTargets(WITH_MIRROR);
     for (const s of t.stores ?? []) {
