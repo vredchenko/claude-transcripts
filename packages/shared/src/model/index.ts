@@ -11,3 +11,4 @@ export * from "./routes";
 export * from "./services";
 export * from "./topology";
 export * from "./types";
+export * from "./user-settings";

@@ -142,8 +142,14 @@ export class SessionDetailPage {
     await this.speakerFilter.getByRole("button", { name: label }).click();
   }
 
-  get loadMore(): Locator {
-    return this.page.getByRole("button", { name: /load more/i });
+  /**
+   * The button that appears once the reader has auto-loaded as far as it will go on
+   * its own. There is no "load more" any more — scrolling and background prefetch
+   * cover the ordinary case — so this is only present on a transcript longer than
+   * `userSettings.transcriptAutoLoadMax`.
+   */
+  get loadRest(): Locator {
+    return this.page.getByRole("button", { name: /load the remaining/i });
   }
 }
 

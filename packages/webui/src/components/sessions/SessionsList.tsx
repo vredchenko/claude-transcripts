@@ -1,6 +1,5 @@
 /**
- * Sessions as an 8-column CSS grid with day grouping, infinite scroll, and
- * sortable headers. Replaces the old table and timeline projections.
+ * Sessions as an 8-column CSS grid with day grouping and infinite scroll.
  *
  * Columns: time | project+cwd | runtime+active bar | host+model | tool mix |
  * tokens+turns | status | copy
@@ -250,21 +249,18 @@ function DayHeader({ group }: { group: DayGroup<SessionSummary> }) {
   );
 }
 
-export type SortField = "started" | "project" | "runtime" | "tokens";
-export type SortDir = "asc" | "desc";
-
-/** Column header bar with sortable labels. */
-export function SessionsListHeader({
-  sort,
-  dir,
-  onSort,
-}: {
-  sort?: SortField;
-  dir?: SortDir;
-  onSort: (field: SortField) => void;
-}) {
-  const arrow = (field: SortField) => (sort === field ? (dir === "asc" ? " ↑" : " ↓") : "");
-
+/**
+ * Column header bar.
+ *
+ * The labels are inert. They were briefly clickable, sorting the loaded rows — but
+ * the list is grouped by day and `groupByDay` re-sorts every group by start
+ * time, so the chosen order was thrown away before it reached the screen: the arrow
+ * moved and the rows did not. A sort that only reordered the pages already fetched
+ * would have been misleading anyway, with the next page arriving underneath it in
+ * server order. Rather than keep a control that lies, the list has one order —
+ * newest first — and the headers say what the columns are.
+ */
+export function SessionsListHeader() {
   return (
     <Box
       sx={{
@@ -281,61 +277,22 @@ export function SessionsListHeader({
         zIndex: 1,
       }}
     >
-      <SortableHeader label="Time" field="started" sort={sort} arrow={arrow} onSort={onSort} />
-      <SortableHeader label="Project" field="project" sort={sort} arrow={arrow} onSort={onSort} />
-      <SortableHeader label="Runtime" field="runtime" sort={sort} arrow={arrow} onSort={onSort} />
-      <Typography variant="caption" color="text.secondary">
-        Host / Model
-      </Typography>
-      <Typography variant="caption" color="text.secondary">
-        Tools
-      </Typography>
-      <SortableHeader
-        label="Tokens"
-        field="tokens"
-        sort={sort}
-        arrow={arrow}
-        onSort={onSort}
-        align="right"
-      />
-      <Typography variant="caption" color="text.secondary">
-        Status
-      </Typography>
+      <HeaderLabel>Time</HeaderLabel>
+      <HeaderLabel>Project</HeaderLabel>
+      <HeaderLabel>Runtime</HeaderLabel>
+      <HeaderLabel>Host / Model</HeaderLabel>
+      <HeaderLabel>Tools</HeaderLabel>
+      <HeaderLabel align="right">Tokens</HeaderLabel>
+      <HeaderLabel>Status</HeaderLabel>
       <Box />
     </Box>
   );
 }
 
-function SortableHeader({
-  label,
-  field,
-  sort,
-  arrow,
-  onSort,
-  align,
-}: {
-  label: string;
-  field: SortField;
-  sort?: SortField;
-  arrow: (f: SortField) => string;
-  onSort: (f: SortField) => void;
-  align?: "right";
-}) {
+function HeaderLabel({ children, align }: { children: React.ReactNode; align?: "right" }) {
   return (
-    <Typography
-      variant="caption"
-      color={sort === field ? "primary.main" : "text.secondary"}
-      sx={{
-        cursor: "pointer",
-        userSelect: "none",
-        fontWeight: sort === field ? 700 : 400,
-        textAlign: align,
-        "&:hover": { color: "primary.main" },
-      }}
-      onClick={() => onSort(field)}
-    >
-      {label}
-      {arrow(field)}
+    <Typography variant="caption" color="text.secondary" sx={{ textAlign: align }}>
+      {children}
     </Typography>
   );
 }

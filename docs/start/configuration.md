@@ -72,8 +72,11 @@ The committed template, in full — this is the current shape, not a target:
     "meilisearch":    "http://127.0.0.1:7656/"
   },
 
-  // USER settings — reserved, empty for now
-  "userSettings": {},
+  "userSettings": {                  // reader tunables, served to the webui via /api/model
+    "sessionListPageSize": 100,      // sessions fetched per page as the list scrolls
+    "transcriptPageSize": 100,       // transcript entries fetched per page
+    "transcriptAutoLoadMax": 2000    // entries the viewer loads on its own before it asks
+  },
 
   "recall": {                        // when a live session consults its own history (ADR 0029)
     "mode": "auto",                  // off | suggest | auto
@@ -109,7 +112,15 @@ The committed template, in full — this is the current shape, not a target:
   app supports **multiple databases and buckets** (the app-logs DB is the first
   second database). Code refers to a store **by logical key** (`sessions`,
   `appLogs`), never a hard-coded name.
-- **`userSettings`** — placeholder for end-user preferences; empty in Tier 1.
+- **`userSettings`** — how much the webui pulls at a time. The two page sizes are the
+  `limit` on one request to the gateway; `transcriptAutoLoadMax` is where the transcript
+  viewer stops scrolling and prefetching on its own and offers a "Load the remaining N
+  entries" button instead (nothing in the reader is virtualised yet, so the ceiling is
+  what keeps a 40 000-entry session out of the DOM). Raise the page sizes on a fast host
+  with a large corpus; lower them on a small one. Values are clamped
+  (`resolveUserSettings`), and anything absent or nonsensical falls back to the default
+  above rather than failing the build of the app model. Omit the section entirely for
+  the defaults shown.
 - **`recall`** — the recall policy, resolved by the app model (`model.recall`) and
   baked into the hook's runtime config; the plugin's `userConfig` (`recall_mode`,
   `recall_scope`, `max_results`) overrides it per user. Omit the section for the
