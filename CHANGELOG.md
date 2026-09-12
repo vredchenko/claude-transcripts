@@ -6,6 +6,104 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-09-12
+
+0.1.0 was about a machine that reported healthy while recording nothing. This one is
+its counterpart in the interface: **controls that render, respond, and do nothing.**
+The session list had a column sort that moved an arrow and left the rows alone, and six
+filter chips you could add and delete without ever narrowing a result. Both looked like
+working features, which is why they survived so long — and both were found by asking
+what a control actually sends, rather than whether it reacts.
+
+The same question, asked of the CLI, found the inverse: `sessions` could not filter at
+all, so the command whose job is listing sessions was the one that made you read all of
+them.
+
+Also: a Kubernetes deployment target, generated from the app model rather than written
+alongside it.
+
+### Added
+
+- **Kubernetes base, generated from the app model** (`deploy/k8s/`, `bun run gen:k8s`).
+  The same identity, ports, stores and env the compose files project from, emitted as a
+  kustomize base — so a k3s deployment cannot drift from the model the way a hand-kept
+  second manifest set would. Committed and re-generated in CI, which fails on a diff
+  ([#145]).
+- **The transcript loads itself.** "Load more" is gone; a scroll sentinel 600px ahead of
+  the end pulls the next block, and a background prefetch keeps going while the tab is
+  visible, so arriving at a session and immediately searching finds the text already
+  there. A hidden tab doesn't prefetch. Past `transcriptAutoLoadMax` (2 000) it stops
+  and offers the rest explicitly, because nothing in the reader is virtualised yet
+  ([#140]).
+- **List filters that reach the gateway, on both interfaces.** `cwd`, `model`,
+  `hostname` and `source` are exact-match query params on `GET /api/sessions` — the same
+  four `GET /api/search` already took, so a filter means the same thing on both screens
+  — alongside `from`/`to`. The webui forwards all six from the list and the calendar;
+  `claude-transcripts sessions` gained them as flags, with `totalCount` reporting the
+  filtered set so `--limit 1` answers "how many" on its own ([#140], [#148]).
+- **`userSettings` is a real shape.** It was an empty, untyped `Record<string, unknown>`
+  in the config template that nothing read. It now carries `sessionListPageSize`,
+  `transcriptPageSize` and `transcriptAutoLoadMax`, resolved once in `buildAppModel` and
+  served to the webui through `/api/model`. Values are clamped — they become `limit` on
+  a gateway request, so an unbounded typo in `config.json` would ask for the whole
+  corpus in one call — and anything absent or nonsensical falls back to the default
+  rather than failing the model build ([#140]).
+
+### Fixed
+
+- **The session list's filter chips never filtered.** All six rendered from the URL and
+  were deletable, and the omnibox's `project:` / `host:` / `model:` / `source:`
+  operators navigated by setting them — but only `from`/`to` were ever forwarded, and
+  `model`/`source` weren't parameters on `/api/sessions` at all. Typing `project:atlas`
+  put a chip on screen and changed nothing under it. Filtering had to move to the
+  gateway rather than being applied to the loaded rows: the list is infinite-scrolled,
+  so a client-side sieve narrows the first page and lets the next arrive unfiltered
+  underneath it ([#140]).
+- **The column sort never sorted.** `sortSessions` ran, then `groupByDay` re-sorted
+  every group by start time and threw the result away. Fixing the grouping wouldn't have
+  made it honest — a client-side comparator over an infinite-scrolled list only orders
+  the pages already fetched, so "top by tokens" would mean "top of the first hundred".
+  The headings are labels now; a real sort belongs on `GET /api/sessions` and is written
+  down as such ([#140]).
+- **The transcript re-fetched everything it already had.** The viewer pinned `offset: 0`
+  and grew `limit`, so every "load more" re-sent the whole prefix — reaching entry 2 000
+  in blocks of 100 moved two hundred thousand entries over the wire. `placeholderData`
+  kept the old rows on screen, which is why it read as incremental and why its docstring
+  claimed it "appends without refetching earlier pages" ([#140]).
+- **`setup` registered the hook on top of the plugin, doubling every event.** On a
+  plugin-managed machine the settings-file registration and the plugin's own dispatch
+  both fired, so each event was written twice ([#144]).
+- **A malformed date filter was reported as a filter that worked.** `overlapsRange`
+  treats an unparseable bound as open — deliberately, so a bad URL widens the result set
+  rather than emptying it, on the reasoning that a caller seeing everything can tell
+  something is wrong. That stops holding the moment something asserts otherwise:
+  `sessions --from yesterday` printed `541 matching (from=yesterday)` above the entire
+  corpus. The gateway keeps its leniency for pasted links; the CLI now refuses, exit 2,
+  before the request. The check is a shape test *and* `Date.parse`, because either alone
+  lets something through — `Date.parse("01/08/2026")` is a valid date, 8 January, so a
+  bound written the way most of the world writes dates would have selected the wrong
+  four months in silence ([#148]).
+- **The counts stopped lying about what they counted.** A filtered calendar reported
+  "0 of 0 shown" (the chip read the list query's totals, and the list query is disabled
+  in calendar view); an empty filtered list said "No sessions recorded yet.", which is a
+  claim about the corpus rather than about the filter ([#140], [#148]).
+
+### Changed
+
+- **The `session-history` skill filters server-side.** Its table told the agent to get
+  `--cwd`/`--hostname` on `sessions` "via `search`'s flags" — true until this release —
+  and its procedure asked for a window and a project that `sessions` had no way to
+  express, so it pulled 200–500 unfiltered rows and sieved them client-side. It now
+  points at the flags ([#148]).
+
+### Known gaps
+
+- `sessions --cwd .` and `search --cwd .` match nothing: stored `cwd` is always
+  absolute, and the gateway compares it exactly (normalising only a trailing slash).
+  Pass an absolute path — `--cwd "$PWD"` — until the CLI resolves it for both commands.
+- `turns --from/--to` are not validated the way `sessions`' now are, so an unreadable
+  bound there is still silently ignored.
+
 ## [0.1.0] — 2026-09-02
 
 A two-machine audit started with "why does the laptop still point at a dead local
@@ -1268,6 +1366,11 @@ of them had ever executed:
 [#136]: https://github.com/vredchenko/claude-transcripts/pull/136
 [#137]: https://github.com/vredchenko/claude-transcripts/pull/137
 [#138]: https://github.com/vredchenko/claude-transcripts/pull/138
+[#140]: https://github.com/vredchenko/claude-transcripts/pull/140
+[#144]: https://github.com/vredchenko/claude-transcripts/pull/144
+[#145]: https://github.com/vredchenko/claude-transcripts/pull/145
+[#148]: https://github.com/vredchenko/claude-transcripts/pull/148
+[0.2.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.2.0
 [0.1.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.1.0
 [0.0.16]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.16
 [0.0.15]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.15
