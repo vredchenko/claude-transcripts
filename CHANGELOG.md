@@ -6,6 +6,39 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] — 2026-09-12
+
+One fix, from verifying the last release: `backfill --dry-run` was read-*nothing*
+rather than read-only, so the plan it printed was not the plan a real run would follow.
+
+### Fixed
+
+- **`backfill --dry-run` reports what would actually happen.** Two independent
+  short-circuits — `existing = dryRun ? null : …` in the runner, and a `DryRunSink` that
+  answered every read from nothing — meant `planReingest` saw `existing: null` for every
+  session and returned its first branch. The whole decision tree below it
+  (`already-adopted`, `live-record`, `running`, `has-turns`, `repair`, `repair-blob`) was
+  unreachable under `--dry-run`; only `adopt` could print. On a 542-session instance the
+  preview claimed 16 adoptions where 15 of those sessions were already stored, and it was
+  worst on `--repair`, which exists to act on records that already exist and therefore
+  previewed the destructive-shaped operation it was added to avoid.
+
+  The reads are GETs, and writing nothing is the only promise `--dry-run` makes, so the
+  dry-run sink now delegates reads to a real one and stubs only the writes. Same corpus,
+  after: `1 backfilled, 1 repaired, 14 skipped` — the repair being a real session whose
+  transcript never reached S3, which is [#157] showing up in the wild.
+
+  Offline use is preserved: a read that cannot reach the store marks the preview a guess
+  and says so, rather than silently reporting everything as new. `--webapi` is now
+  applied before the sink is chosen, so a dry run previews against the instance a real
+  run would write to ([#161]).
+
+### Changed
+
+- `--dry-run` and `--repair` both described behaviour they no longer had — the latter has
+  re-uploaded a missing transcript since [#157]. Both project from `CLI_SPEC`, so help and
+  the generated command reference follow from the correction ([#161]).
+
 ## [0.3.1] — 2026-09-12
 
 A `SessionEnd` hook that Claude Code reported as **cancelled**, chased to the bottom.
@@ -1475,6 +1508,8 @@ of them had ever executed:
 [#156]: https://github.com/vredchenko/claude-transcripts/issues/156
 [#157]: https://github.com/vredchenko/claude-transcripts/issues/157
 [#158]: https://github.com/vredchenko/claude-transcripts/issues/158
+[#161]: https://github.com/vredchenko/claude-transcripts/issues/161
+[0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
 [0.3.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.0
 [0.2.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.2.0
