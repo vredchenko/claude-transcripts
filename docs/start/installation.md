@@ -44,13 +44,20 @@ Install is a composition, so any phase can be re-run on its own — `stack up`,
 There is no `upgrade` command yet. Replace the binary and verify it:
 
 ```sh
-V=v0.1.0; P=linux-x64      # or linux-arm64, darwin-x64, darwin-arm64
+P=linux-x64                # or linux-arm64, darwin-x64, darwin-arm64
+B=https://github.com/vredchenko/claude-transcripts/releases/latest/download
 cd ~/Downloads
-curl -fLO "https://github.com/vredchenko/claude-transcripts/releases/download/$V/claude-transcripts-$P"
-curl -fLO "https://github.com/vredchenko/claude-transcripts/releases/download/$V/claude-transcripts-$P.sha256"
+curl -fLO "$B/claude-transcripts-$P"
+curl -fLO "$B/claude-transcripts-$P.sha256"
 sha256sum -c "claude-transcripts-$P.sha256"
 install -m 755 "claude-transcripts-$P" ~/.local/bin/claude-transcripts
+claude-transcripts --version
 ```
+
+`/releases/latest/download/` is resolved by GitHub, so this block has no version in it
+to go stale — it named `v0.1.0` for two releases. To pin one instead, swap `latest/download`
+for `download/vX.Y.Z`. Re-running the quick-install script does the same thing and picks
+the platform for you.
 
 If you also run the app, its image tag moves separately — **the binary and the server
 version drift independently**, and a schema mismatch makes ingest reject documents
@@ -65,6 +72,29 @@ The design, including the edge cases it handles, is in
 **Open Claude Code sessions won't be recorded until you restart them**: Claude Code
 reads its hook configuration when a session starts.
 
+### Registering the hook: binary or plugin
+
+`install` registers the hook itself, and that is the whole requirement. The repo is also
+its own Claude Code **plugin marketplace**, which is a second route to the same writer:
+
+```
+/plugin marketplace add vredchenko/claude-transcripts
+/plugin install claude-transcripts@claude-transcripts
+```
+
+The plugin does **not** contain or fetch the CLI — it is a shim that finds the installed
+binary (`PATH`, then `$CT_HOME/bin`, then `~/.local/bin`) and pipes each payload to
+`claude-transcripts hook run`. Without the CLI it prints one line and exits 0. What it
+adds over plain registration is the skills, `/claude-transcripts:status`, and the
+subagent statusline.
+
+> **Pick one route, not both** — they register the same eleven events, so running both
+> records every event **twice**, silently. Details and the switch-over in
+> [hook-setup.md](hook-setup.md#3-register-the-hook-with-claude-code).
+
+Neither route auto-updates. The plugin is pinned to the version you installed, and the
+binary is a file on disk — upgrading is the two steps above and `/plugin` respectively.
+
 The rest of this page covers doing it by hand — useful for a custom topology, for
 contributing, or for understanding what the one command actually did.
 
@@ -78,13 +108,16 @@ contributing, or for understanding what the one command actually did.
 | **webapi** | yes | The only process that talks to the stores |
 | **webui** / **cli** | optional | Ways to read it back |
 | **the hook** | yes, to record | Registered with Claude Code; writes each session |
+| **the plugin** | optional | Registers the hook, and adds the skills, `/claude-transcripts:status` and the subagent statusline |
 
 ## Prerequisites
 
 For the quick install: [Docker](https://docs.docker.com/get-docker/) with Compose v2,
 and [Claude Code](https://claude.com/claude-code). The binary carries everything else.
 
-For the manual path below, additionally: [Bun](https://bun.sh) ≥ 1.1 and `git`.
+For the manual path below, additionally: [Bun](https://bun.sh) ≥ 1.4 and `git` — the
+floor `engines.bun` declares, which CI installs and runs the suite against. Below it
+the install is unsupported, not merely untested.
 
 ## Choose a topology
 

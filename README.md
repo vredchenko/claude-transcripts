@@ -106,7 +106,7 @@ derived search index):
   in the configuration docs.
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/) (with Compose),
-[Bun](https://bun.sh) ≥ 1.1, `git`, `openssl`, and
+[Bun](https://bun.sh) ≥ 1.4, `git`, `openssl`, and
 [Claude Code](https://claude.com/claude-code) (to record sessions).
 
 ### 1. Clone and install

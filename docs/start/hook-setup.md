@@ -88,15 +88,24 @@ claude-transcripts hook install
 It merges into `~/.claude/settings.json`, so other tools' hooks are untouched and
 re-running is a no-op. `claude-transcripts hook status` shows what's registered.
 
-If you'd rather use Claude Code's plugin mechanism, install the `hooks/` directory
-(so `${CLAUDE_PLUGIN_ROOT}` resolves):
+If you'd rather use Claude Code's plugin mechanism, the repo is its own marketplace:
+
+```
+/plugin marketplace add vredchenko/claude-transcripts
+/plugin install claude-transcripts@claude-transcripts
+```
+
+From a checkout, point Claude Code at the `hooks/` directory instead (so
+`${CLAUDE_PLUGIN_ROOT}` resolves):
 
 ```bash
 claude plugin install /absolute/path/to/claude-transcripts/hooks
 ```
 
-That form still requires the CLI to be installed: the plugin is a shim that pipes each
-payload to `claude-transcripts hook run`.
+Either form still requires the CLI to be installed: the plugin is a shim that pipes each
+payload to `claude-transcripts hook run`, and ships no binary of its own. Neither the
+plugin nor the CLI updates itself — the plugin stays on the version you installed until
+you update it, and the binary is replaced by hand ([Upgrading](installation.md#upgrading)).
 
 > **Pick one route, not both.** The plugin and `hook install` register the same eleven
 > events and both end at the same writer, so with both active every event is recorded
