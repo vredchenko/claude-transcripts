@@ -4,9 +4,23 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { StoreHealth, Targets } from "../hook/runtime";
-import { renderStatusline, STALL_AFTER_MS, storeState, whereLabel } from "./statusline";
+import {
+  renderStatusline,
+  STALL_AFTER_MS,
+  storeState,
+  versionLabel,
+  whereLabel,
+} from "./statusline";
 
 const NOW = 1_700_000_000_000;
+/** Pinned, so these assert a format rather than whatever this checkout is stamped as. */
+const VERSION = "9.9.9";
+const CT = "ct@9.9.9";
+
+/** Every state carries the version, so the tests below always pass one. */
+function state(over: Partial<Parameters<typeof renderStatusline>[0]>) {
+  return { configured: true, targets: null, counts: null, version: VERSION, ...over };
+}
 
 function targets(over: Partial<Targets> = {}): Targets {
   return {
@@ -40,29 +54,29 @@ function stores(direct: Partial<StoreHealth>, ...mirrors: Partial<StoreHealth>[]
 
 describe("renderStatusline", () => {
   test("no instance configured → off", () => {
-    expect(renderStatusline({ configured: false, targets: null, counts: null }, NOW)).toBe(
-      "○ ct off · no instance configured",
+    expect(renderStatusline(state({ configured: false }), NOW)).toBe(
+      `○ ${CT} off · no instance configured`,
     );
   });
 
   test("configured but this session has no targets → off, not recording", () => {
-    const line = renderStatusline({ configured: true, targets: null, counts: null }, NOW);
-    expect(line.startsWith("○ ct off")).toBe(true);
+    const line = renderStatusline(state({}), NOW);
+    expect(line.startsWith(`○ ${CT} off`)).toBe(true);
   });
 
   test("a recent successful write → recording, with counts and the store", () => {
     const line = renderStatusline(
-      { configured: true, targets: targets({ lastWriteMs: NOW - 2000 }), counts },
+      state({ targets: targets({ lastWriteMs: NOW - 2000 }), counts }),
       NOW,
     );
     expect(line).toBe(
-      "● ct rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652",
+      `● ${CT} rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
     );
   });
 
   test("no write yet → ready, not recording", () => {
-    const line = renderStatusline({ configured: true, targets: targets(), counts }, NOW);
-    expect(line.startsWith("◌ ct ready")).toBe(true);
+    const line = renderStatusline(state({ targets: targets(), counts }), NOW);
+    expect(line.startsWith(`◌ ${CT} ready`)).toBe(true);
     expect(line).toContain("no write yet");
   });
 
@@ -71,23 +85,52 @@ describe("renderStatusline", () => {
       lastWriteMs: NOW - STALL_AFTER_MS - 1000,
       lastFailureMs: NOW - 500,
     });
-    const line = renderStatusline({ configured: true, targets: t, counts }, NOW);
-    expect(line.startsWith("◐ ct stalled")).toBe(true);
+    const line = renderStatusline(state({ targets: t, counts }), NOW);
+    expect(line.startsWith(`◐ ${CT} stalled`)).toBe(true);
     expect(line).toContain("last write 1m ago");
   });
 
   test("a failure within the stall window still shows recording", () => {
     const t = targets({ lastWriteMs: NOW - 10_000, lastFailureMs: NOW - 500 });
-    expect(
-      renderStatusline({ configured: true, targets: t, counts }, NOW).startsWith("● ct rec"),
-    ).toBe(true);
+    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
+      true,
+    );
   });
 
   test("a stale failure before a fresh success is forgotten", () => {
     const t = targets({ lastWriteMs: NOW - 1000, lastFailureMs: NOW - 5000 });
-    expect(
-      renderStatusline({ configured: true, targets: t, counts }, NOW).startsWith("● ct rec"),
-    ).toBe(true);
+    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
+      true,
+    );
+  });
+
+  test("the version is on every state, including the ones that report nothing", () => {
+    // The states worth knowing the version in are exactly the broken ones: "which
+    // binary is this?" is the first question when the line says off or stalled.
+    const stalled = targets({ lastWriteMs: NOW - STALL_AFTER_MS - 1000, lastFailureMs: NOW });
+    for (const line of [
+      renderStatusline(state({ configured: false }), NOW),
+      renderStatusline(state({}), NOW),
+      renderStatusline(state({ targets: targets(), counts }), NOW),
+      renderStatusline(state({ targets: stalled, counts }), NOW),
+      renderStatusline(state({ targets: targets({ lastWriteMs: NOW }), counts }), NOW),
+    ]) {
+      expect(line).toContain(CT);
+    }
+  });
+});
+
+describe("versionLabel", () => {
+  test("a release is shown as its number", () => {
+    expect(versionLabel("0.2.0")).toBe("ct@0.2.0");
+  });
+
+  test("a checkout is 'dev', not thirteen characters of 0.0.0-dev", () => {
+    expect(versionLabel("0.0.0-dev")).toBe("ct@dev");
+  });
+
+  test("with nothing passed it reports this binary, and is never empty", () => {
+    expect(versionLabel()).toMatch(/^ct@.+/);
   });
 });
 
@@ -127,8 +170,8 @@ describe("renderStatusline, per-store health", () => {
         lastWriteMs: NOW - 2000,
       }),
     });
-    expect(renderStatusline({ configured: true, targets: t, counts }, NOW)).toBe(
-      "● ct rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652",
+    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
+      `● ${CT} rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
     );
   });
 
@@ -143,8 +186,8 @@ describe("renderStatusline, per-store health", () => {
         { label: "logs.example.net", lastWriteMs: NOW - 2000 },
       ),
     });
-    const line = renderStatusline({ configured: true, targets: t, counts }, NOW);
-    expect(line).toBe("● ct rec (mirror) · 128 ev · 6 tools · 2s ago → logs.example.net");
+    const line = renderStatusline(state({ targets: t, counts }), NOW);
+    expect(line).toBe(`● ${CT} rec (mirror) · 128 ev · 6 tools · 2s ago → logs.example.net`);
     expect(line).not.toContain("primary:5984");
   });
 
@@ -156,8 +199,8 @@ describe("renderStatusline, per-store health", () => {
         { label: "b.example.net", lastWriteMs: NOW - 3000 },
       ),
     });
-    expect(renderStatusline({ configured: true, targets: t, counts }, NOW)).toBe(
-      "● ct rec (mirror) · 128 ev · 6 tools · 2s ago → a.example.net +1",
+    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
+      `● ${CT} rec (mirror) · 128 ev · 6 tools · 2s ago → a.example.net +1`,
     );
   });
 
@@ -168,16 +211,16 @@ describe("renderStatusline, per-store health", () => {
         { lastWriteMs: NOW - STALL_AFTER_MS - 60_000, lastFailureMs: NOW - 500 },
       ),
     });
-    const line = renderStatusline({ configured: true, targets: t, counts }, NOW);
-    expect(line.startsWith("◐ ct stalled")).toBe(true);
+    const line = renderStatusline(state({ targets: t, counts }), NOW);
+    expect(line.startsWith(`◐ ${CT} stalled`)).toBe(true);
     expect(line).toContain("last write 2m ago");
   });
 
   test("stores present but nothing tried yet is ready, not stalled", () => {
     const t = targets({ stores: stores({}, {}) });
-    expect(
-      renderStatusline({ configured: true, targets: t, counts }, NOW).startsWith("◌ ct ready"),
-    ).toBe(true);
+    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`◌ ${CT} ready`)).toBe(
+      true,
+    );
   });
 
   // The targets file lives in /tmp per session, so a session that began under an older
@@ -185,15 +228,15 @@ describe("renderStatusline, per-store health", () => {
   test("a targets file from an older binary still renders from the flat pair", () => {
     const t = targets({ lastWriteMs: NOW - 2000 });
     expect(t.stores).toBeUndefined();
-    expect(renderStatusline({ configured: true, targets: t, counts }, NOW)).toBe(
-      "● ct rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652",
+    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
+      `● ${CT} rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
     );
   });
 
   test("an empty stores array is treated as absent, not as no stores at all", () => {
     const t = targets({ lastWriteMs: NOW - 2000, stores: [] });
-    expect(
-      renderStatusline({ configured: true, targets: t, counts }, NOW).startsWith("● ct rec"),
-    ).toBe(true);
+    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
+      true,
+    );
   });
 });

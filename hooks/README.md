@@ -28,9 +28,11 @@ releases page) — that is what does the work.
   `Claude Transcripts — recording to couchdb://…/claude-transcripts-sessions + s3://… · http://127.0.0.1:7650/app/sessions/<id>`
   — or, with no instance configured, `Claude Transcripts — not recording …`. A silent
   hook and a broken hook used to look identical; this is the fix.
-- **In the statusline**, continuously: `● ct rec · 128 ev · 6 tools · 2s ago → …`,
-  `◐ ct stalled …` when the store has stopped accepting writes, `○ ct off` when there
-  is nothing to record to. Rendered from the hook's own scratch files — no network.
+- **In the statusline**, continuously: `● ct@0.2.0 rec · 128 ev · 6 tools · 2s ago → …`,
+  `◐ ct@0.2.0 stalled …` when the store has stopped accepting writes, `○ ct@0.2.0 off`
+  when there is nothing to record to. The number is the recording binary's own version
+  (`ct@dev` from a checkout), so a machine running a stale hook says so on every
+  refresh instead of only under `hook status`. Rendered from the hook's own scratch files — no network.
   A plugin may set `subagentStatusLine` (done, in `settings.json`) but not the main
   `statusLine`, so that one is registered by `claude-transcripts statusline install`
   (`install` does it for you; `--no-statusline` opts out). An existing `statusLine`

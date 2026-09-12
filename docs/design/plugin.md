@@ -138,9 +138,16 @@ payload and is discussed there. Three details matter:
 A persistent one-liner is what actually answers "is it still working" while you work:
 
 ```
-● ct rec · 128 ev · 6 tools · 2s ago → sessions@127.0.0.1:7652
-○ ct off · no instance configured
+● ct@0.2.0 rec · 128 ev · 6 tools · 2s ago → sessions@127.0.0.1:7652
+○ ct@dev off · no instance configured
 ```
+
+The version is the **recording binary's**, not the instance's. Everything is
+lockstep-versioned ([ADR 0023](decisions/0023-lockstep-versioning-and-combined-image.md))
+and `install` pins the app image to the CLI's version, so when a machine drifts the
+hook doing the writing is the half you cannot otherwise see. It shows `ct@dev` from a
+checkout. It cannot show the *app's* version instead — that needs a request, and this
+renders on every refresh.
 
 The renderer ships as `bin/claude-transcripts-statusline` (a plugin's `bin/` is added to
 PATH). It receives the statusline JSON on stdin — `session_id`, `cwd`, `model`,

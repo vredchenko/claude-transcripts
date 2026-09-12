@@ -21,7 +21,7 @@ import { dirname } from "node:path";
 import { makeCounts, makeTargets } from "../hook/runtime";
 import { parseFlags } from "../lib/args";
 import { installPaths } from "../lib/paths";
-import { renderStatusline, type StatuslineInput } from "../lib/statusline";
+import { renderStatusline, type StatuslineInput, versionLabel } from "../lib/statusline";
 import { cliInvocation } from "./hook";
 
 interface StatusLineSetting {
@@ -66,7 +66,9 @@ async function render(): Promise<number> {
     });
     process.stdout.write(`${line}\n`);
   } catch {
-    process.stdout.write("○ ct off\n");
+    // Even here the version is knowable — it is baked in, not read from anywhere
+    // that could be what just failed.
+    process.stdout.write(`○ ${versionLabel()} off\n`);
   }
   return 0;
 }

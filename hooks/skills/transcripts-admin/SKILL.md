@@ -14,10 +14,11 @@ and prefer the command that reports over the one that rewrites.
 
 | You see | It means | Do |
 |---|---|---|
-| Banner: *not recording (no instance configured)* / statusline `○ ct off · no instance configured` | No hook runtime config on this machine | `claude-transcripts install` (full setup) — or `setup` if the stores already exist elsewhere |
-| Statusline `○ ct off · not recording this session` with an instance configured | The hook isn't firing for this session: not registered, or registered after the session started | `claude-transcripts hook status`; if not registered, `hook install`, then **restart Claude Code** (hook config is snapshotted at session start) |
-| Statusline `◌ ct ready · no write yet` for more than a minute | Hook runs but CouchDB hasn't accepted a write | `claude-transcripts doctor`; `stack ps` / `stack up`; check the CouchDB URL in the hook config (`hook status` prints its path) |
-| Statusline `◐ ct stalled` | Writes were landing and have stopped | `claude-transcripts stack ps` → `stack up` or `stack restart couchdb`; then `doctor` |
+| Banner: *not recording (no instance configured)* / statusline `○ ct@<version> off · no instance configured` | No hook runtime config on this machine | `claude-transcripts install` (full setup) — or `setup` if the stores already exist elsewhere |
+| Statusline `○ ct@<version> off · not recording this session` with an instance configured | The hook isn't firing for this session: not registered, or registered after the session started | `claude-transcripts hook status`; if not registered, `hook install`, then **restart Claude Code** (hook config is snapshotted at session start) |
+| Statusline `◌ ct@<version> ready · no write yet` for more than a minute | Hook runs but CouchDB hasn't accepted a write | `claude-transcripts doctor`; `stack ps` / `stack up`; check the CouchDB URL in the hook config (`hook status` prints its path) |
+| Statusline `◐ ct@<version> stalled` | Writes were landing and have stopped | `claude-transcripts stack ps` → `stack up` or `stack restart couchdb`; then `doctor` |
+| Statusline shows `ct@dev`, or a version behind the instance's | That machine records from a checkout or a stale binary, and everything is lockstep-versioned ([ADR 0023](../../../docs/design/decisions/0023-lockstep-versioning-and-combined-image.md)) | `claude-transcripts install` to upgrade it; compare against the app's version at `GET /api/model` |
 | `/claude-transcripts:status` says the CLI isn't on PATH | The plugin is installed but the binary isn't | Install the CLI: the release binaries, or `bunx @claude-transcripts/cli install` |
 | `search` says *not enabled* | `features.meilisearch` is off | Turn it on in the instance config, `stack up`, `reindex` |
 | `search` finds nothing it should | Index behind or empty | `claude-transcripts reindex` (safe: rebuilds derived state from CouchDB) |
