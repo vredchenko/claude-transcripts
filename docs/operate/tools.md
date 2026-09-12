@@ -29,7 +29,11 @@ Keeping these out of both the hook and the app is deliberate:
 - **Standalone + optional.** Nothing here is a dependency of live logging; an
   absent or broken tool degrades a manual workflow, never a running session.
 - **Idempotent + `--dry-run`.** Anything that writes takes `--dry-run` and is
-  safe to re-run (skip work already done).
+  safe to re-run (skip work already done). A dry run is **read-only, not offline**: it
+  reads the store so the plan it prints is the plan a real run would follow, skips and
+  all. It previously answered those reads from nothing and so reported every session as
+  new — if it cannot reach the webapi it now says the preview is a guess rather than
+  quietly printing one.
 - **Schema parity with the hook.** Tools that write session docs reuse the hook's
   document shapes and `sumTranscriptTokens` from `@claude-transcripts/shared`
   (see [hook.md](../reference/hook.md) / [webapi.md](../reference/webapi.md)).

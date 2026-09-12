@@ -8,6 +8,10 @@
  * data; `backfill` ingests raw Claude Code transcripts off the filesystem.)
  *
  *   claude-transcripts backfill [--dir <path>] [--host <name>] [--actor <who>] [--webapi <url>] [--dry-run]
+ *
+ * `--dry-run` writes nothing and reads everything: which of adopt / skip / repair a
+ * session gets turns entirely on what is already stored, so a preview that answered
+ * that from nothing could only ever print `adopt`.
  *                              [--force [--session <id>]] [--chunk-size <n>] [--no-content]
  *
  * Provenance: real per-entry timestamps from the transcript are preserved (so
@@ -45,10 +49,11 @@
  * NOTE at the end + docs/operate/tools.md).
  */
 import { hostname } from "node:os";
+import { webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 import { defaultProjectsDir, discoverTranscripts, readTranscript } from "../lib/claude-fs";
 import { buildChunkDocs, buildEventDocs, buildSummaryDoc } from "../lib/session-docs";
-import { type ExistingSession, makeSink } from "../lib/sink";
+import { DryRunSink, type ExistingSession, makeSink } from "../lib/sink";
 import { deriveSessionFacts } from "../lib/transcript";
 
 /**
@@ -189,7 +194,9 @@ export async function runBackfill(argv: string[]): Promise<number> {
         skipped++;
         continue;
       }
-      const existing = dryRun ? null : await sink.existingSession(t.sessionId);
+      // Asked on a dry run too. Short-circuiting it here was half of why a preview
+      // could only ever say "adopt" — see DryRunSink for the other half.
+      const existing = await sink.existingSession(t.sessionId);
       // Only asked in repair mode, and only when there is a record to repair — an extra
       // round trip per session is not worth paying on an ordinary run.
       const hasTurns = repair && existing ? await sink.hasTurns(t.sessionId) : false;
@@ -262,6 +269,15 @@ export async function runBackfill(argv: string[]): Promise<number> {
     }
   }
 
+  // A preview that could not read the store guessed, and has to say so — reporting
+  // every session as new is exactly the bug this replaced.
+  if (sink instanceof DryRunSink && sink.blind) {
+    console.warn(
+      `backfill: WARNING — could not read ${webapiUrl()}, so this preview assumed nothing ` +
+        "is stored yet. A real run will skip whatever is already there; re-run the " +
+        "preview once the webapi is reachable to see the true plan.",
+    );
+  }
   console.log(
     `backfill: ${written} backfilled${repaired ? `, ${repaired} repaired` : ""}` +
       `${reprocessed ? ` (${reprocessed} re-processed)` : ""}, ` +
