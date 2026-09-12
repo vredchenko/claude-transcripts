@@ -114,9 +114,16 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
         // projections ask for one). Unknown to older builds, which simply omit them.
         const from = url.searchParams.get("from");
         const to = url.searchParams.get("to");
+        // The four attribute filters, matched exactly, as the gateway matches them.
+        // Mocked here rather than ignored so a spec can tell "the chip narrowed the
+        // list" from "the chip is decorative", which is what it was.
         const inRange = sessions.filter((s) => {
           if (from && s.timestamp < from) return false;
           if (to && s.startTimestamp > to) return false;
+          for (const name of ["cwd", "model", "hostname", "source"] as const) {
+            const want = url.searchParams.get(name);
+            if (want && s[name] !== want) return false;
+          }
           return true;
         });
         return json(route, {
