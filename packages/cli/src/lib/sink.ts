@@ -79,19 +79,69 @@ export interface SessionSink {
   readonly label: string;
 }
 
-/** Prints what it *would* do; never touches a backend. The `--dry-run` sink. */
+/**
+ * Prints what it *would* do. The `--dry-run` sink.
+ *
+ * **Read-only, not offline.** It stubs every write and delegates every *read* to a real
+ * sink, because what a backfill does to a session turns entirely on what is already
+ * stored — `already-adopted`, `live-record`, `running`, `has-turns`, `repair`,
+ * `repair-blob`. Answering those from nothing collapsed the whole decision tree onto its
+ * one remaining leaf: every session previewed as a fresh adoption, so a preview over a
+ * corpus of 542 sessions announced 16 adoptions where a real run would have skipped 15
+ * of them. Worst on `--repair`, which exists to act on records that already exist and
+ * therefore previewed the destructive-shaped operation it was added to avoid.
+ *
+ * The reads are GETs. Consulting them writes nothing, which is the only promise
+ * `--dry-run` makes.
+ */
 export class DryRunSink implements SessionSink {
   readonly label = "dry-run";
-  async existingSession(): Promise<ExistingSession | null> {
-    return null;
+  /**
+   * True once a read failed. A preview that could not reach the store must say so:
+   * silently answering "nothing is stored" is the old bug, made permanent.
+   */
+  blind = false;
+  private reader: SessionSink | null | undefined;
+
+  constructor(reader?: SessionSink) {
+    this.reader = reader;
   }
-  async hasTranscriptBlob(): Promise<boolean> {
-    // A dry run reports nothing missing: it must not talk anyone into a repair it did
-    // not actually check for.
-    return true;
+
+  /** The read sink, built on first use so an unreachable instance can't break construction. */
+  private reads(): SessionSink | null {
+    if (this.reader === undefined) {
+      try {
+        this.reader = new WebapiSink();
+      } catch {
+        this.reader = null;
+        this.blind = true;
+      }
+    }
+    return this.reader;
   }
-  async hasTurns(): Promise<boolean> {
-    return false;
+
+  /** Run a read, and remember if the store could not answer. A 404 is an answer. */
+  private async ask<T>(run: (r: SessionSink) => Promise<T>, whenBlind: T): Promise<T> {
+    const r = this.reads();
+    if (!r) return whenBlind;
+    try {
+      return await run(r);
+    } catch {
+      this.blind = true;
+      return whenBlind;
+    }
+  }
+
+  async existingSession(sessionId: string): Promise<ExistingSession | null> {
+    return this.ask((r) => r.existingSession(sessionId), null);
+  }
+  async hasTranscriptBlob(sessionId: string): Promise<boolean> {
+    // Blind, claim the blob is there: a preview must not talk anyone into a repair it
+    // could not confirm was needed.
+    return this.ask((r) => r.hasTranscriptBlob(sessionId), true);
+  }
+  async hasTurns(sessionId: string): Promise<boolean> {
+    return this.ask((r) => r.hasTurns(sessionId), false);
   }
   async resetSession(sessionId: string): Promise<ResetCounts> {
     console.log(`  [dry-run] DELETE ${sessionId}  (summary + event + chunk docs)`);
@@ -162,7 +212,9 @@ export class WebapiSink implements SessionSink {
 }
 
 export function makeSink(opts: { dryRun: boolean; webapiUrl?: string }): SessionSink {
-  if (opts.dryRun) return new DryRunSink();
+  // Set before either branch: a dry run reads from the same instance a real run would
+  // write to, so `--dry-run --webapi <url>` previews against that one rather than
+  // quietly against the default.
   if (opts.webapiUrl) setWebapiUrl(opts.webapiUrl);
-  return new WebapiSink();
+  return opts.dryRun ? new DryRunSink() : new WebapiSink();
 }

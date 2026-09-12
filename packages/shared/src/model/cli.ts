@@ -234,14 +234,18 @@ export const CLI_SPEC: CliSpec = {
         },
         {
           name: "--repair",
-          description: "add missing chunk docs to adopted sessions; leaves summary + events alone",
+          description:
+            "add what an interrupted write left out of an adopted session: missing chunk docs, or a transcript that never reached S3; leaves summary + events alone",
         },
         {
           name: "--session",
           type: "string",
           description: "with --force: re-process only this session",
         },
-        { name: "--dry-run", description: "preview without writing" },
+        {
+          name: "--dry-run",
+          description: "preview without writing (reads the store, so skips are shown)",
+        },
       ],
       examples: ["backfill --dry-run", "backfill", "backfill --force --session 3f9a2c1e"],
     },

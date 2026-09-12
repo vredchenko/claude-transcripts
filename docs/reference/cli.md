@@ -300,9 +300,9 @@ Adopt on-disk ~/.claude transcripts as first-class history
 | `--no-content` | byte-range chunks only (no turn content) |
 | `--force` | re-process adopted sessions (deletes their derived docs, then rebuilds) |
 | `--replace-live` | with --force: also replace live-recorded sessions (loses hook provenance) |
-| `--repair` | add missing chunk docs to adopted sessions; leaves summary + events alone |
+| `--repair` | add what an interrupted write left out of an adopted session: missing chunk docs, or a transcript that never reached S3; leaves summary + events alone |
 | `--session <value>` | with --force: re-process only this session |
-| `--dry-run` | preview without writing |
+| `--dry-run` | preview without writing (reads the store, so skips are shown) |
 
 ```bash
 claude-transcripts backfill --dry-run
