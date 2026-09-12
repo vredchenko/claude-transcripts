@@ -6,6 +6,52 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-09-12
+
+A `SessionEnd` hook that Claude Code reported as **cancelled**, chased to the bottom.
+The recording had survived — the CouchDB writes all landed — but the S3 upload had not,
+and pulling on that found two more defects in the same path, both of which had been
+there since the hook learned to resume.
+
+Three fixes, no behaviour anyone asked for changed.
+
+### Fixed
+
+- **A resumed session's summary could never be corrected.** `putDoc` wrote without a
+  `_rev`, so CouchDB answered 409 on a document that already existed — and the result was
+  reported to `onWrite` and otherwise dropped, which made *not writing* indistinguishable
+  from writing. Every second `SessionEnd` hit it, while the S3 copy (a plain overwriting
+  put) moved on, so the two stores disagreed permanently about the same session: 354
+  events against 17, 2,412,551 transcript bytes against 2,627,306, with the real total in
+  neither. The summary now has its own `upsertDoc` — PUT, and on a conflict read the
+  current `_rev` and PUT once more. `putDoc` is unchanged on purpose: chunk ids are byte
+  offsets, so re-flushing a span must leave the stored copy alone. The mirror path had
+  been upserting correctly all along through `POST /api/ingest/summary`, so this was the
+  **direct** writer disagreeing with the gateway about what a summary write means — the
+  second-writer drift [ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md)
+  warns about ([#156]).
+- **Counts no longer reset when a session ends.** `writeSummary` cleared them, so a
+  resumed session recounted from zero and its second summary described only the tail.
+  `seedSessionStart` already declines to reset on a resume; clearing at `SessionEnd`
+  defeated that. This had to land with the fix above rather than after it — a summary
+  that actually replaces would have overwritten the real figures with the tail's ([#156]).
+- **A transcript that never reached S3 can be re-uploaded.** A cancelled `SessionEnd`
+  leaves intact chunks and no blob; `backfill --repair` skipped it as `has-turns`, which
+  is right about chunks (their ids are byte offsets and will not line up) and wrong about
+  the blob, which is one object at a fixed key whose re-upload touches no document. The
+  new blob-only path does the upload alone. It has to probe S3 directly, because
+  `hasTranscript` is true when *either* the chunks or the blob exist and so cannot see
+  this state — which is exactly why such a session reads perfectly and nothing reports it
+  ([#157]).
+- **`sessions` showed the SessionEnd time under "STARTED".** Both the list column and the
+  detail line read `timestamp`, the summary's own instant, rather than `startTimestamp`.
+  It was right until a session ended — an unsummarised session takes `timestamp` from its
+  first event — and flipped when the summary landed, which is why it went unnoticed and
+  why the new tests assert an *ended* session specifically. Day grouping had been filing
+  long sessions under the day they ended, and the webui (which reads
+  `startTimestamp ?? timestamp`) had been ordering the same corpus differently. The detail
+  view gains an `ended` line ([#158]).
+
 ## [0.3.0] — 2026-09-12
 
 Two things, and the second is why this is a minor rather than a patch.
@@ -1426,6 +1472,10 @@ of them had ever executed:
 [#148]: https://github.com/vredchenko/claude-transcripts/pull/148
 [#151]: https://github.com/vredchenko/claude-transcripts/pull/151
 [#152]: https://github.com/vredchenko/claude-transcripts/pull/152
+[#156]: https://github.com/vredchenko/claude-transcripts/issues/156
+[#157]: https://github.com/vredchenko/claude-transcripts/issues/157
+[#158]: https://github.com/vredchenko/claude-transcripts/issues/158
+[0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
 [0.3.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.0
 [0.2.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.2.0
 [0.1.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.1.0
