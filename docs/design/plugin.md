@@ -138,7 +138,7 @@ payload and is discussed there. Three details matter:
 A persistent one-liner is what actually answers "is it still working" while you work:
 
 ```
-● ct@0.2.0 rec · 128 ev · 6 tools · 2s ago → sessions@127.0.0.1:7652
+● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → sessions@127.0.0.1:7652
 ○ ct@dev off · no instance configured
 ```
 
@@ -148,6 +148,10 @@ and `install` pins the app image to the CLI's version, so when a machine drifts 
 hook doing the writing is the half you cannot otherwise see. It shows `ct@dev` from a
 checkout. It cannot show the *app's* version instead — that needs a request, and this
 renders on every refresh.
+
+The `v` is not decoration: `CT_VERSION` is baked from the git tag, so `--version`,
+`GET /health` and the app image tag all spell it `v0.3.0` too. The statusline matches
+them rather than inventing a second spelling.
 
 The renderer ships as `bin/claude-transcripts-statusline` (a plugin's `bin/` is added to
 PATH). It receives the statusline JSON on stdin — `session_id`, `cwd`, `model`,

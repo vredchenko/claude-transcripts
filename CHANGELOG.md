@@ -21,7 +21,7 @@ why: *"the version is read OUT of `package.json` rather than written here, becau
 floor pinned in two places is the same bug one level up"* — and it then read the root
 manifest alone, with a second one beside it.
 
-**The statusline says which binary is recording.** `● ct@0.3.0 rec · …`. Everything is
+**The statusline says which binary is recording.** `● ct@v0.3.0 rec · …`. Everything is
 lockstep-versioned, `install` pins the app image to the CLI's version, and the hook was
 the half you could not see without running a command.
 
@@ -35,7 +35,7 @@ the half you could not see without running a command.
 
 ### Added
 
-- **The recording binary's version in the statusline** — `● ct@0.3.0 rec · 128 ev ·
+- **The recording binary's version in the statusline** — `● ct@v0.3.0 rec · 128 ev ·
   6 tools · 2s ago → …`, on every state including `off` and `stalled`, which are the
   ones where "which binary is this?" is the first question. A checkout renders `ct@dev`
   rather than `ct@0.0.0-dev`: three characters instead of thirteen on a line already
