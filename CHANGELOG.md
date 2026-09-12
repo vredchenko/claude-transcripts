@@ -6,6 +6,60 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-09-12
+
+Two things, and the second is why this is a minor rather than a patch.
+
+**Old Bun versions are no longer supported.** `engines.bun` is `>=1.4.0`. The reason it
+had to be said twice is the interesting part: `packages/cli/package.json` still declared
+`>=1.1.0`, and that is the manifest published to npm — so `@claude-transcripts/cli` had
+been telling every user a floor two years below what the code needs, 0.2.0 included.
+
+That is the same defect 0.1.0 was cut for, surviving in the one manifest a user actually
+reads. The `floor` CI job that release added could not see it, and its own comment said
+why: *"the version is read OUT of `package.json` rather than written here, because a
+floor pinned in two places is the same bug one level up"* — and it then read the root
+manifest alone, with a second one beside it.
+
+**The statusline says which binary is recording.** `● ct@0.3.0 rec · …`. Everything is
+lockstep-versioned, `install` pins the app image to the CLI's version, and the hook was
+the half you could not see without running a command.
+
+### Breaking
+
+- **`engines.bun` is `>=1.4.0`, up from `>=1.3.3`** (and from `>=1.1.0` in the published
+  CLI package). Installs below 1.4.0 are formally unsupported. The `floor` job now
+  collects **every** manifest declaring `engines.bun` and fails if any two disagree,
+  before installing anything — the check that would have caught `packages/cli`
+  ([#151]).
+
+### Added
+
+- **The recording binary's version in the statusline** — `● ct@0.3.0 rec · 128 ev ·
+  6 tools · 2s ago → …`, on every state including `off` and `stalled`, which are the
+  ones where "which binary is this?" is the first question. A checkout renders `ct@dev`
+  rather than `ct@0.0.0-dev`: three characters instead of thirteen on a line already
+  competing with the model, the branch and the context meter, and the only distinction
+  the field can usefully draw there is released-binary vs working-copy. It shows the
+  **recorder's** version and never the instance's — reading the app's would need a
+  request, and this path does no network I/O at all ([#152]).
+
+### Removed
+
+- **The `CompressionStream` fallback.** It existed because Bun below 1.3.3 threw inside
+  hono's `compress()`, turning every compressible response into a 500 that named the
+  wrong component. Nothing above the new floor can reach it, so the probe, the
+  constructor warning, the mid-middleware degrade branch that set `Vary` by hand, and
+  the test asserting the degraded path all go — along with the `skipIf` guards that made
+  the encoding assertions conditional on the runtime. Those tests now always run
+  ([#151]).
+
+### Changed
+
+- The `transcripts-admin` skill maps statusline text to remedies symptom by symptom, so
+  its table follows the new format and gains a row for a machine recording from a stale
+  binary — the drift the version display now makes visible ([#152]).
+
 ## [0.2.0] — 2026-09-12
 
 0.1.0 was about a machine that reported healthy while recording nothing. This one is
@@ -1370,6 +1424,9 @@ of them had ever executed:
 [#144]: https://github.com/vredchenko/claude-transcripts/pull/144
 [#145]: https://github.com/vredchenko/claude-transcripts/pull/145
 [#148]: https://github.com/vredchenko/claude-transcripts/pull/148
+[#151]: https://github.com/vredchenko/claude-transcripts/pull/151
+[#152]: https://github.com/vredchenko/claude-transcripts/pull/152
+[0.3.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.0
 [0.2.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.2.0
 [0.1.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.1.0
 [0.0.16]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.0.16
