@@ -197,6 +197,7 @@ function recordingCouch(log: string[], name: string, reject = false): CouchClien
   return {
     postDoc: (_db, _doc) => note("post"),
     putDoc: (_db, id) => note(`put:${id}`),
+    upsertDoc: (_db, id) => note(`upsert:${id}`),
   };
 }
 
@@ -212,6 +213,13 @@ describe("fanOutCouch", () => {
     const fan = fanOutCouch([recordingCouch(log, "a", true), recordingCouch(log, "b")]);
     await expect(fan.putDoc("db", "summary:s1", {})).resolves.toBeUndefined();
     expect(log.sort()).toEqual(["a:put:summary:s1", "b:put:summary:s1"]);
+  });
+
+  test("an upsert reaches every target, so mirrors don't keep a stale summary", async () => {
+    const log: string[] = [];
+    const fan = fanOutCouch([recordingCouch(log, "a"), recordingCouch(log, "b")]);
+    await expect(fan.upsertDoc("db", "summary:s1", {})).resolves.toBeUndefined();
+    expect(log.sort()).toEqual(["a:upsert:summary:s1", "b:upsert:summary:s1"]);
   });
 
   test("a lone client is passed through untouched", () => {

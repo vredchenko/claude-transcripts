@@ -224,7 +224,7 @@ const writeSummary: Handler = async (ctx) => {
     source: "live",
   };
 
-  await ctx.couch.putDoc(ctx.sessionsDb, `summary:${ctx.sessionId}`, doc, 30000);
+  await ctx.couch.upsertDoc(ctx.sessionsDb, `summary:${ctx.sessionId}`, doc, 30000);
   if (ctx.blob.enabled && ctx.sessionsBucket) {
     await ctx.blob.put(
       ctx.sessionsBucket,
@@ -233,7 +233,13 @@ const writeSummary: Handler = async (ctx) => {
       "application/json",
     );
   }
-  ctx.counts.clear();
+  // Targets go: the statusline reads them per session, and a finished session is not
+  // recording. Counts stay. A session can be resumed after SessionEnd, and
+  // `seedSessionStart` deliberately does *not* reset them on a resume so the totals keep
+  // accumulating — clearing them here defeated that, and the second SessionEnd wrote a
+  // summary describing only the resumed tail (17 events of a 371-event session). Now
+  // that the summary actually replaces the stored one, that tail would have overwritten
+  // the real figures.
   ctx.targets.clear();
 };
 

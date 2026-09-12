@@ -73,6 +73,46 @@ describe("planReingest", () => {
 describe("planReingest, --repair", () => {
   const repair = { force: false, replaceLive: false, repair: true };
 
+  // A cancelled SessionEnd finishes the CouchDB writes and dies before the upload, so
+  // the chunks are intact and the verbatim copy never landed. The session reads fine
+  // through the API — `hasTranscript` is true when *either* exists — which is why
+  // nothing noticed, and why --repair used to walk away from the one thing it could fix.
+  test("chunks intact but no blob is repairable — blob only, no chunk rewrite", () => {
+    expect(
+      planReingest(
+        { source: "live", status: "ended" },
+        { ...repair, hasTurns: true, hasBlob: false },
+      ),
+    ).toEqual({ action: "repair-blob" });
+  });
+
+  test("turns AND a blob is still out of scope — nothing is missing", () => {
+    expect(
+      planReingest(
+        { source: "live", status: "ended" },
+        { ...repair, hasTurns: true, hasBlob: true },
+      ),
+    ).toEqual({ action: "skip", reason: "has-turns" });
+  });
+
+  test("a running session is left alone even with no blob — the transcript is still moving", () => {
+    expect(
+      planReingest(
+        { source: "live", status: "running" },
+        { ...repair, hasTurns: true, hasBlob: false },
+      ),
+    ).toEqual({ action: "skip", reason: "running" });
+  });
+
+  test("no turns still means a full repair, blob or not", () => {
+    expect(
+      planReingest(
+        { source: "live", status: "ended" },
+        { ...repair, hasTurns: false, hasBlob: false },
+      ),
+    ).toEqual({ action: "repair" });
+  });
+
   test("an adopted session with no turn content is repaired", () => {
     expect(planReingest(live, { ...repair, hasTurns: false })).toEqual({ action: "repair" });
   });

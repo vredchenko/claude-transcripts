@@ -13,7 +13,7 @@
  * the destination swappable — e.g. a future direct-backend `HostSink`.
  */
 import { ingestChunks, ingestEvents, ingestSummary, resetSession } from "../api/generated";
-import { getOrNull, putRaw, setWebapiUrl, webapiUrl } from "../api/http";
+import { exists, getOrNull, putRaw, setWebapiUrl, webapiUrl } from "../api/http";
 import type { ChunkDoc, EventDoc, SummaryDoc } from "./session-docs";
 
 /** What a reset removed, for reporting. */
@@ -54,6 +54,16 @@ export interface SessionSink {
    */
   hasTurns(sessionId: string): Promise<boolean>;
   /**
+   * Is the byte-exact transcript actually in the blob store?
+   *
+   * Deliberately not `hasTranscript` off the read API: that is true when *either* the
+   * chunks or the blob exist, so it cannot see the state this asks about — chunks
+   * present, blob gone. S3 is the transcript's only verbatim home (ADR 0014); chunks
+   * are the pruned projection (ADR 0027), which is why a session missing its blob still
+   * reads perfectly through the API and looks healthy.
+   */
+  hasTranscriptBlob(sessionId: string): Promise<boolean>;
+  /**
    * Drop a session's derived docs so it can be ingested again.
    *
    * Needed because re-ingesting over the top doesn't replace: events would duplicate
@@ -74,6 +84,11 @@ export class DryRunSink implements SessionSink {
   readonly label = "dry-run";
   async existingSession(): Promise<ExistingSession | null> {
     return null;
+  }
+  async hasTranscriptBlob(): Promise<boolean> {
+    // A dry run reports nothing missing: it must not talk anyone into a repair it did
+    // not actually check for.
+    return true;
   }
   async hasTurns(): Promise<boolean> {
     return false;
@@ -115,6 +130,14 @@ export class WebapiSink implements SessionSink {
       `/api/sessions/${encodeURIComponent(sessionId)}/turns?limit=1`,
     );
     return (res?.turns?.length ?? 0) > 0;
+  }
+  /**
+   * Through the read-only S3 proxy, addressed by the **logical** bucket key — the
+   * gateway maps `sessions` onto whatever the deployment named the bucket, so this
+   * asks the same question on every instance rather than guessing a bucket name.
+   */
+  async hasTranscriptBlob(sessionId: string): Promise<boolean> {
+    return exists(`/api/s3/sessions/${encodeURIComponent(sessionId)}/transcript.jsonl`);
   }
   async resetSession(sessionId: string): Promise<ResetCounts> {
     const res = await resetSession(sessionId);

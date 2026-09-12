@@ -22,6 +22,10 @@
  * duplicate, and chunks are keyed by byte offset, so re-chunking would leave the old
  * ones alongside the new). The S3 transcript is never deleted, only overwritten.
  *
+ * `--repair` also re-uploads a transcript that never reached S3 while the chunks are
+ * intact — what a cancelled SessionEnd leaves behind. That is blob-only and touches no
+ * document, so it is safe on a session whose chunks are exactly the part that is fine.
+ *
  * `--repair` is the additive path: for a session that is already adopted but has no
  * readable turn content — the shape a host leaves behind when its hook was never
  * configured to write `chunk` docs — it writes the missing chunks and re-uploads the
@@ -56,11 +60,19 @@ import { deriveSessionFacts } from "../lib/transcript";
 export type ReingestPlan =
   | { action: "adopt" }
   | { action: "repair" }
+  /** Blob only: the chunks are fine, the S3 transcript is missing. */
+  | { action: "repair-blob" }
   | { action: "skip"; reason: "already-adopted" | "live-record" | "running" | "has-turns" };
 
 export function planReingest(
   existing: ExistingSession | null,
-  opts: { force: boolean; replaceLive: boolean; repair?: boolean; hasTurns?: boolean },
+  opts: {
+    force: boolean;
+    replaceLive: boolean;
+    repair?: boolean;
+    hasTurns?: boolean;
+    hasBlob?: boolean;
+  },
 ): ReingestPlan {
   if (!existing) return { action: "adopt" };
 
@@ -72,10 +84,20 @@ export function planReingest(
     // A live session is still being written; its transcript is a moving target and the
     // hook will chunk the rest itself once it is configured to.
     if (existing.status === "running") return { action: "skip", reason: "running" };
-    // Anything already readable is out of scope. Chunk ids are keyed by byte offset, and
-    // the hook's offsets will not line up with a whole-file partition, so writing over a
+    // Chunks are out of scope once a session has turns: their ids are byte offsets, so
+    // the hook's will not line up with a whole-file partition and writing over a
     // partially-chunked session leaves both sets behind. That case wants --replace-live.
-    if (opts.hasTurns) return { action: "skip", reason: "has-turns" };
+    //
+    // The blob is a different object with a fixed key, and re-uploading it touches no
+    // Couch document at all — so "readable, but the verbatim copy never landed" is
+    // repairable even though re-chunking is not. That state is what a cancelled
+    // SessionEnd leaves: the Couch writes finish and the upload is killed, and nothing
+    // reports it because the session still reads fine from chunks.
+    if (opts.hasTurns) {
+      return opts.hasBlob === false
+        ? { action: "repair-blob" }
+        : { action: "skip", reason: "has-turns" };
+    }
     return { action: "repair" };
   }
 
@@ -171,7 +193,10 @@ export async function runBackfill(argv: string[]): Promise<number> {
       // Only asked in repair mode, and only when there is a record to repair — an extra
       // round trip per session is not worth paying on an ordinary run.
       const hasTurns = repair && existing ? await sink.hasTurns(t.sessionId) : false;
-      const plan = planReingest(existing, { force, replaceLive, repair, hasTurns });
+      // Only when the chunks would otherwise end it: one extra HEAD, on the sessions a
+      // plain --repair used to walk away from.
+      const hasBlob = hasTurns ? await sink.hasTranscriptBlob(t.sessionId) : undefined;
+      const plan = planReingest(existing, { force, replaceLive, repair, hasTurns, hasBlob });
       if (plan.action === "skip") {
         if (plan.reason === "live-record") {
           console.warn(
@@ -188,9 +213,16 @@ export async function runBackfill(argv: string[]): Promise<number> {
           console.log(`  · ${t.sessionId}: skipped — still running`);
         }
         if (plan.reason === "has-turns") {
-          console.log(`  · ${t.sessionId}: skipped — already has turn content`);
+          console.log(`  · ${t.sessionId}: skipped — already has turn content and a transcript`);
         }
         skipped++;
+        continue;
+      }
+      if (plan.action === "repair-blob") {
+        const jsonl = await readTranscript(t.path);
+        await sink.putTranscript(t.sessionId, new TextEncoder().encode(jsonl));
+        console.log(`  + ${t.sessionId}: re-uploaded the transcript (chunks left alone)`);
+        repaired++;
         continue;
       }
       if (plan.action === "repair") {
