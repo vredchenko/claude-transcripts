@@ -116,9 +116,34 @@ export const CLI_SPEC: CliSpec = {
           type: "number",
           description: "rows to list (default 50) / transcript entries to preview (default 30)",
         },
+        // The same four attributes `search` filters on, spelled the same way, because
+        // the answer to "which sessions" should not depend on which command asked.
+        { name: "--cwd", type: "string", description: "only this project directory" },
+        { name: "--model", type: "string", description: "only this model" },
+        { name: "--hostname", type: "string", description: "only this host" },
+        {
+          name: "--source",
+          type: "string",
+          description: "only this provenance (live | backfill | …)",
+        },
+        {
+          name: "--from",
+          type: "string",
+          description: "only sessions overlapping at/after this ISO instant",
+        },
+        {
+          name: "--to",
+          type: "string",
+          description: "only sessions overlapping at/before this ISO instant",
+        },
         JSON_OUT,
       ],
-      examples: ["sessions", "sessions --limit 10", "sessions 3f9a2c1e --limit 80 --json"],
+      examples: [
+        "sessions",
+        "sessions --limit 10",
+        "sessions --cwd ~/dev/api --from 2026-08-01",
+        "sessions 3f9a2c1e --limit 80 --json",
+      ],
     },
     {
       name: "search",
