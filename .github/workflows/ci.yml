@@ -60,7 +60,7 @@ jobs:
       - run: bun run build:docs
       - run: bun run test
 
-  # The Bun version `package.json` claims to support, actually tried.
+  # The Bun version the manifests claim to support, actually tried.
   #
   # `check` runs on `latest`, which is why a declaration can rot unnoticed: the
   # compression middleware added in v0.0.16 needs `CompressionStream`, which Bun did
@@ -68,16 +68,37 @@ jobs:
   # the declared floor got a 500 on every compressible response and a stack trace
   # naming hono rather than their own runtime — and no job here could have seen it.
   #
-  # The version is read OUT of `package.json` rather than written here, because a
-  # floor pinned in two places is the same bug one level up.
+  # The version is read OUT of the manifests rather than written here, because a floor
+  # pinned in two places is the same bug one level up — which is exactly what happened
+  # next: this job read the root `package.json` alone, so `packages/cli` sat at
+  # `>=1.1.0` for two more releases and shipped that to npm, where it is the only floor
+  # a user installing the CLI ever sees. So every manifest declaring `engines.bun` is
+  # collected here and they must agree; disagreeing is the failure, before any test runs.
   floor:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - id: floor
-        name: read the declared Bun floor
+        name: read the declared Bun floor, and check every manifest agrees
         run: |
-          version="$(jq -r '.engines.bun' package.json | sed 's/^[^0-9]*//')"
+          mapfile -t files < <(git ls-files '*package.json' ':!:**/node_modules/**')
+          declared=""
+          for f in "${files[@]}"; do
+            v="$(jq -r '.engines.bun // empty' "$f")"
+            [ -n "$v" ] || continue
+            echo "  $f: $v"
+            if [ -z "$declared" ]; then
+              declared="$v"; source="$f"
+            elif [ "$v" != "$declared" ]; then
+              echo "::error file=$f::engines.bun is '$v' but $source says '$declared' — a floor pinned in two places is a floor that rots"
+              exit 1
+            fi
+          done
+          if [ -z "$declared" ]; then
+            echo "::error::no manifest declares engines.bun"
+            exit 1
+          fi
+          version="$(echo "$declared" | sed 's/^[^0-9]*//')"
           echo "declared: $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
