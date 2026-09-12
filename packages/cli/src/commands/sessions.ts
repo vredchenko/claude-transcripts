@@ -4,6 +4,7 @@
  * session detail + a transcript preview.
  *
  *   claude-transcripts sessions                 # recent sessions
+ *   claude-transcripts sessions --cwd ~/dev/api # only one project
  *   claude-transcripts sessions <id>            # detail + transcript preview
  *   (all accept --limit <n>, --webapi <url> and --json)
  */
@@ -15,11 +16,40 @@ import {
   type TranscriptEntry,
 } from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
-import { parseFlags, strOpt } from "../lib/args";
+import { type ParsedArgs, parseFlags, strOpt } from "../lib/args";
 import { num, pad, padL, project, row, when } from "../lib/format";
 
 /** The sessions table right-aligns from PROMPTS on — the numeric tail. */
 const RIGHT_FROM = 4;
+
+/**
+ * The list filters, as `GET /api/sessions` names them. `cwd`/`model`/`hostname`/
+ * `source` are exact matches (`cwd` ignoring a trailing slash) and are spelled the
+ * same as `search`'s, so a filter that narrows one command narrows the other;
+ * `from`/`to` are ISO instants and select sessions **overlapping** that window, so
+ * asking for a day still returns the session that started the night before.
+ *
+ * Applied by the gateway, not here: it filters before it pages, so `--limit` counts
+ * matching sessions rather than whatever the first page happened to contain.
+ */
+const FILTERS = ["cwd", "model", "hostname", "source", "from", "to"] as const;
+
+type Filters = Partial<Record<(typeof FILTERS)[number], string>>;
+
+function readFilters(options: ParsedArgs["options"]): Filters {
+  const out: Filters = {};
+  for (const key of FILTERS) {
+    const value = strOpt(options, key);
+    if (value) out[key] = value;
+  }
+  return out;
+}
+
+/** " (cwd=/srv/app, source=backfill)", or "" when nothing is filtered. */
+function filterNote(filters: Filters): string {
+  const parts = Object.entries(filters).map(([k, v]) => `${k}=${v}`);
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+}
 
 function bytes(n: number | undefined): string {
   if (!n || n <= 0) return "—";
@@ -52,15 +82,21 @@ function summaryLine(s: SessionSummary): string {
   );
 }
 
-async function showList(limit: number, json: boolean): Promise<number> {
-  const res = await listSessions({ limit });
+async function showList(limit: number, json: boolean, filters: Filters): Promise<number> {
+  const res = await listSessions({ limit, ...filters });
   if (json) {
     console.log(JSON.stringify(res, null, 2));
     return 0;
   }
-  console.log(`sessions: ${num(res.totalCount)} total (${webapiUrl()})`);
+  // `totalCount` is of the *filtered* set, so this reads as "matching", not "recorded".
+  const matching = Object.keys(filters).length > 0;
+  console.log(
+    `sessions: ${num(res.totalCount)} ${matching ? "matching" : "total"}${filterNote(filters)} (${webapiUrl()})`,
+  );
   if (res.sessions.length === 0) {
-    console.log("sessions: none recorded yet");
+    // A filter that matched nothing is a different fact from an empty corpus, and the
+    // difference is the whole reason to say anything at all.
+    console.log(matching ? "sessions: none match" : "sessions: none recorded yet");
     return 0;
   }
   console.log(
@@ -78,6 +114,9 @@ async function showList(limit: number, json: boolean): Promise<number> {
     ),
   );
   for (const s of res.sessions) console.log(summaryLine(s));
+  if (res.sessions.length < res.totalCount) {
+    console.log(`… ${num(res.totalCount - res.sessions.length)} more — raise --limit`);
+  }
   return 0;
 }
 
@@ -144,9 +183,19 @@ export async function runSessions(argv: string[]): Promise<number> {
   const limit = limitOpt ? Number(limitOpt) : positionals[0] ? 30 : 50;
   const id = positionals[0];
   const json = options.json === true;
+  const filters = readFilters(options);
+
+  // The filters narrow a list; with an id there is exactly one session and nothing to
+  // narrow. Saying so beats silently ignoring half the command line.
+  if (id && Object.keys(filters).length > 0) {
+    console.error(
+      `sessions: ${FILTERS.map((f) => `--${f}`).join(" / ")} filter the list — drop the session id, or drop the filter`,
+    );
+    return 2;
+  }
 
   try {
-    return id ? await showDetail(id, limit, json) : await showList(limit, json);
+    return id ? await showDetail(id, limit, json) : await showList(limit, json, filters);
   } catch (err) {
     console.error(`sessions: failed — ${(err as Error).message}`);
     console.error(

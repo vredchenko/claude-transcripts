@@ -226,11 +226,18 @@ List / inspect sessions (via the webapi)
 | Option | |
 |---|---|
 | `--limit <n>` | rows to list (default 50) / transcript entries to preview (default 30) |
+| `--cwd <value>` | only this project directory |
+| `--model <value>` | only this model |
+| `--hostname <value>` | only this host |
+| `--source <value>` | only this provenance (live \| backfill \| …) |
+| `--from <value>` | only sessions overlapping at/after this ISO instant |
+| `--to <value>` | only sessions overlapping at/before this ISO instant |
 | `--json` | print the webapi response as JSON instead of a table |
 
 ```bash
 claude-transcripts sessions
 claude-transcripts sessions --limit 10
+claude-transcripts sessions --cwd ~/dev/api --from 2026-08-01
 claude-transcripts sessions 3f9a2c1e --limit 80 --json
 ```
 
