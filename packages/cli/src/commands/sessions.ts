@@ -45,6 +45,37 @@ function readFilters(options: ParsedArgs["options"]): Filters {
   return out;
 }
 
+/**
+ * Is this an ISO 8601 calendar date (with an optional time), and a real one?
+ *
+ * Both halves matter. `Date.parse` alone accepts `01/08/2026` and reads it as 8
+ * January, so a filter written the way most of the world writes dates would quietly
+ * select the wrong four months; the shape test rejects it instead. And the shape test
+ * alone accepts `2026-13-01`, which `Date.parse` catches.
+ */
+function isIsoInstant(value: string): boolean {
+  return /^\d{4}-\d{2}(-\d{2})?([T ].+)?$/.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+/**
+ * The first `--from`/`--to` the gateway would ignore, as it was typed.
+ *
+ * `overlapsRange` treats an unparseable bound as **open**, on purpose: a malformed
+ * date widens the result set rather than emptying it, so a caller seeing everything
+ * can tell something is wrong (see the note on it in the webapi's sessions route).
+ * That is the right call for a link someone pasted, and the wrong one the moment this
+ * command prints `541 matching (from=yesterday)` above the entire corpus — leniency
+ * the caller can't see is indistinguishable from a filter that worked. So the terminal
+ * refuses what the URL tolerates.
+ */
+function unparseableBound(filters: Filters): string | undefined {
+  for (const key of ["from", "to"] as const) {
+    const value = filters[key];
+    if (value !== undefined && !isIsoInstant(value)) return `--${key} ${value}`;
+  }
+  return undefined;
+}
+
 /** " (cwd=/srv/app, source=backfill)", or "" when nothing is filtered. */
 function filterNote(filters: Filters): string {
   const parts = Object.entries(filters).map(([k, v]) => `${k}=${v}`);
@@ -187,9 +218,21 @@ export async function runSessions(argv: string[]): Promise<number> {
 
   // The filters narrow a list; with an id there is exactly one session and nothing to
   // narrow. Saying so beats silently ignoring half the command line.
-  if (id && Object.keys(filters).length > 0) {
+  const used = Object.keys(filters).map((f) => `--${f}`);
+  if (id && used.length > 0) {
     console.error(
-      `sessions: ${FILTERS.map((f) => `--${f}`).join(" / ")} filter the list — drop the session id, or drop the filter`,
+      `sessions: ${used.join(" ")} ${used.length > 1 ? "filter" : "filters"} the list — drop the session id, or drop the ${used.length > 1 ? "filters" : "filter"}`,
+    );
+    return 2;
+  }
+
+  // Checked before the request, so a typo costs a message rather than a page of rows
+  // that ignored it.
+  const bad = unparseableBound(filters);
+  if (bad) {
+    console.error(`sessions: ${bad} — not a date the gateway can read, so it would be ignored`);
+    console.error(
+      "sessions: use an ISO instant, e.g. --from 2026-08-01 or --to 2026-08-31T18:00:00Z",
     );
     return 2;
   }

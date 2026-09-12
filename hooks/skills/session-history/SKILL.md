@@ -16,7 +16,7 @@ through the webapi.
 |---|---|---|
 | What have I been asking for? | `claude-transcripts turns --role user --from <iso> --limit 300 --json` | Every prompt, all sessions, time-ordered; each has `sessionId` and `cwd`. Filter by `cwd` yourself for one project. |
 | What did Claude say / do? | `… --role assistant` | Same shape. `tool_result` for outputs. |
-| Sessions, with counts and cost | `claude-transcripts sessions --limit 200 --json` | `promptCount`, `toolCounts`, `tokenUsage`, `durationMs`/`activeMs`, `cwd`, `status`, `endReason`. Add `--cwd`/`--hostname` server-side filters via `search`'s flags if the list is large. |
+| Sessions, with counts and cost | `claude-transcripts sessions --limit 200 --json` | `promptCount`, `toolCounts`, `tokenUsage`, `durationMs`/`activeMs`, `cwd`, `status`, `endReason`. Narrow it server-side with `--cwd` / `--hostname` / `--model` / `--source` (exact match) and `--from` / `--to` (ISO instants, sessions **overlapping** the window). `totalCount` then counts matches, so it answers "how many" on its own with `--limit 1`. |
 | Where does *X* come up? | `claude-transcripts search "X" --json --limit 50` | `hits` = sessions whose metadata matched, `turns` = places it was said. |
 | One session in depth | `claude-transcripts turns <id> --role user --json` / `sessions <id> --json` | Only after narrowing. |
 
@@ -25,12 +25,16 @@ Everything accepts `--webapi <url>` if the default instance isn't the one wanted
 ## Procedure
 
 1. **Decide the window and the scope first** — a date range (`--from`/`--to`) and a
-   project (`cwd`). Unbounded queries over a long-lived corpus are slow and unhelpful.
+   project (`--cwd`) — and pass them to the command rather than filtering what comes
+   back. `sessions`, `search` and `turns` all take them; the gateway filters before it
+   pages, so `--limit` then counts *matching* rows instead of whatever the first page
+   held. Unbounded queries over a long-lived corpus are slow and unhelpful.
 2. **Pull the smallest set that answers the question**, as JSON, and aggregate it
    yourself (count, group by `cwd`/tool/day, sum tokens). Pipe through `jq` when the
    set is large rather than reading it all:
    ```bash
    claude-transcripts sessions --limit 500 --json | jq '[.sessions[] | {cwd, t: .tokenUsage.total}] | group_by(.cwd) | map({cwd: .[0].cwd, tokens: (map(.t) | add)}) | sort_by(-.tokens)'
+   claude-transcripts sessions --cwd "$PWD" --from 2026-08-01 --limit 500 --json | jq '[.sessions[].activeMs] | add / 3600000'
    claude-transcripts turns --role user --from 2026-08-01 --limit 500 --json | jq -r '.turns[].text' | sort | uniq -c | sort -rn | head
    ```
 3. **Report the pattern with numbers and a few examples**, each example cited by

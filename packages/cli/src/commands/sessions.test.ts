@@ -7,7 +7,7 @@
  * parses and then evaporates looks identical to one that works until you count the
  * rows, so these tests read the URL the CLI actually asked for.
  */
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import type { SessionSummary } from "../api/generated";
 import { runSessions } from "./sessions";
 
@@ -45,9 +45,6 @@ const server = Bun.serve({
 
 const WEBAPI = `http://localhost:${server.port}`;
 
-beforeAll(() => {
-  asked.length = 0;
-});
 afterAll(() => server.stop(true));
 
 /** Run the command with stdout/stderr captured, so assertions can read what it said. */
@@ -142,11 +139,45 @@ describe("sessions --<filter>", () => {
     }
   });
 
+  test("a bound the gateway would ignore is refused, not sent", async () => {
+    // The gateway treats an unparseable bound as open, so this would have printed
+    // "N matching (from=yesterday)" over the whole corpus.
+    const before = asked.length;
+    const r = await run("--from", "yesterday");
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("--from yesterday");
+    expect(r.err).toContain("ISO instant");
+    expect(asked.length).toBe(before);
+  });
+
+  test("a date in the world's other order is refused rather than read backwards", async () => {
+    // `Date.parse("01/08/2026")` is a valid date — 8 January — so accepting this would
+    // filter to the wrong four months without saying anything.
+    const r = await run("--to", "01/08/2026");
+    expect(r.code).toBe(2);
+    expect(r.err).toContain("--to 01/08/2026");
+  });
+
+  test("a month that doesn't exist is refused", async () => {
+    const r = await run("--from", "2026-13-01");
+    expect(r.code).toBe(2);
+  });
+
+  test("the ISO forms a person actually types are accepted", async () => {
+    for (const value of ["2026-08", "2026-08-01", "2026-08-01T09:30:00Z"]) {
+      const r = await run("--from", value);
+      expect(r.code).toBe(0);
+      expect(lastQuery().get("from")).toBe(value);
+    }
+  });
+
   test("a filter alongside a session id is refused, not silently dropped", async () => {
     const before = asked.length;
     const r = await run("abcdef12", "--cwd", "/srv/projects/api");
     expect(r.code).toBe(2);
-    expect(r.err).toContain("filter the list");
+    // Names the flag that was used, not the whole set of six.
+    expect(r.err).toContain("--cwd filters the list");
+    expect(r.err).not.toContain("--model");
     // Refused before the request: a detail fetch that ignored the filter would have
     // printed a session the filter excludes.
     expect(asked.length).toBe(before);
