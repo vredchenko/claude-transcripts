@@ -2,9 +2,9 @@
  * The statusline indicator, rendered from the hook's own per-session scratch state
  * (docs/design/plugin.md, Part 1b).
  *
- *   ● ct@0.2.0 rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652
- *   ● ct@0.2.0 rec (mirror) · 128 ev · 2s ago → logs.example.net  (primary dead, mirror taking writes)
- *   ◐ ct@0.2.0 stalled · 128 ev · last write 6m ago → …           (configured, writes failing)
+ *   ● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652
+ *   ● ct@v0.2.0 rec (mirror) · 128 ev · 2s ago → logs.example.net  (primary dead, mirror taking writes)
+ *   ◐ ct@v0.2.0 stalled · 128 ev · last write 6m ago → …           (configured, writes failing)
  *   ○ ct@dev off · no instance configured
  *
  * The version is the **recording binary's own**, not the instance's. Everything is
@@ -53,12 +53,17 @@ export function ago(ms: number, now: number): string {
 }
 
 /**
- * `ct@0.2.0`, or `ct@dev` from a checkout.
+ * `ct@v0.2.0`, or `ct@dev` from a checkout.
  *
- * `0.0.0-dev` is thirteen characters that say "not a release", on a line competing for
- * room with the model, the branch and the context meter. `dev` says the same thing in
- * three, and the distinction it draws — released binary vs working copy — is the only
- * one this field exists to make when the number itself isn't a release.
+ * The version is passed through as it is baked, `v` and all: `CT_VERSION` comes from
+ * the git tag, so `--version`, `GET /health` and the app image tag `install` pins all
+ * spell it `v0.2.0`. Trimming the prefix here would make the statusline the one
+ * component with its own spelling.
+ *
+ * `0.0.0-dev` is the exception, and becomes `dev`: thirteen characters that say "not a
+ * release", on a line competing for room with the model, the branch and the context
+ * meter, when three say it. The distinction it draws — released binary vs working copy
+ * — is the only one this field exists to make when the number isn't a release.
  */
 export function versionLabel(version: string = VERSION): string {
   return `ct@${version === DEV_VERSION ? "dev" : version}`;

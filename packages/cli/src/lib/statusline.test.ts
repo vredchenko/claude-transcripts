@@ -13,9 +13,15 @@ import {
 } from "./statusline";
 
 const NOW = 1_700_000_000_000;
-/** Pinned, so these assert a format rather than whatever this checkout is stamped as. */
-const VERSION = "9.9.9";
-const CT = "ct@9.9.9";
+/**
+ * Pinned, so these assert a format rather than whatever this checkout is stamped as —
+ * and pinned to the shape a **release actually carries**, `v` included. The first cut
+ * of this suite used "9.9.9", which no build ever produces: `CT_VERSION` is baked from
+ * the git tag. The tests passed, the docs said `ct@0.2.0`, and the released binary
+ * rendered `ct@v0.3.0` — an invented fixture agreeing with nothing.
+ */
+const VERSION = "v9.9.9";
+const CT = "ct@v9.9.9";
 
 /** Every state carries the version, so the tests below always pass one. */
 function state(over: Partial<Parameters<typeof renderStatusline>[0]>) {
@@ -121,7 +127,14 @@ describe("renderStatusline", () => {
 });
 
 describe("versionLabel", () => {
-  test("a release is shown as its number", () => {
+  test("a release is shown as its tag, prefix and all", () => {
+    // What a release binary is actually stamped with — see the note on VERSION.
+    expect(versionLabel("v0.2.0")).toBe("ct@v0.2.0");
+  });
+
+  test("a bare semver is passed through untouched, not decorated", () => {
+    // Nothing produces this today, but the label is a passthrough, not a formatter:
+    // inventing a `v` here would be a second spelling of the same fact.
     expect(versionLabel("0.2.0")).toBe("ct@0.2.0");
   });
 
