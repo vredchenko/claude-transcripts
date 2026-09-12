@@ -143,8 +143,8 @@ active mode and persists the user's light/dark/system preference in
 `src/router.tsx` builds a **code-based** TanStack Router tree (no file-based
 plugin): a `RootLayout` root route with three children — `/` → `SessionsListPage`,
 `/sessions/$id` → `SessionDetailPage`, and `/search` → `SearchResultsPage`. Each
-validates the query-string state it owns (the list's `view`/`density`/`month`/`day`,
-the detail's `q`, the results page's `q`/filters/`page`), falling back to defaults
+validates the query-string state it owns (the list's `view`/`month`/`day` and its
+filters, the detail's `q`, the results page's `q`/filters/`page`), falling back to defaults
 rather than rendering nothing — that state arrives from whatever was pasted into the
 address bar. The router is created with
 `basepath: "/app"` because the SPA is served under `/app` in production
@@ -208,6 +208,17 @@ in the generated snapshot. The header uses it for the title + build version.
   reaches the end. Page size is `userSettings.sessionListPageSize` (default 100) and is
   part of the query key, so changing the config starts a fresh list rather than appending
   differently-sized pages.
+
+  **Filters are query params on `GET /api/sessions`, not a client-side sieve.** The
+  URL carries `cwd`, `model`, `hostname`, `source` (exact match, the same four
+  attributes `/api/search` filters on) and `from`/`to` (range overlap); each renders as
+  a deletable chip and each is forwarded to the gateway by both projections. Filtering
+  client-side was never an option: the list is infinite-scrolled, so a filter applied
+  to the loaded pages would narrow the first page and let the next arrive unfiltered
+  underneath it, and the "N of M shown" count would still be counting the whole corpus.
+  The omnibox's `project:` / `host:` / `model:` / `source:` operators navigate here by
+  setting those params. With a filter active and nothing matching, the empty state says
+  so rather than claiming nothing has been recorded.
 
   **The column headings are labels, not controls.** They were briefly sortable, but the
   list is grouped by day and `groupByDay` re-sorts each group by start time, so the

@@ -100,6 +100,16 @@ export class SessionsListPage {
   get emptyState(): Locator {
     return this.page.getByText("No sessions recorded yet.");
   }
+
+  /** "No sessions match these filters." — the empty state a filter produced. */
+  get filteredEmptyState(): Locator {
+    return this.page.getByText("No sessions match these filters.");
+  }
+
+  /** The deletable chip for one active filter, e.g. `filterChip("cwd")`. */
+  filterChip(key: "cwd" | "model" | "hostname" | "source" | "from" | "to"): Locator {
+    return this.page.locator(".MuiChip-root").filter({ hasText: new RegExp(`^${key}: `) });
+  }
 }
 
 export class SessionDetailPage {

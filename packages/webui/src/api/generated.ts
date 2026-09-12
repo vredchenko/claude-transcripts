@@ -278,6 +278,8 @@ export type ListSessionsParams = {
   to?: string;
   cwd?: string;
   hostname?: string;
+  model?: string;
+  source?: string;
 };
 
 export type GetSessionTranscriptParams = {

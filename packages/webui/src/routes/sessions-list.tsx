@@ -41,6 +41,13 @@ export interface SessionsRouteSearch {
   to?: string;
 }
 
+/**
+ * The filters a chip can show and delete, in the order they appear. `cwd`, `model`,
+ * `hostname` and `source` are exact-match query params on `GET /api/sessions`;
+ * `from`/`to` narrow it to a range.
+ */
+const FILTER_KEYS = ["cwd", "model", "hostname", "source", "from", "to"] as const;
+
 const VIEWS: { value: SessionsView; label: string }[] = [
   { value: "list", label: "List" },
   { value: "calendar", label: "Calendar" },
@@ -62,6 +69,23 @@ export function SessionsListPage() {
   const monthStart = parseMonth(routeSearch.month, now);
   const daySelected = parseDay(routeSearch.day);
 
+  // ── Filters ─────────────────────────────────────────────────────────────────
+  //
+  // The four attribute filters go to the gateway, which matches them exactly, rather
+  // than being applied to whatever pages happen to be loaded: the list is
+  // infinite-scrolled, so a client-side filter would narrow the first page and let
+  // the next one arrive unfiltered underneath it. `from`/`to` ride along on the list
+  // but not the calendar, whose range *is* the month it is drawing.
+  const filters = useMemo(
+    () => ({
+      cwd: routeSearch.cwd,
+      model: routeSearch.model,
+      hostname: routeSearch.hostname,
+      source: routeSearch.source,
+    }),
+    [routeSearch.cwd, routeSearch.model, routeSearch.hostname, routeSearch.source],
+  );
+
   // ── Calendar data ───────────────────────────────────────────────────────────
   const calendarRange = useMemo(() => {
     const weeks = monthWeeks(monthStart);
@@ -75,25 +99,28 @@ export function SessionsListPage() {
     return { from: new Date(first).toISOString(), to: new Date(end).toISOString() };
   }, [monthStart]);
 
-  const calendarQuery = useListSessions(
-    { limit: CALENDAR_LIMIT, skip: 0, from: calendarRange.from, to: calendarRange.to },
-    {
-      query: {
-        queryKey: getListSessionsQueryKey({
-          limit: CALENDAR_LIMIT,
-          skip: 0,
-          from: calendarRange.from,
-          to: calendarRange.to,
-        }),
-        placeholderData: (prev) => prev,
-        enabled: view === "calendar",
-      },
-    },
+  const calendarParams = useMemo(
+    () => ({
+      limit: CALENDAR_LIMIT,
+      skip: 0,
+      from: calendarRange.from,
+      to: calendarRange.to,
+      ...filters,
+    }),
+    [calendarRange, filters],
   );
+
+  const calendarQuery = useListSessions(calendarParams, {
+    query: {
+      queryKey: getListSessionsQueryKey(calendarParams),
+      placeholderData: (prev) => prev,
+      enabled: view === "calendar",
+    },
+  });
 
   // ── List data (infinite scroll) ─────────────────────────────────────────────
   const listData = useInfiniteSessionList(
-    view === "list" ? { from: routeSearch.from, to: routeSearch.to } : undefined,
+    view === "list" ? { from: routeSearch.from, to: routeSearch.to, ...filters } : undefined,
   );
 
   const sentinelRef = useIntersectionObserver(
@@ -109,8 +136,7 @@ export function SessionsListPage() {
   );
 
   // ── Active filter chips ─────────────────────────────────────────────────────
-  const filterKeys = ["cwd", "model", "hostname", "source", "from", "to"] as const;
-  const activeFilters = filterKeys.filter((k) => routeSearch[k]);
+  const activeFilters = FILTER_KEYS.filter((k) => routeSearch[k]);
 
   // ── Pending / error states ──────────────────────────────────────────────────
   if (view === "list" && listData.isPending) return <Loading label="Loading sessions…" />;
@@ -119,8 +145,13 @@ export function SessionsListPage() {
   if (view === "calendar" && calendarQuery.isError)
     return <ErrorState error={calendarQuery.error!} />;
 
-  const listTotal = listData.totalCount;
-  const listShown = listData.sessions.length;
+  // Counts for whichever projection is showing. The list query is disabled in
+  // calendar view (and vice versa), so reading the wrong one reports zero — which is
+  // what "N of M shown" did on a filtered calendar.
+  const shownCount =
+    view === "calendar" ? (calendarQuery.data?.sessions.length ?? 0) : listData.sessions.length;
+  const totalCount =
+    view === "calendar" ? (calendarQuery.data?.totalCount ?? 0) : listData.totalCount;
 
   return (
     <Box>
@@ -137,8 +168,8 @@ export function SessionsListPage() {
             size="small"
             label={
               activeFilters.length > 0
-                ? `${formatCount(listShown)} of ${formatCount(listTotal)} shown`
-                : `${formatCount(view === "calendar" ? (calendarQuery.data?.totalCount ?? 0) : listTotal)} sessions`
+                ? `${formatCount(shownCount)} of ${formatCount(totalCount)} shown`
+                : `${formatCount(totalCount)} sessions`
             }
             variant="outlined"
           />
@@ -189,7 +220,11 @@ export function SessionsListPage() {
           onDay={(next) => setSearch({ day: next === undefined ? undefined : dayKey(next) })}
         />
       ) : listData.sessions.length === 0 ? (
-        <EmptyState>No sessions recorded yet.</EmptyState>
+        <EmptyState>
+          {activeFilters.length > 0
+            ? "No sessions match these filters."
+            : "No sessions recorded yet."}
+        </EmptyState>
       ) : (
         <>
           <SessionsListHeader />

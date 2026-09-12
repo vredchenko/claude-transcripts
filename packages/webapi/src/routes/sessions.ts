@@ -376,12 +376,20 @@ const listRoute = createRoute({
       from: z.string().optional(),
       to: z.string().optional(),
       /**
-       * Narrow to one project directory / one host — exact match. What the recall
-       * primer asks at session start ("how many sessions does this cwd have?"), and
-       * what a "this project only" view needs without pulling the corpus.
+       * Narrow to one project directory / host / model / provenance — exact match.
+       * The same four attributes `GET /api/search` filters on, so a filter means the
+       * same thing on both screens and carries over between them.
+       *
+       * What the recall primer asks at session start ("how many sessions does this
+       * cwd have?"), and what a "this project only" view needs without pulling the
+       * corpus. `cwd` is compared with a trailing slash normalised away; the rest are
+       * literal. A session with no recorded `model` matches no `model` filter —
+       * asking for a value is asking for the sessions that have it.
        */
       cwd: z.string().optional(),
       hostname: z.string().optional(),
+      model: z.string().optional(),
+      source: z.string().optional(),
     }),
   },
   responses: {
@@ -536,6 +544,8 @@ export function sessionRoutes(ctx: AppContext) {
     const to = c.req.query("to");
     const cwd = c.req.query("cwd");
     const hostname = c.req.query("hostname");
+    const model = c.req.query("model");
+    const source = c.req.query("source");
     const db = ctx.couch.db("sessions");
     // One aggregate row per session (ended + running + incomplete), grouped by
     // session_id, then sorted + paginated in memory.
@@ -558,7 +568,9 @@ export function sessionRoutes(ctx: AppContext) {
       (s) =>
         overlapsRange(s, from, to) &&
         (!cwd || sameDir(s.cwd, cwd)) &&
-        (!hostname || s.hostname === hostname),
+        (!hostname || s.hostname === hostname) &&
+        (!model || s.model === model) &&
+        (!source || s.source === source),
     );
     windowed.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
     const page = windowed.slice(skip, skip + limit);

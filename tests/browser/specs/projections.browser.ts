@@ -119,6 +119,88 @@ test.describe("calendar", () => {
   });
 });
 
+/**
+ * The chips render from the URL, so they always *looked* right; what regressed is
+ * whether the filter reaches `GET /api/sessions`. These assert the rows, not the
+ * chip: a filter that narrows nothing is exactly the bug they exist to catch.
+ */
+test.describe("filters", () => {
+  const PROJECT = "/srv/projects/atlas";
+  const inProject = SESSIONS.filter((s) => s.cwd === PROJECT);
+
+  test("a project filter narrows the list, and reaches the API", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const requests: string[] = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/api/sessions?")) requests.push(req.url());
+    });
+    const list = new SessionsListPage(page);
+    await list.goto(`?cwd=${encodeURIComponent(PROJECT)}`);
+
+    await expect(list.rows).toHaveCount(inProject.length);
+    expect(inProject.length).toBeLessThan(SESSIONS.length);
+    // Narrowed by the gateway, not by hiding rows client-side: the list is
+    // infinite-scrolled, so an unforwarded filter would let the next page arrive
+    // unfiltered underneath the first.
+    expect(requests.some((url) => url.includes(`cwd=${encodeURIComponent(PROJECT)}`))).toBe(true);
+  });
+
+  test("deleting the chip widens the list back out", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto(`?cwd=${encodeURIComponent(PROJECT)}`);
+    await expect(list.rows).toHaveCount(inProject.length);
+
+    await list.filterChip("cwd").getByTestId("CancelIcon").click();
+    await expect(list.rows).toHaveCount(SESSIONS.length);
+    await expect(page).not.toHaveURL(/cwd=/);
+  });
+
+  test("model and source filter too, and combine", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto("?model=claude-opus-4-8&source=backfill");
+
+    const expected = SESSIONS.filter(
+      (s) => s.model === "claude-opus-4-8" && s.source === "backfill",
+    );
+    expect(expected.length).toBeGreaterThan(0);
+    await expect(list.rows).toHaveCount(expected.length);
+  });
+
+  test("a filter that matches nothing says so, rather than 'none recorded yet'", async ({
+    page,
+  }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto("?hostname=a-machine-that-never-recorded-anything");
+
+    await expect(list.filteredEmptyState).toBeVisible();
+    await expect(list.emptyState).toHaveCount(0);
+  });
+
+  test("the calendar honours the filter as well as the list", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto(`?view=calendar&month=${MONTH}&cwd=${encodeURIComponent(PROJECT)}`);
+    await expect(list.calendarLanes).toBeVisible();
+
+    // Every bar drawn belongs to the filtered project. The multi-day session draws one
+    // bar per day it spans, so this counts distinct sessions, not bars.
+    const hrefs = await list.calendarSessionBars.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("href") ?? ""),
+    );
+    const ids = new Set(SESSIONS.filter((s) => hrefs.some((h) => h.includes(s.sessionId))));
+    expect(ids.size).toBeGreaterThan(0);
+    for (const s of ids) expect(s.cwd).toBe(PROJECT);
+  });
+});
+
 test("a running session is drawn up to now, not to the end of time", async ({ page }) => {
   test.skip(LIVE, "needs the pinned clock");
   await setupPage(page);

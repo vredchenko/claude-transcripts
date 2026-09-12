@@ -10,8 +10,20 @@ import { groupByDay } from "../sessions-view";
  * The page size is deployment config (`userSettings.sessionListPageSize`), not a
  * constant: it is the one number that trades round trips against time-to-first-row,
  * and the right answer depends on the corpus and the machine serving it.
+ *
+ * `params` are forwarded to the gateway rather than applied to the accumulated pages:
+ * a filter over what happens to be loaded would narrow the first page and let the next
+ * one arrive unfiltered underneath it, and `totalCount` would still count the corpus.
+ * They are part of the query key, so changing one starts a fresh list.
  */
-export function useInfiniteSessionList(params?: { from?: string; to?: string }) {
+export function useInfiniteSessionList(params?: {
+  from?: string;
+  to?: string;
+  cwd?: string;
+  model?: string;
+  hostname?: string;
+  source?: string;
+}) {
   const { sessionListPageSize: pageSize } = useUserSettings();
 
   const query = useInfiniteQuery<SessionsResponse>({
