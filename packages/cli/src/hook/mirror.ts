@@ -118,6 +118,13 @@ export function makeMirrorCouch(
     async putDoc(_db, id, doc, timeoutMs) {
       await send({ ...(doc as Record<string, unknown>), _id: id }, timeoutMs ?? fallback);
     },
+    // No second code path: `POST /api/ingest/summary` is already a validated, idempotent
+    // upsert, so a mirror has always replaced correctly. It was the *direct* writer that
+    // could only PUT and conflict — the two writers disagreed about what a summary write
+    // means, which is the asymmetry ADR 0016 warns a second writer can drift into.
+    async upsertDoc(_db, id, doc, timeoutMs) {
+      await send({ ...(doc as Record<string, unknown>), _id: id }, timeoutMs ?? fallback);
+    },
   };
 }
 
@@ -166,6 +173,9 @@ export function fanOutCouch(clients: CouchClient[]): CouchClient {
     },
     async putDoc(db, id, doc, timeoutMs) {
       await Promise.allSettled(clients.map((c) => c.putDoc(db, id, doc, timeoutMs)));
+    },
+    async upsertDoc(db, id, doc, timeoutMs) {
+      await Promise.allSettled(clients.map((c) => c.upsertDoc(db, id, doc, timeoutMs)));
     },
   };
 }

@@ -98,11 +98,15 @@ function tools(counts: Record<string, number> | undefined): number {
   return counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
 }
 
-function summaryLine(s: SessionSummary): string {
+export function summaryLine(s: SessionSummary): string {
   return row(
     [
       [s.sessionId.slice(0, 8), 8],
-      [when(s.timestamp), 16],
+      // `startTimestamp`, not `timestamp`: the latter is the summary's own time — the
+      // SessionEnd instant — and only coincides with the start while a session is still
+      // running and has no summary yet. Reading it under a "STARTED" heading meant the
+      // column silently changed meaning the moment a session ended.
+      [when(s.startTimestamp ?? s.timestamp), 16],
       [s.status, 10],
       [project(s.cwd), 18],
       [num(s.promptCount), 7],
@@ -178,7 +182,10 @@ async function showDetail(id: string, limit: number, json: boolean): Promise<num
     return 0;
   }
   console.log(`session ${s.sessionId}  [${s.status}]`);
-  console.log(`  started    ${s.timestamp ?? "—"}`);
+  console.log(`  started    ${s.startTimestamp ?? s.timestamp ?? "—"}`);
+  // Now that "started" is the start, the end is worth its own line rather than being
+  // the thing "started" was quietly showing.
+  if (s.status === "ended") console.log(`  ended      ${s.timestamp ?? "—"}`);
   console.log(`  project    ${s.cwd || "—"}`);
   console.log(`  model      ${s.model ?? "—"}`);
   console.log(`  hostname   ${s.hostname || "—"}`);

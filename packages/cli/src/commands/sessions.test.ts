@@ -9,7 +9,7 @@
  */
 import { afterAll, describe, expect, test } from "bun:test";
 import type { SessionSummary } from "../api/generated";
-import { runSessions } from "./sessions";
+import { runSessions, summaryLine } from "./sessions";
 
 function session(over: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -181,5 +181,39 @@ describe("sessions --<filter>", () => {
     // Refused before the request: a detail fetch that ignored the filter would have
     // printed a session the filter excludes.
     expect(asked.length).toBe(before);
+  });
+});
+
+/**
+ * The STARTED column.
+ *
+ * It read `timestamp`, which is the summary's own time — the SessionEnd instant. That
+ * is right up until the session ends: a running session has no summary, so the
+ * aggregate sets `timestamp` to the first event and the column is correct. It flipped
+ * to the end time the moment the summary landed, which is why nobody caught it — and
+ * why these assert an **ended** session specifically.
+ */
+describe("the STARTED column", () => {
+  const started = "2026-08-20T09:00:00.000Z";
+  const ended = "2026-08-20T17:30:00.000Z";
+
+  test("an ended session shows when it started, not when it ended", () => {
+    const line = summaryLine(
+      session({ status: "ended", startTimestamp: started, timestamp: ended }),
+    );
+    expect(line).toContain("09:00");
+    expect(line).not.toContain("17:30");
+  });
+
+  test("a session recorded before startTimestamp existed still renders", () => {
+    const line = summaryLine(session({ status: "ended", timestamp: ended }));
+    expect(line).toContain("17:30");
+  });
+
+  test("a running session is unaffected — it was always right", () => {
+    const line = summaryLine(
+      session({ status: "running", startTimestamp: started, timestamp: started }),
+    );
+    expect(line).toContain("09:00");
   });
 });

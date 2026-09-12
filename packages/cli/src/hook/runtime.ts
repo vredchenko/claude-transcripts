@@ -106,6 +106,15 @@ export function loadHookConfig(path: string): HookConfig | null {
 export interface CouchClient {
   postDoc(db: string, doc: object): Promise<void>;
   putDoc(db: string, id: string, doc: object, timeoutMs?: number): Promise<void>;
+  /**
+   * Write a doc that may already exist, replacing it.
+   *
+   * Separate from {@link putDoc} on purpose. `putDoc` is first-write-wins: chunk ids are
+   * keyed by byte offset, so a re-flush of the same span *should* leave the stored copy
+   * alone rather than rewrite it. The summary is the opposite — one doc per session that
+   * a later SessionEnd must be able to correct — and a bare PUT can only 409 there.
+   */
+  upsertDoc(db: string, id: string, doc: object, timeoutMs?: number): Promise<void>;
 }
 
 /**
@@ -143,6 +152,54 @@ function makeDirectCouch(config: HookConfig, onWrite?: (ok: boolean) => void): C
           signal: AbortSignal.timeout(timeoutMs),
         });
         onWrite?.(res.ok);
+      } catch {
+        onWrite?.(false);
+      }
+    },
+    /**
+     * PUT, and on a 409 fetch the current `_rev` and PUT once more.
+     *
+     * CouchDB rejects a PUT to an existing id that carries no `_rev`. That is what a
+     * resumed session's second SessionEnd used to hit: the conflict was reported to
+     * `onWrite` and otherwise dropped, so the summary silently stayed at the numbers
+     * the *first* exit wrote while the S3 copy — a plain overwriting put — moved on.
+     * The two stores then disagreed permanently about the same session.
+     *
+     * One retry, not a loop: the competitor for this document is another SessionEnd for
+     * the same session, which does not happen concurrently. A second conflict means
+     * something unmodelled is writing, and losing that race quietly beats spinning in a
+     * hook that must never delay a session.
+     */
+    async upsertDoc(db, id, doc, timeoutMs = 5000) {
+      const url = `${root}/${db}/${encodeURIComponent(id)}`;
+      const put = (body: object) =>
+        fetch(url, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      try {
+        const res = await put(doc);
+        if (res.status !== 409) {
+          onWrite?.(res.ok);
+          return;
+        }
+        const current = await fetch(url, {
+          headers,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!current.ok) {
+          onWrite?.(false);
+          return;
+        }
+        const { _rev } = (await current.json()) as { _rev?: string };
+        if (!_rev) {
+          onWrite?.(false);
+          return;
+        }
+        const retry = await put({ ...doc, _rev });
+        onWrite?.(retry.ok);
       } catch {
         onWrite?.(false);
       }
