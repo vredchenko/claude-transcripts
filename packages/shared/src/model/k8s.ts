@@ -226,6 +226,16 @@ export function toKubernetesObjects(
     const container: Record<string, unknown> = {
       name: s.key,
       image: containerImage(s),
+      // Explicit, because Kubernetes' default depends on the tag: `IfNotPresent`
+      // everywhere except `:latest`, where it is `Always`. The app is the one image
+      // carrying a floating tag, so it was also the one workload that re-pulled on
+      // every restart — a drain, eviction or OOM kill silently moved it to the newest
+      // release while every other pod came back as the image it went down as. That
+      // breaks lockstep versioning (ADR 0023) with no operator action, and the webapi
+      // migrates the sessions DB up at boot, so an unplanned restart could carry the
+      // store forward too. Pinning the policy makes a restart a restart; changing
+      // which version runs stays a deliberate act.
+      imagePullPolicy: "IfNotPresent",
     };
     if (s.envFile) container.envFrom = [{ secretRef: { name: K8S_ENV_SECRET } }];
     const env = containerEnv(s);
