@@ -90,6 +90,7 @@ spec:
       containers:
         - name: garage
           image: dxflrs/garage:v2.3.0
+          imagePullPolicy: IfNotPresent
           env:
             - name: GARAGE_RPC_SECRET
               valueFrom:

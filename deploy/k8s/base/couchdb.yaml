@@ -43,6 +43,7 @@ spec:
       containers:
         - name: couchdb
           image: couchdb:3
+          imagePullPolicy: IfNotPresent
           env:
             - name: COUCHDB_USER
               valueFrom:

@@ -104,6 +104,16 @@ describe("Kubernetes projection", () => {
     }
   });
 
+  test("every workload pins imagePullPolicy, so none inherits the tag-dependent default", () => {
+    // Kubernetes defaults the policy from the tag — `IfNotPresent`, except on `:latest`
+    // where it is `Always`. Left implicit, the one service carrying a floating tag is
+    // also the one that re-pulls on every restart, which is how a pod silently changes
+    // version (ADR 0023). The policy must not depend on how a tag happens to be spelled.
+    for (const s of k8sWorkloadServices(model)) {
+      expect(container(named("Deployment", s.key)).imagePullPolicy).toBe("IfNotPresent");
+    }
+  });
+
   test("every writable volume is a PVC and its Deployment recreates rather than rolls", () => {
     for (const s of k8sWorkloadServices(model)) {
       const writable = (s.volumes ?? []).filter((v) => !v.readonly);
