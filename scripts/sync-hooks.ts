@@ -41,9 +41,12 @@ for (const event of Object.keys(bindings)) {
   hooks[event] = [{ hooks: [entry] }];
 }
 
+// No "generated, do not edit" marker in the file itself: JSON has no comments, and Claude
+// Code warns at every session start about any top-level key it does not know. The notice
+// lives in hooks/README.md instead, and CI's `gen:all` + `git diff` catches a hand edit.
 await Bun.write(
   join(ROOT, "hooks", "hooks", "hooks.json"),
-  `${JSON.stringify({ _generated: "by scripts/sync-hooks.ts from the app model (@claude-transcripts/shared) — do not edit by hand", hooks }, null, 2)}\n`,
+  `${JSON.stringify({ hooks }, null, 2)}\n`,
 );
 
 console.log(`[sync-hooks] ${Object.keys(bindings).length} events → hooks.json`);
