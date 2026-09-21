@@ -1,5 +1,4 @@
 {
-  "_generated": "by scripts/sync-hooks.ts from the app model (@claude-transcripts/shared) — do not edit by hand",
   "hooks": {
     "SessionStart": [
       {
