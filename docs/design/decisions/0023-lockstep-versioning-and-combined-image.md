@@ -4,7 +4,8 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-09-30 — see
+[Amendment](#amendment-one-multi-stage-build-not-assembled-from-released-artifacts).
 
 ## Context
 
@@ -38,3 +39,14 @@ how they're versioned, and how they're packaged.
   [cli.md](../../reference/cli.md)) **and** bundled inside the image for the webui download
   link.
 - Tag-driven releases run on GitHub Actions ([ADR 0012](0012-github-actions-and-ghcr-for-releases.md)).
+
+## Amendment: one multi-stage build, not assembled from released artifacts
+
+*2026-09-30.*
+
+Lockstep holds. Packaging differs: the root `Dockerfile` builds every component from
+source in one multi-stage build (parallel `build-webui` / `build-docs` / `build-cli`
+stages → `runtime`), not from released artifacts. `release-cli.yml` builds the CLI
+binaries independently from the same tag; both get the same `CT_VERSION`. The image
+already serves `/app`, `/docs`, `/cli/download` and Scalar at `/api/docs` (not
+Swagger).

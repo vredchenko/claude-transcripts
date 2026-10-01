@@ -5,7 +5,8 @@ Date: 2026-06-07
 ## Status
 
 Accepted. Pins the CI system + registry for the tag-driven release *model* of
-[ADR 0005](0005-tag-driven-image-releases.md) (which is unchanged).
+[ADR 0005](0005-tag-driven-image-releases.md) (which is unchanged). Amended
+2026-09-30 — see [Amendment](#amendment-five-workflows-and-main-publishes).
 
 ## Context
 
@@ -45,3 +46,21 @@ the source.
   ([ADR 0024](0024-mirror-backing-images-to-registry.md)); a fresh clone can also
   skip the registry entirely with the upstream dev override
   ([containers.md](../../operate/containers.md)).
+
+## Amendment: five workflows, and main publishes
+
+*2026-09-30.*
+
+The two workflows above are now five; `publish-image.yml` also runs on `main`
+([why](0005-tag-driven-image-releases.md#amendment-main-publishes-too-and-versions-live-in-the-tree)):
+
+| workflow | runs on | does |
+|---|---|---|
+| `ci.yml` | push + PR to `main` | lint/typecheck/test/build, generated-file and contract checks, the Bun-floor check, browser tests |
+| `publish-image.yml` | `v*.*.*` tag, push to `main`, dispatch | the combined image ([tags](../../operate/releasing.md#app-image-tags)); grype/trivy before push |
+| `release-cli.yml` | `v*.*.*` tag, dispatch | cross-compiled CLI binaries on the GitHub Release, and the npm package |
+| `mirror-images.yml` | `v*.*.*` tag, dispatch | mirrors the backing-service images ([ADR 0024](0024-mirror-backing-images-to-registry.md)) |
+| `pages.yml` | push to `main` (site/docs paths), dispatch | the project site and rendered docs on GitHub Pages |
+
+`release-cli.yml` needs one optional secret, `NPM_TOKEN`; without it the npm step is
+skipped with a warning.

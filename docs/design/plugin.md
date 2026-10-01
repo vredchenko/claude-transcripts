@@ -248,10 +248,8 @@ it earns permanent context space.
 
 `claude-transcripts search` runs since 0.0.12 (it had been in the model's `CLI_SPEC`
 without a `COMMANDS` entry, and fell through to the help UI; a test now keeps the two
-lists equal in both directions — `packages/cli/src/commands/index.test.ts`). What is
-still missing is a machine-readable form: there is no `--json` on `search` or
-`sessions`, and both skills above assume one. That is a genuine blocker, not a detail,
-and is sequenced as P0 below.
+lists equal in both directions — `packages/cli/src/commands/index.test.ts`).
+`sessions`, `search` and `turns` take `--json`, which both skills rely on.
 
 ---
 
@@ -374,16 +372,20 @@ system being invisible. P2 is the half that makes it valuable.
 - **ADR — the repo is its own plugin marketplace, one plugin grown in place.** Why not
   two plugins, and what the copy-to-cache constraint means for the layout.
 - **ADR — recall policy is config-driven and injected at session start.** Why not the
-  per-prompt hot path, and how `userConfig` and `config/` compose.
+  per-prompt hot path, and how `userConfig` and `config/` compose. *Recorded as
+  [ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md).*
 - **ADR — the statusline is registered by the CLI, not the plugin.** Documents the
   platform constraint so the next person does not rediscover it, and the rule about
   never overwriting an existing `statusLine`.
 
-## Open questions
+## Questions (resolved)
 
-1. Rename `hooks/` → `plugin/` as part of P1, or leave it?
+1. Rename `hooks/` → `plugin/` as part of P1, or leave it? *P1 shipped without the
+   rename; still `hooks/`.*
 2. Default `recall.mode` — `auto` (the point of the feature) or `suggest` (Claude
-   proposes, the user confirms) for the first release?
+   proposes, the user confirms) for the first release? *`auto` (config template).*
 3. Should `install` wire the statusline by default, or only on `--statusline`?
+   *Default on; `--no-statusline` opts out.*
 4. Does the primer's "37 sessions here" count justify a cwd-scoped query on every
    session start, or should it be cached in the scratch state and refreshed daily?
+   *Uncached, 2 s timeout.*

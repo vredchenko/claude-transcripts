@@ -6,7 +6,8 @@ Date: 2026-06-06
 
 Accepted. The CI system + registry specifics are pinned by
 [ADR 0012](0012-github-actions-and-ghcr-for-releases.md) (GitHub Actions + GHCR);
-the tag-driven release *model* below stands.
+the tag-driven release *model* below stands. Amended 2026-09-30 — see
+[Amendment](#amendment-main-publishes-too-and-versions-live-in-the-tree).
 
 ## Context
 
@@ -33,3 +34,15 @@ elsewhere (no per-commit image builds).
 - No version tags are cut yet; the first release tag is a deliberate future step.
 - Because ordinary commits don't build images, the registry only ever holds
   intentional, tagged releases (plus the `:<sha>` from a manual dispatch).
+
+## Amendment: main publishes too, and versions live in the tree
+
+*2026-09-30.*
+
+- `main` also publishes: `:main` + `:<sha>`, versioned `<last tag>+<sha>`; `:latest`
+  still moves only on a release tag. Why: lockstep
+  ([ADR 0023](0023-lockstep-versioning-and-combined-image.md)) needs an image tracking
+  `main`.
+- Manifests carry the lockstep `version`: `scripts/release.ts <ver>` stamps it into
+  every manifest; `--check` verifies they match.
+- Tags are cut (since `v0.0.1`). Details: [releasing.md](../../operate/releasing.md).

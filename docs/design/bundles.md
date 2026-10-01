@@ -77,8 +77,7 @@ available.
 - **The instance env, secrets and ports.** A bundle is data, not a machine
   configuration. Restoring into a fresh install must not resurrect the old install's
   credentials.
-- **App logs** (`claude-transcripts-app-logs`). Operational, not history. `--logs`
-  can opt in.
+- **App logs** (`claude-transcripts-app-logs`). Operational, not history.
 
 The rule behind all of it: **a bundle carries what cannot be recomputed.** Anything
 derivable from the data is left for the target to rebuild.
@@ -111,7 +110,7 @@ it implicitly would make every export slow and every bundle opaque.
   "source": { "app": "0.0.1", "hostname": "…", "instance": "…" },
   "counts": { "sessions": 43, "docs": 7090, "blobs": 43 },
   "checksums": { "docs.ndjson": "sha256:…", "blobs/<id>/transcript.jsonl": "sha256:…" },
-  "selection": { "since": null, "sessions": null }   // what was asked for, for provenance
+  "selection": { "since": null, "sessions": null, "blobs": true }   // what was asked for, for provenance
 }
 ```
 
@@ -121,7 +120,7 @@ that wrote it — that's the entire point.
 ## Export
 
 ```
-claude-transcripts export <dir> [--since ISO] [--session ID]… [--no-blobs] [--logs]
+claude-transcripts export <dir> [--since ISO] [--session ID] [--no-blobs]
 ```
 
 Reads through the webapi, like everything else: `/api/couch/*` for docs and

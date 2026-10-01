@@ -187,12 +187,10 @@ done.
   `chunks/entries_by_session` (v6, transcript order across speakers), which backs the
   chunk-first transcript read. Content chunks are written by default by both the hook
   and `backfill`, so newly adopted history needs no follow-up.
-  Remaining, and only for deployments that adopted history **before** this landed or
-  with `--no-content`: those sessions have byte-range-only chunks, so they fall back to
-  S3 on read and contribute nothing to content search. There's currently no way to
-  redo them — `backfill` skips any session that already has a summary doc — so the fix
-  is either a re-process flag on `backfill` or a migration that rebuilds chunks from
-  the S3 transcript.
+  Sessions adopted **before** this landed, or with `--no-content`, have byte-range-only
+  chunks, so they fall back to S3 on read and contribute nothing to content search;
+  `backfill --force` rebuilds them into full-content chunks (live-recorded ones also
+  need `--replace-live`).
 - Session enrichment: harness config / PROMPT / MCP / plugins / CLI version
   ([actions.md](../reference/actions.md), [hooks.md](../reference/hooks.md)) (#3)
 - Multi-user / multi-machine attribution ([tiers.md](tiers.md) → T2) (#7)
@@ -259,8 +257,8 @@ done.
   the `session_index/event_times` view (v9) and reported by both the detail and the
   list, which asks for a page's worth of timestamps in one request and memoises the
   answer per session (append-only docs, so an ended session's is final). The webui
-  shows the active/idle split in all three projections — table columns, the timeline's
-  duration bar, and the calendar's tooltips.
+  shows the active/idle split in both projections — the list's runtime + active bar
+  and the calendar's day totals and tooltips.
 - **Combined-prompt provenance** *(nice-to-have, Tier 2/3)* — for each session,
   record and visualise the effective combined prompt (system prompt + CLAUDE.md
   layers + memory + appended instructions) so it's clear which instructions, and
@@ -277,33 +275,34 @@ done.
 - `backfill` — **done**: adopts this machine's history as first-class records
   (summary + per-event docs + full-content chunk docs, transcript to S3), delivered
   through the webapi's ingest routes so it lands indexed
-  ([tools.md](../operate/tools.md)) (#6). Remaining: a re-process path — see
-  [Tier 1 — open work](#tier-1--open-work).
+  ([tools.md](../operate/tools.md)) (#6). Re-processing an adopted session is
+  `--force`, and `--repair` adds what an interrupted write left out.
 - Full Claude Code hook-type coverage + drift check ([hooks.md](../reference/hooks.md), #5/#13)
 
 **Quality (Tier 1 → Tier 2 gate)**
 - **End-to-end test suite** — **done**: fakes CC sessions and drives the whole
   write→store→read path through the real gateway, asserting rollups, token usage,
-  status, and both transcript sources ([testing.md](../develop/testing.md)). Remaining:
-  fixture teardown — see [Tier 1 — open work](#tier-1--open-work).
+  status, and both transcript sources ([testing.md](../develop/testing.md)), and deletes
+  its fixtures afterwards.
 
 **Search & recall (Tier 2)**
 - Meilisearch search — **done**: `GET /api/search` returns both **session-metadata**
   hits (cwd, model, tools, host — `sessions` index) and **conversation-content** hits
   (turn text with cropped snippets — `turns` index over `chunk.entries[]`). The webui
-  header search box shows both, live + best-effort (degrades gracefully when Meili is
+  header omnibox shows both, live + best-effort (degrades gracefully when Meili is
   down/disabled). Indexes stay current via a **CouchDB `_changes` follower**, so docs
   written outside the ingest endpoints — the hook writes straight to CouchDB — are
   indexed without manual intervention; `POST /api/search/reindex` (`cli reindex`)
   rebuilds from CouchDB and is the reconciliation step for deletes and for history
-  predating search. Remaining: typeahead ranking, filters, a dedicated results page,
-  coverage for running sessions, and a vector index for agent retrieval
-  ([database-choice.md](database-choice.md)) (#9) — the near-term ones are in
-  [Tier 1 — open work](#tier-1--open-work); whether Meilisearch may live **outside**
-  the bundled stack is [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md).
-- Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10) — design sketched in
-  [plugin.md](plugin.md): skills that read the corpus back, plus a config-driven recall
-  policy injected at session start so history is consulted without being asked.
+  predating search. Remaining: typeahead ranking and a vector index for agent
+  retrieval ([database-choice.md](database-choice.md)) (#9); done items in
+  [Tier 1 — open work](#tier-1--open-work).
+- Claude Code recall plugin ([tiers.md](tiers.md) → T2) (#10) — **built** per
+  [plugin.md](plugin.md): the `recall`, `session-history` and `transcripts-admin` skills
+  read the corpus back, and a config-driven recall policy is injected at session start
+  so history is consulted without being asked
+  ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)). Remaining:
+  the optional MCP server and retrieval quality (plugin.md P3).
 
 **Webui (Tier 2)**
 - Configurable session-list columns + virtual scroll (#8)
@@ -324,7 +323,6 @@ done.
 
 **Tier 3 — multiplayer & public release**
 - Masterless replication + auth/security ([tiers.md](tiers.md), [ADR 0015](decisions/0015-tiered-architecture.md))
-- Static-HTML docs in the combined image ([containers.md](../operate/containers.md))
 - **Scheduled-task service** — lightweight FOSS "functions" for stats / summaries /
   anomaly detection over the corpus ([tiers.md](tiers.md))
 - **Session export to PDF / Markdown / JSON** ([tiers.md](tiers.md))
