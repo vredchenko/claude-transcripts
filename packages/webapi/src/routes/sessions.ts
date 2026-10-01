@@ -701,17 +701,18 @@ export function sessionRoutes(ctx: AppContext) {
     // high-key sentinel, so endkey collects everything under the prefix.
     const startkey = role ? [id, role] : [id];
     const endkey = role ? [id, role, {}] : [id, {}];
-    const res = await db.view("speaker_split", "by_role", {
-      startkey,
-      endkey,
-      reduce: false,
-    });
-    const all = res.rows.map((r: any) => r.value);
-    const page = all.slice(offset, offset + limit);
+    // Page at the view (#117); rows arrive in key order — by role, then transcript
+    // order. The total is the view's `_count` reduce over the same range.
+    const [res, count] = await Promise.all([
+      db.view("speaker_split", "by_role", { startkey, endkey, reduce: false, limit, skip: offset }),
+      db.view("speaker_split", "by_role", { startkey, endkey, reduce: true }),
+    ]);
+    const page = res.rows.map((r: any) => r.value);
+    const totalCount = Number(count.rows[0]?.value ?? 0);
     return c.json({
       turns: page,
-      totalCount: all.length,
-      hasMore: offset + limit < all.length,
+      totalCount,
+      hasMore: offset + limit < totalCount,
       role: role ?? null,
     });
   });
