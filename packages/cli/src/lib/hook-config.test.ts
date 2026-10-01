@@ -66,6 +66,19 @@ describe("writeHookConfig", () => {
 });
 
 describe("mergePreserved", () => {
+  test("a hand-set webapi survives a regeneration whose env names none", () => {
+    const webapi = { url: "https://logs.example.com" };
+    expect(mergePreserved({ couch: { url: "new" } }, { webapi }).webapi).toEqual(webapi);
+  });
+
+  test("a projected webapi replaces the old one", () => {
+    const merged = mergePreserved(
+      { webapi: { url: "http://127.0.0.1:7658" } },
+      { webapi: { url: "https://logs.example.com" } },
+    );
+    expect(merged.webapi).toEqual({ url: "http://127.0.0.1:7658" });
+  });
+
   test("only preserved keys survive; the rest of the old file is discarded", () => {
     const merged = mergePreserved(
       { couch: { url: "new" } },
@@ -96,6 +109,21 @@ describe("buildHookConfig", () => {
     expect(out.couch.url).toBe("http://127.0.0.1:7652");
     expect(out.couch.auth).toBeUndefined();
     expect(out.blob).toBeUndefined();
+  });
+
+  test("names the webapi when the env does, and omits it when not", () => {
+    // `install` passes the instance env, which always carries the port it generated.
+    expect(buildHookConfig(app, { WEBAPI_HOST: "127.0.0.1", WEBAPI_PORT: "7658" }).webapi).toEqual({
+      url: "http://127.0.0.1:7658",
+    });
+    expect(buildHookConfig(app, { WEBAPI_HOST: "0.0.0.0", WEBAPI_PORT: "7658" }).webapi).toEqual({
+      url: "http://127.0.0.1:7658",
+    });
+    expect(
+      buildHookConfig(app, { CT_WEBAPI_URL: "https://logs.example.com/", WEBAPI_PORT: "7650" })
+        .webapi,
+    ).toEqual({ url: "https://logs.example.com" });
+    expect("webapi" in buildHookConfig(app, { WEBAPI_HOST: "127.0.0.1" })).toBe(false);
   });
 
   test("an empty S3_REGION falls back to the default", () => {

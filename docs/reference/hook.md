@@ -97,7 +97,8 @@ unconfigured machine, not an error.
 `setup` and `install` regenerate that file from `config/` + `.env`, so anything derived
 is safe to lose. `mirrors` ([mirrors.md](../operate/mirrors.md)) is not derived from
 either — it names other instances this machine reports into — so it is preserved across
-a rewrite rather than rebuilt. Pass it explicitly to change or clear it.
+a rewrite rather than rebuilt. Pass it explicitly to change or clear it. `webapi.url`
+(where the CLI finds the webapi) is kept the same way when the rewrite's env names none.
 
 ## Verifying it
 

@@ -48,6 +48,7 @@ projected from [`config/config.json`](configuration.md) (falling back to the com
     "secretKey": "...",
     "buckets": { "sessions": "claude-transcripts-sessions" }
   },
+  "webapi": { "url": "http://127.0.0.1:7650" },
   "features": { … },
   "system": { … }   // copied whole from config/
 }
@@ -58,8 +59,13 @@ designed for more than one of each, and consumers address them by logical key
 (`sessions`, `appLogs`) rather than by the deployed name.
 
 Add a `mirrors` array to write every session to a second instance as well as this
-one — see [mirrors.md](../operate/mirrors.md). It is the one key a rewrite preserves,
-since nothing else on the machine records it.
+one — see [mirrors.md](../operate/mirrors.md). A rewrite preserves it, since nothing
+else on the machine records it.
+
+`webapi.url` is where the CLI reaches this instance; the hook ignores it. `setup`
+writes it only when `CT_WEBAPI_URL` or `WEBAPI_PORT` is set, and a rewrite that
+doesn't know it keeps the existing value — so on a machine that records to a remote
+deployment, set it by hand to that deployment's webapi.
 
 Omit `blob` (or leave `accessKey` empty) to log event/summary docs to CouchDB
 only. Note S3 is the transcript's sole home (ADR 0014): without a `blob` backend,

@@ -17,7 +17,9 @@ let home: string;
 
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), "ct-http-"));
-  for (const k of ["CT_WEBAPI_URL", "WEBAPI_HOST", "WEBAPI_PORT"]) delete process.env[k];
+  for (const k of ["CT_WEBAPI_URL", "WEBAPI_HOST", "WEBAPI_PORT", "CT_HOOK_CONFIG"]) {
+    delete process.env[k];
+  }
   process.env.CT_HOME = home;
 });
 
@@ -31,6 +33,55 @@ function writeInstanceEnv(body: string): void {
   mkdirSync(join(home, "config"), { recursive: true });
   writeFileSync(join(home, "config", "instance.env"), body);
 }
+
+/** Write the hook runtime config under the sandboxed CT_HOME. */
+function writeHookConfig(body: string): void {
+  mkdirSync(join(home, "config"), { recursive: true });
+  writeFileSync(join(home, "config", "config.json"), body);
+}
+
+const REMOTE = JSON.stringify({
+  couch: { url: "https://couch.example.com" },
+  webapi: { url: "https://logs.example.com/" },
+});
+
+describe("resolveWebapiUrl — hook config", () => {
+  test("a hook config naming a remote webapi wins over the instance file", () => {
+    // A machine recording to a remote deployment: the hook writes there, so the CLI
+    // must read from there too rather than a local install or localhost.
+    writeInstanceEnv("WEBAPI_PORT=7658\n");
+    writeHookConfig(REMOTE);
+    expect(resolveWebapiUrl()).toBe("https://logs.example.com");
+  });
+
+  test("CT_WEBAPI_URL and WEBAPI_PORT both win over the hook config", () => {
+    writeHookConfig(REMOTE);
+    process.env.WEBAPI_PORT = "7650";
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
+    process.env.CT_WEBAPI_URL = "http://example.test:9000";
+    expect(resolveWebapiUrl()).toBe("http://example.test:9000");
+  });
+
+  test("CT_HOOK_CONFIG relocates the file read", () => {
+    const elsewhere = join(home, "elsewhere.json");
+    writeFileSync(elsewhere, REMOTE);
+    process.env.CT_HOOK_CONFIG = elsewhere;
+    expect(resolveWebapiUrl()).toBe("https://logs.example.com");
+  });
+
+  test("a hook config without webapi falls through to the instance file", () => {
+    writeInstanceEnv("WEBAPI_PORT=7658\n");
+    writeHookConfig(JSON.stringify({ couch: { url: "http://127.0.0.1:7652" } }));
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
+  });
+
+  test("a malformed hook config is ignored, not fatal", () => {
+    writeHookConfig("{ not json");
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
+    writeHookConfig(JSON.stringify({ webapi: { url: 42 } }));
+    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
+  });
+});
 
 describe("resolveWebapiUrl", () => {
   test("falls back to the default when there is no install and no env", () => {
