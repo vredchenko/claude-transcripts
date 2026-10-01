@@ -21,8 +21,7 @@
  * why `stack blah` no longer reaches `stack`.
  */
 import { CLI_SPEC, cliUsage, validateCliArgs } from "@claude-transcripts/shared";
-import { render } from "ink";
-import { App } from "./app";
+import type { AppProps } from "./app";
 import { COMMANDS } from "./commands";
 import { parseFlags } from "./lib/args";
 import { VERSION } from "./lib/version";
@@ -32,11 +31,13 @@ const [, , first, ...rest] = process.argv;
 const USAGE_ERROR = 2;
 
 /**
- * Render the help UI to `stream`. Ink writes the first frame synchronously, so once
- * `render` returns the text is out; unmounting releases stdin so the process can exit.
+ * Render the help UI to `stream`. Ink is imported lazily (and this file has no JSX):
+ * loading it materialises `process.stdout`, after which Bun drops the tail of piped
+ * `console.log` output, truncating `<cmd> --json | jq` (#146). `cli.test.ts` guards it.
  */
-function showHelp(props: Parameters<typeof App>[0], stream: NodeJS.WriteStream = process.stdout) {
-  render(<App {...props} />, { stdout: stream, exitOnCtrlC: false, patchConsole: false }).unmount();
+async function showHelp(props: AppProps, stream: NodeJS.WriteStream = process.stdout) {
+  const { renderHelp } = await import("./app");
+  renderHelp(props, stream);
 }
 
 const argv = first === undefined ? [] : [first, ...rest];
@@ -56,7 +57,7 @@ const args = command === undefined ? argv : rest;
 const wantsHelp = args.includes("--help") || args.includes("-h");
 
 if (command === undefined) {
-  showHelp({});
+  await showHelp({});
   process.exit(0);
 }
 
@@ -66,12 +67,12 @@ const runner = COMMANDS[command];
 if (!spec || !runner) {
   // The registry is the fact: a command the spec lists but nothing implements is just
   // as unknown to the caller as a typo, and `index.test.ts` keeps the two lists equal.
-  showHelp({ unknown: command }, process.stderr);
+  await showHelp({ unknown: command }, process.stderr);
   process.exit(USAGE_ERROR);
 }
 
 if (wantsHelp) {
-  showHelp({ command });
+  await showHelp({ command });
   process.exit(0);
 }
 

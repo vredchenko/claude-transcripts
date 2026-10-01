@@ -15,14 +15,14 @@ import { stripHighlightMarks } from "@claude-transcripts/shared";
 import { type SearchHit, search, type TurnHit } from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
-import { num, project, row, when } from "../lib/format";
+import { num, project, row, stdoutColumns, when } from "../lib/format";
 
 /** Widest `ChunkEntryRole` is `tool_result` — narrower and the table lies about it. */
 const ROLE_W = 11;
 
 /** Fall back to a sane width when stdout isn't a TTY (a pipe reports nothing). */
 function snippetWidth(): number {
-  const cols = process.stdout.columns ?? 0;
+  const cols = stdoutColumns();
   // session(8) + when(16) + role + three 2-space gaps of table before the snippet.
   const before = 8 + 2 + 16 + 2 + ROLE_W + 2;
   return Math.max(40, (cols > 0 ? cols : 120) - before);
