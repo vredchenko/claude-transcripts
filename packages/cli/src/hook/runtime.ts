@@ -46,6 +46,8 @@ export interface HookConfig {
    * which is what every config written before mirrors existed says.
    */
   mirrors?: MirrorTarget[];
+  /** This instance's webapi, read by the CLI to find it (the hook never calls it). */
+  webapi?: { url: string };
   features: Record<string, boolean>;
   system: { logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } } };
   /** The deployment's recall section, if the config was written after it existed. */

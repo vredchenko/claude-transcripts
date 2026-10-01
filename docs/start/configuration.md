@@ -139,8 +139,13 @@ The committed template, in full — this is the current shape, not a target:
   runtime config at `~/.config/claude-transcripts/config.json` (alongside the secrets
   from `.env`). Re-run `setup` after editing `config/config.json` — the hook reads the
   baked copy, not the repo. Settings that are the *machine's* own rather than a
-  projection of `config/` are carried across that rewrite instead of being regenerated;
-  [`mirrors`](../operate/mirrors.md) is the one such key today.
+  projection of `config/` are carried across that rewrite instead of being regenerated:
+  [`mirrors`](../operate/mirrors.md), and `webapi` when the env doesn't name one.
+- **CLI** finds the webapi from `--webapi`, then `CT_WEBAPI_URL`, then `WEBAPI_PORT`,
+  then `webapi.url` in that same hook config (which `install` writes), then the
+  installed instance's port, then `127.0.0.1:7650`. On a machine that records to a
+  **remote** deployment, set `webapi.url` in the hook config (or `CT_WEBAPI_URL`) so
+  commands read from where the hook writes.
 - **docker-compose** uses `.env` only; its defaults mirror the committed template.
 
 ## Environment variables (`.env`)

@@ -33,12 +33,26 @@ export function buildHookConfig(app: AppConfigFile, env: EnvLike) {
           buckets: app.s3.buckets,
         }
       : undefined,
+    // Where the CLI reaches this instance's webapi. Omitted when the env doesn't say, so
+    // a hand-set URL (a remote deployment) is preserved rather than guessed over.
+    ...webapiFromEnv(env),
     features: app.features,
     system: app.system,
     // The recall policy travels with the hook so the session-start primer needs no
     // repo and no app.json — resolved against the plugin's userConfig env at run time.
     ...(app.recall ? { recall: app.recall } : {}),
   };
+}
+
+/**
+ * The webapi URL the env names, if it names one: `CT_WEBAPI_URL`, else `WEBAPI_PORT` on
+ * `WEBAPI_HOST`. A `0.0.0.0` host is a bind address, so it is dialled as loopback.
+ */
+function webapiFromEnv(env: EnvLike): { webapi?: { url: string } } {
+  if (env.CT_WEBAPI_URL) return { webapi: { url: env.CT_WEBAPI_URL.replace(/\/$/, "") } };
+  if (!env.WEBAPI_PORT) return {};
+  const host = env.WEBAPI_HOST && env.WEBAPI_HOST !== "0.0.0.0" ? env.WEBAPI_HOST : "127.0.0.1";
+  return { webapi: { url: `http://${host}:${env.WEBAPI_PORT}` } };
 }
 
 /**
@@ -50,8 +64,11 @@ export function buildHookConfig(app: AppConfigFile, env: EnvLike) {
  * a fact no repo config knows and, for a binary install with no checkout, nothing else
  * on the machine records either. A plain rewrite would drop it silently and mirroring
  * would simply stop — the failure mode the whole feature is written to avoid.
+ *
+ * `webapi` is the same kind of fact when this machine records to a remote deployment:
+ * a `setup` whose env names no webapi must not wipe a URL the user set by hand.
  */
-const PRESERVED_KEYS = ["mirrors"] as const;
+const PRESERVED_KEYS = ["mirrors", "webapi"] as const;
 
 function readExisting(path: string): Record<string, unknown> {
   try {

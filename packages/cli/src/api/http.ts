@@ -39,9 +39,10 @@ function base(): string {
  * Resolve the webapi base URL.
  *
  * In precedence order: `CT_WEBAPI_URL`, then `WEBAPI_PORT` from the environment, then
- * **the installed instance's own `instance.env`**, then the default port.
+ * `webapi.url` in the hook runtime config, then **the installed instance's own
+ * `instance.env`**, then the default port. (`--webapi` bypasses all of it.)
  *
- * That third step is the one worth explaining. `install` generates a port per instance,
+ * The instance step is the one worth explaining. `install` generates a port per instance,
  * so an install is frequently *not* on 7650 — and without this every command
  * (`sessions`, `doctor`, `reindex`) had to be told `--webapi` or it would report a dead
  * webapi on a port nothing was ever listening on. The instance already writes its port
@@ -65,9 +66,21 @@ export function resolveWebapiUrl(): string {
   // An explicit port still wins over the file — that's how a dev checkout points the
   // CLI at a webapi it's running from source.
   if (process.env.WEBAPI_PORT) return `http://${host}:${process.env.WEBAPI_PORT}`;
-  const fromInstance = instanceWebapiUrl();
-  if (fromInstance) return fromInstance;
-  return `http://${host}:${DEFAULT_WEBAPI_PORT}`;
+  return hookConfigWebapiUrl() ?? instanceWebapiUrl() ?? `http://${host}:${DEFAULT_WEBAPI_PORT}`;
+}
+
+/**
+ * `webapi.url` from the hook runtime config, the one file a machine recording to a
+ * *remote* deployment has. Without it every command dialled localhost while the hook
+ * wrote elsewhere. Fail-soft like the instance lookup: missing or malformed → null.
+ */
+function hookConfigWebapiUrl(): string | null {
+  try {
+    const url = JSON.parse(readFileSync(installPaths().hookConfig, "utf8"))?.webapi?.url;
+    return typeof url === "string" && url ? url.replace(/\/$/, "") : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
