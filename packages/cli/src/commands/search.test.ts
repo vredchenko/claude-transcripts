@@ -52,8 +52,8 @@ describe("turnLine", () => {
   test("truncates to the column width with an ellipsis", () => {
     const line = turnLine(turn({ snippet: "x".repeat(200) }), 50);
     expect(line).toContain("…");
-    // session(8) + when(16) + role(11) + gaps(6) = 41, then the 50-wide column.
-    expect(line.length).toBeLessThanOrEqual(91);
+    // session(36) + when(16) + role(11) + gaps(6) = 69, then the 50-wide column.
+    expect(line.length).toBeLessThanOrEqual(119);
   });
 
   test("renders a missing timestamp rather than 'undefined'", () => {
@@ -62,8 +62,16 @@ describe("turnLine", () => {
     expect(line).toContain("—");
   });
 
-  test("shortens the session id to its first 8 characters", () => {
-    expect(turnLine(turn(), 60).startsWith("abcdef12 ")).toBe(true);
+  // `sessions <id>` is an exact lookup, so the id shown must be the id (#146).
+  test("prints the whole session id, so it can be passed back to `sessions`", () => {
+    const id = "0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6";
+    expect(turnLine(turn({ sessionId: id }), 60).startsWith(`${id}  `)).toBe(true);
+    expect(hitLine(hit({ sessionId: id })).startsWith(`${id}  `)).toBe(true);
+  });
+
+  test("never cuts an id longer than a UUID", () => {
+    const id = "a".repeat(40);
+    expect(turnLine(turn({ sessionId: id }), 60).startsWith(`${id}  `)).toBe(true);
   });
 });
 
