@@ -24,7 +24,17 @@ import { resolveUserSettings } from "./user-settings";
  * back to `http://127.0.0.1:<resolved host port>`, right for the bundled stack on this
  * machine and following a per-instance port block. Config keys the model doesn't know
  * are carried through, so an operator can add links of their own.
+ *
+ * Templates before 0.3.3 shipped these links literally, so configs copied from them carry
+ * the default ports. An entry equal to one of those is treated as unset, so a stale copy
+ * can't override the derived link on an instance with its own port block.
  */
+const STALE_TEMPLATE_LINKS: Record<string, string> = {
+  couchdbFauxton: "http://127.0.0.1:7652/_utils/",
+  garageWebui: "http://127.0.0.1:7655/",
+  meilisearch: "http://127.0.0.1:7656/",
+};
+
 function buildServicesMenu(
   services: ServiceDef[],
   fromConfig: Record<string, string>,
@@ -37,7 +47,8 @@ function buildServicesMenu(
     const path = s.adminUiPath ?? "/";
     derived[s.adminUiServiceKey] = `http://127.0.0.1:${port}${path}`;
   }
-  return { ...derived, ...fromConfig };
+  const configured = Object.entries(fromConfig).filter(([k, v]) => STALE_TEMPLATE_LINKS[k] !== v);
+  return { ...derived, ...Object.fromEntries(configured) };
 }
 
 export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppModel {

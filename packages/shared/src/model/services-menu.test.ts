@@ -58,6 +58,23 @@ describe("servicesMenu — config wins where it speaks", () => {
     expect(model.servicesMenu.garageWebui).toBe("http://127.0.0.1:7663/");
   });
 
+  test("a link copied from an old template doesn't override the instance's ports", () => {
+    const model = buildAppModel(
+      {
+        ...CONFIG,
+        servicesMenu: {
+          couchdbFauxton: "http://127.0.0.1:7652/_utils/",
+          garageWebui: "http://127.0.0.1:7655/",
+          meilisearch: "http://127.0.0.1:7656/",
+        },
+      },
+      { COUCHDB_PORT: "7660", GARAGE_WEBUI_PORT: "7663", MEILI_PORT: "7664" },
+    );
+    expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7660/_utils/");
+    expect(model.servicesMenu.garageWebui).toBe("http://127.0.0.1:7663/");
+    expect(model.servicesMenu.meilisearch).toBe("http://127.0.0.1:7664/");
+  });
+
   test("carries through config keys the model doesn't know", () => {
     const model = buildAppModel(
       { ...CONFIG, servicesMenu: { myDashboard: "https://ops.example" } },
