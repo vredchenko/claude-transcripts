@@ -25,10 +25,9 @@ import { join } from "node:path";
 /**
  * Where to look for the binary.
  *
- * PATH first, since that's the normal case. The explicit fallbacks cover the installer's
- * own target (`~/.local/bin`, which isn't on PATH in every shell — notably a desktop
- * launcher's environment, which is where a hook often runs) and `CT_HOME` for a
- * relocated instance.
+ * `$CT_HOME/bin` (a relocated instance), then the installer's own target (`~/.local/bin`,
+ * which isn't on PATH in every shell — notably a desktop launcher's environment, which
+ * is where a hook often runs), then PATH as the last resort.
  */
 function candidates(): string[] {
   const ctHome = process.env.CT_HOME;
