@@ -15,6 +15,7 @@
  * has a layout role isn't reassigned, an existing bucket is reused, and keys are only
  * created when the instance env has none.
  */
+import { resolveCouchUrl } from "@claude-transcripts/shared";
 import type { EnvMap } from "./instance-env";
 import { updateInstanceEnv } from "./instance-env";
 
@@ -33,7 +34,7 @@ function couchAuthHeader(env: EnvMap): Record<string, string> {
 }
 
 export function couchUrl(env: EnvMap): string {
-  return env.COUCHDB_URL || `http://${env.COUCHDB_HOST || "127.0.0.1"}:${env.COUCHDB_PORT}`;
+  return resolveCouchUrl(env);
 }
 
 /** Create each configured database. 412 means it already exists — that's success. */
