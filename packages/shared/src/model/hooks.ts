@@ -261,3 +261,18 @@ export const HOOK_TYPES: HookTypeDef[] = [
       "The session terminates — `reason` ∈ `clear`/`resume`/`logout`/`prompt_input_exit`/`bypass_permissions_disabled`/`other`.",
   },
 ];
+
+/**
+ * Start a hook command from `/`. Claude Code runs hooks in the session's cwd; if that
+ * was deleted, `bun` and the compiled CLI exit before our code runs (`--cwd` doesn't
+ * help), so recording stops silently (#171). The shell survives it and `cd /` works.
+ * The payload carries the session's `cwd`, so nothing downstream needs the real one.
+ */
+export function hookLaunch(command: string): string {
+  return `cd / && ${command}`;
+}
+
+/** The command the plugin's `hooks.json` registers for every event; quoted for spaces. */
+export const PLUGIN_HOOK_COMMAND = hookLaunch(
+  'bun run "${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts"',
+);

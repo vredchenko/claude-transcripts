@@ -12,7 +12,7 @@
  * guards the equivalent case *within* the settings file (a source checkout and an
  * installed binary both registered), but a plugin's hooks live outside its reach:
  * `isOurCommand` matches on the string `hook run`, and the plugin's command is
- * `bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts`.
+ * `cd / && bun run "${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts"`.
  *
  * So the two routes are mutually exclusive and nothing could tell you which one you
  * were on. This module is what tells you.

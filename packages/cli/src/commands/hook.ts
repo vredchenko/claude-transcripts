@@ -13,6 +13,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { hookLaunch } from "@claude-transcripts/shared";
 import { dispatch, hookAsync, hookBindings, hookTimeout } from "../hook";
 import { parseFlags } from "../lib/args";
 import { installPaths } from "../lib/paths";
@@ -43,17 +44,21 @@ function readSettings(path: string): Record<string, unknown> & { hooks?: Setting
  * `process.execPath` is the compiled binary for a real install. Running from source
  * (a checkout) it's the `bun` binary instead, so we spell out the entry script —
  * otherwise a contributor's registration would point at bare `bun`.
+ *
+ * Prefixed with `cd /` ({@link hookLaunch}): a binary started in a deleted session
+ * directory dies before it can swallow anything (#171).
  */
 export function hookCommand(): string {
-  return `${cliInvocation()} hook run`;
+  return hookLaunch(`${cliInvocation()} hook run`);
 }
 
 /** How to invoke *this* CLI from a Claude Code setting — see {@link hookCommand}. */
 export function cliInvocation(): string {
   const exec = process.execPath;
   const isCompiled = !/\/bun$/.test(exec);
-  if (isCompiled) return exec;
-  return `${exec} run ${Bun.main}`;
+  // Quoted, like the plugin and setup commands: an install path may contain spaces.
+  if (isCompiled) return `"${exec}"`;
+  return `"${exec}" run "${Bun.main}"`;
 }
 
 /**

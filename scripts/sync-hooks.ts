@@ -11,7 +11,7 @@ import { join } from "node:path";
  * still needing projection is the event list itself.
  * Dev-only tooling. Re-run after changing the model's BINDINGS.
  */
-import { buildAppModel } from "@claude-transcripts/shared";
+import { buildAppModel, PLUGIN_HOOK_COMMAND } from "@claude-transcripts/shared";
 import { loadConfigFile } from "./lib/config-file";
 
 const ROOT = join(import.meta.dir, "..");
@@ -29,7 +29,7 @@ const LONG_TIMEOUT = new Set(["SessionStart", "SessionEnd"]);
 // does not wait for it — and UserPromptSubmit is decision-shaped, where async is
 // ignored. Mirrors `hookAsync` in packages/cli/src/hook/index.ts; keep the two in step.
 const SYNCHRONOUS = new Set(["SessionStart", "SessionEnd", "UserPromptSubmit"]);
-const command = "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts";
+const command = PLUGIN_HOOK_COMMAND;
 const hooks: Record<string, unknown> = {};
 for (const event of Object.keys(bindings)) {
   const entry: Record<string, unknown> = {

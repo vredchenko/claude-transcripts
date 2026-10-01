@@ -7,6 +7,7 @@
 # No network, no Bun, nothing that can fail loudly: if the CLI isn't there, print the
 # honest "off" state and exit 0.
 set -u
+cd / # a deleted session cwd would stop the CLI starting (#171)
 candidates=()
 [ -n "${CT_HOME:-}" ] && candidates+=("$CT_HOME/bin/claude-transcripts")
 candidates+=("$HOME/.local/bin/claude-transcripts")
