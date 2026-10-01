@@ -2,44 +2,45 @@ import type { ActionDef, HookActionBinding } from "./types";
 
 /**
  * The catalogue of event-handling actions, defined independently of any hook.
- * Hooks bind to actions many-to-many (BINDINGS). `implemented` flags real ones.
+ * Hooks bind to actions many-to-many (BINDINGS). `implemented` flags the ones the hook
+ * has a handler for (the CLI's `HANDLERS` map; a test there keeps the two in step).
  */
 export const ACTIONS: ActionDef[] = [
   {
     key: "write-event-marker",
     summary: "Append a light append-only event marker doc",
-    implemented: false,
+    implemented: true,
   },
   {
     key: "update-counts",
     summary: "Bump per-session counters (events/prompts/errors/tools)",
-    implemented: false,
+    implemented: true,
   },
   {
     key: "flush-transcript-chunk",
     summary: "Tail the transcript → append chunk docs",
-    implemented: false,
+    implemented: true,
   },
-  { key: "write-summary", summary: "Write summary:<id> at session end", implemented: false },
+  { key: "write-summary", summary: "Write summary:<id> at session end", implemented: true },
   {
     key: "upload-blobs",
     summary: "Upload summary.json + transcript.jsonl to S3",
-    implemented: false,
+    implemented: true,
   },
   {
     key: "seed-session-start",
     summary: "Reset counters + seed the chunk offset at start",
-    implemented: false,
+    implemented: true,
   },
   {
     key: "announce-recording",
     summary: "Tell the user, in the transcript, whether and where this session is recorded",
-    implemented: false,
+    implemented: true,
   },
   {
     key: "inject-recall-policy",
     summary: "Prime the session with the recall policy + how much history this cwd has",
-    implemented: false,
+    implemented: true,
   },
   { key: "enrich-metadata", summary: "Post additional session metadata", implemented: false },
   {
