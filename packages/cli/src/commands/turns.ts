@@ -21,14 +21,18 @@ import {
 } from "../api/generated";
 import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
-import { num, project, row, stdoutColumns, when } from "../lib/format";
+import { num, project, restWidth, row, SESSION_W, sessionCell, when } from "../lib/format";
 
 const ROLE_W = 11;
 
-function textWidth(): number {
-  const cols = stdoutColumns();
-  const before = 8 + 2 + 16 + 2 + ROLE_W + 2 + 18 + 2;
-  return Math.max(40, (cols > 0 ? cols : 120) - before);
+/** The cross-session table: session, when, role, project, then the text. */
+function crossTextWidth(): number {
+  return restWidth([SESSION_W, 16, ROLE_W, 18]);
+}
+
+/** One session's table: turn number, when, role, then the text. */
+function sessionTextWidth(): number {
+  return restWidth([5, 16, ROLE_W]);
 }
 
 function oneLine(text: string, width: number): string {
@@ -36,9 +40,9 @@ function oneLine(text: string, width: number): string {
   return t.length > width ? `${t.slice(0, width - 1)}…` : t;
 }
 
-export function crossTurnLine(t: CrossSessionTurn, width: number = textWidth()): string {
+export function crossTurnLine(t: CrossSessionTurn, width: number = crossTextWidth()): string {
   return row([
-    [t.sessionId.slice(0, 8), 8],
+    sessionCell(t.sessionId),
     [when(t.timestamp), 16],
     [t.role, ROLE_W],
     [project(t.cwd), 18],
@@ -46,7 +50,11 @@ export function crossTurnLine(t: CrossSessionTurn, width: number = textWidth()):
   ]);
 }
 
-export function sessionTurnLine(t: SpeakerTurn, i: number, width: number = textWidth()): string {
+export function sessionTurnLine(
+  t: SpeakerTurn,
+  i: number,
+  width: number = sessionTextWidth(),
+): string {
   const tools = (t.toolUses ?? []).map((u) => `⚙ ${u.name}`).join(" ");
   const text = t.text ?? "";
   return row([
@@ -80,9 +88,9 @@ export async function runTurns(argv: string[]): Promise<number> {
         return 0;
       }
       console.log(
-        `turns: session ${id.slice(0, 8)} — ${num(res.turns.length)} of ${num(res.totalCount)}${role ? ` (${role})` : ""} (${webapiUrl()})`,
+        `turns: session ${id} — ${num(res.turns.length)} of ${num(res.totalCount)}${role ? ` (${role})` : ""} (${webapiUrl()})`,
       );
-      const width = textWidth();
+      const width = sessionTextWidth();
       console.log(
         row([
           ["#", 5],
@@ -114,10 +122,10 @@ export async function runTurns(argv: string[]): Promise<number> {
       console.log("turns: none — sessions logged without couchFullContentChunks have no turns");
       return 0;
     }
-    const width = textWidth();
+    const width = crossTextWidth();
     console.log(
       row([
-        ["SESSION", 8],
+        ["SESSION", SESSION_W],
         ["WHEN", 16],
         ["WHO", ROLE_W],
         ["PROJECT", 18],

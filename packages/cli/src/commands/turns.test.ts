@@ -13,7 +13,7 @@ describe("turns rows", () => {
       },
       40,
     );
-    expect(line.startsWith("abcdef12 ")).toBe(true);
+    expect(line.startsWith("abcdef1234567890 ")).toBe(true);
     expect(line).toContain("proj");
     expect(line).toContain("first second line");
     expect(line).not.toContain("\n");

@@ -17,7 +17,7 @@ import {
 } from "../api/generated";
 import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { type ParsedArgs, parseFlags, strOpt } from "../lib/args";
-import { num, pad, padL, project, row, when } from "../lib/format";
+import { num, pad, padL, project, row, SESSION_W, sessionCell, when } from "../lib/format";
 
 /** The sessions table right-aligns from PROMPTS on — the numeric tail. */
 const RIGHT_FROM = 4;
@@ -101,7 +101,7 @@ function tools(counts: Record<string, number> | undefined): number {
 export function summaryLine(s: SessionSummary): string {
   return row(
     [
-      [s.sessionId.slice(0, 8), 8],
+      sessionCell(s.sessionId),
       // `startTimestamp`, not `timestamp`: the latter is the summary's own time — the
       // SessionEnd instant — and only coincides with the start while a session is still
       // running and has no summary yet. Reading it under a "STARTED" heading meant the
@@ -137,7 +137,7 @@ async function showList(limit: number, json: boolean, filters: Filters): Promise
   console.log(
     row(
       [
-        ["SESSION", 8],
+        ["SESSION", SESSION_W],
         ["STARTED", 16],
         ["STATUS", 10],
         ["PROJECT", 18],

@@ -217,3 +217,11 @@ describe("the STARTED column", () => {
     expect(line).toContain("09:00");
   });
 });
+
+// `sessions <id>` is an exact lookup: the id a row shows has to be one it accepts (#146).
+describe("the SESSION column", () => {
+  test("shows the whole session id", () => {
+    const id = "0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6";
+    expect(summaryLine(session({ sessionId: id })).startsWith(`${id}  `)).toBe(true);
+  });
+});

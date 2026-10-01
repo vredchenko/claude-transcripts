@@ -15,17 +15,14 @@ import { stripHighlightMarks } from "@claude-transcripts/shared";
 import { type SearchHit, search, type TurnHit } from "../api/generated";
 import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
-import { num, project, row, stdoutColumns, when } from "../lib/format";
+import { num, project, restWidth, row, SESSION_W, sessionCell, when } from "../lib/format";
 
 /** Widest `ChunkEntryRole` is `tool_result` — narrower and the table lies about it. */
 const ROLE_W = 11;
 
-/** Fall back to a sane width when stdout isn't a TTY (a pipe reports nothing). */
+/** What's left of the terminal after session, when and role. */
 function snippetWidth(): number {
-  const cols = stdoutColumns();
-  // session(8) + when(16) + role + three 2-space gaps of table before the snippet.
-  const before = 8 + 2 + 16 + 2 + ROLE_W + 2;
-  return Math.max(40, (cols > 0 ? cols : 120) - before);
+  return restWidth([SESSION_W, 16, ROLE_W]);
 }
 
 /**
@@ -39,7 +36,7 @@ export function turnLine(t: TurnHit, width: number = snippetWidth()): string {
     .replace(/\s+/g, " ")
     .trim();
   return row([
-    [t.sessionId.slice(0, 8), 8],
+    sessionCell(t.sessionId),
     [when(t.timestamp), 16],
     [t.role, ROLE_W],
     [snippet.length > width ? `${snippet.slice(0, width - 1)}…` : snippet, width],
@@ -52,7 +49,7 @@ export function turnLine(t: TurnHit, width: number = snippetWidth()): string {
  */
 export function hitLine(h: SearchHit): string {
   return row([
-    [h.sessionId.slice(0, 8), 8],
+    sessionCell(h.sessionId),
     [when(h.timestamp), 16],
     [project(h.cwd), 20],
     [h.model ?? "—", 22],
@@ -119,7 +116,7 @@ export async function runSearch(argv: string[]): Promise<number> {
       );
       console.log(
         row([
-          ["SESSION", 8],
+          ["SESSION", SESSION_W],
           ["STARTED", 16],
           ["PROJECT", 20],
           ["MODEL", 22],
@@ -136,7 +133,7 @@ export async function runSearch(argv: string[]): Promise<number> {
       );
       console.log(
         row([
-          ["SESSION", 8],
+          ["SESSION", SESSION_W],
           ["WHEN", 16],
           ["WHO", ROLE_W],
           ["SNIPPET", width],
