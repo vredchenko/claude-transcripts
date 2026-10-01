@@ -8,15 +8,17 @@
  */
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AppConfigFile } from "@claude-transcripts/shared";
-import type { EnvMap } from "./instance-env";
-import { couchUrl } from "./provision";
+import { type AppConfigFile, type EnvLike, resolveCouchUrl } from "@claude-transcripts/shared";
 
-export function buildHookConfig(app: AppConfigFile, env: EnvMap) {
+/**
+ * The hook runtime config — the one projection both `install` and `setup` write.
+ * `env` may be `process.env`, so any key can be absent or empty.
+ */
+export function buildHookConfig(app: AppConfigFile, env: EnvLike) {
   const user = env.COUCHDB_USER;
   return {
     couch: {
-      url: couchUrl(env),
+      url: resolveCouchUrl(env),
       databases: app.couchdb.databases,
       ...(user ? { auth: `${user}:${env.COUCHDB_PASSWORD ?? ""}` } : {}),
     },
