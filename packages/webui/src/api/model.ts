@@ -14,6 +14,8 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 export interface AppModelInfo {
   identity?: { title?: string; version?: string; slug?: string; codename?: string };
   servicesMenu?: Record<string, string>;
+  /** Configured store names — the real CouchDB database behind each key. */
+  stores?: { databases?: Record<string, string> };
   /** Reader tunables — page sizes for the list and the transcript. */
   userSettings?: Partial<UserSettings>;
 }
@@ -22,6 +24,19 @@ async function fetchAppModel(): Promise<AppModelInfo> {
   const res = await fetch("/api/model");
   if (!res.ok) throw new Error(`GET /api/model → ${res.status} ${res.statusText}`);
   return (await res.json()) as AppModelInfo;
+}
+
+/**
+ * An origin-relative URL into the read-only CouchDB proxy (ADR 0016). Unlike a Fauxton
+ * link it needs no dashboard and no host port, so it works wherever the webui does.
+ */
+export function couchProxyUrl(db: string, path: string): string {
+  return `/api/couch/${encodeURIComponent(db)}/${path}`;
+}
+
+/** Fauxton's hash route for a database path, tolerating a trailing slash on its URL. */
+export function fauxtonUrlFor(fauxtonUrl: string, db: string, path: string): string {
+  return `${fauxtonUrl.replace(/\/+$/, "")}/#/database/${encodeURIComponent(db)}/${path}`;
 }
 
 /** The app model rarely changes within a session, so cache it for the whole run. */

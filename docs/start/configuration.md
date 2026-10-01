@@ -66,11 +66,7 @@ The committed template, in full — this is the current shape, not a target:
     "secretsMasking": false          // mask secrets on write/read (future scope)
   },
 
-  "servicesMenu": {                  // links shown in the webui Services menu
-    "couchdbFauxton": "http://127.0.0.1:7652/_utils/",
-    "garageWebui":    "http://127.0.0.1:7655/",
-    "meilisearch":    "http://127.0.0.1:7656/"
-  },
+  "servicesMenu": {},                // admin-UI links; empty = derive from the stack's ports
 
   "userSettings": {                  // reader tunables, served to the webui via /api/model
     "sessionListPageSize": 100,      // sessions fetched per page as the list scrolls
@@ -203,11 +199,21 @@ config, losing only their feature:
 
 ## Services menu
 
-`servicesMenu` lists the backing-service admin dashboards surfaced in the webui
-(CouchDB Fauxton, Garage WebUI, Meilisearch). In the bundled stack these are
-local; with external backends, point them wherever the services live. Making this
-menu fully config-driven (rather than partly hard-coded in the webui today) is
-tracked in [#14](../design/roadmap.md).
+`servicesMenu` sets the backing-service admin dashboards linked from the webui
+(keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`; any other key is
+shown as an extra link). A key you set **overrides** the derived link; a key you leave
+unset falls back to `http://127.0.0.1:<host port>` from the stack's resolved ports,
+which suits the bundled stack on the same machine. With external backends or a remote
+browser, point the keys wherever the dashboards live:
+
+```jsonc
+"servicesMenu": { "couchdbFauxton": "https://couch.example.org/_utils/" }
+```
+
+The template ships this empty. An existing `config/config.json` copied from an older
+template still carries its `127.0.0.1` URLs, and those now win — delete or edit them if
+your ports differ. CouchDB document and design-view links don't depend on any of this:
+they go through the webapi's read-only `/api/couch` proxy.
 
 ## Design goal: everything configurable
 

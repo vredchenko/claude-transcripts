@@ -20,7 +20,7 @@ import {
 import { Link, useNavigate, useParams, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useState } from "react";
 import { useGetSession } from "../api/generated";
-import { useAppModel } from "../api/model";
+import { couchProxyUrl, fauxtonUrlFor, useAppModel } from "../api/model";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
 import { ErrorState, Loading } from "../components/states";
@@ -81,9 +81,13 @@ export function SessionDetailPage() {
 
   const split = session ? durationSplit(session.durationMs, session.activeMs) : undefined;
 
-  // Deep link URLs built from servicesMenu.
+  // The summary doc via the read-only proxy (always reachable); Fauxton only when linked.
+  const sessionsDb = model?.stores?.databases?.sessions;
   const fauxtonUrl = model?.servicesMenu?.couchdbFauxton;
-  const couchDocUrl = fauxtonUrl ? `${fauxtonUrl}/#/database/sessions/summary:${id}` : undefined;
+  const summaryId = encodeURIComponent(`summary:${id}`);
+  const couchDocUrl = sessionsDb ? couchProxyUrl(sessionsDb, summaryId) : undefined;
+  const fauxtonDocUrl =
+    sessionsDb && fauxtonUrl ? fauxtonUrlFor(fauxtonUrl, sessionsDb, summaryId) : undefined;
   const garageUrl = model?.servicesMenu?.garageWebui;
   const apiJsonUrl = `/api/sessions/${id}`;
 
@@ -124,6 +128,11 @@ export function SessionDetailPage() {
             {couchDocUrl && (
               <Button size="small" href={couchDocUrl} target="_blank" rel="noopener noreferrer">
                 CouchDB
+              </Button>
+            )}
+            {fauxtonDocUrl && (
+              <Button size="small" href={fauxtonDocUrl} target="_blank" rel="noopener noreferrer">
+                Fauxton
               </Button>
             )}
             {garageUrl && (

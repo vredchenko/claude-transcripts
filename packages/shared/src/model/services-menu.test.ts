@@ -1,10 +1,7 @@
 /**
- * The services menu must follow a deployment's real ports.
- *
- * These links used to be literal URLs in `config/` carrying the template's defaults,
- * so on any instance whose port block `install` generated differently — most of them —
- * every link pointed at a closed port while sitting in the instance's own config file,
- * looking authoritative.
+ * The services menu: a configured link wins; an unset key falls back to a link derived
+ * from the service's resolved host port, so the bundled stack works with no config and
+ * follows a per-instance port block.
  */
 import { describe, expect, test } from "bun:test";
 import { buildAppModel } from "./build";
@@ -16,15 +13,11 @@ const CONFIG: AppConfigFile = {
   couchdb: { databases: { sessions: "s" } },
   s3: { buckets: { sessions: "s" } },
   features: {},
-  // Deliberately stale — the shape an instance installed before this fix still has.
-  servicesMenu: {
-    couchdbFauxton: "http://127.0.0.1:7652/_utils/",
-    meilisearch: "http://127.0.0.1:7656/",
-  },
+  servicesMenu: {},
 };
 
-describe("servicesMenu", () => {
-  test("follows the env's ports, not the config's stale defaults", () => {
+describe("servicesMenu — derived fallback", () => {
+  test("unset keys follow the env's ports", () => {
     const model = buildAppModel(CONFIG, {
       COUCHDB_PORT: "7660",
       MEILI_PORT: "7664",
@@ -46,15 +39,31 @@ describe("servicesMenu", () => {
     const model = buildAppModel(CONFIG, { COUCHDB_PORT: "7660" });
     expect(model.servicesMenu.couchdbFauxton).toEndWith("/_utils/");
   });
+});
+
+describe("servicesMenu — config wins where it speaks", () => {
+  test("a configured link overrides the derived one", () => {
+    const model = buildAppModel(
+      { ...CONFIG, servicesMenu: { couchdbFauxton: "https://couch.example/_utils/" } },
+      { COUCHDB_PORT: "7660" },
+    );
+    expect(model.servicesMenu.couchdbFauxton).toBe("https://couch.example/_utils/");
+  });
+
+  test("keys the config leaves unset still fall back to derived", () => {
+    const model = buildAppModel(
+      { ...CONFIG, servicesMenu: { couchdbFauxton: "https://couch.example/_utils/" } },
+      { GARAGE_WEBUI_PORT: "7663" },
+    );
+    expect(model.servicesMenu.garageWebui).toBe("http://127.0.0.1:7663/");
+  });
 
   test("carries through config keys the model doesn't know", () => {
     const model = buildAppModel(
-      { ...CONFIG, servicesMenu: { ...CONFIG.servicesMenu, myDashboard: "https://ops.example" } },
+      { ...CONFIG, servicesMenu: { myDashboard: "https://ops.example" } },
       { COUCHDB_PORT: "7660" },
     );
-    // An operator's own link survives…
     expect(model.servicesMenu.myDashboard).toBe("https://ops.example");
-    // …without letting their stale copy of a known key win.
     expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7660/_utils/");
   });
 });
