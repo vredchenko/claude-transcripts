@@ -5,7 +5,8 @@ import { join } from "node:path";
  * Generate deploy/k8s/base/ — a kustomize base — from the app model (services
  * topology). The Kubernetes manifests are a PROJECTION (toKubernetesObjects), the
  * sibling of deploy/docker-compose.yml: generated, not hand-maintained. Re-run after
- * changing the model's SERVICES.
+ * changing the model's SERVICES (release.ts re-runs it, as the app image is pinned to
+ * the root package.json version).
  *
  *   bun run scripts/gen-k8s.ts   (or: bun run gen:k8s)
  *
@@ -30,6 +31,11 @@ const model = buildAppModel(loadConfigFile(ROOT), process.env);
 // and a copy would be a second thing to keep in step.
 const files = { "./garage.toml": await Bun.file(join(ROOT, "deploy", "garage.toml")).text() };
 
+// The lockstep release (ADR 0023) the app image is pinned to; read here, the model stays pure.
+const { version: releaseVersion } = (await Bun.file(join(ROOT, "package.json")).json()) as {
+  version: string;
+};
+
 const header = (
   script: string,
 ) => `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
@@ -39,7 +45,7 @@ const header = (
 ${script}
 `;
 
-const objects = toKubernetesObjects(model, { files });
+const objects = toKubernetesObjects(model, { files, releaseVersion });
 
 // One file per service (by the app.kubernetes.io/name label); namespace first.
 // No anchors/aliases (`&a1`/`*a1` for the repeated label maps — valid, unreadable) and
@@ -89,5 +95,5 @@ const template = [
 await Bun.write(join(OUT, ".env.template"), template);
 
 console.log(
-  `[gen-k8s] wrote deploy/k8s/base/ (${byFile.size} manifests + kustomization + .env.template)`,
+  `[gen-k8s] wrote deploy/k8s/base/ (${byFile.size} manifests + kustomization + .env.template; app at v${releaseVersion})`,
 );

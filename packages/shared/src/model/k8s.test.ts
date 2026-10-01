@@ -8,6 +8,7 @@ import { buildAppModel } from "./build";
 import {
   K8S_ENV_SECRET,
   type KubernetesObject,
+  k8sReleaseTag,
   k8sSecretKeys,
   k8sVolumeName,
   k8sWorkloadServices,
@@ -28,7 +29,8 @@ const CONFIG: AppConfigFile = {
 
 const model = buildAppModel(CONFIG, {});
 const FILES = { "./garage.toml": "replication_factor = 1\n" };
-const objects = toKubernetesObjects(model, { files: FILES });
+const RELEASE = "1.2.3";
+const objects = toKubernetesObjects(model, { files: FILES, releaseVersion: RELEASE });
 const ofKind = (kind: string) => objects.filter((o) => o.kind === kind);
 const find = (kind: string, name: string) => ofKind(kind).find((o) => o.metadata.name === name);
 function named(kind: string, name: string): KubernetesObject {
@@ -97,10 +99,41 @@ describe("Kubernetes projection", () => {
   test("images are the pinned upstream (mirror-free) refs, or our own release image", () => {
     for (const s of k8sWorkloadServices(model)) {
       const image = container(named("Deployment", s.key)).image as string;
-      expect(image.endsWith(`:${s.image?.defaultTag}`)).toBe(true);
-      if (s.image?.upstream) expect(image.startsWith(`${s.image.upstream}:`)).toBe(true);
-      else expect(image).toContain(`/claude-transcripts-${s.image?.name}:`);
+      if (s.image?.upstream) {
+        expect(image).toBe(`${s.image.upstream}:${s.image.defaultTag}`);
+      } else {
+        expect(image).toEndWith(`/claude-transcripts-${s.image?.name}:v${RELEASE}`);
+      }
       expect(image).not.toContain("${");
+    }
+  });
+
+  test("the app image is pinned to the given release, and nothing runs on :latest", () => {
+    const app = container(named("Deployment", "app")).image as string;
+    expect(app).toEndWith(`/claude-transcripts-app:v${RELEASE}`);
+    for (const s of k8sWorkloadServices(model)) {
+      const image = container(named("Deployment", s.key)).image as string;
+      expect(image).toMatch(/:[^/:]+$/); // an explicit tag
+      expect(image.endsWith(":latest")).toBe(false);
+    }
+    const other = toKubernetesObjects(model, { files: FILES, releaseVersion: "0.9.0" });
+    const otherApp = other.find((o) => o.kind === "Deployment" && o.metadata.name === "app");
+    if (!otherApp) throw new Error("no app Deployment");
+    expect(container(otherApp).image).toEndWith(":v0.9.0");
+  });
+
+  test("the release version must be semver, so a bad input can't become a tag", () => {
+    expect(k8sReleaseTag("0.3.3")).toBe("v0.3.3");
+    expect(k8sReleaseTag("1.0.0-rc.1")).toBe("v1.0.0-rc.1");
+    for (const bad of ["", "latest", "v0.3.3", "0.3"]) {
+      expect(() => k8sReleaseTag(bad)).toThrow(/semver/);
+      expect(() => toKubernetesObjects(model, { files: FILES, releaseVersion: bad })).toThrow();
+    }
+  });
+
+  test("every workload pins imagePullPolicy, so none inherits the tag-dependent default", () => {
+    for (const s of k8sWorkloadServices(model)) {
+      expect(container(named("Deployment", s.key)).imagePullPolicy).toBe("IfNotPresent");
     }
   });
 
@@ -119,7 +152,7 @@ describe("Kubernetes projection", () => {
   test("read-only file mounts become ConfigMaps carrying the supplied content", () => {
     const cm = named("ConfigMap", "garage-config");
     expect((cm.data as Record<string, string>)["garage.toml"]).toBe(FILES["./garage.toml"]);
-    expect(() => toKubernetesObjects(model, {})).toThrow(/garage\.toml/);
+    expect(() => toKubernetesObjects(model, { releaseVersion: RELEASE })).toThrow(/garage\.toml/);
   });
 
   test("volume names are stable and readable", () => {

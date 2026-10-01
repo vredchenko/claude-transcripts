@@ -26,6 +26,7 @@ spec:
       containers:
         - name: garage-ui
           image: khairul169/garage-webui:1.1.0
+          imagePullPolicy: IfNotPresent
           env:
             - name: API_BASE_URL
               value: http://garage:3903

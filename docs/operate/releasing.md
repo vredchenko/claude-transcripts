@@ -53,7 +53,8 @@ git tag v0.1.0 && git push origin v0.1.0             # from main, once merged
 
 `scripts/release.ts <semver>` stamps the version into the root `package.json`, each
 `packages/*/package.json`, and the hook's `.claude-plugin/plugin.json` (ADR 0023);
-`--check` verifies they all match without writing. The tag is what CI reacts to — the
+`--check` verifies they all match without writing. Stamping also re-runs `gen:k8s`
+(the k8s base pins the app image to the release). The tag is what CI reacts to — the
 stamped manifests just keep the tree honest about which release it is.
 
 CI then builds + publishes all of the above. A **manual** `release-cli` /
