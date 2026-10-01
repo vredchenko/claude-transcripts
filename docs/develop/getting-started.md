@@ -32,8 +32,10 @@ bun run build
 bun run test
 ```
 
-CI runs exactly these four ([ci.yml](../../.github/workflows/ci.yml)); lefthook
-runs Biome on staged files at commit time. Nothing else gates a merge.
+Run these before pushing (lefthook runs Biome at commit). CI
+([ci.yml](../../.github/workflows/ci.yml)) also requires a clean `gen:clients` +
+`gen:all`, `check:contract`, `build:docs`, tests on the minimum Bun, and the
+Playwright suite.
 
 ## How the pieces fit
 
@@ -42,13 +44,14 @@ runs Biome on staged files at commit time. Nothing else gates a merge.
 | Path | What it is |
 |------|------------|
 | `hooks/` | A thin Claude Code **plugin wrapper**: `scripts/dispatch.ts` pipes each payload to `claude-transcripts hook run`. The writer itself is `packages/cli/src/hook/`. Installs per machine. |
-| `packages/webapi/` | Bun + Hono gateway. **The only thing that touches CouchDB or S3.** Serves the SPA and docs in production. |
+| `packages/webapi/` | Bun + Hono gateway. **Every app read of CouchDB or S3 goes through it**; only the hook (recording) and `setup`/`provision` (creating stores) touch them directly. Serves the SPA and docs in production. |
 | `packages/webui/` | React + Vite + MUI SPA. Optional. |
 | `packages/cli/` | Bun + Ink CLI — user-facing *and* the admin utility (`setup`, `doctor`, `backfill`, export/import). Optional. |
-| `packages/shared/` | The app model (central state), cross-cutting types, token accounting. |
+| `packages/shared/` | The app model (central state, incl. `CLI_SPEC`), the migrations framework, cross-cutting types, token accounting. |
 | `scripts/` | Dev-only automation. Not shipped to users. |
 | `config/` | Non-secret deployment config (`config.template.json` → `config.json`). |
-| `deploy/` | Compose stack for the backing services. |
+| `deploy/` | Compose stack for the backing services (and a generated k8s base). |
+| `tests/` | End-to-end and Playwright browser suites, and a mock Claude Code. |
 
 ## Rules worth knowing before your first change
 
@@ -79,7 +82,7 @@ These are the ones that bite if you don't know them — the full set is in
 
 Branch off `main`, open a PR, merge back — [branching.md](branching.md) and
 [ADR 0026](../design/decisions/0026-single-main-branch.md). Generated artefacts
-(API clients, compose, hook-event tables, compatibility matrix) are regenerated
+(API clients, compose, hook-event tables, the CLI reference) are regenerated
 by the scripts in [dev-automation.md](dev-automation.md), not edited by hand.
 
 ## Next

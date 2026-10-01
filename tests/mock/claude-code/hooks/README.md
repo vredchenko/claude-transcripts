@@ -57,7 +57,7 @@ Where an event has meaningful variation, we keep **several** files. Common axes:
 
 Robustness payloads not tied to one event — empty objects, missing common fields,
 wrong types, oversized content, unknown/future event names. The dispatcher must
-**never crash a session** ([CLAUDE.md key invariants]), so these assert graceful
+**never crash a session** ([CLAUDE.md key invariants](../../../../CLAUDE.md#key-invariants)), so these assert graceful
 skips.
 
 ## Provenance: synthetic vs. real
@@ -80,6 +80,7 @@ skips.
 
 ## Using fixtures in tests
 
-Load a file, feed it to `dispatch.ts` (or a handler) as stdin, and assert on the
+Load a file, feed it to `claude-transcripts hook run` (or a handler in
+`packages/cli/src/hook/`) as stdin, and assert on the
 CouchDB/S3 effects. Keep assertions tolerant of placeholder values; assert on
 **shape and behaviour**, not on the synthetic ids.

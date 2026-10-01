@@ -12,9 +12,11 @@ gate ([../../docs/develop/testing.md](../../docs/develop/testing.md)).
   `sliceIntoChunks`, `chunkDocId`) so they can't drift from the app's accounting.
   Parameterised by `prompts`, `tools`, `errors`, and `sidechains`.
 - **`e2e.test.ts`** — POSTs those through the webapi and asserts via the reader,
-  across three scenarios: a **baseline** session, a **large** session that spans
-  more than one transcript chunk, and one with **subagent (sidechain)**
-  sub-transcript entries (counted in the transcript, absent from the rollups).
+  across four scenarios: a **baseline** session, a **large** session that spans
+  more than one transcript chunk, one with **subagent (sidechain)**
+  sub-transcript entries (counted in the transcript, absent from the rollups), and
+  an **incomplete** session (events + transcript, no summary) that must still
+  surface. It also checks that re-ingesting a summary is idempotent.
 
 For an interactive single-session smoke test of the same path, use the CLI:
 `claude-transcripts doctor` (see `packages/cli`).
@@ -25,19 +27,17 @@ For an interactive single-session smoke test of the same path, use the CLI:
 run the e2e suite by explicit path:
 
 ```bash
-bun run stack:up        # bundled CouchDB + Garage (+ admin UIs), dev port range
-bun run dev:webapi      # webapi gateway on :7650  (separate shell)
-bun run test:e2e        # === bun test tests/e2e
+bun run stack:up:upstream   # bundled CouchDB + Garage + Meilisearch (+ admin UIs)
+bun run dev:webapi          # webapi gateway on :7650  (separate shell)
+bun run test:e2e            # === bun test ./tests/e2e/*.test.ts
 ```
 
 Point at a different gateway with `CT_WEBAPI_URL`. The suite **self-skips** (it
 does not fail) when the webapi is unreachable, so it is safe to run in any
-environment; CI runs it against the dev stack.
+environment. CI has no stack, so doesn't run it — run it locally when touching the
+write or read path.
 
 ## Scenario coverage
 
-Done: baseline, large multi-chunk content, subagent sidechain entries. Still to
-add: resumes, crashed/`incomplete` sessions (needs the reader to surface
-sessions with no `summary` doc — see the TODO in `routes/sessions.ts`), and
-`backfill` parity (adopted on-disk history matching live-recorded shape). Each is
-a new `synth*` variant or option fed through the same assertions.
+Still to add: resumes and `backfill` parity — each a new `synth*` variant through the
+same assertions.

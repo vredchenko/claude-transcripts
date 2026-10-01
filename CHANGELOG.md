@@ -6,6 +6,14 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The plugin no longer warns at every session start** (`hooks.json: unknown key
+  "_generated" ignored`). `gen:hooks` drops the key; the "generated" notice lives in
+  `hooks/README.md` ([#169]).
+
 ## [0.3.2] — 2026-09-12
 
 One fix, from verifying the last release: `backfill --dry-run` was read-*nothing*
@@ -1509,6 +1517,8 @@ of them had ever executed:
 [#157]: https://github.com/vredchenko/claude-transcripts/issues/157
 [#158]: https://github.com/vredchenko/claude-transcripts/issues/158
 [#161]: https://github.com/vredchenko/claude-transcripts/issues/161
+[#169]: https://github.com/vredchenko/claude-transcripts/issues/169
+[Unreleased]: https://github.com/vredchenko/claude-transcripts/compare/v0.3.2...main
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
 [0.3.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.0

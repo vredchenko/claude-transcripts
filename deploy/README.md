@@ -34,7 +34,7 @@ Two ways to source the backing-service images:
 
 1. **Mirror (default / deploy)** — pulled from the GitHub Container Registry
    (GHCR) namespace `${IMAGE_NS}` (e.g. `ghcr.io/OWNER`), pinned:
-   `claude-transcripts-{couchdb,garage,garage-ui,meilisearch,meilisearch-ui,app}`.
+   `claude-transcripts-{couchdb,garage,garage-ui,meilisearch,meilisearch-ui}`.
    Mirror them once: `IMAGE_NS=ghcr.io/OWNER bun run scripts/mirror-images.ts`.
 2. **Upstream (`--upstream`, zero-setup dev)** — pulls the canonical **public**
    images directly (`couchdb`, `dxflrs/garage`, `getmeili/meilisearch`, + community
@@ -43,8 +43,9 @@ Two ways to source the backing-service images:
 
 Both compose files are **generated from the app model** (`bun run gen:compose` +
 `gen:compose-override`); the upstream image for each service is the `image.upstream`
-field in `packages/shared/src/model/services.ts`. The app image is always built +
-published by the `publish-image` workflow on a `vX.Y.Z` tag (no upstream).
+field in `packages/shared/src/model/services.ts`. The app image is built + published
+by the `publish-image` workflow (no upstream; tags in
+[development.md](../docs/develop/development.md#releases)).
 
 ## Ports (dev range `7650–7661`)
 
@@ -75,11 +76,6 @@ removed "admin party" and will not start without an admin. Garage also needs
 
 ## One-time Garage bootstrap
 
-Garage needs a layout, a bucket, and an app S3 key before first use (the S3
-protocol always signs requests — "no auth" means we provide a default key, not
-keyless). After `stack:up`:
-
-1. Assign a node layout, create the `claude-transcripts-sessions` bucket, create a key,
-   grant it access (a `setup` automation will wrap this; until then see the
-   [Garage quick-start](https://garagehq.deuxfleurs.fr/documentation/quick-start/)).
-2. Put the key into `.env` (`S3_ACCESS_KEY` / `S3_SECRET_KEY`).
+Garage needs a layout, bucket and app key before first use. After `stack:up`, run
+`bun run bootstrap:garage` (idempotent; writes `S3_ACCESS_KEY`/`S3_SECRET_KEY` into
+`.env`). By hand: [README step 4](../README.md#4-one-time-garage-bootstrap-create-the-bucket--an-app-key).

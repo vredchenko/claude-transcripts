@@ -12,12 +12,8 @@ scoped `@claude-transcripts/*`; app-specific env vars use the `CT_` prefix
 
 ## Components
 
-- `packages/@claude-transcripts/{shared, webapi, webui, cli}` — the custom components
-  (`cli` is the user-facing tool).
-- `hooks/` — the Claude Code plugin (writer).
-- `scripts/` — **dev-only** automation; **`cli/`** — user-useful operations.
-  (Rule: dev-only → `scripts/`; user-useful → `cli/`. There is no `tools/` dir.)
-- `deploy/` — Docker Compose (backing services + admin UIs).
+- Component map: [getting-started.md](getting-started.md#how-the-pieces-fit). Rule:
+  dev-only → `scripts/`; user-useful → `packages/cli/`; there is no `tools/` dir.
 
 ## Ports (dev range `7650–7661`)
 
@@ -30,7 +26,8 @@ scoped `@claude-transcripts/*`; app-specific env vars use the `CT_` prefix
 | 7654 | Garage admin API |
 | 7655 | Garage web UI |
 | 7656 | Meilisearch (+ built-in UI) |
-| 7657–7661 | reserved |
+| 7657 | Meilisearch UI |
+| 7658–7661 | reserved |
 
 ## Stack
 

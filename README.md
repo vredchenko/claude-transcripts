@@ -185,6 +185,9 @@ bun run dev:webapi     # http://127.0.0.1:7650  — creates the CouchDB DBs + vi
 bun run dev:webui      # http://127.0.0.1:7651/app/
 ```
 
+With an installed instance also running, set `WEBAPI_PORT=7650` in `.env` so the dev
+webui and `bun run cli` use this webapi.
+
 **Or as a container** (the full stack, app image built locally from this repo):
 
 ```bash
@@ -198,8 +201,9 @@ bun run stack:up:local   # = stack up --build --upstream: builds + runs the app 
 bun run cli doctor
 ```
 
-Expect all checks ✓ — it writes one synthetic session through the webapi and reads
-it back (verifying CouchDB + S3 are wired). Then list it: `bun run cli sessions`.
+Expect all checks ✓ — it writes one synthetic session through the webapi, reads
+it back (verifying CouchDB + S3 are wired), then deletes it again. To see it in
+`bun run cli sessions` afterwards, run `bun run cli doctor --keep`.
 
 ### 7. Record real sessions — install the hook
 
@@ -244,19 +248,20 @@ Everything below is for working **on** Claude Transcripts, not just running it.
 
 | Component | Path | Role |
 |-----------|------|------|
-| **hooks** | `hooks/` | Claude Code plugin (writer). Logs sessions; installs per machine. |
+| **hooks** | `hooks/` | Claude Code plugin: a thin shim that pipes each hook event to `claude-transcripts hook run`. Installs per machine. |
 | **webapi** | `packages/webapi/` | Bun + Hono gateway: the single I/O surface; serves the SPA in prod. |
 | **webui** | `packages/webui/` | React + MUI SPA (optional). |
-| **cli** | `packages/cli/` | Bun + Ink user-facing tool + admin utility (optional). |
-| **shared** | `packages/shared/` | The app model (central state) + cross-cutting types + token accounting. |
+| **cli** | `packages/cli/` | Bun + Ink user-facing tool + admin utility, and the writer (`hook run` records sessions). |
+| **shared** | `packages/shared/` | The app model (central state, incl. the CLI spec) + migrations framework + cross-cutting types + token accounting. |
 | **scripts** | `scripts/` | Dev-only automation (client gen, image mirroring, release). |
-| **deploy** | `deploy/` | Docker Compose: CouchDB + Garage + Meilisearch + admin UIs. |
+| **deploy** | `deploy/` | Docker Compose: CouchDB + Garage + Meilisearch + admin UIs; `deploy/k8s/` kustomize base. |
+| **tests** | `tests/` | End-to-end + Playwright browser suites, and a mock Claude Code. |
 
 ### Container-based deploy
 
 For a container deploy (rather than running on the host), the combined **app**
-image (`claude-transcripts-app`, webapi + prebuilt webui SPA) is published to GHCR
-by the `publish-image` GitHub Actions workflow on a `vX.Y.Z` tag
+image (`claude-transcripts-app`) is published to GHCR by the `publish-image` workflow
+— `:vX.Y.Z` + `:latest` per release, `:main` per push to `main`
 ([ADR 0023](docs/design/decisions/0023-lockstep-versioning-and-combined-image.md)). The
 default (non-`--upstream`) stack mode pulls mirrored backing images from your own
 `${IMAGE_NS}` registry; `--upstream` uses public upstream images instead.
