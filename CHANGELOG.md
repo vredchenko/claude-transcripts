@@ -29,6 +29,12 @@ flags, and docs that had drifted from what ships.
 - **The plugin no longer warns at every session start** (`hooks.json: unknown key
   "_generated" ignored`). `gen:hooks` drops the key ([#169]).
 
+### Security
+
+- **Dependencies with high-severity advisories are lifted** past their fixes: axios
+  1.20.0 and qs 6.16.0 (both via `nano`, pinned with root `overrides`) and hono 4.13.12.
+  The image scan had started failing on them ([#180]).
+
 ### Changed
 
 - **Docs match the code.** CLAUDE.md, the README, the start/develop guides, the
@@ -1547,6 +1553,7 @@ of them had ever executed:
 [#176]: https://github.com/vredchenko/claude-transcripts/issues/176
 [#177]: https://github.com/vredchenko/claude-transcripts/issues/177
 [#178]: https://github.com/vredchenko/claude-transcripts/issues/178
+[#180]: https://github.com/vredchenko/claude-transcripts/issues/180
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
