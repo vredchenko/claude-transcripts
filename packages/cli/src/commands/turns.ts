@@ -19,7 +19,7 @@ import {
   type SpeakerRole,
   type SpeakerTurn,
 } from "../api/generated";
-import { setWebapiUrl, webapiUrl } from "../api/http";
+import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 import { num, project, row, stdoutColumns, when } from "../lib/format";
 
@@ -129,9 +129,7 @@ export async function runTurns(argv: string[]): Promise<number> {
     return 0;
   } catch (err) {
     console.error(`turns: failed — ${(err as Error).message}`);
-    console.error(
-      `turns: is the webapi reachable at ${webapiUrl()}? (set --webapi or $CT_WEBAPI_URL)`,
-    );
+    console.error(unreachableHint("turns"));
     return 1;
   }
 }

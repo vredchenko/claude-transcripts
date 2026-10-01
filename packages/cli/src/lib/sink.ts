@@ -107,6 +107,15 @@ export class DryRunSink implements SessionSink {
     this.reader = reader;
   }
 
+  /**
+   * Stop asking: the caller already knows the store cannot answer (a failed probe), so
+   * a request per session would only add a timeout per session to a guess.
+   */
+  goBlind(): void {
+    this.reader = null;
+    this.blind = true;
+  }
+
   /** The read sink, built on first use so an unreachable instance can't break construction. */
   private reads(): SessionSink | null {
     if (this.reader === undefined) {

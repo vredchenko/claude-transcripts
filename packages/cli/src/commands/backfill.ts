@@ -49,7 +49,7 @@
  * NOTE at the end + docs/operate/tools.md).
  */
 import { hostname } from "node:os";
-import { webapiUrl } from "../api/http";
+import { isConnectionError, unreachableHint, webapiReachable, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 import { defaultProjectsDir, discoverTranscripts, readTranscript } from "../lib/claude-fs";
 import { buildChunkDocs, buildEventDocs, buildSummaryDoc } from "../lib/session-docs";
@@ -161,6 +161,17 @@ export async function runBackfill(argv: string[]): Promise<number> {
 
   const who = `host=${host}${actor ? `, actor=${actor}` : ""}`;
   console.log(`backfill: scanning ${root} → ${sink.label}${dryRun ? " (dry-run)" : ""}  [${who}]`);
+  // A preview's plan turns on what is stored: if the webapi is not there, say so before
+  // the plan rather than after it, where it is easy to scroll past.
+  const probedBlind = sink instanceof DryRunSink && !(await webapiReachable());
+  if (probedBlind) {
+    sink.goBlind();
+    console.warn(
+      "backfill: WARNING — this preview cannot see what is already stored; " +
+        "the plan below assumes nothing is.",
+    );
+    console.warn(unreachableHint("backfill"));
+  }
   const found = await discoverTranscripts(root);
   console.log(`backfill: ${found.length} transcript(s) found`);
   if (repair) {
@@ -184,6 +195,8 @@ export async function runBackfill(argv: string[]): Promise<number> {
   let written = 0;
   let skipped = 0;
   let failed = 0;
+  /** Failures that never got an answer from the webapi — the ones a URL hint can fix. */
+  let unreachable = 0;
   let sidechains = 0;
   let reprocessed = 0;
   let refusedLive = 0;
@@ -265,13 +278,15 @@ export async function runBackfill(argv: string[]): Promise<number> {
       written++;
     } catch (err) {
       failed++;
+      if (isConnectionError(err)) unreachable++;
       console.error(`  ! ${t.sessionId}: ${(err as Error).message}`);
     }
   }
 
-  // A preview that could not read the store guessed, and has to say so — reporting
-  // every session as new is exactly the bug this replaced.
-  if (sink instanceof DryRunSink && sink.blind) {
+  // A preview that lost the store mid-run guessed, and has to say so — reporting every
+  // session as new is exactly the bug this replaced. (Unreachable from the start was
+  // already said above.)
+  if (sink instanceof DryRunSink && sink.blind && !probedBlind) {
     console.warn(
       `backfill: WARNING — could not read ${webapiUrl()}, so this preview assumed nothing ` +
         "is stored yet. A real run will skip whatever is already there; re-run the " +
@@ -284,11 +299,18 @@ export async function runBackfill(argv: string[]): Promise<number> {
       `${skipped} skipped${refusedLive ? ` (${refusedLive} live, not replaced)` : ""}, ` +
       `${failed} failed`,
   );
-  console.log(
-    "backfill: NOTE — summary + per-event markers + chunk docs reconstructed" +
-      `${sidechains ? `; subagent sub-transcripts (${sidechains} session(s) have them) still TODO` : ""}` +
-      " (see docs/operate/tools.md).",
-  );
+  // Once, not per session: the same URL and remedy repeated for every transcript on the
+  // machine buries the one line that says how to fix it.
+  if (unreachable) console.error(unreachableHint("backfill"));
+  // Only about sessions that were actually (re)built — after a run that built nothing it
+  // reads as though something was.
+  if (written || repaired) {
+    console.log(
+      "backfill: NOTE — summary + per-event markers + chunk docs reconstructed" +
+        `${sidechains ? `; subagent sub-transcripts (${sidechains} session(s) have them) still TODO` : ""}` +
+        " (see docs/operate/tools.md).",
+    );
+  }
   if (reprocessed && !dryRun) {
     // Re-ingest overwrites the search entries it regenerates, but turns belonging to
     // chunks that no longer exist stay indexed until a rebuild — `reindex` is the

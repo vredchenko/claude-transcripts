@@ -15,7 +15,7 @@ import {
   type SessionSummary,
   type TranscriptEntry,
 } from "../api/generated";
-import { setWebapiUrl, webapiUrl } from "../api/http";
+import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { type ParsedArgs, parseFlags, strOpt } from "../lib/args";
 import { num, pad, padL, project, row, when } from "../lib/format";
 
@@ -248,9 +248,7 @@ export async function runSessions(argv: string[]): Promise<number> {
     return id ? await showDetail(id, limit, json) : await showList(limit, json, filters);
   } catch (err) {
     console.error(`sessions: failed — ${(err as Error).message}`);
-    console.error(
-      `sessions: is the webapi reachable at ${webapiUrl()}? (set --webapi or $CT_WEBAPI_URL)`,
-    );
+    console.error(unreachableHint("sessions"));
     return 1;
   }
 }

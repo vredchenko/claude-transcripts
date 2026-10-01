@@ -103,6 +103,59 @@ export function webapiUrl(): string {
   return base();
 }
 
+/**
+ * The line a command prints when it could not get an answer from the webapi: where it
+ * looked, and the two ways to point it somewhere else. One wording for every command, so
+ * the remedy reads the same whichever one hit it.
+ */
+export function unreachableHint(command: string): string {
+  return `${command}: is the webapi reachable at ${webapiUrl()}? (set --webapi or $CT_WEBAPI_URL)`;
+}
+
+/**
+ * Socket-level failure codes: Bun's own names, then the Node/undici ones a different
+ * runtime or a future Bun might surface instead.
+ */
+const CONNECTION_CODES = new Set([
+  "ConnectionRefused",
+  "ConnectionClosed",
+  "FailedToOpenSocket",
+  "UnableToConnect",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ETIMEDOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+]);
+
+/**
+ * Did this error come from failing to reach the webapi at all, rather than from an
+ * answer it gave? The distinction decides whether "is it reachable at <url>?" is the
+ * right thing to ask the user — a 500 with a message already says what went wrong.
+ */
+export function isConnectionError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === "string" && CONNECTION_CODES.has(code)) return true;
+  return err.name === "TimeoutError" || err.message.startsWith("Unable to connect");
+}
+
+/**
+ * One `GET /health`: does anything answer at the webapi URL? Any HTTP response counts
+ * — this asks whether there is a webapi to talk to, not whether it is well.
+ */
+export async function webapiReachable(timeoutMs = 3000): Promise<boolean> {
+  try {
+    await fetch(`${base()}/health`, { signal: AbortSignal.timeout(timeoutMs) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** orval mutator: perform the request and return the parsed JSON body as `T`. */
 export async function customFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base()}${url}`, init);
