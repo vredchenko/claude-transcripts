@@ -210,9 +210,8 @@ browser, point the keys wherever the dashboards live:
 "servicesMenu": { "couchdbFauxton": "https://couch.example.org/_utils/" }
 ```
 
-The template ships this empty. An existing `config/config.json` copied from an older
-template still carries its `127.0.0.1` URLs, and those now win — delete or edit them if
-your ports differ. CouchDB document and design-view links don't depend on any of this:
+The template ships this empty. Older templates shipped the default-port links; an entry
+still equal to one of those is ignored, so a copied config follows your ports. CouchDB document and design-view links don't depend on any of this:
 they go through the webapi's read-only `/api/couch` proxy.
 
 ## Design goal: everything configurable
