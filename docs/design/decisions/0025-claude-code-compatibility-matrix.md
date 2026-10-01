@@ -4,7 +4,8 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-09-30: not generated yet — `scripts/regenerate-compatibility.ts`
+is a stub and its `compatibility.json` output is gitignored.
 
 ## Context
 

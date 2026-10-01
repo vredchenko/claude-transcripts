@@ -65,7 +65,8 @@ not replacing the source of truth.
 Meilisearch fits the **human + lexical** search need well: fast, typo-tolerant,
 easy to self-host, good DX, and recent **hybrid (lexical + vector)** support. As a
 **per-node derived index fed by `_changes`** (not replicated, rebuildable from
-CouchDB) it matches the intended design, and ADR 0009 already keeps it `Proposed`.
+CouchDB) it matches the intended design, which
+[ADR 0009](decisions/0009-meilisearch-search.md) accepted.
 
 But Tier-2's "agents recall / self-learn from history" is fundamentally a
 **semantic retrieval** workload, and the competitor study is clear that this lane
@@ -77,8 +78,7 @@ enough for that.
 **Recommendation:**
 
 - **Keep Meilisearch** as the lexical/human search backend (or swap for
-  **Typesense** — a near drop-in with comparable hybrid/faceting; the pending
-  ADR 0009 eval).
+  **Typesense** — a near drop-in; ADR 0009 chose Meilisearch without that eval).
 - **Expect to add a vector index** (lean **Qdrant** for a service, or **LanceDB**
   for an embedded/low-footprint option) for Tier-2 agent retrieval, possibly
   alongside Meilisearch.

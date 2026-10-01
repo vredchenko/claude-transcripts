@@ -73,8 +73,9 @@ Docker volumes keep the actual data, so reinstalling never touches history.
 ## Command surface
 
 ```
-claude-transcripts install      [--yes] [--no-hook] [--port-base N] [--dir PATH] [--version V]
-claude-transcripts uninstall    [--purge]
+claude-transcripts install      [--port-base N] [--meili-key] [--no-hook] [--no-statusline]
+                                [--no-app] [--no-prune] [--skip-preflight] [--yes]
+claude-transcripts uninstall    [--purge] [--yes]
 claude-transcripts upgrade      NOT IMPLEMENTED — see below
 claude-transcripts doctor
 ```
@@ -94,11 +95,13 @@ claude-transcripts doctor
 makes the whole thing resumable and debuggable:
 
 ```
-claude-transcripts stack up|down|logs|ps      wraps docker compose (today: scripts/stack.ts)
+claude-transcripts stack up|down|restart|logs|ps   wraps docker compose
 claude-transcripts provision                  stores: couch dbs + migrations, garage, meili
 claude-transcripts hook install|uninstall|status
-claude-transcripts config init|show|edit
 ```
+
+`config init|show|edit` is not built; `install` seeds `app.json`, which is edited by
+hand.
 
 Moving `stack` and `provision` out of `scripts/` and into the CLI is required anyway:
 `scripts/` is dev-only by the repo's own rule, and a user has no `scripts/`.
@@ -122,8 +125,8 @@ migrations move together under lockstep versioning
 ([ADR 0023](decisions/0023-lockstep-versioning-and-combined-image.md)).
 
 **2. Configure.** Generate `instance.env`: random CouchDB admin password, Garage RPC
-secret, admin and metrics tokens, and — unlike today's dev default — a Meilisearch
-master key. Resolve the port block, honouring what's actually free. Write
+secret, admin and metrics tokens, and — only with `--meili-key` — a Meilisearch master
+key (keyless is the default; see [Decisions](#decisions)). Resolve the port block, honouring what's actually free. Write
 `config.json` from the template. One generated file is the source of truth for
 ports and secrets; nothing else may hold a second copy.
 
@@ -248,10 +251,10 @@ verified, refusing to run on an unsupported platform, and idempotent.
 3. **`install` runs the app container.** Users get the combined image
    ([ADR 0023](decisions/0023-lockstep-versioning-and-combined-image.md)); the
    host-run webapi stays the contributor path.
-4. **One instance per machine.** Ports, container names, the data dir and Meilisearch
-   index names are all unnamespaced, and staying that way keeps install simple.
-   Multi-instance would need all four namespaced — see
-   [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md) for the index half.
+4. **One instance per machine.** Ports, container names and the data dir are
+   unnamespaced; Meilisearch index names are configurable (`meilisearch.indexes`,
+   [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)) but default to the
+   same names. Multi-instance would need all of these set per instance.
 
 ### Consequences worth naming
 

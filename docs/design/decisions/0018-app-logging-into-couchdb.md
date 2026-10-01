@@ -4,7 +4,8 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted
+Accepted, not yet implemented. Amended 2026-09-30 — see
+[Amendment](#amendment-nothing-writes-the-app-logs-database-yet).
 
 ## Context
 
@@ -39,3 +40,12 @@ operational log/error records there, through the webapi (per
   the hook already does for session writes.
 - If a separate store ever suits operational logs better, the abstraction lives
   behind the webapi and can be swapped without touching emitters.
+
+## Amendment: nothing writes the app-logs database yet
+
+*2026-09-30.*
+
+Not built yet. The webapi creates the app-logs DB at boot (as it does every
+`couchdb.databases` entry), but nothing writes to it: the `app-log` action is
+`implemented: false` and there is no ingest route. Components log to stderr (the webui
+to the console). Schema: [app-logging.md](../../operate/app-logging.md).

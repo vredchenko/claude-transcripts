@@ -25,8 +25,9 @@ the document/blob shapes. See [routes.md](../reference/routes.md) and [tiers.md]
 |------|-----------|
 | `hooks/` | Claude Code plugin wrapper. `hooks/scripts/dispatch.ts` pipes each hook payload to `claude-transcripts hook run` and always exits 0; it holds no logging code. The writer — events/summaries to CouchDB, transcript blobs to S3, written **directly** so a session is never lost to a webapi outage ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)) — is `packages/cli/src/hook/`. |
 | `packages/shared/` | The app model + cross-cutting types + `sumTranscriptTokens`. Imported by the webapi and by the CLI's hook — one copy, no duplication. |
-| `packages/webapi/` | Hono + Bun read API. Auto-creates the CouchDB DB + design docs on boot. Reads sessions/transcripts; serves the built SPA in prod. |
+| `packages/webapi/` | Hono + Bun gateway. Creates the CouchDB databases and applies pending migrations on boot; serves reads and the curated writes ([routes.md](../reference/routes.md)); serves the SPA and static docs in prod. |
 | `packages/webui/` | React + Vite + MUI SPA. Session list, detail, transcript viewer. |
+| `packages/cli/` | Bun + Ink CLI (`claude-transcripts`): the hook's writer (`src/hook/`), install/provisioning, and read/admin commands ([cli.md](../reference/cli.md)). Reads and admin go through the webapi; only the hook (writes) and provisioning (store setup) bypass it. |
 | `deploy/` | docker-compose stack (CouchDB + Garage + Meilisearch + app). |
 
 ## Data model (CouchDB `claude-transcripts-sessions`)
@@ -34,8 +35,13 @@ the document/blob shapes. See [routes.md](../reference/routes.md) and [tiers.md]
 - **event docs** (`type: "event"`) — one per hook event, POSTed live.
 - **summary docs** (`_id: "summary:<sessionId>"`, `type: "summary"`) — written at
   `SessionEnd`, carrying counts, `tool_counts`, `token_usage`, and
-  `transcript_bytes` (the transcript's size; its content lives in S3 only — never
-  in CouchDB, see [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)).
+  `transcript_bytes` (the transcript's size; the transcript *file* lives in S3 only,
+  never as a CouchDB attachment, see [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)).
+- **chunk docs** (`type: "chunk"`) — written mid-session, one per slice of up to
+  `maxEntriesPerChunk` entries; with `couchFullContentChunks` (default on) they carry
+  the parsed turns (`schema_version: 2`,
+  [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)), so a live session can
+  be read before `SessionEnd`.
 
 Design docs (owned by the migrations in `packages/shared/src/migrations/`, applied at webapi boot):
 
@@ -62,8 +68,9 @@ from a session left open in a terminal.
 
 ## Storage decisions
 
-- **CouchDB** — document store + map/reduce views (event + summary docs only;
-  transcript bytes never go in CouchDB).
+- **CouchDB** — document store + map/reduce views (event, summary and chunk docs;
+  chunk docs carry per-turn content, but the transcript file itself never goes in
+  CouchDB).
 - **Garage** — vendor-neutral S3 for durable transcript/summary blobs. Accessed
   via Bun's built-in `S3Client`, so MinIO / R2 / AWS work by changing env only.
 - **Meilisearch** — full-text search over session metadata *and* conversation

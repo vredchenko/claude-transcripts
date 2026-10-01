@@ -1,19 +1,18 @@
 # Notes — mid-flight transcript chunking (issue #4, P1)
 
-> **Status: implemented (metadata chunks).** The shared byte-faithful slicer
-> (`@claude-transcripts/shared` `sliceIntoChunks` — one copy, imported directly since
-> the CLI became the hook) is live: `backfill` reconstructs `chunk`
+> **Status: implemented, including full-content chunks.** The shared byte-faithful
+> slicer (`@claude-transcripts/shared` `sliceIntoChunks` — one copy, imported directly
+> since the CLI became the hook) is live: `backfill` reconstructs `chunk`
 > docs, and the hook's `flush-transcript-chunk` tails the transcript incrementally
 > (byte-offset + lock state in `/tmp`, gated behind `features.midFlightChunking`).
-> Both produce identical byte boundaries. **Still deferred:** embedding the pruned
-> `entries[]` when `couchFullContentChunks` is on (chunks are metadata-only for
-> now), and the time-based flush's content-view fast-follow.
+> Both produce identical byte boundaries. With `couchFullContentChunks` on, both also
+> embed the pruned `entries[]`, and the webapi reads turns from them
+> ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). **Still deferred:**
+> the content-feature views (`features/urls` and friends).
 
-Working notes for the logging rework. **In place of an ADR for now** (owner deferred
-the ADR — see issue #4 thread). When the dust settles this should be promoted to an
-ADR superseding **0014** ("transcripts live in S3 only"), because it deliberately
-changes that: CouchDB now also carries transcript *content* (chunked), while S3
-remains the byte-faithful escrow.
+Working notes for the logging rework; the decision is
+[ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md) (narrows 0014). These
+notes keep the design detail.
 
 ## What changed
 
@@ -51,7 +50,7 @@ un-flushed delta, not the whole session).
   whichever first. `Stop` and `SessionEnd` always force a flush. Below the threshold
   the offset is **not** advanced (the delta waits in the file).
 - **Concurrency:** hook events spawn separate processes that race on the offset. A
-  `O_EXCL` lockfile (`/tmp/claude-transcripts-<sessionId>.chunk.lock`, stale after 30s) guards the
+  `O_EXCL` lockfile (`/tmp/claude-transcripts-<sessionId>.chunklock`, stale after 30s) guards the
   read→write→advance critical section; if the lock is held the flush is **skipped**
   and the delta is caught on the next flush / at `SessionEnd`.
 - **Chunk doc** (`chunk:<sessionId>:<byteStart padded to 12>`):
@@ -59,7 +58,8 @@ un-flushed delta, not the whole session).
   {
     "type": "chunk", "session_id": "<cc id>",
     "byte_start": 10240, "byte_end": 10752, "entry_count": 8,
-    "timestamp": "…", "hostname": "…", "cwd": "…", "schema_version": 1,
+    "timestamp": "…", "hostname": "…", "cwd": "…", "source": "live",
+    "schema_version": 2, // 1 for a byte-range-only chunk (no entries)
     "entries": [ /* parsed, pruned JSONL entries — only when couchFullContentChunks */ ]
   }
   ```
@@ -74,15 +74,16 @@ un-flushed delta, not the whole session).
   On `resume`/`compact` with no `/tmp` state, offset starts at the current file size
   (prior content was already chunked in the earlier run of the same session id).
 
-## Feature flags (in `claude-transcripts.config.json`, both default `false`)
+## Feature flags (`features.*` in the app config, both default `true`)
 
-- `features.midFlightChunking` — master switch for the `chunk-flush` handler. Off ⇒
-  exact current behaviour (nothing new runs).
+- `features.midFlightChunking` — master switch for the `flush-transcript-chunk`
+  handler. Off ⇒ nothing is chunked mid-session; only the `SessionEnd` summary + S3
+  upload run.
 - `features.couchFullContentChunks` — when on, chunk docs carry the `entries` content;
   when off, they're light markers (offsets + counts only).
 
-To enable in a deployment, set both `true` in the runtime config and re-run
-`claude-transcripts setup` / `install` (they write the hook's runtime config).
+To change them, edit the instance's `app.json` (`~/.config/claude-transcripts/`) or
+`config/config.json` in a checkout, then re-run `install` / `setup`.
 
 ## Views (added through a migration — `packages/shared/src/migrations/`)
 
@@ -90,6 +91,8 @@ To enable in a deployment, set both `true` in the runtime config and re-run
   for ordered reassembly of a session's content from its chunks.
 - `chunks/entry_count_by_session` — `session_id → Σ entry_count` (`_sum`): how much
   content was chunked into Couch for a session.
+- `chunks/entries_by_session` and the `speaker_split` views read the embedded
+  `entries[]` (per-turn reads, [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)).
 - `features/urls` (and other content-feature views) is **deferred to the fast-follow**
   — a regex map view can't be validated here without running CouchDB, so it isn't
   committed in this pass.
@@ -111,9 +114,8 @@ byte-faithful to their slice, which keeps them append-only and replication-safe.
 
 - **Reconciliation sweep** for stale `running` sessions (chunks/S3 → summary) — fold
   into the `backfill` tool (#6) or a light `SessionStart` sweep.
-- **Reader**: webapi serving a partial/live transcript from chunks for still-running
-  sessions + a feature-view route; webui live indicator.
+- **Feature-view route** once the feature views exist.
 - **Feature views**: `features/urls` first (validate the regex map against CouchDB),
   then repos/PRs/issues/`/`-commands/models.
-- **smoke-test.ts** coverage for the chunk path.
-- **Promote these notes to an ADR** superseding 0014.
+- **Test the hook's live `flush-transcript-chunk`** (`doctor` covers chunk docs via
+  ingest only).

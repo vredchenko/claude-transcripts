@@ -116,9 +116,9 @@ Everything required to run this as shared, multi-party, public-facing software:
 - **Multiplayer** — true multi-party history via CouchDB's masterless
   multi-master replication ([#15](roadmap.md)); the append-only/immutable
   document model in Tier 1 is what makes this *additive* rather than a rewrite.
-- **Public release** packaging — a single combined container that serves the
-  **static HTML docs**, the **Swagger** spec, the **webui**, and the **webapi**
-  together ([containers.md](../operate/containers.md)).
+- **Public release** packaging — the combined container (docs, Scalar, webui, webapi,
+  CLI) already ships ([containers.md](../operate/containers.md)); Tier 3 adds
+  public-release hardening.
 - **Auth / security / isolation** — introduced here, not before.
 - **Hook drift automation** — CI that checks the codebase's Claude Code hook list
   against an external source of truth ([hooks.md](../reference/hooks.md)).

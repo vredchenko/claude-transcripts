@@ -11,8 +11,8 @@ a CouchDB `_changes` follower and rebuildable with `POST /api/search/reindex`.
 The Typesense evaluation below never happened — Meilisearch was implemented directly.
 That's a decision by default rather than by comparison; switching now would be a
 superseding ADR, and the fact that the index is disposable and rebuilt from CouchDB is
-what keeps that cheap. Whether the engine may live **outside** the bundled stack is
-open: [ADR 0028](0028-external-vs-bundled-meilisearch.md).
+what keeps that cheap. External Meilisearch is allowed, with namespaced indexes
+([ADR 0028](0028-external-vs-bundled-meilisearch.md)).
 
 ## Context
 
