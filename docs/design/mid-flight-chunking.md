@@ -71,8 +71,17 @@ un-flushed delta, not the whole session).
   and drop base64 image data, leaving a marker. Real policy is a later issue (ties to
   secrets masking #11). S3 keeps the un-pruned master.
 - **Resumes:** on `SessionStart` with `source` `startup`/`clear`, offset resets to 0.
-  On `resume`/`compact` with no `/tmp` state, offset starts at the current file size
-  (prior content was already chunked in the earlier run of the same session id).
+  On `resume`/`compact` the offset carries over: `SessionEnd` releases the lock but
+  keeps the `.chunkstate` file, so a resumed session flushes on from where it ended.
+  If that state is gone (a reboot clears `/tmp`), the hook asks CouchDB for the highest
+  `byte_end` among the session's chunk docs (`_all_docs` over the `chunk:<sessionId>:`
+  prefix, descending, limit 1) and starts there; if the store can't answer within 2s,
+  the offset starts at 0. An offset past the end of the file (a rewritten transcript) is
+  never used, local or stored — nothing would be chunked until the file outgrew it. Starting at 0 on a resume re-slices the transcript on
+  boundaries no live flush used, and those chunks get new ids — duplicated content
+  ([#168](https://github.com/vredchenko/claude-transcripts/issues/168)). Leftover
+  `.chunkstate` files are a few bytes each, keyed by a session id that is never reused
+  for a new transcript, and are left for the OS to sweep with the rest of `/tmp`.
 
 ## Feature flags (`features.*` in the app config, both default `true`)
 
@@ -106,8 +115,8 @@ byte-faithful to their slice, which keeps them append-only and replication-safe.
 - the byte-faithful slicer + chunk state in `@claude-transcripts/shared` and the hook
   runtime (`packages/cli/src/hook/runtime.ts`)
 - the `flush-transcript-chunk` action and its model bindings
-- `seed-session-start` (reset/seed offset) and the `SessionEnd` final flush +
-  `/tmp` cleanup
+- `seed-session-start` (reset/seed offset) and the `SessionEnd` final flush + lock
+  release
 - the `_design/chunks` design doc, installed by the migration registry (one definition)
 
 ## Not done yet (follow-ups)
