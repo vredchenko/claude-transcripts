@@ -3,11 +3,17 @@
  * has been refusing writes must not get a confident green dot (plugin.md invariant 2).
  */
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { StoreHealth, Targets } from "../hook/runtime";
 import {
+  HOOK_SILENT_AFTER_MS,
+  hookSilent,
   renderStatusline,
   STALL_AFTER_MS,
   storeState,
+  transcriptMtimeMs,
   versionLabel,
   whereLabel,
 } from "./statusline";
@@ -251,5 +257,111 @@ describe("renderStatusline, per-store health", () => {
     expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
       true,
     );
+  });
+});
+
+// Issue #125: a hook that stops being invoked records no failure; the transcript's mtime
+// is what tells it apart from an idle session.
+describe("renderStatusline, hook silent", () => {
+  const oldWrite = NOW - HOOK_SILENT_AFTER_MS - 120_000; // 7m ago, no failure since
+
+  test("old write, no failure, transcript modified since → stalled, hook silent", () => {
+    const t = targets({ lastWriteMs: oldWrite });
+    const line = renderStatusline(
+      state({ targets: t, counts, transcriptMtimeMs: NOW - 1000 }),
+      NOW,
+    );
+    expect(line).toBe(
+      `◐ ${CT} stalled · hook silent · 128 ev · 6 tools · last write 7m ago → claude-transcripts-sessions@127.0.0.1:7652`,
+    );
+  });
+
+  test("old write, transcript just as old → an idle session, still rec", () => {
+    const t = targets({ lastWriteMs: oldWrite });
+    const line = renderStatusline(
+      state({ targets: t, counts, transcriptMtimeMs: oldWrite - 50 }),
+      NOW,
+    );
+    expect(line.startsWith(`● ${CT} rec`)).toBe(true);
+  });
+
+  test("no transcript_path → the old behaviour, rec", () => {
+    const t = targets({ lastWriteMs: oldWrite });
+    for (const transcriptMtimeMs of [undefined, null]) {
+      const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs }), NOW);
+      expect(line.startsWith(`● ${CT} rec`)).toBe(true);
+    }
+  });
+
+  test("a long tool-less turn appending within the window is not a false alarm", () => {
+    const t = targets({ lastWriteMs: NOW - 4 * 60_000 });
+    const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: NOW }), NOW);
+    expect(line.startsWith(`● ${CT} rec`)).toBe(true);
+  });
+
+  test("failing writes keep the plain stalled line: the hook is running", () => {
+    const t = targets({ lastWriteMs: oldWrite, lastFailureMs: NOW - 500 });
+    const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: NOW }), NOW);
+    expect(line.startsWith(`◐ ${CT} stalled · 128 ev`)).toBe(true);
+  });
+
+  test("a hook that went silent while failing says hook silent, not just stalled", () => {
+    const t = targets({ lastWriteMs: oldWrite, lastFailureMs: oldWrite + 1000 });
+    const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: NOW }), NOW);
+    expect(line.startsWith(`◐ ${CT} stalled · hook silent · 128 ev`)).toBe(true);
+  });
+
+  test("with per-store health, a healthy-looking store does not hide a silent hook", () => {
+    const t = targets({
+      lastWriteMs: oldWrite,
+      stores: stores(
+        { lastWriteMs: oldWrite - 60_000 },
+        { label: "logs.example.net", lastWriteMs: oldWrite },
+      ),
+    });
+    const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: NOW }), NOW);
+    expect(line).toBe(
+      `◐ ${CT} stalled · hook silent · 128 ev · 6 tools · last write 7m ago → logs.example.net`,
+    );
+  });
+
+  test("with per-store health and an idle transcript, still rec", () => {
+    const t = targets({
+      lastWriteMs: oldWrite,
+      stores: stores({ label: "sessions@primary:5984", lastWriteMs: oldWrite }),
+    });
+    const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: oldWrite }), NOW);
+    expect(line.startsWith(`● ${CT} rec`)).toBe(true);
+  });
+});
+
+describe("hookSilent", () => {
+  test("no baseline (the hook never attempted anything) is not silent — that is ready", () => {
+    expect(hookSilent(0, NOW)).toBe(false);
+  });
+
+  test("a recent attempt, even a failed one, is not silent", () => {
+    expect(hookSilent(NOW - 1000, NOW)).toBe(false);
+  });
+});
+
+describe("transcriptMtimeMs", () => {
+  test("reads a file's mtime", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ct-statusline-"));
+    try {
+      const f = join(dir, "t.jsonl");
+      writeFileSync(f, "{}\n");
+      utimesSync(f, 1_600_000_000, 1_600_000_000);
+      expect(transcriptMtimeMs(f)).toBe(1_600_000_000_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("missing, empty or non-string paths are null, never a throw", () => {
+    expect(transcriptMtimeMs("/nonexistent/ct-statusline/t.jsonl")).toBeNull();
+    expect(transcriptMtimeMs(undefined)).toBeNull();
+    expect(transcriptMtimeMs("")).toBeNull();
+    expect(transcriptMtimeMs(42)).toBeNull();
   });
 });

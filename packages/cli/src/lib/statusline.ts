@@ -5,6 +5,7 @@
  *   ● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652
  *   ● ct@v0.2.0 rec (mirror) · 128 ev · 2s ago → logs.example.net  (primary dead, mirror taking writes)
  *   ◐ ct@v0.2.0 stalled · 128 ev · last write 6m ago → …           (configured, writes failing)
+ *   ◐ ct@v0.2.0 stalled · hook silent · 128 ev · last write 9m ago → …  (session moving, hook not)
  *   ○ ct@dev off · no instance configured
  *
  * The version is the **recording binary's own**, not the instance's. Everything is
@@ -25,24 +26,59 @@
  * a green dot labelled with a host that has accepted nothing for weeks — so the label
  * names whichever store is actually taking the writes, and says when that is a mirror.
  */
+import { statSync } from "node:fs";
 import type { Counts, StoreHealth, Targets } from "../hook/runtime";
 import { DEV_VERSION, VERSION } from "./version";
 
 /** What Claude Code pipes to a statusline command. Only the fields we read. */
 export interface StatuslineInput {
   session_id?: string;
+  /** Its mtime says whether the session is moving. */
+  transcript_path?: string;
 }
 
 export interface StatuslineState {
   configured: boolean;
   targets: Targets | null;
   counts: Counts | null;
+  /** The transcript's mtime; absent/null skips the hook-silent check. */
+  transcriptMtimeMs?: number | null;
   /** Defaults to this binary's {@link VERSION}; a test passes its own. */
   version?: string;
 }
 
 /** A failure newer than the last success, and no success within this window → stalled. */
 export const STALL_AFTER_MS = 60_000;
+
+/**
+ * Transcript modified this long after the hook's last attempt → the hook is no longer
+ * being invoked (it records no failure, so an aging write alone looks like an idle
+ * session). Wide because a tool-less turn gives the hook no event until Stop.
+ */
+export const HOOK_SILENT_AFTER_MS = 5 * 60_000;
+
+/** The transcript's mtime, or null if it can't be read. Never throws. */
+export function transcriptMtimeMs(path: unknown): number | null {
+  if (typeof path !== "string" || !path) return null;
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `lastActivityMs` counts failures too: a rejected write proves the hook ran. No
+ * activity at all means no baseline — that is `ready`.
+ */
+export function hookSilent(lastActivityMs: number, transcriptMs: number | null | undefined) {
+  if (!transcriptMs || lastActivityMs <= 0) return false;
+  return transcriptMs - lastActivityMs > HOOK_SILENT_AFTER_MS;
+}
+
+function lastWrite(ms: number, now: number): string {
+  return ms > 0 ? `last write ${ago(ms, now)}` : "no write landed";
+}
 
 export function ago(ms: number, now: number): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));
@@ -105,18 +141,26 @@ export function renderStatusline(state: StatuslineState, now = Date.now()): stri
   // as that binary did rather than showing "off" at a session that is recording fine.
   const stores = t.stores?.length ? t.stores : null;
   if (!stores) {
-    const written = t.lastWriteMs > 0;
-    const failing = t.lastFailureMs > t.lastWriteMs && now - t.lastWriteMs > STALL_AFTER_MS;
-    if (failing) {
-      const last = written ? `last write ${ago(t.lastWriteMs, now)}` : "no write landed";
+    const last = lastWrite(t.lastWriteMs, now);
+    if (hookSilent(Math.max(t.lastWriteMs, t.lastFailureMs), state.transcriptMtimeMs)) {
+      return `◐ ${ct} stalled · hook silent · ${counts} · ${last} → ${whereLabel(t)}`;
+    }
+    if (t.lastFailureMs > t.lastWriteMs && now - t.lastWriteMs > STALL_AFTER_MS) {
       return `◐ ${ct} stalled · ${counts} · ${last} → ${whereLabel(t)}`;
     }
-    if (!written) return `◌ ${ct} ready · ${counts} · no write yet → ${whereLabel(t)}`;
+    if (t.lastWriteMs <= 0) return `◌ ${ct} ready · ${counts} · no write yet → ${whereLabel(t)}`;
     return `● ${ct} rec · ${counts} · ${ago(t.lastWriteMs, now)} → ${whereLabel(t)}`;
   }
 
   const direct = stores.find((s) => s.kind === "direct") ?? stores[0];
   const headline = direct ?? { label: whereLabel(t), lastWriteMs: 0, lastFailureMs: 0 };
+
+  // Before any store is called healthy: a silent hook leaves every store frozen as it was.
+  const lastActivity = Math.max(...stores.flatMap((s) => [s.lastWriteMs, s.lastFailureMs]));
+  if (hookSilent(lastActivity, state.transcriptMtimeMs)) {
+    const newest = stores.reduce((a, b) => (b.lastWriteMs > a.lastWriteMs ? b : a), headline);
+    return `◐ ${ct} stalled · hook silent · ${counts} · ${lastWrite(newest.lastWriteMs, now)} → ${newest.label}`;
+  }
 
   if (direct && storeState(direct, now) === "healthy") {
     return `● ${ct} rec · ${counts} · ${ago(direct.lastWriteMs, now)} → ${direct.label}`;
@@ -133,8 +177,7 @@ export function renderStatusline(state: StatuslineState, now = Date.now()): stri
 
   if (stores.some((s) => storeState(s, now) === "failing")) {
     const best = Math.max(...stores.map((s) => s.lastWriteMs));
-    const last = best > 0 ? `last write ${ago(best, now)}` : "no write landed";
-    return `◐ ${ct} stalled · ${counts} · ${last} → ${headline.label}`;
+    return `◐ ${ct} stalled · ${counts} · ${lastWrite(best, now)} → ${headline.label}`;
   }
   return `◌ ${ct} ready · ${counts} · no write yet → ${headline.label}`;
 }

@@ -32,7 +32,9 @@ plugin's `scripts/dispatch.ts`.
 - **In the statusline**, continuously: `● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → …`
   while writes land (`● … rec (mirror) …` when only a mirror is taking them),
   `◌ ct@v0.2.0 ready · … · no write yet → …` before the first write lands,
-  `◐ ct@v0.2.0 stalled …` when the store has stopped accepting writes, and
+  `◐ ct@v0.2.0 stalled …` when the store has stopped accepting writes,
+  `◐ ct@v0.2.0 stalled · hook silent …` when the session's transcript keeps moving but
+  the hook hasn't run in over five minutes, and
   `○ ct@v0.2.0 off · no instance configured` / `○ ct@v0.2.0 off · not recording this session`
   when there is nothing to record to. The number is the recording binary's own version
   (`ct@dev` from a checkout), so a machine running a stale hook says so on every

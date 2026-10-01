@@ -21,7 +21,12 @@ import { dirname } from "node:path";
 import { makeCounts, makeTargets } from "../hook/runtime";
 import { parseFlags } from "../lib/args";
 import { installPaths } from "../lib/paths";
-import { renderStatusline, type StatuslineInput, versionLabel } from "../lib/statusline";
+import {
+  renderStatusline,
+  type StatuslineInput,
+  transcriptMtimeMs,
+  versionLabel,
+} from "../lib/statusline";
 import { cliInvocation } from "./hook";
 
 interface StatusLineSetting {
@@ -59,10 +64,12 @@ async function render(): Promise<number> {
     }
     const configured = existsSync(installPaths().hookConfig);
     const id = input.session_id;
+    const targets = id ? makeTargets(id).read() : null;
     const line = renderStatusline({
       configured,
-      targets: id ? makeTargets(id).read() : null,
+      targets,
       counts: id ? makeCounts(id).read() : null,
+      transcriptMtimeMs: targets ? transcriptMtimeMs(input.transcript_path) : null,
     });
     process.stdout.write(`${line}\n`);
   } catch {
