@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mergePreserved, writeHookConfig } from "./hook-config";
+import { buildHookConfig, mergePreserved, writeHookConfig } from "./hook-config";
 
 let dir: string;
 let path: string;
@@ -72,5 +72,34 @@ describe("mergePreserved", () => {
       { couch: { url: "old" }, features: { gone: true }, mirrors: MIRRORS },
     );
     expect(merged).toEqual({ couch: { url: "new" }, mirrors: MIRRORS });
+  });
+});
+
+describe("buildHookConfig", () => {
+  const app = {
+    system: { logging: { chunk: { maxEntriesPerChunk: 50, flushIntervalMs: 1000 } } },
+    couchdb: { databases: { sessions: "sessions" } },
+    s3: { buckets: { blobs: "blobs" } },
+    features: {},
+    servicesMenu: {},
+    recall: { mode: "suggest" as const, scope: "host" as const, maxResults: 3 },
+  };
+
+  test("carries the recall policy, and omits it when the config has none", () => {
+    expect(buildHookConfig(app, {}).recall).toEqual(app.recall);
+    const { recall: _, ...bare } = app;
+    expect("recall" in buildHookConfig(bare, {})).toBe(false);
+  });
+
+  test("an empty env yields the bundled Couch URL, no auth and no blob store", () => {
+    const out = buildHookConfig(app, {});
+    expect(out.couch.url).toBe("http://127.0.0.1:7652");
+    expect(out.couch.auth).toBeUndefined();
+    expect(out.blob).toBeUndefined();
+  });
+
+  test("an empty S3_REGION falls back to the default", () => {
+    const env = { S3_ENDPOINT: "http://127.0.0.1:7653", S3_REGION: "" };
+    expect(buildHookConfig(app, env).blob?.region).toBe("garage");
   });
 });

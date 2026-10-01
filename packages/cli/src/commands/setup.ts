@@ -26,10 +26,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { resolveCouchUrl } from "@claude-transcripts/shared";
+import type { AppConfigFile } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { parseFlags } from "../lib/args";
-import { writeHookConfig } from "../lib/hook-config";
+import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
 import { installPaths } from "../lib/paths";
 import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
 
@@ -43,38 +43,10 @@ const HOOK_CONFIG_PATH =
 const GLOBAL_SETTINGS = installPaths().claudeSettings;
 const PROJECT_SETTINGS = join(process.cwd(), ".claude", "settings.json");
 
-interface RepoConfig {
-  couchdb: { databases: Record<string, string> };
-  s3: { buckets: Record<string, string> };
-  features: Record<string, boolean>;
-  system: unknown;
-}
-
-function loadRepoConfig(): RepoConfig {
+function loadRepoConfig(): AppConfigFile {
   const live = join(REPO_ROOT, "config", "config.json");
   const template = join(REPO_ROOT, "config", "config.template.json");
-  return JSON.parse(readFileSync(existsSync(live) ? live : template, "utf8")) as RepoConfig;
-}
-
-/** Project the hook runtime config from the repo config + `.env` secrets/endpoints. */
-function buildHookConfig(cfg: RepoConfig) {
-  const env = process.env;
-  const couchUser = env.COUCHDB_USER;
-  const couch = {
-    url: resolveCouchUrl(env),
-    databases: cfg.couchdb.databases,
-    ...(couchUser ? { auth: `${couchUser}:${env.COUCHDB_PASSWORD ?? ""}` } : {}),
-  };
-  const blob = env.S3_ENDPOINT
-    ? {
-        endpoint: env.S3_ENDPOINT,
-        region: env.S3_REGION ?? "garage",
-        accessKey: env.S3_ACCESS_KEY,
-        secretKey: env.S3_SECRET_KEY,
-        buckets: cfg.s3.buckets,
-      }
-    : undefined;
-  return { couch, blob, features: cfg.features, system: cfg.system };
+  return JSON.parse(readFileSync(existsSync(live) ? live : template, "utf8")) as AppConfigFile;
 }
 
 // ── Store provisioning ───────────────────────────────────────────────────────
@@ -283,8 +255,7 @@ export async function runSetup(argv: string[]): Promise<number> {
   const project = options.project === true;
 
   console.log(`setup: repo ${REPO_ROOT}`);
-  const cfg = loadRepoConfig();
-  const hookConfig = buildHookConfig(cfg);
+  const hookConfig = buildHookConfig(loadRepoConfig(), process.env);
   const couch: CouchTarget = {
     url: hookConfig.couch.url,
     auth: hookConfig.couch.auth,
