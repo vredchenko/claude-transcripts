@@ -7,7 +7,7 @@ import {
   cliUsage,
   isFlag,
 } from "@claude-transcripts/shared";
-import { Box, Text } from "ink";
+import { Box, render, Text } from "ink";
 import { COMMANDS } from "./commands";
 
 const BIN = "claude-transcripts";
@@ -147,4 +147,12 @@ export function App({ command, unknown }: AppProps) {
       {command ? <CommandHelp name={command} /> : <Overview />}
     </Box>
   );
+}
+
+/**
+ * Render the help UI to `stream`. Ink writes the first frame synchronously, so once
+ * `render` returns the text is out; unmounting releases stdin so the process can exit.
+ */
+export function renderHelp(props: AppProps, stream: NodeJS.WriteStream): void {
+  render(<App {...props} />, { stdout: stream, exitOnCtrlC: false, patchConsole: false }).unmount();
 }

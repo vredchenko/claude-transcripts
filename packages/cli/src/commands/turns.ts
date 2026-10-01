@@ -21,12 +21,12 @@ import {
 } from "../api/generated";
 import { setWebapiUrl, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
-import { num, project, row, when } from "../lib/format";
+import { num, project, row, stdoutColumns, when } from "../lib/format";
 
 const ROLE_W = 11;
 
 function textWidth(): number {
-  const cols = process.stdout.columns ?? 0;
+  const cols = stdoutColumns();
   const before = 8 + 2 + 16 + 2 + ROLE_W + 2 + 18 + 2;
   return Math.max(40, (cols > 0 ? cols : 120) - before);
 }

@@ -5,6 +5,15 @@
  * commands rendering the same kind of table should agree on how a column is padded
  * and where it's cut, rather than growing near-copies that drift.
  */
+import { isatty } from "node:tty";
+
+/**
+ * Terminal width, or 0 when stdout isn't a TTY. Only touches `process.stdout` on a
+ * TTY: materialising it makes Bun drop the tail of piped `console.log` output (#146).
+ */
+export function stdoutColumns(): number {
+  return isatty(1) ? (process.stdout.columns ?? 0) : 0;
+}
 
 /** Thousands-separated integer. */
 export function num(n: number | undefined): string {

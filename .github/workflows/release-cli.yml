@@ -40,9 +40,11 @@ jobs:
           VERSION="${GITHUB_REF_NAME#refs/tags/}"
           case "$VERSION" in v*) : ;; *) VERSION="0.0.0-dev" ;; esac
           echo "building CLI as $VERSION"
+          # --splitting keeps Ink out of the entry chunk; without it piped stdout is
+          # truncated (#146). Still one self-contained binary.
           for t in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
             plat="${t#bun-}"
-            bun build --compile --target="$t" packages/cli/src/cli.tsx \
+            bun build --compile --splitting --target="$t" packages/cli/src/cli.tsx \
               --define "process.env.CT_VERSION='$VERSION'" \
               --outfile "out/claude-transcripts-$plat"
           done
