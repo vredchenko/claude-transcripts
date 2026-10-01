@@ -20,7 +20,8 @@ The repo is its own marketplace (`.claude-plugin/marketplace.json`):
 ```
 
 It still needs the CLI installed (`claude-transcripts install`, or the binaries on the
-releases page) — that is what does the work.
+releases page) — that is what does the work — and **Bun on PATH**, which runs the
+plugin's `scripts/dispatch.ts`.
 
 ## What you see
 
@@ -28,8 +29,11 @@ releases page) — that is what does the work.
   `Claude Transcripts — recording to couchdb://…/claude-transcripts-sessions + s3://… · http://127.0.0.1:7650/app/sessions/<id>`
   — or, with no instance configured, `Claude Transcripts — not recording …`. A silent
   hook and a broken hook used to look identical; this is the fix.
-- **In the statusline**, continuously: `● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → …`,
-  `◐ ct@v0.2.0 stalled …` when the store has stopped accepting writes, `○ ct@v0.2.0 off`
+- **In the statusline**, continuously: `● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → …`
+  while writes land (`● … rec (mirror) …` when only a mirror is taking them),
+  `◌ ct@v0.2.0 ready · … · no write yet → …` before the first write lands,
+  `◐ ct@v0.2.0 stalled …` when the store has stopped accepting writes, and
+  `○ ct@v0.2.0 off · no instance configured` / `○ ct@v0.2.0 off · not recording this session`
   when there is nothing to record to. The number is the recording binary's own version
   (`ct@dev` from a checkout), so a machine running a stale hook says so on every
   refresh instead of only under `hook status`. Rendered from the hook's own scratch files — no network.
@@ -58,8 +62,8 @@ resolves everything itself. The copies were retired along with the
 - `hooks/hooks/hooks.json` — the Claude Code events to register (**generated** by
   `scripts/sync-hooks.ts`, `bun run gen:hooks`; re-run after changing the model's
   `BINDINGS`).
-- `scripts/dispatch.ts` — the shim. Finds the CLI (PATH, then the installer's
-  `~/.local/bin`, then `CT_HOME`), forwards the payload, and **always exits 0** —
+- `scripts/dispatch.ts` — the shim. Finds the CLI (`$CT_HOME/bin`, then the
+  installer's `~/.local/bin`, then PATH), forwards the payload, and **always exits 0** —
   a missing or broken CLI must never turn into a failed hook.
 - `bin/claude-transcripts-statusline` — the statusline wrapper (a plugin's `bin/` is
   on PATH). Same resolution as the shim; prints `○ ct off` if the CLI is missing.
