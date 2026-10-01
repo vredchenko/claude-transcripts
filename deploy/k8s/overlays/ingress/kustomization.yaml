@@ -10,11 +10,11 @@ kind: Kustomization
 resources:
   - ../../base
   - ingress.yaml
-# Point the base at a mirror instead of the public upstream images (ADR 0024), or
-# pin the app to a release. Names are the base's image refs, unchanged tag included.
+# Point the base at a mirror instead of the public images (ADR 0024), or run another
+# release than the checkout's. `name` is the base's image ref without its tag.
 # images:
 #   - name: ghcr.io/vredchenko/claude-transcripts-app
 #     newName: registry.example.com/you/claude-transcripts-app
-#     newTag: v0.0.15
+#     newTag: v0.3.2
 #   - name: dxflrs/garage
 #     newName: registry.example.com/you/claude-transcripts-garage

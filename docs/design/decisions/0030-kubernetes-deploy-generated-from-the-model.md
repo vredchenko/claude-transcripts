@@ -57,7 +57,8 @@ The translation rules, so the two shapes stay recognisably the same stack:
   overlay's decision. A hand-written example overlay adds an Ingress.
 - **Images are the pinned upstream refs** — the compose `--upstream` posture, so
   `kubectl apply -k` works from a fresh clone with no mirror — and the app comes from
-  the project's release registry. Kustomize's `images:` transformer retargets either
+  the project's release registry at the lockstep release tag. Kustomize's `images:`
+  transformer retargets either
   ([ADR 0024](0024-mirror-backing-images-to-registry.md)).
 - **Probes from healthchecks**: where compose could only `curl` inside the image, the
   kubelet probes HTTP itself. The app image ships no curl, so the model gained an

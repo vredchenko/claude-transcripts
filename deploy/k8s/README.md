@@ -47,6 +47,7 @@ What you get, and how it maps to the compose stack:
 | `127.0.0.1:765x` published ports | **nothing published.** See *Reaching it* |
 | `healthcheck:` | `readinessProbe` (HTTP where compose used `curl`, `exec` otherwise; the app probes `/health`) |
 | `${IMAGE_NS}` mirror | pinned **upstream** images (the `--upstream` posture), the app from the project's release registry — retarget with kustomize `images:` |
+| `${APP_TAG:-latest}` | the app at the **release the checkout is stamped at** (`v<version>`; on `main`, the last release). `imagePullPolicy: IfNotPresent` everywhere |
 | `profiles: [app]` (opt-in app) | the app is always in (this is a deploy, not a dev stack) |
 
 ## Reaching it
@@ -92,8 +93,8 @@ Secret has a fixed name, so restart the app to pick it up:
 
 All via overlays (`kustomize` patches) — never by editing `base/`:
 
-- **Images / mirror / release pin**: `images:` in the overlay (commented example in
-  `overlays/ingress/kustomization.yaml`). Private registry → add `imagePullSecrets`
+- **Images / mirror / another release**: `images:` in the overlay (commented example
+  in `overlays/ingress/kustomization.yaml`). Private registry → add `imagePullSecrets`
   with a patch.
 - **App config** (db/bucket/index names, feature flags, services-menu links): the image
   carries the defaults; to change them mount a ConfigMap at `/config` and set

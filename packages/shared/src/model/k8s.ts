@@ -16,7 +16,8 @@ import type { AppModel, ServiceDef } from "./types";
  * keeps the two deploy shapes fed by the same variable names.
  *
  * Isomorphic and pure like the rest of the model: no fs, no YAML. The generator
- * hands in the contents of any read-only file mounts (e.g. garage.toml) via `files`.
+ * hands in read-only file mounts (e.g. garage.toml) via `files` and the release via
+ * `releaseVersion`.
  */
 
 /** A Kubernetes object, loosely typed — we emit, we don't consume. */
@@ -40,6 +41,20 @@ export interface KubernetesOptions {
   storageClassName?: string;
   /** PVC size for data volumes. Default `"10Gi"`. */
   storageSize?: string;
+}
+
+/** Options for {@link toKubernetesObjects}: the shared ones plus the release to pin. */
+export interface KubernetesObjectsOptions extends KubernetesOptions {
+  /** Lockstep release (ADR 0023), e.g. `"0.3.3"`; our images are tagged `v<it>`. */
+  releaseVersion: string;
+}
+
+/** `"0.3.3"` → `"v0.3.3"`, the tag publish-image pushes for a release. */
+export function k8sReleaseTag(releaseVersion: string): string {
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(releaseVersion)) {
+    throw new Error(`release version "${releaseVersion}" is not semver (e.g. 0.3.3)`);
+  }
+  return `v${releaseVersion}`;
 }
 
 /** Name of the Secret every `${VAR}` in `containerEnv` resolves against. */
@@ -122,13 +137,15 @@ function labelsFor(key: string): Record<string, string> {
   };
 }
 
-function containerImage(s: ServiceDef): string {
+/**
+ * A workload's image in the base: backing services at their pinned upstream ref, our
+ * own (the app) at the release tag, not compose's `latest`. Overlays retarget via `images:`.
+ */
+export function k8sImageRef(s: ServiceDef, releaseVersion: string): string {
   const img = s.image;
   if (!img) throw new Error(`service ${s.key} has no image`);
-  // The base pins the canonical upstream image so `kubectl apply -k` works from a
-  // fresh clone with no mirror. Our own images (the app) have no upstream and use the
-  // mirrored name; kustomize's `images:` transformer retargets either (see README).
-  return `${img.upstream ?? `${RELEASE_IMAGE_NS}/claude-transcripts-${img.name}`}:${img.defaultTag}`;
+  if (img.upstream) return `${img.upstream}:${img.defaultTag}`;
+  return `${RELEASE_IMAGE_NS}/claude-transcripts-${img.name}:${k8sReleaseTag(releaseVersion)}`;
 }
 
 function containerEnv(s: ServiceDef): Array<Record<string, unknown>> {
@@ -172,7 +189,7 @@ function probeFor(s: ServiceDef): Record<string, unknown> | undefined {
  */
 export function toKubernetesObjects(
   model: AppModel,
-  opts: KubernetesOptions = {},
+  opts: KubernetesObjectsOptions,
 ): KubernetesObject[] {
   const ns = opts.namespace ?? K8S_DEFAULT_NAMESPACE;
   const files = opts.files ?? {};
@@ -225,7 +242,10 @@ export function toKubernetesObjects(
 
     const container: Record<string, unknown> = {
       name: s.key,
-      image: containerImage(s),
+      image: k8sImageRef(s, opts.releaseVersion),
+      // Explicit: the default is `Always` on `:latest`, so a restart could silently
+      // pull a newer release (and migrate the DB at boot). Upgrades stay deliberate.
+      imagePullPolicy: "IfNotPresent",
     };
     if (s.envFile) container.envFrom = [{ secretRef: { name: K8S_ENV_SECRET } }];
     const env = containerEnv(s);

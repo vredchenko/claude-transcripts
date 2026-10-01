@@ -7,9 +7,13 @@
  *
  *   bun run scripts/release.ts 0.1.0     # bump, then commit + tag by hand
  *   bun run scripts/release.ts 0.1.0 --check   # verify only, no writes
+ *
+ * Stamping also re-runs gen:k8s (the k8s base pins the app image); --check verifies it.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildAppModel, k8sImageRef, k8sWorkloadServices } from "@claude-transcripts/shared";
+import { loadConfigTemplate } from "./lib/config-file";
 
 /** Every manifest carrying the lockstep version. Keep in sync with ADR 0023. */
 const MANIFESTS = [
@@ -55,11 +59,34 @@ for (const rel of MANIFESTS) {
   console.log(`[release] ${rel}: ${found[2]} → ${version}`);
 }
 
+const K8S_BASE = join(ROOT, "deploy", "k8s", "base");
+if (!check) {
+  const gen = Bun.spawnSync(["bun", "run", "scripts/gen-k8s.ts"], {
+    cwd: ROOT,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  if (gen.exitCode !== 0) throw new Error("gen-k8s failed — the k8s base was not re-pinned");
+}
+const base = readdirSync(K8S_BASE)
+  .filter((f) => f.endsWith(".yaml"))
+  .map((f) => readFileSync(join(K8S_BASE, f), "utf8"))
+  .join("\n");
+const ownImages = k8sWorkloadServices(buildAppModel(loadConfigTemplate(ROOT), {}))
+  .filter((s) => !s.image?.upstream)
+  .map((s) => k8sImageRef(s, version));
+const unpinned = ownImages.filter((ref) => !base.includes(`image: ${ref}\n`));
+for (const ref of unpinned) console.log(`[release] deploy/k8s/base does not run ${ref}`);
+
 if (check) {
-  if (stale > 0) {
-    throw new Error(`${stale} manifest(s) not at ${version} — run without --check to stamp`);
+  if (stale > 0 || unpinned.length > 0) {
+    throw new Error(
+      `${stale} manifest(s) not at ${version}, ${unpinned.length} k8s image(s) not pinned to it` +
+        " — run without --check to stamp",
+    );
   }
-  console.log(`[release] all manifests at ${version}`);
+  console.log(`[release] all manifests and the k8s base at ${version}`);
 } else {
+  if (unpinned.length > 0) throw new Error("k8s base still not pinned after gen-k8s");
   console.log(`[release] stamped ${version}; next: commit, then tag v${version} and push`);
 }
