@@ -89,15 +89,17 @@ unmaintained/unverified upstream can never ship you a surprise):
 IMAGE_NS=ghcr.io/<owner>
 ```
 
-Then `bun run stack:up` (without `--upstream`) pulls `couchdb`, `garage`,
+Then `bun run stack:up` (not `stack:up:upstream`) pulls `couchdb`, `garage`,
 `meilisearch`, the admin UIs, **and** the app image from `ghcr.io/<owner>/…` only.
 Re-run `mirror-images` (or tag a release) whenever you bump a pinned upstream tag in
-`scripts/mirror-images.ts` + `.env.template`.
+the app model (`packages/shared/src/model/services.ts`) + `.env.template`.
 
 ## Notes
 
-- **Backing image tags are pinned** in `scripts/mirror-images.ts`, `.env.template`,
-  and the app model (`packages/shared/src/model/services.ts`) — keep them in lockstep.
+- **Backing image tags are pinned** in the app model
+  (`packages/shared/src/model/services.ts`, each service's `defaultTag`) and in
+  `.env.template` (`*_TAG`) — keep the two in lockstep. `scripts/mirror-images.ts`
+  holds no tags of its own: it projects its image list from the model (`toMirrorPlan`).
 - The npm bundle inlines all dependencies (`bun build --target=bun`), so the published
   package declares **no runtime deps** (the workflow drops the `workspace:` protocol
   before publishing). The binaries embed the bun runtime, so they need nothing.

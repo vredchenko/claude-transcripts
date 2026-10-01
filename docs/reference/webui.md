@@ -11,9 +11,10 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
   Router**, TypeScript (ESM, strict). No separate state library — routing holds
   the navigational state and TanStack Query holds the server state.
 - **Theme:** a restrained **light** baseline is the primary target, with a
-  parallel **dark** palette. `theme.ts` exposes `createAppTheme(mode)` +
-  `codeBg(mode)` + the `MONO` stack; `color-mode.tsx` owns the mode (a persisted
-  light / dark / follow-system preference) and provides the `ThemeProvider`.
+  parallel **dark** palette. `theme.ts` exposes `createAppTheme(mode)` + the
+  `MONO` stack (code surfaces read `theme.palette.code.bg`); `color-mode.tsx` owns
+  the mode (a persisted light / dark / follow-system preference) and provides the
+  `ThemeProvider`.
   Components read semantic tokens (`primary.main`, `divider`, …) so both modes work
   without per-component color hardcoding.
 - **API client:** **generated** from the webapi OpenAPI spec into
@@ -25,24 +26,18 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
 
 ## What's built (Tier 1)
 
-- **Session list** (`/`) in three **projections**, chosen from a toggle and recorded
+- **Session list** (`/`) in two **projections**, chosen from a toggle and recorded
   in the URL (`/?view=calendar&month=2026-03`) so a view is linkable and the back
   button steps through them:
-  - **Table** — the dense, comparative view: per-column summary metrics including
-    **runtime / active / idle**, the **project** and the **host** it ran on, and a
-    **source** chip.
-  - **Timeline** — vertical, grouped by day, at one of three densities: `cards`
-    (full detail per session, with a duration bar whose filled part is the active
-    time), `compact` (one line each), and `to scale` (positioned by real elapsed
-    time, so the gaps between sessions are visible).
-  - **Calendar** — a month grid drawing each session as a bar across **every day it
-    covers** (a session here can run for days), and a day view placing sessions by
-    clock time with concurrent ones side by side. A calendar bar's length *is* the
-    wall-clock span, so the active/idle split is told in the bar's caption and its
-    tooltip rather than by shading part of the bar — idle time is scattered through a
-    session, not parked at one end of it.
+  - **List** (the default) — a day-grouped grid, newest first, with per-row
+    **runtime** and an active/idle bar, the **project** and the **host** it ran on,
+    tool mix, tokens and a **status** chip.
+  - **Calendar** — one month as a stack of 24-hour lanes, one per day on which a
+    session started; bars are placed by clock time (clipped at midnight), coloured per
+    project, and their opacity reflects the active share. ‹ › and **Today** move
+    between months.
 
-  All three read **active vs idle** time from the same `activeMs` field: wall-clock
+  Both read **active vs idle** time from the same `activeMs` field: wall-clock
   runtime minus gaps longer than the configured idle threshold, so a session left open
   in tmux over a weekend reads as the twenty minutes of work it was.
 - **Session detail** (`/sessions/$id`) — metadata grid (with duration + recording
@@ -57,7 +52,7 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
   on the results page, and carried into the session (`?q=`), which opens on the
   matching entry rather than at the top of a five-thousand-entry transcript.
 - A **thin header** (`Header.tsx`): app title + build version (from `/api/model`),
-  the **search box**, a **settings** menu (theme toggle: light / dark /
+  the **omnibox**, a **settings** menu (theme toggle: light / dark /
   follow-system), and a **links** menu (services, API, GitHub repo, tech docs).
 
 ## Still planned
@@ -77,57 +72,25 @@ everything it does is reachable via the CLI/API ([tiers.md](../design/tiers.md))
 - **Keyboard navigation** *(nice-to-have)* — list/detail/transcript navigable
   without the mouse.
 - **The visual/design pass** is deferred per the roadmap; the current theme is a
-  restrained dark baseline.
+  restrained light baseline with a parallel dark palette.
 
 ## File layout
 
-```
-packages/webui/
-├── index.html                 # Vite HTML entry (#root + module script)
-├── vite.config.ts             # React plugin, base "/app/", dev server, /api proxy
-├── dev/
-│   └── webapi-target.ts       # dev-only (Node): find the webapi, explain it if absent
-└── src/
-    ├── main.tsx               # React root: QueryClient + ColorModeProvider + Router
-    ├── color-mode.tsx         # color-mode state (light/dark/system) + ThemeProvider
-    ├── router.tsx             # code-based TanStack Router tree (basepath "/app")
-    ├── theme.ts               # createAppTheme(mode) + codeBg(mode) + MONO stack
-    ├── format.ts              # pure presentation helpers (no React)
-    ├── search-query.ts        # pure: /search URL state → API params, paging maths
-    ├── sessions-view.ts       # pure: interval/day/month maths for timeline + calendar
-    ├── transcript-entry.ts    # raw JSONL entry → compact EntryView
-    ├── transcript-timeline.ts # pure: fold a transcript into dialogue + hidden runs
-    ├── api/
-    │   ├── generated.ts       # orval snapshot: types + fetchers + query hooks
-    │   ├── http.ts            # orval mutator: unwrap + throw on non-2xx
-    │   └── model.ts           # hand-written GET /api/model hook (header title/version)
-    ├── routes/
-    │   ├── root.tsx           # RootLayout app shell (Header + Outlet)
-    │   ├── sessions-list.tsx  # SessionsListPage — "/", switches the three projections
-    │   ├── session-detail.tsx # SessionDetailPage — "/sessions/$id" (+ ?q= highlight)
-    │   └── search-results.tsx # SearchResultsPage — "/search" (filters + paging)
-    └── components/
-        ├── Header.tsx         # thin top bar (title/version, search, settings, links)
-        ├── SearchBox.tsx      # header search input → GET /api/search (sessions + content)
-        ├── HighlightedText.tsx# renders marked snippets / query terms as <mark>
-        ├── SettingsMenu.tsx   # primary menu: theme toggle (+ config later)
-        ├── LinksMenu.tsx      # secondary menu: services / API / GitHub / docs links
-        ├── TranscriptView.tsx # incrementally-paged transcript: timeline | raw
-        ├── TranscriptTimeline.tsx # conversation reader: turns on a spine, rest folded
-        ├── TranscriptEntryRow.tsx # one raw line (preview → full text / JSON)
-        ├── SpeakerTurnsView.tsx # one side of the conversation (You / Claude)
-        ├── StatusChip.tsx     # session lifecycle chip (live / abandoned / ended)
-        ├── SourceChip.tsx     # recording provenance chip (live / backfilled)
-        ├── TokenUsageChips.tsx# token breakdown chips
-        ├── states.tsx         # Loading / ErrorState / EmptyState
-        └── sessions/          # the three projections of the session list
-            ├── SessionsTable.tsx     # dense comparative table
-            ├── SessionsTimeline.tsx  # vertical timeline, three densities
-            └── SessionsCalendar.tsx  # month grid (day-spanning bars) + day time-grid
-```
+Under `packages/webui/`: `vite.config.ts` (base `/app/`, dev server, `/api` proxy) and
+`dev/webapi-target.ts` (dev-only webapi discovery). Under `src/`:
+
+| Path | Holds |
+|------|-------|
+| `main.tsx`, `router.tsx`, `color-mode.tsx`, `theme.ts` | React root, TanStack Router tree (basepath `/app`), colour mode + theme |
+| `api/` | orval-generated client (`generated.ts`), its mutator (`http.ts`), the hand-written `/api/model` hook (`model.ts`) |
+| `routes/` | One page per route: `root`, `sessions-list`, `session-detail`, `search-results` |
+| `components/` | UI; `components/sessions/` holds the two list projections |
+| `omnibox/` | Header input parsing, `>` commands, recent searches + saved filters |
+| `hooks/` | Infinite paging (session list, transcript) + the scroll sentinel |
+| `*.ts` at the top level | Pure helpers (below) |
 
 The **pure** modules (`format.ts`, `search-query.ts`, `sessions-view.ts`,
-`transcript-entry.ts`, `transcript-timeline.ts`) hold the logic worth unit-testing, out
+`transcript-entry.ts`, `transcript-timeline.ts`, `omnibox/parse.ts`) hold the logic worth unit-testing, out
 of the components: paging offsets, calendar placement and "is this line dialogue?" are
 where the silent bugs live, and a component test would not catch a session drawn on the
 wrong day or a turn quietly folded out of sight.
@@ -228,8 +191,7 @@ in the generated snapshot. The header uses it for the title + build version.
   real sort would have to be a `sort`/`dir` param on `GET /api/sessions` (the handler
   already materialises and sorts the whole filtered set before slicing).
 - **`SessionsCalendar`** (`components/sessions/SessionsCalendar.tsx`) — the other
-  projection, a month grid; it fetches the visible weeks' range in one call
-  (`CALENDAR_LIMIT = 500`) rather than paging.
+  projection (above); fetches the whole month in one call (`CALENDAR_LIMIT = 500`).
 - **`SessionDetailPage`** (`routes/session-detail.tsx`) — reads `$id` from the
   route, fetches one summary, and renders a back link, the id + status chip, a
   metadata grid (started, **total runtime**, **active** + **idle** time, model,
@@ -238,18 +200,14 @@ in the generated snapshot. The header uses it for the title + build version.
   directory, a **Token usage** row (`TokenUsageChips`), and a **Tool calls** chip
   set sorted by count. Mounts `TranscriptView` when `hasTranscript`, else shows a
   "no transcript was stored" note.
-- **`Header`** (`components/Header.tsx`) — the thin top bar. Left: app title +
-  build version (from `GET /api/model` via `api/model.ts`, with a "Claude
-  Transcripts" fallback while loading). Center: `SearchBox` — a debounced
-  full-text search over `GET /api/search`, showing both **session** matches (project,
-  id, model) and **in-conversation** matches (a cropped snippet with the matched terms
-  **marked**, plus a role chip); selecting either navigates to that session, carrying
-  the query so it opens on the match. Degrades to a hint when
-  Meilisearch is disabled or unreachable rather than erroring. Below `sm` the toolbar
-  wraps and the search takes its own full-width row — squeezing it onto one line left
-  an unusable sliver pressed against the settings button. Right: `SettingsMenu` (a ⚙ button — the theme toggle
-  light / dark / follow-system, plus a disabled "config coming soon") and
-  `LinksMenu`.
+- **`Header`** (`components/Header.tsx`) — title + version (`GET /api/model`), the
+  `Omnibox`, `SettingsMenu` (theme toggle) and `LinksMenu`. The omnibox
+  (`omnibox/parse.ts`) takes text, `project:` / `host:` / `model:` / `source:`
+  operators, date phrases, an id prefix or `>` commands. **Enter** filters the list,
+  **Shift+Enter** searches, Ctrl/Cmd+K focuses. Its dropdown previews `GET /api/search`
+  (session + in-conversation hits, terms marked), plus recent searches and saved
+  filters. It degrades to a hint without Meilisearch and wraps to its own row below
+  `sm`.
 - **`LinksMenu`** (`components/LinksMenu.tsx`) — the secondary dropdown grouping
   quick links: **This app** (Scalar `/api/docs`, OpenAPI spec, `/api/model`);
   **Services** (CouchDB Fauxton + a `_all_docs` JSON link, Garage Web UI + buckets,
@@ -279,8 +237,7 @@ in the generated snapshot. The header uses it for the title + build version.
   (Virtual scrolling is the planned follow-up; incremental paging keeps long
   transcripts responsive.)
 - **`TranscriptTimeline`** (`components/TranscriptTimeline.tsx`) — the conversation
-  reader. Dialogue turns sit on the same vertical spine the session timeline uses,
-  labelled **You** / **Claude** with their clock time, the tools that turn called, a
+  reader. Dialogue turns sit on a vertical spine, labelled **You** / **Claude** with their clock time, the tools that turn called, a
   **subagent** chip for sidechain turns, and the text clamped to 14 lines with a
   "Show more". A pause of a minute or more between turns is drawn as "*12m later*".
   Everything that isn't dialogue collapses to one quiet line — `› 12 lines · Read ×3,
@@ -304,10 +261,9 @@ in the generated snapshot. The header uses it for the title + build version.
   an active figure that overshoots the runtime and about one that was never derived),
   `projectName` (trailing `cwd` segment),
   `totalTools` (sum of a tool-count map).
-- **`transcript-entry.ts`** — `summarizeEntry(entry)` interprets a raw Claude
-  Code JSONL entry into an `EntryView` (`kind`, one-line `preview`, `sidechain`,
-  `isError`). It is defensive by design: the webapi passes entries through
-  verbatim, so unknown shapes still render (as raw JSON) rather than throwing.
+- **`transcript-entry.ts`** — `summarizeEntry(entry)` → `EntryView` (`kind`,
+  `preview`, `sidechain`, `isError`) over the webapi's pruned per-turn shape; defensive
+  about turns with no text or an unknown role.
 - **`transcript-timeline.ts`** — `buildTimeline(entries)` folds a page of entries
   into `TurnNode`s (dialogue) and `HiddenNode`s (a run of everything else), a lossless
   partition: every entry lands in exactly one node, in order. `isDialogue` is the
@@ -317,9 +273,6 @@ in the generated snapshot. The header uses it for the title + build version.
   displayed turn text (the raw reader still shows them). `summarizeHidden` writes a
   fold's one-line label; `nodeIndexContaining` finds the node a search match is in, so
   the fold hiding it opens on arrival.
-- **`theme.ts`** — a restrained dark MUI theme (backgrounds `#0e1116`/`#161b22`,
-  primary `#58a6ff`) plus the exported `MONO` font stack used for ids, paths, and
-  transcript JSON.
 
 ## Build & dev (`vite.config.ts`)
 

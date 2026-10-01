@@ -4,9 +4,10 @@ CouchDB is the **primary store** ([ADR 0007](../design/decisions/0007-couchdb-pr
 a single database (`claude-transcripts-sessions` by default — the name is
 configurable per instance, see [configuration.md](../start/configuration.md)) of
 heterogeneous, **append-only**
-docs, with map-reduce design views doing the aggregation. Full-fidelity transcript
-bytes never live here — they go to S3 only
-([ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md)).
+docs, with map-reduce design views doing the aggregation. The **byte-faithful**
+transcript lives in S3 only ([ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md));
+what CouchDB holds of the content is the parsed, pruned per-turn `entries[]` on
+full-content chunks ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)).
 
 This doc has two halves: **(1) the document types and their schemas**, and
 **(2) how the design views bring those documents together** and which views exist.
@@ -33,7 +34,7 @@ This doc has two halves: **(1) the document types and their schemas**, and
 |--------|-------|-----------|------|
 | [`event`](#event) | auto | per-event handlers | live, per hook event |
 | [`summary`](#summary) | `summary:<sessionId>` | session-end (live) / `backfill` | at session end |
-| [`chunk`](#chunk) | `chunk:<sessionId>:<byte_start>` | backfill / chunk-flush | on backfill, or live (chunking on) |
+| [`chunk`](#chunk) | `chunk:<sessionId>:<byte_start>` | backfill / `flush-transcript-chunk` | on backfill, or live (chunking on) |
 | `session_start` *(planned)* | `session_start:<sessionId>` | session-start | once, at start (#15) |
 | `meta` *(planned)* | auto | enrichment endpoint | any time, append-only (#3/#7) |
 | [`schema_version`](couchdb-documents.md#schema_version) | `schema_version` | migrations | on migrate |
@@ -94,7 +95,7 @@ on-disk transcript. A session is **`ended`** iff this doc exists.
   "timestamp": "…",
   "hostname": "…",
   "cwd": "/abs/path",
-  "end_reason": "user-input | session-limit | unknown",
+  "end_reason": "user-input | session-limit | unknown",   // TODO: reconcile with CC's SessionEnd `reason`
   "event_count": 0,
   "prompt_count": 0,
   "error_count": 0,
@@ -105,9 +106,11 @@ on-disk transcript. A session is **`ended`** iff this doc exists.
     "cacheCreation": 0, "cacheRead": 0,
     "total": 0, "messages": 0
   },
-  "system_checks": {},
-  "source": "live | backfill",                  // "live" = hook-recorded; "backfill" = adopted transcript
-  "backfilled_at": "…"                          // present only on backfilled docs; real session time stays in `timestamp`
+  "system_checks": {},                          // hook-written docs only; TODO: define
+  "source": "live | backfill | doctor",         // "live" = hook-recorded; "backfill" = adopted transcript; "doctor" = smoke-test session
+  "model": "…",                                 // ingested docs only (backfill/doctor), from the transcript
+  "backfilled_at": "…",                         // present only on backfilled docs; real session time stays in `timestamp`
+  "actor": "…"                                  // optional attribution, from `backfill --actor`
 }
 ```
 
@@ -132,7 +135,8 @@ mid-flight chunking is enabled ([mid-flight-chunking.md](../design/mid-flight-ch
   "timestamp": "…",
   "hostname": "…",
   "cwd": "/abs/path",
-  "schema_version": 1,
+  "schema_version": 2,           // 2 when the chunk carries entries[], 1 for byte-range-only
+  "source": "live | backfill | doctor",   // who wrote it, as on `summary`
   "entries": [ /* parsed, pruned JSONL entries — only when couchFullContentChunks */ ]
 }
 ```
@@ -147,20 +151,24 @@ replication-safe.
 A session's status is **derived**, never written as a field:
 
 - **`ended`** — a `summary:<id>` doc exists.
-- **`running`** — a `SessionStart` (via `session_meta/start_meta`) with no summary,
-  with activity in the last 15 min.
-- **`incomplete`** — started but went quiet without a `SessionEnd`.
+- otherwise **`running`** or **`incomplete`** by recency — see
+  [webapi.md](webapi.md#list-behaviour-running-session-detection).
 
 ### Schemas defined in code
 
 CouchDB is schemaless, but **our** documents have a known, expected shape — so we
 **define that shape in code** and treat it as authoritative:
 
-- The doc schemas above are expressed as **TypeScript types + runtime validators**
-  (e.g. zod) in a shared module, with a `schema_version` per type.
+- The doc schemas above are expressed as **zod validators** in the webapi's ingest
+  routes (`packages/webapi/src/routes/ingest.ts`). Writers build them in code: ingested
+  docs in `packages/cli/src/lib/session-docs.ts`, the hook's inline in
+  `packages/cli/src/hook/handlers.ts`. Chunks carry a `schema_version`. Promoting these
+  to one shared definition is still open.
 - The **webapi gateway** validates documents against these schemas on write
-  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)) — the single place all
-  writes pass through — so malformed docs don't enter the corpus.
+  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)), so malformed docs
+  don't enter the corpus through it. The hook writes to CouchDB directly
+  ([ADR 0016 amendment](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)),
+  so its docs get no write-time validation.
 - The schemas are **part of the migration process** ([migrations.md](../operate/migrations.md),
   [ADR 0021](../design/decisions/0021-self-built-couchdb-migrations.md)): a schema change is a
   versioned migration that bumps `schema_version`, transforms existing docs, and
@@ -170,9 +178,6 @@ CouchDB is schemaless, but **our** documents have a known, expected shape — so
   write (or older versions) are tolerated; views coalesce missing fields to
   sensible defaults (the #7 backward-compat pattern). The code schemas constrain
   *what we write*, not what the database can hold.
-
-> The schema definitions are the same source the webapi's `ensure.ts` and the hook
-> reference; keep them aligned with the design-view mirrors (below).
 
 ---
 
@@ -203,7 +208,8 @@ Maps `type === "summary"`.
 | `by_date` | `[year, month, day]` | `{ session_id, event_count, prompt_count, error_count, cwd }` | `_count` |
 | `by_cwd` | `[cwd, timestamp]` | `{ session_id, event_count, prompt_count }` | `_count` |
 
-`by_date` (descending) drives the webui session list.
+`by_date` feeds `POST /api/search/reindex`; the session list uses
+`session_index/aggregate` instead.
 
 ### `_design/events` — events by session & type
 
@@ -239,7 +245,7 @@ field), keyed `"unknown"` when no tool name.
 |------|-----|-------|--------|
 | `by_session` | `[session_id, byte_start]` | `{ byte_start, byte_end, entry_count }` | — |
 | `entry_count_by_session` | `session_id` | `entry_count` | `_sum` |
-| `entries_by_session` | `[session_id, byte_start, entry_index]` | the parsed turn (`role`, `timestamp`, `text`, `toolUses`, `toolUseId`, `isError`, `isSidechain`) | `_count` |
+| `entries_by_session` | `[session_id, byte_start, entry_index]` | the parsed turn (`role`, `timestamp`, `text`, `toolUses`, `toolUseId`, `isError`, `isSidechain`, `kind`) | `_count` |
 
 `by_session` reassembles a session's chunked content in byte order.
 
@@ -249,6 +255,20 @@ interleave them. It backs `GET /api/sessions/{id}/transcript`, paged at the view
 the `_count` reduce supplying the total in one query. Since chunks are flushed
 mid-session, it serves a live session's transcript-so-far; only full-content chunks
 (`couchFullContentChunks`) populate it, so byte-range-only chunks fall back to S3.
+
+### `_design/speaker_split` — turns by speaker
+
+Maps full-content `chunk` docs (those with `entries[]`; byte-range-only chunks emit
+nothing). Added by migration v4, `by_role_time` by v5.
+
+| View | Key | Value | Reduce |
+|------|-----|-------|--------|
+| `by_role` | `[session_id, role, byte_start, entry_index]` | `{ role, timestamp, text, toolUses, toolUseId, isError }` | `_count` |
+| `by_role_time` | `[role, timestamp, session_id, byte_start, entry_index]` | `{ sessionId, cwd, role, timestamp, text }` | `_count` |
+
+`by_role` (one session, one speaker, transcript order; `group_level=2` = per-role
+counts) backs `GET /api/sessions/{id}/turns`; `by_role_time` (one speaker across
+sessions, time order) backs `GET /api/turns`.
 
 ### `_design/session_index` — one row per session
 
@@ -260,11 +280,10 @@ Maps `event`, `summary` and `chunk` docs (added by migration v2; see
 | `aggregate` | `session_id` | a fixed-shape per-doc rollup (counts, first/last timestamp, `cwd`, `hostname`, the `summary` doc's fields, chunk coverage) | custom, merges the rollups |
 | `event_times` | `session_id` | `timestamp` | — |
 
-`aggregate` (queried with `group=true`) is what lets the reader list sessions that have
-**started but not ended** — `running` and `incomplete` ones have no `summary` doc, so
-the `sessions/by_date` view can't see them. Its reduce output is one bounded object per
-session, which is why the webapi disables CouchDB's `reduce_limit` on the bundled
-instance.
+`aggregate` (`group=true`) backs the session list and detail route, including sessions
+that haven't ended. The webapi caches it in memory, patched from `_changes`
+([webapi.md](webapi.md#the-session-index)). Its reduce returns one bounded object per
+session, hence `reduce_limit` is disabled on the bundled instance.
 
 `event_times` (v9) is the same documents reduced to nothing but their timestamps, so
 **active duration** — wall-clock minus gaps longer than
@@ -279,8 +298,8 @@ at a time.
 | `start_meta` | `session_id` | `{ timestamp, model, cwd, hostname }` | — |
 | `tokens_by_date` | `[year, month, day]` | `{ input, output, cacheCreation, cacheRead, total, sessions }` | `_sum` |
 
-`start_meta` (maps `SessionStart` events) lets the webapi enrich sessions that have
-started but have no summary yet.
+`start_meta` maps `SessionStart` events; the webapi no longer reads it (the list uses
+`session_index/aggregate`).
 
 ### Planned feature views
 

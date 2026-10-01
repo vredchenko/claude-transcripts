@@ -6,9 +6,8 @@ Code hook event. Actions are defined **independently of any specific hook**; the
 mapping** ([ADR 0017](../design/decisions/0017-hooks-and-actions-decoupled.md)). The same
 action can be driven by several events; one event can drive several actions.
 
-> Status: this catalogue formalises behaviours that today live inside the per-event
-> handler modules. Treat entries without a ✅ as **placeholders** for planned
-> actions.
+> Status: entries with ✅ are implemented (`HANDLERS` in
+> `packages/cli/src/hook/handlers.ts`); the rest are placeholders.
 
 ## Action catalogue
 
@@ -17,8 +16,8 @@ action can be driven by several events; one event can drive several actions.
 | `write-event-marker` ✅ | Append a light `type:"event"` marker doc (event, `session_id`, `ts`, minimal payload) | hook payload | CouchDB |
 | `update-counts` ✅ | Bump per-session counters (events/prompts/errors/tools) in `/tmp` | hook payload | `/tmp` |
 | `flush-transcript-chunk` ✅ | Tail the live transcript and append `chunk:` docs (size/time batched) | `transcript_path` | CouchDB |
-| `write-summary` ✅ | At session end, compute the rollup + token usage and write `summary:<id>` | transcript, counts | CouchDB |
-| `upload-blobs` ✅ | Upload `summary.json` + `transcript.jsonl` to S3 | transcript, summary | S3 |
+| `write-summary` ✅ | At session end, compute the rollup + token usage and write `summary:<id>` (plus a `summary.json` copy in S3 when blobs are on) | transcript, counts | CouchDB, S3 |
+| `upload-blobs` ✅ | Upload the byte-faithful `transcript.jsonl` to S3 | transcript | S3 |
 | `seed-session-start` ✅ | Reset counters + chunk offset; write the resolved targets (stores, webapi, last-write time) for the statusline | hook payload, hook config | `/tmp`, CouchDB |
 | `inject-recall-policy` ✅ | Prime the session with the recall policy and how much history this cwd has (`additionalContext`, same JSON object as the banner); omitted when off, excluded, empty or the webapi is slow ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)) | hook config `recall`, webapi | stdout (context) |
 | `announce-recording` ✅ | Print the session-start banner — recording to *where*, or **not recording** — as hook JSON on stdout (the hook's only stdout use; `SessionStart` only) | targets | stdout (transcript) |
@@ -34,23 +33,13 @@ roadmap items.)
 
 ## Current bindings (seed mapping)
 
-The live `dispatch.ts` `REGISTRY` is the seed of the many-to-many table:
+`BINDINGS` (`packages/shared/src/model/actions.ts`) is the table; the hook looks
+bindings up at dispatch and runs each key from `HANDLERS`, and `hooks.json` is generated
+from it. The live event → actions list is projected into
+[hook-events.md](hook-events.md) ("What we do").
 
-| Event | Bound actions (today) |
-|-------|-----------------------|
-| `SessionStart` | `seed-session-start`, `write-event-marker`, `announce-recording`, `inject-recall-policy` |
-| `UserPromptSubmit` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
-| `PostToolUse` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
-| `PostToolUseFailure` | `write-event-marker`, `update-counts`, `flush-transcript-chunk` |
-| `Stop` | `write-event-marker`, `flush-transcript-chunk` (forced) |
-| `SubagentStart` / `SubagentStop` | `write-event-marker`, `update-counts` |
-| `SessionEnd` | `flush-transcript-chunk` (final), `write-summary`, `upload-blobs` |
-
-> In the implemented hook these are still expressed as handler modules
-> (`handlers/*` + the `chunk-flush` handler). The decoupled model reframes them as
-> **actions bound to events**; the mapping becomes declarative and **configurable**
-> per deployment (per the "everything configurable" goal —
-> [configuration.md](../start/configuration.md)).
+> Already declarative (one `HANDLERS` entry per action, bound only via `BINDINGS`);
+> still to do: per-deployment configuration ([configuration.md](../start/configuration.md)).
 
 ## Design notes
 
@@ -58,7 +47,7 @@ The live `dispatch.ts` `REGISTRY` is the seed of the many-to-many table:
   hook's never-block invariant.
 - Actions should be **independently failable**: one action throwing must not
   prevent the others bound to the same event (today: `Promise.allSettled` in
-  `dispatch.ts`).
+  `packages/cli/src/hook/index.ts`).
 - New behaviour should be added as an **action** + a **binding**, not by hard-coding
   logic into a specific event handler — that's what keeps coverage and composition
   clean.

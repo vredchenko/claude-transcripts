@@ -11,7 +11,7 @@
 > instance safe, because views are derived and CouchDB rebuilds them over whatever docs
 > exist. Document-transforming migrations are supported by the engine but none has been
 > written, and the first one will need import taught to replay it — see
-> [Documents](#documents) below.
+> the **Documents** item under [What it does](#what-it-does) below.
 
 CouchDB has no modern migrations framework, so we build our **own** — a versioned,
 reversible tool that migrates documents **and** design views and plugs into the

@@ -18,11 +18,12 @@ terminal and for **AI agents driving the system headless**.
    CLI can do, because both are just webapi consumers
    ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)): list/inspect sessions,
    read transcripts, query views via `/api/couch`, fetch blobs via `/api/s3`,
-   run searches, post enrichment metadata. **All app-side reads and writes go
-   through the webapi** — the CLI never touches CouchDB/S3 directly.
+   run searches. **All app-side reads and writes go through the webapi** — except
+   `hook run`, the hook itself, which writes to CouchDB/S3 directly
+   ([ADR 0016 amendment](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
 2. **Admin / host-side utility** (talks to the host). The operations that are
-   inherently local: `smoke-test`, `install`/`setup` (register the hook, generate
-   runtime config), `configure`, `export`/`import` (bundle round-trip), and
+   inherently local: `doctor` (end-to-end smoke test), `install`/`setup` (register
+   the hook, generate runtime config), `export`/`import` (bundle round-trip), and
    `backfill` (adopt on-disk `~/.claude` transcripts as first-class history). Host-side
    **metadata ingestion** (reading local config/transcripts the container can't
    see) is the one legitimately non-webapi path — it's an input source, delivered
@@ -41,7 +42,7 @@ them under one command surface:
 | **`.claude/` reader/parser** | Read + parse the local `~/.claude/` filesystem (transcripts, projects, config) for `backfill` and verification | its own module/package within the CLI |
 | **hooks setup** | Install/register the Claude Code hooks, generate runtime config | host-side |
 | **export / import** | User-data bundle round-trip (dump/restore), format conversion | shares the [migrations](../operate/migrations.md) machinery |
-| **admin** | `setup` / `configure` / `smoke-test` | host-side |
+| **admin** | `install` / `setup` / `doctor` | host-side |
 
 New functionality is added as **another internal module + a command**, so the tool
 grows by composition. The `.claude/` reader is deliberately a standalone module
