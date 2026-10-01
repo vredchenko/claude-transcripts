@@ -6,10 +6,29 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.3] — 2026-10-01
+
+Fixes found by auditing the docs against the code, then working through the bugs that
+audit left open: a resume that duplicated chunks, a hook that stopped recording when its
+directory was deleted, a statusline that never noticed, truncated `--json` pipes, CLI ids
+that couldn't be passed back, and docs that had drifted from what ships.
 
 ### Fixed
 
+- **`setup` writes the recall policy.** It built the hook config with its own copy of
+  the projection, which never carried `recall`, so re-running `setup` after changing the
+  policy left the hook on the old one. It now uses `install`'s `buildHookConfig` ([#174]).
+- **Provisioning resolves the CouchDB URL properly.** `couchUrl()` produced
+  `http://127.0.0.1:undefined` with no `COUCHDB_PORT` and passed `COUCHDB_URL` through
+  unnormalised; it now uses the shared `resolveCouchUrl`. An empty `S3_REGION` falls back
+  to `garage` ([#174], [#178]).
+- **The `/` manifest reports the hook's actions as implemented.** Every action said
+  `implemented: false`; the eight with a handler now say `true`, and a test keeps the
+  flag and `HANDLERS` in step ([#173]).
+- **The plugin skills only use flags the CLI accepts.** `search` has no `--from`/`--to`,
+  `turns` has no `--cwd`, and `stack restart` takes no service name ([#172]).
+- **The plugin no longer warns at every session start** (`hooks.json: unknown key
+  "_generated" ignored`). `gen:hooks` drops the key ([#169]).
 - **Resuming an ended session no longer duplicates transcript chunks.** SessionEnd
   deleted the chunk offset, so a resume re-sliced the transcript from byte 0 under new
   chunk ids. The offset now survives, and a resume with no local offset seeds it from
@@ -32,32 +51,6 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   ([#117]).
 - **The k8s base pins the app image to the release** (`v<version>`, `IfNotPresent`)
   instead of `latest` ([#165]).
-- **Configured `servicesMenu` links win over derived ones**, and the template ships it
-  empty. CouchDB links in the webui go through `/api/couch` with the real database
-  name ([#141]).
-
-## [0.3.3] — 2026-10-01
-
-Fixes found by auditing the docs against the code: two config bugs in the CLI, a
-manifest that described the hook as unbuilt, plugin skills that sent agents to rejected
-flags, and docs that had drifted from what ships.
-
-### Fixed
-
-- **`setup` writes the recall policy.** It built the hook config with its own copy of
-  the projection, which never carried `recall`, so re-running `setup` after changing the
-  policy left the hook on the old one. It now uses `install`'s `buildHookConfig` ([#174]).
-- **Provisioning resolves the CouchDB URL properly.** `couchUrl()` produced
-  `http://127.0.0.1:undefined` with no `COUCHDB_PORT` and passed `COUCHDB_URL` through
-  unnormalised; it now uses the shared `resolveCouchUrl`. An empty `S3_REGION` falls back
-  to `garage` ([#174], [#178]).
-- **The `/` manifest reports the hook's actions as implemented.** Every action said
-  `implemented: false`; the eight with a handler now say `true`, and a test keeps the
-  flag and `HANDLERS` in step ([#173]).
-- **The plugin skills only use flags the CLI accepts.** `search` has no `--from`/`--to`,
-  `turns` has no `--cwd`, and `stack restart` takes no service name ([#172]).
-- **The plugin no longer warns at every session start** (`hooks.json: unknown key
-  "_generated" ignored`). `gen:hooks` drops the key ([#169]).
 
 ### Security
 
@@ -71,6 +64,10 @@ flags, and docs that had drifted from what ships.
   reference and operate docs, the design docs and ADRs were corrected against the code;
   copied inventories now link to their source; ADRs 0005, 0012, 0018, 0023 and 0025 carry
   dated amendments ([#175], [#176], [#177]).
+- **Configured `servicesMenu` links win over derived ones**, and the template ships it
+  empty. Entries still equal to the old template's default-port links are ignored, so a
+  copied config follows the instance's ports. CouchDB links in the webui go through
+  `/api/couch` with the real database name ([#141]).
 
 ## [0.3.2] — 2026-09-12
 
