@@ -6,13 +6,35 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.3] — 2026-10-01
+
+Fixes found by auditing the docs against the code: two config bugs in the CLI, a
+manifest that described the hook as unbuilt, plugin skills that sent agents to rejected
+flags, and docs that had drifted from what ships.
 
 ### Fixed
 
+- **`setup` writes the recall policy.** It built the hook config with its own copy of
+  the projection, which never carried `recall`, so re-running `setup` after changing the
+  policy left the hook on the old one. It now uses `install`'s `buildHookConfig` ([#174]).
+- **Provisioning resolves the CouchDB URL properly.** `couchUrl()` produced
+  `http://127.0.0.1:undefined` with no `COUCHDB_PORT` and passed `COUCHDB_URL` through
+  unnormalised; it now uses the shared `resolveCouchUrl`. An empty `S3_REGION` falls back
+  to `garage` ([#174], [#178]).
+- **The `/` manifest reports the hook's actions as implemented.** Every action said
+  `implemented: false`; the eight with a handler now say `true`, and a test keeps the
+  flag and `HANDLERS` in step ([#173]).
+- **The plugin skills only use flags the CLI accepts.** `search` has no `--from`/`--to`,
+  `turns` has no `--cwd`, and `stack restart` takes no service name ([#172]).
 - **The plugin no longer warns at every session start** (`hooks.json: unknown key
-  "_generated" ignored`). `gen:hooks` drops the key; the "generated" notice lives in
-  `hooks/README.md` ([#169]).
+  "_generated" ignored`). `gen:hooks` drops the key ([#169]).
+
+### Changed
+
+- **Docs match the code.** CLAUDE.md, the README, the start/develop guides, the
+  reference and operate docs, the design docs and ADRs were corrected against the code;
+  copied inventories now link to their source; ADRs 0005, 0012, 0018, 0023 and 0025 carry
+  dated amendments ([#175], [#176], [#177]).
 
 ## [0.3.2] — 2026-09-12
 
@@ -1518,7 +1540,14 @@ of them had ever executed:
 [#158]: https://github.com/vredchenko/claude-transcripts/issues/158
 [#161]: https://github.com/vredchenko/claude-transcripts/issues/161
 [#169]: https://github.com/vredchenko/claude-transcripts/issues/169
-[Unreleased]: https://github.com/vredchenko/claude-transcripts/compare/v0.3.2...main
+[#172]: https://github.com/vredchenko/claude-transcripts/issues/172
+[#173]: https://github.com/vredchenko/claude-transcripts/issues/173
+[#174]: https://github.com/vredchenko/claude-transcripts/issues/174
+[#175]: https://github.com/vredchenko/claude-transcripts/issues/175
+[#176]: https://github.com/vredchenko/claude-transcripts/issues/176
+[#177]: https://github.com/vredchenko/claude-transcripts/issues/177
+[#178]: https://github.com/vredchenko/claude-transcripts/issues/178
+[0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
 [0.3.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.0
