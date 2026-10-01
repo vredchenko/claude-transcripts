@@ -212,8 +212,9 @@ in the generated snapshot. The header uses it for the title + build version.
   quick links: **This app** (Scalar `/api/docs`, OpenAPI spec, `/api/model`);
   **Services** (CouchDB Fauxton + a `_all_docs` JSON link, Garage Web UI + buckets,
   Meilisearch UI + API); **Project** (GitHub repo, tech docs → the repo's `docs/`).
-  The service URLs come from `/api/model`'s `servicesMenu`, so they follow the
-  deployment's real ports and hosts rather than the bundled dev defaults.
+  The service URLs come from `/api/model`'s `servicesMenu` (configured, else derived
+  from the stack's ports); CouchDB design-view links go through the read-only
+  `/api/couch` proxy, so they work without a dashboard.
 - **`StatusChip`** (`components/StatusChip.tsx`) / **`SourceChip`**
   (`components/SourceChip.tsx`) — the lifecycle chip (labels: **live** /
   **abandoned** / **ended**, each with an explanatory tooltip) and the provenance

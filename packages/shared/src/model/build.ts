@@ -16,19 +16,14 @@ import { resolveUserSettings } from "./user-settings";
  * from config + env, so the model reflects the current build source or deploy.
  */
 /**
- * Admin-UI links, derived from the services' **resolved** ports.
+ * Admin-UI links: config wins where it speaks, derivation fills the rest.
  *
- * These used to be literal URLs in `config/`, carrying the template's default ports
- * (7652, 7655, …). `install` generates a per-instance port block, so on any instance
- * that didn't happen to get the defaults every link pointed at a closed port — and
- * since the values lived in the instance's own `app.json`, they looked authoritative
- * while being wrong.
- *
- * The model already knows each service's host port after env resolution, so it can say
- * where a dashboard actually is. Derived entries therefore WIN over the config file:
- * a stale default in an existing `app.json` must not override the truth. Config keys
- * the model doesn't know are still carried through, so an operator can add links of
- * their own.
+ * A configured `servicesMenu` entry is the operator saying where a dashboard lives (an
+ * external backend, a reverse proxy, another host), so it overrides the derived link —
+ * the same config-first rule as `resolveUserSettings`. Keys the config leaves unset fall
+ * back to `http://127.0.0.1:<resolved host port>`, right for the bundled stack on this
+ * machine and following a per-instance port block. Config keys the model doesn't know
+ * are carried through, so an operator can add links of their own.
  */
 function buildServicesMenu(
   services: ServiceDef[],
@@ -42,8 +37,7 @@ function buildServicesMenu(
     const path = s.adminUiPath ?? "/";
     derived[s.adminUiServiceKey] = `http://127.0.0.1:${port}${path}`;
   }
-  // Config first so its extra keys survive; derived last so it wins on shared keys.
-  return { ...fromConfig, ...derived };
+  return { ...derived, ...fromConfig };
 }
 
 export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppModel {

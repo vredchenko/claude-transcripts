@@ -32,11 +32,7 @@
     "meilisearch": true,
     "secretsMasking": false
   },
-  "servicesMenu": {
-    "couchdbFauxton": "http://127.0.0.1:7652/_utils/",
-    "garageWebui": "http://127.0.0.1:7655/",
-    "meilisearch": "http://127.0.0.1:7656/"
-  },
+  "servicesMenu": {},
   "userSettings": {
     "sessionListPageSize": 100,
     "transcriptPageSize": 100,

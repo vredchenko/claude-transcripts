@@ -6,7 +6,7 @@
  */
 import { Box, Button, Popover, Stack, Typography, useTheme } from "@mui/material";
 import { useMemo, useState } from "react";
-import { useAppModel } from "../api/model";
+import { couchProxyUrl, useAppModel } from "../api/model";
 import { MONO } from "../theme";
 
 const REPO_URL = "https://github.com/vredchenko/claude-transcripts";
@@ -101,18 +101,20 @@ export function LinksMenu() {
       ],
     });
 
-    // COUCHDB — design view links from servicesMenu
+    // COUCHDB — design views through the read-only proxy; Fauxton when one is linked.
     const fauxtonUrl = model?.servicesMenu?.couchdbFauxton;
-    if (fauxtonUrl) {
-      const couchLinks: LinkItem[] = [
-        {
+    const sessionsDb = model?.stores?.databases?.sessions;
+    if (sessionsDb) {
+      const couchLinks: LinkItem[] = [];
+      if (fauxtonUrl) {
+        couchLinks.push({
           label: "Fauxton",
           subline: fauxtonUrl,
           href: fauxtonUrl,
           icon: "🗄",
           external: true,
-        },
-      ];
+        });
+      }
 
       const KNOWN_DESIGNS: Record<string, string[]> = {
         sessions: ["by_date", "by_cwd"],
@@ -129,10 +131,9 @@ export function LinksMenu() {
           couchLinks.push({
             label: `${design}/${view}`,
             subline: `_design/${design}/_view/${view}`,
-            href: `${fauxtonUrl}/#/database/sessions/_design/${design}/_view/${view}`,
+            href: couchProxyUrl(sessionsDb, `_design/${design}/_view/${view}?limit=100`),
             icon: "🔍",
-            external: true,
-            indent: true,
+            indent: Boolean(fauxtonUrl),
           });
         }
       }
