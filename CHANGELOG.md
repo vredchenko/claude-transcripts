@@ -6,6 +6,36 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Resuming an ended session no longer duplicates transcript chunks.** SessionEnd
+  deleted the chunk offset, so a resume re-sliced the transcript from byte 0 under new
+  chunk ids. The offset now survives, and a resume with no local offset seeds it from
+  CouchDB ([#168]).
+- **The hook still records after the session's directory is deleted.** Bun refuses to
+  start in a deleted cwd, so every hook command now starts with `cd / && ` ([#171]).
+- **The statusline shows `stalled · hook silent`** when the transcript has moved on
+  more than 5 minutes past the hook's last attempt, instead of `rec` forever ([#125]).
+- **Piped `--json` output is no longer truncated.** Loading Ink created Bun's
+  `process.stdout`, which drops a pipe's tail at exit; only help loads Ink now ([#146]).
+- **CLI tables print full session ids**, so an id can be passed back to `sessions <id>`
+  or `turns <id>` ([#146]).
+- **The CLI finds a remote webapi.** The hook config gains `webapi.url`, consulted after
+  the env and before the local install; `backfill` names the URL it tried when it can't
+  connect ([#126]).
+- **`session_index/aggregate` is deterministic.** A session's cwd, model and host are
+  the earliest seen, not whichever the re-reduce saw last; migration v10 redeploys the
+  view ([#119]).
+- **Session turns are paged in CouchDB** rather than loading every turn per page
+  ([#117]).
+- **The k8s base pins the app image to the release** (`v<version>`, `IfNotPresent`)
+  instead of `latest` ([#165]).
+- **Configured `servicesMenu` links win over derived ones**, and the template ships it
+  empty. CouchDB links in the webui go through `/api/couch` with the real database
+  name ([#141]).
+
 ## [0.3.3] — 2026-10-01
 
 Fixes found by auditing the docs against the code: two config bugs in the CLI, a
@@ -1554,6 +1584,13 @@ of them had ever executed:
 [#177]: https://github.com/vredchenko/claude-transcripts/issues/177
 [#178]: https://github.com/vredchenko/claude-transcripts/issues/178
 [#180]: https://github.com/vredchenko/claude-transcripts/issues/180
+[#125]: https://github.com/vredchenko/claude-transcripts/issues/125
+[#126]: https://github.com/vredchenko/claude-transcripts/issues/126
+[#141]: https://github.com/vredchenko/claude-transcripts/issues/141
+[#146]: https://github.com/vredchenko/claude-transcripts/issues/146
+[#165]: https://github.com/vredchenko/claude-transcripts/issues/165
+[#168]: https://github.com/vredchenko/claude-transcripts/issues/168
+[#171]: https://github.com/vredchenko/claude-transcripts/issues/171
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
