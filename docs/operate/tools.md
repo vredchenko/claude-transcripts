@@ -1,14 +1,14 @@
-# cli/ — operational CLI utilities
+# packages/cli — operational CLI utilities
 
-`cli/` is the home for **standalone command-line utilities** that work with
+`packages/cli/` is the home for **standalone command-line utilities** that work with
 session data outside the live logging path: transcript parsing, history adoption
 (`backfill`), reconciliation, export/import bundles, and schema migrations. The hook
-writes sessions live; the app reads them; `cli/` is the by-hand operational
+writes sessions live; the app reads them; `packages/cli/` is the by-hand operational
 tier against the same CouchDB + S3 backend.
 
 > Note: dev-only repo build automation (orval client gen, image mirroring, release)
 > lives separately under `scripts/` ([dev-automation.md](../develop/dev-automation.md)) — these
-> user-useful operational commands live in `cli/`.
+> user-useful operational commands live in `packages/cli/`.
 
 See [`packages/cli/README.md`](../../packages/cli/README.md) for the directory's own quick index.
 
@@ -19,9 +19,10 @@ Keeping these out of both the hook and the app is deliberate:
 - The **hook stays a thin writer** — no operational subcommands on the session
   hot path. (This also aligns with the agent-first direction in
   [#15](../design/roadmap.md), where the host hook shrinks further.)
-- The **app stays a reader** — no destructive/admin operations behind the HTTP
-  API.
-- Utilities here can be **homelab-agnostic and vendor-neutral** by construction:
+- The **app stays a gateway, not an admin console** — it exposes only validated
+  primitives (`/api/ingest/*`, `/api/migrate/*`, `/api/search/reindex`); deciding what
+  to adopt, re-process or migrate lives here.
+- Utilities here can be **deployment-agnostic and vendor-neutral** by construction:
   CouchDB over HTTP, S3 via `S3_*` env, no host paths or rclone/MinIO assumptions.
 
 ## Design rules
@@ -45,10 +46,10 @@ Keeping these out of both the hook and the app is deliberate:
 | Utility | Purpose | Status today | Tracking |
 |---------|---------|--------------|----------|
 | **transcript-parser** | Parse a `<id>.jsonl` transcript into typed entries (messages, tool uses, usage). Reused by `backfill` and as a **verification oracle** — diff CouchDB content against the fs transcript. Token math validated against `ccusage`. | partial — `@claude-transcripts/shared` (`sumTranscriptTokens`, `buildChunkEntries`) | #6 |
-| **backfill** | "Adopt this machine's history": read on-disk `~/.claude/projects/**/<id>.jsonl` transcripts and reconstruct each session at **parity with the live hook** — the `summary:<id>` doc (`source: "backfill"` + `backfilled_at`) **and** per-event marker docs (so `events/*`, `tools/*`, `activity/timeline` views populate) and full-content `chunk` docs — plus the S3 transcript blob. Preserves the transcript's real per-entry timestamps (never stamps backfill time into `timestamp`); attributes by `--host` / `--actor`; skips sessions already present unless `--force` re-processes them. Flags: `--dir`, `--host`, `--actor`, `--chunk-size`, `--no-content`, `--force`, `--session`, `--webapi`, `--dry-run`. | exists — `packages/cli/src/commands/backfill.ts` (subagent sub-transcripts still TODO) | #6, #7 |
+| **backfill** | "Adopt this machine's history": read on-disk `~/.claude/projects/**/<id>.jsonl` transcripts and reconstruct each session at **parity with the live hook** — the `summary:<id>` doc (`source: "backfill"` + `backfilled_at`) **and** per-event marker docs (so `events/*`, `tools/*`, `activity/timeline` views populate) and full-content `chunk` docs — plus the S3 transcript blob. Preserves the transcript's real per-entry timestamps (never stamps backfill time into `timestamp`); attributes by `--host` / `--actor`; skips sessions already present unless `--force` re-processes them (live-recorded sessions only with `--replace-live` as well); `--repair` adds what an interrupted write left out. Flags: [cli.md → backfill](../reference/cli.md#backfill-options). | exists — `packages/cli/src/commands/backfill.ts` (subagent sub-transcripts still TODO) | #6, #7 |
 | **reconcile** | Finalize stale `running`/`incomplete` sessions (no `SessionEnd` fired) from their CouchDB chunks and/or the S3 transcript → write the missing `summary:<id>`. | planned | #4 |
 | **export / import** | Dump (`export`) and restore (`import`) an instance (or a session / date range) as a portable bundle — summary + event docs + chunks + S3 blobs, plus the schema version — for moving history between machines or replacing an instance. | exists — `packages/cli/src/commands/{export,import}.ts` ([bundles.md](../design/bundles.md)) | — |
-| **migrate** | Self-built CouchDB migrations: version the schema, migrate docs **up/down**, and create/update/remove design views. CouchDB has no modern migrations tool, so we build our own. | exists — `packages/cli/src/commands/migrate.ts` (seven view migrations applied) | [migrations.md](migrations.md), [ADR 0021](../design/decisions/0021-self-built-couchdb-migrations.md) |
+| **migrate** | Self-built CouchDB migrations: version the schema, migrate docs **up/down**, and create/update/remove design views. CouchDB has no modern migrations tool, so we build our own. | exists — `packages/cli/src/commands/migrate.ts` (view-only migrations so far) | [migrations.md](migrations.md), [ADR 0021](../design/decisions/0021-self-built-couchdb-migrations.md) |
 
 ### One `backfill` command (#6)
 

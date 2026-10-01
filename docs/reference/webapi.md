@@ -1,76 +1,101 @@
 # webapi — codebase reference
 
-A [Hono](https://hono.dev) + Bun service that reads sessions back out of CouchDB +
-S3, exposes them over a small JSON API, and (in production) serves the built
-`webui` SPA from the same process. **As built today it is read-only** for session
-data (the only writes it does are idempotent schema setup on boot).
-
-> **Direction** ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)): the
-> webapi is the project's **single I/O gateway and stability column** — the hook
-> and all consumers will read *and write* through it, and it will add read-only
-> `/api/couch` + `/api/s3` proxies. This doc describes the current code; see
-> [architecture.md](../design/architecture.md) and [routes.md](routes.md) for the target.
+A [Hono](https://hono.dev) + Bun service: the project's **I/O gateway**
+([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)). Consumers read through it and write only via curated routes
+(`/api/ingest/*`, `/api/migrate/*`, `/api/search/reindex`); the hook writes to
+CouchDB/S3 directly ([amendment](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)),
+which is why the `_changes` follower exists. In production it also serves the SPA, the
+docs and the CLI binary. Full URL surface: [routes.md](routes.md).
 
 - **Package:** `packages/webapi/` (workspace name `@claude-transcripts/webapi`)
 - **Runtime:** Bun, TypeScript (ESM, strict)
-- **Framework:** Hono via [`@hono/zod-openapi`](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) (OpenAPI-typed routes) + `@hono/swagger-ui`
+- **Framework:** Hono via [`@hono/zod-openapi`](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) (OpenAPI-typed routes) + [Scalar](https://github.com/scalar/scalar) (`@scalar/hono-api-reference`) for the rendered reference at `/api/docs`
 - **CouchDB client:** [`nano`](https://github.com/apache/couchdb-nano)
 - **S3 client:** Bun's built-in `Bun.S3Client` (no SDK dependency)
 
-> **API docs tooling (decided).** **Keep the OpenAPI spec** — it's the contract
-> source of truth and `orval` needs it to generate the CLI + webui clients
-> ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)). The
-> *rendered* docs at `/api/docs` will be served by
-> **[Scalar](https://github.com/scalar/scalar)** (`@scalar/hono-api-reference`) —
-> a modern reference UI over the same spec — replacing `@hono/swagger-ui`;
-> `@hono/zod-openapi` stays for spec generation.
+The OpenAPI spec is the contract source of truth: `orval` generates the CLI + webui
+clients from it ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)),
+and Scalar renders it at `/api/docs`. The committed copy is the repo-root
+`openapi.json`, built offline by `src/write-openapi.ts` (`bun run gen:clients`).
 
 ## File layout
 
 | File | Purpose |
 |------|---------|
-| `src/index.ts` | Boot sequence: build config, open CouchDB + S3 handles, `ensureCouchDbs`, start the server. |
-| `src/server.ts` | `OpenAPIHono` app factory: health check, OpenAPI doc + Swagger UI, optional SPA static serving. |
-| `src/config.ts` | Config loader: `claude-transcripts.config.json` defaults overlaid with `.env`. |
-| `src/routes/sessions.ts` | The session/transcript endpoints + their zod schemas; running-session detection. |
-| `src/storage/couch.ts` | `makeCouchHandles(config)` — `nano` server + database handles. |
-| `src/storage/blob-store.ts` | `BlobStore` interface (`get`, `stat`). |
+| `src/index.ts` | Boot sequence: load config, build the app model, open CouchDB + S3 (+ Meilisearch) handles, `ensureCouchDbs`, start the session index + `_changes` follower, serve. |
+| `src/server.ts` | `OpenAPIHono` app factory: compression, error handler, `/health`, every route module under `/api`, the OpenAPI doc + Scalar UI, the `/` manifest, and (when configured) `/app`, `/docs` and `/cli/download`. |
+| `src/config.ts` | Config loader ([below](#configuration-configts)). |
+| `src/caching.ts` | Compression wrapper + `Cache-Control` policy for `/app` and `/docs` (below). |
+| `src/contract-diff.ts` | Classifies differences between two versions of the spec as breaking or not, for the contract check. |
+| `src/routes/*.ts` | One module per URL prefix (sessions, ingest, search, migrate, proxy, model, manifest); `validation.ts` holds `validationHook` (the `defaultHook`: request-validation failures → `{ error }` 400). |
+| `src/storage/couch.ts` | `makeCouch(config)` — `nano` server scope + `db(key)` by logical key; `couchFetch` for raw HTTP. |
+| `src/storage/blob-store.ts` | `BlobStore` interface (`get`, `stat`, `put`, `remove`). |
 | `src/storage/s3-blob-store.ts` | `S3BlobStore` — `Bun.S3Client` implementation (path-style, vendor-neutral). |
-| `src/storage/ensure.ts` | `ensureCouchDbs` — creates the DB, upserts every design doc, creates the Mango index. |
+| `src/storage/ensure.ts` | `ensureCouchDbs` — creates the system + configured databases, applies pending migrations, creates the Mango index. |
+| `src/storage/migrations.ts` | The concrete `MigrationContext` over a `nano` database, which the migration engine writes through. |
+| `src/storage/meili.ts` | Minimal fetch-based Meilisearch client + the session/turn search-doc projections. |
 | `src/storage/session-index.ts` | Per-session aggregates held in memory, patched from the change feed — what makes the session list fast. |
 | `src/storage/changes-follower.ts` | Follows CouchDB `_changes`; feeds the session index (always) and Meilisearch (when search is on). |
+| `src/storage/active-duration.ts` | Active (working) time per session — the span minus idle gaps, from `session_index/event_times`. |
 
 ## Configuration (`config.ts`)
 
-Two layers, per [configuration.md](../start/configuration.md): non-secret defaults from the
-repo-root `claude-transcripts.config.json` (DB/bucket names, `features`, `servicesMenu`),
-overlaid with secrets/endpoints from `.env`.
+Two layers ([configuration.md](../start/configuration.md)): `config/config.json`
+(else the committed template; `CT_CONFIG_DIR` overrides the directory) for non-secret
+settings, `.env` for secrets/endpoints. Stores are named by logical key, never by env
+var.
 
 - **CouchDB:** `COUCHDB_URL` (full base URL; https + path prefix supported, wins
-  over `COUCHDB_HOST/PORT`), `COUCHDB_HOST/PORT/USER/PASSWORD`, `COUCHDB_DB` (or
-  `claude-transcripts.config.json` → `couchdb.database`).
-- **S3:** `S3_ENDPOINT` (full URL), `S3_REGION` (Garage default `garage`),
-  `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` (or `s3.bucket`).
+  over `COUCHDB_HOST/PORT`), `COUCHDB_HOST/PORT/USER/PASSWORD`.
+- **S3:** `S3_ENDPOINT` (full URL, default `http://127.0.0.1:7653`), `S3_REGION`
+  (Garage default `garage`), `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
+- **Meilisearch:** `MEILI_HOST` (default `http://127.0.0.1:7656`), `MEILI_API_KEY`;
+  used only when `features.meilisearch` is true.
 - **webapi:** `WEBAPI_HOST`/`WEBAPI_PORT` (default `127.0.0.1:7650`),
-  `CT_STATIC_DIR` (optional — enables SPA serving), `CT_VERSION` (baked at
-  image build from the git tag; surfaced on `/health`).
+  `CT_STATIC_DIR` (optional — enables SPA serving at `/app`), `CT_DOCS_DIR` (optional —
+  enables `/docs`), `CT_CLI_BIN` (optional — enables `/cli/download`), `CT_VERSION`
+  (baked at image build from the git tag; surfaced on `/health`).
+- **Session list** (`system.sessions` in config): `liveWindowMs` (default `86400000`,
+  24 h) and `idleThresholdMs` (default `300000`, 5 min) — see
+  [List behaviour](#list-behaviour-running-session-detection).
 
 ## HTTP API
 
-All session endpoints are under `/api/claude`. Routes are declared with
-`createRoute(...)` + zod schemas so the OpenAPI spec and Swagger UI are generated
-from the same definitions (no hand-written spec).
+Typed routes use `createRoute` + zod, so the spec is generated, not hand-written.
+`/health`, `/`, `/api/model*`, the proxies and the static mounts are plain Hono routes
+and not in the spec.
 
 | Method | Path | Query | Returns |
 |--------|------|-------|---------|
-| `GET` | `/health` | — | `{ ok, status, version, startedAt, stores }` — see below |
-| `GET` | `/api/claude/sessions` | `limit=50`, `skip=0` | `{ sessions: ClaudeSessionSummary[], totalCount }` |
-| `GET` | `/api/claude/sessions/{id}` | — | `ClaudeSessionSummary` (404 if absent) |
-| `GET` | `/api/claude/sessions/{id}/transcript` | `limit=100`, `offset=0` | `{ entries: TranscriptEntry[], totalCount, hasMore, source, byteCoverage }` |
-| `POST` | `/api/search/reindex` | — | `{ enabled, sessions: {scanned, indexed}, turns: {scanned, indexed}, failures }` |
+| `GET` | `/health` | — | `{ ok, status, version, startedAt, stores, sessionIndex }` — see below |
+| `GET` | `/api/sessions` | `limit=50`, `skip=0`, `from`, `to`, `cwd`, `hostname`, `model`, `source` | `SessionsResponse` |
+| `GET` | `/api/sessions/{id}` | — | `SessionSummary` (404 if absent) |
+| `GET` | `/api/sessions/{id}/transcript` | `limit=100`, `offset=0` | `TranscriptResponse` |
+| `GET` | `/api/sessions/{id}/turns` | `role`, `limit=500`, `offset=0` | `SessionTurnsResponse` |
+| `GET` | `/api/turns` | `role`, `from`, `to`, `limit=200`, `skip=0` | `CrossSessionTurnsResponse` |
+| `GET` | `/api/search` | `q`, `limit=20`, `offset=0`, `cwd`, `model`, `hostname`, `source` | `SearchResponse` |
+| `POST` | `/api/search/reindex` | — | `ReindexResult` |
+| `POST` | `/api/ingest/summary` | — | Upsert a `summary:<id>` doc (idempotent) |
+| `POST` | `/api/ingest/events` | — | Bulk-insert append-only event docs |
+| `POST` | `/api/ingest/chunks` | — | Bulk-insert chunk docs (stable ids; idempotent) |
+| `PUT` | `/api/ingest/{id}/transcript` | — | Store the raw JSONL body (`application/x-ndjson`) as the session's S3 transcript |
+| `DELETE` | `/api/ingest/{id}` | `blobs=true\|false` | `SessionResetResult` |
+| `GET` | `/api/migrate/status` | — | `MigrationStatus` |
+| `POST` | `/api/migrate/up` | body `{ to?, dryRun? }` | `MigrationRunResult` |
+| `POST` | `/api/migrate/down` | body `{ steps?, dryRun? }` | `MigrationRunResult` |
+| `GET` | `/api/model` | — | The app model, minus `apiSpec` |
+| `GET` | `/api/model/{services,hooks,actions,env}` | — | One facet of the model (`actions` returns `{ actions, bindings }`) |
+| `GET`/`HEAD` | `/api/couch/*` | passed through | CouchDB's HTTP API, read-only |
+| `GET`/`HEAD` | `/api/s3/{bucketKey}/*` | — | An object from the bucket with that logical key, read-only |
 | `GET` | `/api/openapi.json` | — | OpenAPI 3.0 spec |
-| `GET` | `/api/doc` | — | Swagger UI |
-| `GET` | `/*` | — | SPA static + `index.html` fallback (**only when `CT_STATIC_DIR` is set**) |
+| `GET` | `/api/docs` | — | Scalar API reference |
+| `GET` | `/` | — | App manifest (JSON, the agent entrypoint — not a UI page) |
+| `GET` | `/app/*` | — | SPA static + `index.html` fallback (**only when `CT_STATIC_DIR` is set**) |
+| `GET` | `/docs/*` | — | Prebuilt static docs (**only when `CT_DOCS_DIR` is set**) |
+| `GET` | `/cli/download` | — | The bundled CLI binary (**only when `CT_CLI_BIN` is set**) |
+
+`/api/sessions` filters apply before paging (`totalCount` is the filtered count);
+`from`/`to` match by overlap, the rest are exact.
 
 ### Health and store readiness
 
@@ -99,12 +124,13 @@ checks it before writing anything.
 
 ### List behaviour (running-session detection)
 
-Ended sessions come from the `sessions/by_date` view, newest-first, paged by
-`limit`/`skip`. On the **first page only** (`skip=0`), the route also surfaces
-**active** sessions — entries that have a `SessionStart` (via
-`session_meta/start_meta`) but **no** `summary:` doc, bounded to starts within the
-last 36 h. Each is classified `running` if it logged activity within 15 min, else
-`incomplete`. This matches the status model in [architecture.md](../design/architecture.md).
+Every session comes from `session_index/aggregate` (one row per `session_id`),
+served from the in-memory [session index](#the-session-index) when warm. With a
+`summary:` doc it is `ended`; without one, `running` if its last activity is within
+`system.sessions.liveWindowMs` (24 h), else `incomplete` — a recency heuristic, with no
+heartbeat. The route filters, sorts by last activity and pages in memory. Each returned
+row gets `activeMs` (span minus gaps longer than `idleThresholdMs`, from
+`session_index/event_times`, memoised).
 
 ### Detail / transcript
 
@@ -181,20 +207,22 @@ Two Meilisearch behaviours the write path has to respect:
 
 ## Storage
 
-- **CouchDB** (`couch.ts`): `nano` against `http://[user:pass@]host:port`, database
-  from config. Returns a server scope (DB create) + a document scope (queries).
+- **CouchDB** (`couch.ts`): `nano` against the resolved base URL (credentials folded
+  in when set). Returns a server scope (DB create) + `db(key)`, a document scope for a
+  database named by its logical key in `couchdb.databases`.
 - **S3** (`s3-blob-store.ts`): `Bun.S3Client` with `endpoint`/`region`/keys from
-  config, **path-style** addressing (required by Garage/MinIO). The webapi only
-  **reads** blobs (`get` returns a stream, `stat` returns size/etag or `null` on
-  404); it never creates the bucket. Swapping Garage → MinIO/R2/AWS is an env
-  change only ([ADR 0003](../design/decisions/0003-vendor-neutral-s3-drop-minio-and-rclone.md),
+  config, **path-style** addressing (required by Garage/MinIO). Reads via `get`/`stat`;
+  writes only via `put` (`PUT /api/ingest/{id}/transcript`) and `remove`
+  (`DELETE /api/ingest/{id}?blobs=true`). Never creates the bucket. Swapping Garage →
+  MinIO/R2/AWS is an env change only ([ADR 0003](../design/decisions/0003-vendor-neutral-s3-drop-minio-and-rclone.md),
   [ADR 0008](../design/decisions/0008-garage-s3-object-store.md)).
 
 ## Schema setup on boot (`ensure.ts`)
 
-`ensureCouchDbs` runs every boot and is idempotent: it creates the databases
-(ignoring "already exists") and creates a Mango index on `type` (non-fatal on error),
-then applies any **pending migrations**.
+`ensureCouchDbs` runs every boot and is idempotent: it creates CouchDB's system
+databases and every configured database (ignoring "already exists"), applies any
+**pending migrations** to the sessions database, then creates a Mango index on
+`type` (non-fatal on error).
 
 The design docs come from the migration registry
 (`@claude-transcripts/shared` `src/migrations/`) and nowhere else — there is one
@@ -206,9 +234,10 @@ blindly, so a view can never drift from the document shapes it maps over
 ## SPA serving (prod)
 
 In production the combined image sets `CT_STATIC_DIR` to the built SPA
-(`packages/webui/dist`); `server.ts` then serves static files with an
-`index.html` fallback for client-side (hash) routing — one container serves API +
-UI ([ADR 0002](../design/decisions/0002-single-combined-container.md)). In dev the var is
+(`packages/webui/dist`); `server.ts` then serves it under `/app/` (Vite builds with
+`base: "/app/"`) with an `index.html` fallback for client-side routing, and `/app`
+redirects to `/app/`. `/` is not the UI — it is the JSON manifest. One container
+serves API + UI ([ADR 0002](../design/decisions/0002-single-combined-container.md)). In dev the var is
 unset and Vite serves the UI, proxying `/api` to this service.
 
 ### Compression and caching
@@ -294,15 +323,14 @@ off — one feed with two consumers rather than two feeds learning the same fact
 
 ## `packages/shared`
 
-`packages/shared/src/index.ts` holds cross-cutting domain types + helpers. The
-wire/response types are currently imported directly by the webui, but the
-**direction** is for webui + CLI to consume a client **generated from the OpenAPI
-spec** ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md),
-superseding 0006), leaving `shared` for genuinely cross-cutting domain types like
-`sumTranscriptTokens`:
+`packages/shared/src/index.ts` holds cross-cutting domain types + helpers. The webui
+and CLI take their wire types from the client **generated from the OpenAPI spec**
+(`src/api/generated.ts` in each; [ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md),
+superseding 0006), so `shared` keeps the hand-written equivalents and genuinely
+cross-cutting helpers like `sumTranscriptTokens`:
 
 - **Types:** `TokenUsage`, `SessionStatus` (`"ended" | "running" | "incomplete"`),
-  `ClaudeSessionSummary`, `ClaudeSessionsResponse`, `ClaudeTranscriptResponse`.
+  `SessionSummary`, `SessionsResponse`, `TranscriptResponse`.
 - **`sumTranscriptTokens(jsonl)`** — sums Anthropic token usage from a transcript,
   **deduplicating by `message.id`** (keeping the heaviest usage block per id) so
   streamed/snapshotted duplicates aren't double-counted. One definition, imported by

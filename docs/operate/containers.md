@@ -7,20 +7,22 @@ build everything else from.
 ## The combined application image
 
 One container serves the whole front door — webapi + the built webui SPA +
-Swagger + the static HTML docs (rendered from `docs/*.md` by
+the Scalar API reference (`/api/docs`) + the static HTML docs (rendered from `docs/*.md` by
 [build-docs](../develop/dev-automation.md), served at `/docs`) — under one origin
 ([ADR 0002](../design/decisions/0002-single-combined-container.md),
 [routes.md](../reference/routes.md)). It also **bundles the CLI binary**, which the webui
 offers as a download link ([cli.md](../reference/cli.md)).
 
-- **Runtime:** Bun. Built from our Bun base image (below).
-- **Config:** the image carries `claude-transcripts.config.json` (non-secret defaults); secrets
+- **Runtime:** `oven/bun:1` (own base images: planned, below).
+- **Config:** the image carries `config/` (the committed `config.template.json` as
+  non-secret defaults; mount a `config/config.json` to override); secrets
   and **backend endpoints** come from env at run time — so the same image runs
   against the bundled Compose stack **or** fully external backends (external
   CouchDB, Cloudflare R2, remote Meilisearch). See
   [configuration.md](../start/configuration.md).
-- **Releases:** tag-driven on GitHub Actions to the GitHub Container Registry
-  (GHCR) ([ADR 0012](../design/decisions/0012-github-actions-and-ghcr-for-releases.md)).
+- **Releases:** `publish-image.yml` → GHCR
+  ([ADR 0012](../design/decisions/0012-github-actions-and-ghcr-for-releases.md)); tags in
+  [releasing.md](releasing.md).
 
 ## Deployment topologies
 
@@ -61,13 +63,12 @@ Compose services either way.
 
 Components are **built separately, then combined** into the deployment image, and
 **versioned together** (lockstep semver) —
-[ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md):
+[ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md). Today
+that is one multi-stage `Dockerfile` build from source:
 
-1. Build each component independently, in parallel Docker stages: webui SPA
-   `dist/`, the static docs (`build-docs`), and (planned) the CLI binary.
-2. Release those artifacts.
-3. **Combine** them into the single app image (serves `/api`, `/app`, Swagger,
-   `/docs`, and the bundled CLI download).
+1. Build each component in its own Docker stage: the webui SPA `dist/`, the static
+   docs (`build-docs`), and the compiled CLI binary.
+2. **Combine** them into the single app image ([routes.md](../reference/routes.md)).
 
 Driven by `scripts` + CI ([dev-automation.md](../develop/dev-automation.md)).
 
