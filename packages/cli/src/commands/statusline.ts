@@ -18,6 +18,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { hookLaunch } from "@claude-transcripts/shared";
 import { makeCounts, makeTargets } from "../hook/runtime";
 import { parseFlags } from "../lib/args";
 import { installPaths } from "../lib/paths";
@@ -39,8 +40,9 @@ function readSettings(path: string): Settings {
   }
 }
 
+/** Started from `/`, like the hook: a deleted session cwd must not blank the statusline (#171). */
 export function statuslineCommand(): string {
-  return `${cliInvocation()} statusline render`;
+  return hookLaunch(`${cliInvocation()} statusline render`);
 }
 
 /** Ours in any form — the installed binary, a checkout, or the plugin's `bin/` wrapper. */

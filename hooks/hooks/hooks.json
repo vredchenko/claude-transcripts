@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 180
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -87,7 +87,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -99,7 +99,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -111,7 +111,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 5,
             "async": true
           }
@@ -123,7 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts",
+            "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
             "timeout": 180
           }
         ]

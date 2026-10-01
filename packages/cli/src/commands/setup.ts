@@ -26,7 +26,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { AppConfigFile } from "@claude-transcripts/shared";
+import { type AppConfigFile, hookLaunch } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { parseFlags } from "../lib/args";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
@@ -144,9 +144,12 @@ export function globalRegistrationBlockedBy(
   return pluginRegistration(settingsPath, readSettings(settingsPath));
 }
 
-/** Our dispatch command (absolute path — settings.json can't use ${CLAUDE_PLUGIN_ROOT}). */
+/** The dispatch shim's absolute path — settings.json can't use ${CLAUDE_PLUGIN_ROOT}. */
+const DISPATCH_PATH = join(HOOK_DIR, "scripts", "dispatch.ts");
+
+/** Our dispatch command, started from `/` so a deleted session cwd can't stop it (#171). */
 function dispatchCommand(): string {
-  return `bun run ${join(HOOK_DIR, "scripts", "dispatch.ts")}`;
+  return hookLaunch(`bun run "${DISPATCH_PATH}"`);
 }
 
 /** Is our hook already registered in the given settings file? */
@@ -178,10 +181,21 @@ function registerGlobal(dryRun: boolean): void {
   for (const [event, groups] of Object.entries(generated.hooks)) {
     const timeout = groups[0]?.hooks[0]?.timeout;
     const ours = { hooks: [{ type: "command", command: cmd, ...(timeout ? { timeout } : {}) }] };
-    const existing = hooks[event] ?? [];
-    if (existing.some((g) => g.hooks.some((h) => (h as { command?: string }).command === cmd)))
-      continue;
-    hooks[event] = [...existing, ours];
+    // Drop any older spelling of this same command (before the `cd /` prefix), so
+    // re-running setup upgrades a registration instead of adding a second writer.
+    const existing = (hooks[event] ?? [])
+      .map((g) => ({
+        ...g,
+        hooks: g.hooks.filter((h) => {
+          const c = (h as { command?: string }).command;
+          return c === cmd || !c?.includes(DISPATCH_PATH);
+        }),
+      }))
+      .filter((g) => g.hooks.length > 0);
+    const present = existing.some((g) =>
+      g.hooks.some((h) => (h as { command?: string }).command === cmd),
+    );
+    hooks[event] = present ? existing : [...existing, ours];
   }
 
   if (dryRun) {
