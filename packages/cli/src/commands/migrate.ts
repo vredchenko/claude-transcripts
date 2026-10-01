@@ -11,7 +11,7 @@
  */
 import type { MigrationRunResult } from "../api/generated";
 import { migrateDown, migrateStatus, migrateUp } from "../api/generated";
-import { setWebapiUrl, webapiUrl } from "../api/http";
+import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 
 function printRun(result: MigrationRunResult): void {
@@ -73,9 +73,7 @@ export async function runMigrate(argv: string[]): Promise<number> {
     return 2;
   } catch (err) {
     console.error(`migrate: failed — ${(err as Error).message}`);
-    console.error(
-      `migrate: is the webapi reachable at ${webapiUrl()}? (set --webapi or $CT_WEBAPI_URL)`,
-    );
+    console.error(unreachableHint("migrate"));
     return 1;
   }
 }

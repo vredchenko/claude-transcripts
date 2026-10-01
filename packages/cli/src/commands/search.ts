@@ -13,7 +13,7 @@
  */
 import { stripHighlightMarks } from "@claude-transcripts/shared";
 import { type SearchHit, search, type TurnHit } from "../api/generated";
-import { setWebapiUrl, webapiUrl } from "../api/http";
+import { setWebapiUrl, unreachableHint, webapiUrl } from "../api/http";
 import { parseFlags, strOpt } from "../lib/args";
 import { num, project, row, when } from "../lib/format";
 
@@ -154,9 +154,7 @@ export async function runSearch(argv: string[]): Promise<number> {
     return 0;
   } catch (err) {
     console.error(`search: failed — ${(err as Error).message}`);
-    console.error(
-      `search: is the webapi reachable at ${webapiUrl()}? (set --webapi or $CT_WEBAPI_URL)`,
-    );
+    console.error(unreachableHint("search"));
     return 1;
   }
 }

@@ -8,8 +8,11 @@
  * happened and carries provenance (`end_reason`, model, token usage, real per-event
  * markers) that the transcript cannot yield again.
  */
-import { describe, expect, test } from "bun:test";
-import { planReingest } from "./backfill";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { planReingest, runBackfill } from "./backfill";
 
 const live = { source: "live" };
 const backfilled = { source: "backfill" };
@@ -157,5 +160,138 @@ describe("planReingest, --repair", () => {
       action: "skip",
       reason: "already-adopted",
     });
+  });
+});
+
+/**
+ * What `runBackfill` says when the webapi is not there (#126), and what it stops saying
+ * when nothing was built. Run end to end against a scratch projects dir: the point is
+ * the output a user reads, in the order they read it.
+ */
+describe("runBackfill output", () => {
+  // Port 1: nothing listens there, so the connection is refused at once.
+  const DEAD = "http://127.0.0.1:1";
+  const HINT = `backfill: is the webapi reachable at ${DEAD}? (set --webapi or $CT_WEBAPI_URL)`;
+  const NOTE = "backfill: NOTE";
+
+  /** Sessions the fake webapi already holds. */
+  const stored = new Set<string>();
+  /** Status every ingest write answers with. */
+  let ingestStatus = 200;
+  const server = Bun.serve({
+    port: 0,
+    fetch(req) {
+      const { pathname } = new URL(req.url);
+      if (pathname === "/health") return Response.json({ ok: true });
+      const m = /^\/api\/sessions\/([^/]+)$/.exec(pathname);
+      if (m?.[1]) {
+        return stored.has(m[1])
+          ? Response.json({ sessionId: m[1], source: "backfill", status: "ended" })
+          : new Response("not found", { status: 404 });
+      }
+      if (pathname.startsWith("/api/ingest")) {
+        return ingestStatus === 200
+          ? Response.json({ ok: true })
+          : Response.json({ error: "boom" }, { status: ingestStatus });
+      }
+      return new Response("not found", { status: 404 });
+    },
+  });
+  const LIVE = `http://localhost:${server.port}`;
+
+  let root = "";
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "ct-backfill-"));
+    await mkdir(join(root, "-srv-proj"));
+    for (const id of ["s-one", "s-two"]) {
+      const line = {
+        type: "user",
+        sessionId: id,
+        uuid: `${id}-u1`,
+        timestamp: "2026-08-20T14:03:11.000Z",
+        cwd: "/srv/proj",
+        message: { role: "user", content: "hello" },
+      };
+      await writeFile(join(root, "-srv-proj", `${id}.jsonl`), `${JSON.stringify(line)}\n`);
+    }
+  });
+  afterAll(async () => {
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  });
+  beforeEach(() => {
+    stored.clear();
+    ingestStatus = 200;
+  });
+
+  /** Every line the command printed, on any stream, in order. */
+  async function run(...args: string[]): Promise<{ code: number; lines: string[] }> {
+    const lines: string[] = [];
+    const saved = { log: console.log, warn: console.warn, error: console.error };
+    const capture = (...a: unknown[]) => {
+      lines.push(a.join(" "));
+    };
+    console.log = capture;
+    console.warn = capture;
+    console.error = capture;
+    try {
+      const code = await runBackfill(["--dir", root, "--host", "test-host", ...args]);
+      return { code, lines };
+    } finally {
+      Object.assign(console, saved);
+    }
+  }
+
+  test("unreachable: each failure is listed, the URL and remedy are said once", async () => {
+    const { code, lines } = await run("--webapi", DEAD);
+    expect(code).toBe(1);
+    expect(lines.filter((l) => l.startsWith("  ! "))).toHaveLength(2);
+    expect(lines.filter((l) => l === HINT)).toHaveLength(1);
+    // After the summary, so it is the last thing on screen.
+    expect(lines.indexOf(HINT)).toBeGreaterThan(lines.findIndex((l) => l.includes("2 failed")));
+  });
+
+  test("a failure the webapi answered gets no reachability hint", async () => {
+    ingestStatus = 500;
+    const { code, lines } = await run("--webapi", LIVE);
+    expect(code).toBe(1);
+    expect(lines.some((l) => l.includes("boom"))).toBe(true);
+    expect(lines.some((l) => l.includes("is the webapi reachable"))).toBe(false);
+  });
+
+  test("dry-run, unreachable: says so once, with the URL, before any plan", async () => {
+    const { code, lines } = await run("--dry-run", "--webapi", DEAD);
+    expect(code).toBe(0);
+    expect(lines.filter((l) => l.includes("WARNING"))).toHaveLength(1);
+    expect(lines.filter((l) => l === HINT)).toHaveLength(1);
+    const firstPlan = lines.findIndex((l) => l.startsWith("  [dry-run]"));
+    expect(firstPlan).toBeGreaterThan(lines.indexOf(HINT));
+  });
+
+  test("dry-run, reachable: no unreachable warning", async () => {
+    const { lines } = await run("--dry-run", "--webapi", LIVE);
+    expect(lines.some((l) => l.includes("unreachable") || l.includes("WARNING"))).toBe(false);
+  });
+
+  test("no NOTE about reconstruction when nothing was backfilled", async () => {
+    stored.add("s-one");
+    stored.add("s-two");
+    const { code, lines } = await run("--webapi", LIVE);
+    expect(code).toBe(0);
+    expect(lines.some((l) => l.includes("0 backfilled, 2 skipped"))).toBe(true);
+    expect(lines.some((l) => l.startsWith(NOTE))).toBe(false);
+  });
+
+  test("no NOTE when every session failed", async () => {
+    const { lines } = await run("--webapi", DEAD);
+    expect(lines.some((l) => l.startsWith(NOTE))).toBe(false);
+  });
+
+  test("the NOTE still follows a run that built something", async () => {
+    stored.add("s-one");
+    const { code, lines } = await run("--webapi", LIVE);
+    expect(code).toBe(0);
+    expect(lines.some((l) => l.includes("1 backfilled"))).toBe(true);
+    expect(lines.some((l) => l.startsWith(NOTE))).toBe(true);
   });
 });
