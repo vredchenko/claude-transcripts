@@ -49,14 +49,13 @@ generic capability it's an instance of — and say so.
 bun install
 bun run typecheck && bun run lint && bun test   # verify a change
 bun run gen:clients                             # regenerate API clients after a contract change
-bun run stack:up                                # bring up CouchDB + Garage + Meilisearch
+bun run stack:up:upstream                       # CouchDB + Garage + Meili (plain stack:up needs IMAGE_NS)
 bun run dev:webapi / dev:webui / dev:cli        # run a component
 bun run test:e2e                                # full write→read path (needs stack + webapi up)
 ```
 
 `bun run gen:all` refreshes every generated artifact (hooks bindings, hook-events doc,
-architecture diagram, compose files, the k8s base, inlined deploy assets, compatibility
-matrix).
+architecture diagram, compose files, k8s base, inlined deploy assets, CLI reference).
 Generated files are committed — regenerate, don't hand-edit; CI re-runs `gen:all` and
 fails on a diff.
 
@@ -79,39 +78,39 @@ Two kinds of components:
 
 1. **Custom components** (`packages/*`) — the code we write:
    - `@claude-transcripts/shared` — the **app model** (central state, `src/model/`) +
-     cross-cutting types + `sumTranscriptTokens`.
+     migrations (`src/migrations/`) + cross-cutting types + `sumTranscriptTokens`.
    - `@claude-transcripts/webapi` — Bun + Hono + zod-openapi (+ Scalar at `/api/docs`). The
-     **I/O gateway**: all reads/writes go through it; read-only `/api/couch` +
-     `/api/s3` proxies; serves the SPA in prod.
+     **I/O gateway** (exceptions under Key invariants);
+     read-only `/api/couch` + `/api/s3` proxies; serves the SPA in prod.
    - `@claude-transcripts/webui` — React + Vite + MUI SPA. Optional interface.
-   - `@claude-transcripts/cli` — Bun + Ink. The **user-facing** tool + admin utility
-     (setup, `backfill` (adopt on-disk transcripts), export/import bundles,
-     migrate, smoke-test). Optional interface.
-2. **The hook** (`hooks/`) — the Claude Code plugin (writer). Installs separately
-   per machine.
+   - `@claude-transcripts/cli` — Bun + Ink. User-facing tool + admin utility, and
+     **the writer** (`hook run`, `src/hook/`). Commands: `CLI_SPEC`.
+2. **The hook plugin** (`hooks/`) — the Claude Code plugin: a thin shim that pipes each
+   hook payload to `claude-transcripts hook run`. Installs separately per machine.
 
 Plus:
 - `scripts/` — **dev-only** automation (orval client gen, image mirroring,
-  release). Run via `bun run scripts/<name>` and wrapped in CI.
+  release). Run via `bun run scripts/<name>`; most are wrapped in CI.
 - `deploy/` — Docker Compose: CouchDB + Garage + Meilisearch + admin UIs; `deploy/k8s/`
   the same stack as a generated kustomize base (ADR 0030).
-- `docs/` — design docs + ADRs.
+- `docs/` — design docs + ADRs. `tests/` — e2e, Playwright, mock Claude Code. Also:
+  `site/` (landing page), `brand/`, `.claude-plugin/` (marketplace), `install.sh`.
 
-**Operational-utility rule:** dev-only → `scripts/`; user-useful → `cli/`. There is
-no `tools/` dir.
+**Operational-utility rule:** dev-only → `scripts/`; user-useful → `packages/cli/`.
+There is no `tools/` dir.
 
 ## Key invariants
 
 - **Non-secret, deployment-wide config lives in `config/`** — the committed
   `config/config.template.json` is the template (sane defaults), copied to
   `config/config.json` (gitignored, the live instance; the loader falls back to the
-  template for zero-config dev). Holds `system` constants, `couchdb.databases` /
-  `s3.buckets` (keyed maps — designed for **more than one** DB/bucket), `features`,
-  `servicesMenu`, `userSettings`. Config will grow to **multiple files** under
-  `config/`. `.env` holds only secrets/endpoints.
+  template for zero-config dev). Top-level keys mirror the template; stores are keyed
+  maps (`couchdb.databases`, `s3.buckets`, `meilisearch.indexes`) built for **more than
+  one** each. Config will grow to **multiple files** under `config/`. `.env` holds only
+  secrets/endpoints.
 - **The app model (`@claude-transcripts/shared` `src/model/`) is the central state** — an
   abstract, isomorphic TS description of the whole app (identity, services/ports,
-  stores, hooks, actions, routes, env schema, versions; api/cli specs grow in).
+  stores, hooks, actions, routes, env schema, versions, the CLI spec; an API spec grows in).
   Built once from config + env (`buildAppModel`), held in-memory, served at `/`.
   Consumers **project** from it (`toManifest` → `/`, `toComposeEnv` → stack,
   `toSeedPlan` → seed) — don't re-derive these facts elsewhere; **extend the

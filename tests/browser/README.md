@@ -7,7 +7,7 @@ works — hook writes, webapi reads, the numbers agree — and it needs a real s
 one proves the **UI renders correctly**, and deliberately needs nothing at all.
 
 ```
-bun run test:browser:install     # one-time: download Chromium
+bun run test:browser:install     # one-time: download Chromium + Firefox
 bun run test:browser             # run the suite
 bun run test:browser:capture     # screenshot + audit every route, write a report
 ```
@@ -121,4 +121,4 @@ The overflow audit catches content that escapes its box. It does not catch conte
 *fits* and is useless: making the header fit a phone by letting the search field shrink
 produced a 20-pixel input jammed against the settings button, with nothing overflowing
 and nothing to report. Where a fix works by shrinking something, assert the thing stayed
-big enough to use — see "the header search box stays usable at every width".
+big enough to use — see "the header omnibox stays usable at every width".

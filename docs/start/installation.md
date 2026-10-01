@@ -26,10 +26,8 @@ claude-transcripts install      # idempotent — safe to re-run
 claude-transcripts doctor       # verify the whole write→read path
 ```
 
-Useful flags: `--port-base N` (move the port block), `--meili-key` (turn on
-Meilisearch auth), `--no-hook` (set up the stores but don't register with Claude
-Code), `--no-app` (run the webapi yourself), `--no-prune` (keep the app images this
-upgrade superseded). Removing it again:
+Useful flags: `--port-base N`, `--meili-key`, `--no-hook`, `--no-app` — all of them
+in [cli.md](../reference/cli.md#install-options). Removing it again:
 
 ```sh
 claude-transcripts uninstall            # keeps your recorded history
@@ -82,9 +80,10 @@ its own Claude Code **plugin marketplace**, which is a second route to the same 
 /plugin install claude-transcripts@claude-transcripts
 ```
 
-The plugin does **not** contain or fetch the CLI — it is a shim that finds the installed
-binary (`PATH`, then `$CT_HOME/bin`, then `~/.local/bin`) and pipes each payload to
-`claude-transcripts hook run`. Without the CLI it prints one line and exits 0. What it
+The plugin does **not** contain or fetch the CLI — it is a Bun shim (so this route needs
+**Bun** on `PATH`; the binary route does not) that finds the installed binary and pipes
+each payload to `claude-transcripts hook run`; without the CLI it prints one line and
+exits 0. What it
 adds over plain registration is the skills, `/claude-transcripts:status`, and the
 subagent statusline.
 

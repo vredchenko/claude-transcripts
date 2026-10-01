@@ -14,20 +14,19 @@ reference in the branch commit message, since rebase appends no `(#N)` suffix.
 | Branch | Role |
 |--------|------|
 | **`main`** | **The single primary branch.** All development integrates here; releases are cut from it. |
-| `feat/<topic>` | Short-lived feature branches, **branched off `main`**, merged back via PR **into `main`**. |
+| `feat/<topic>` / `fix/<topic>` / `chore/<topic>` | Short-lived branches, **branched off `main`**, merged back via PR **into `main`**. |
 
 ## Workflow
 
-1. Branch a feature off `main`: `git checkout -b feat/<topic> main`.
-2. Commit with `git commit --no-verify` (skips the lefthook biome pre-commit so
-   nothing runs locally — per the [operating constraints](../../CLAUDE.md)).
-3. Push and open a PR **into `main`** (once the GitHub remote exists).
+1. Branch off `main`: `git checkout -b feat/<topic> main`.
+2. Commit (lefthook runs Biome on staged files); run the
+   [checks](getting-started.md#the-checks-that-gate-a-pr) before pushing.
+3. Push and open a PR **into `main`**. One PR per change.
 4. Merge to `main`. Releases are cut from `main` (see
    [development.md](development.md) → releases; semver, all parts versioned
    together).
 
-CI on `main` runs lint/typecheck/build on every push and PR
-([development.md](development.md)); a `vX.Y.Z` tag drives the release image build.
+CI (`ci.yml`) gates every PR; releases are in [development.md](development.md#releases).
 
 ## Why
 

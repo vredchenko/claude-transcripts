@@ -48,8 +48,8 @@ projected from [`config/config.json`](configuration.md) (falling back to the com
     "secretKey": "...",
     "buckets": { "sessions": "claude-transcripts-sessions" }
   },
-  "features": { "s3Blobs": true, "midFlightChunking": true, "couchFullContentChunks": true },
-  "system": { "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } } }
+  "features": { … },
+  "system": { … }   // copied whole from config/
 }
 ```
 
@@ -128,7 +128,7 @@ which events are deliberately *not* bound and why, is generated into
 [hook-events.md](../reference/hook-events.md). Live
 events write as they happen; `SessionEnd` writes the summary + transcript.
 
-To wire another supported event (`PreToolUse`, `Notification`, `PreCompact`, …), add
+To wire another supported event (`PreToolUse`, `Notification`, …), add
 the binding to the model's `BINDINGS` and re-run `bun run gen:hooks` — dispatch and
 registration are both projections of it, so neither is edited by hand.
 

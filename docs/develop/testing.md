@@ -1,13 +1,13 @@
 # Testing
 
 > **Status: landed (Tier-1 scope).** The e2e suite (`tests/e2e/`) drives
-> synthesized sessions — baseline, large multi-chunk, and subagent-sidechain —
-> through the real write→store→read path and self-skips when the stack is down;
-> the CLI `doctor` command is the interactive single-session equivalent. Unit
-> specs cover the pure cores (`sumTranscriptTokens`, chunk tiling, the migration
-> engine up/down round-trip). Remaining: e2e cases for resumes / crashed
-> (`incomplete`) sessions / `backfill` parity, and the contract check. The suite is
-> the **milestone between Tier 1 and Tier 2** ([tiers.md](../design/tiers.md)).
+> synthesized sessions ([scenarios](../../tests/e2e/README.md)) through the real
+> write→store→read path and self-skips
+> when the stack is down; the CLI `doctor` command is the interactive
+> single-session equivalent. Unit specs cover the pure cores (`sumTranscriptTokens`,
+> chunk tiling, the migration engine up/down round-trip), and the contract check is
+> in CI. Remaining: e2e cases for resumes and `backfill` parity. The suite is the
+> **milestone between Tier 1 and Tier 2** ([tiers.md](../design/tiers.md)).
 
 ## End-to-end suite (T1 → T2 gate)
 
@@ -20,7 +20,7 @@ Claude Code instance:
    `SessionEnd`) and a transcript JSONL, the way Claude Code would emit them.
 2. **Drive the writers** — run the hook (or post through the webapi gateway) so
    event markers, chunks, the summary, and the S3 blobs are written.
-3. **Assert through the reader** — query the webapi (`/api/claude/sessions`,
+3. **Assert through the reader** — query the webapi (`/api/sessions`,
    detail, transcript, `/api/couch` views, `/api/s3` blobs) and assert the session
    appears correctly: counts, token usage, tool usage, status transitions
    (`running` → `ended`), transcript round-trip.
@@ -57,7 +57,3 @@ subagents, chunked content, `backfill` parity).
 - **Migration** — up/down round-trips **done** (in-memory port fake,
   `packages/shared/src/migrations/runner.test.ts`); export→import
   (migrate-on-import) bundle round-trips pending ([migrations.md](../operate/migrations.md)).
-
-> Per the repo's operating constraints, nothing is run on the live homeserver
-> during development of the spec; the suite is authored to run in CI / on a dev
-> box against the bundled stack.

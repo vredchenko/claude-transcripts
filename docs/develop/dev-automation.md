@@ -2,7 +2,8 @@
 
 > **Status: built.** Every script below exists and runs; the generators are wired
 > into `bun run gen:all`, which CI re-runs before diffing the working tree, so a
-> committed generated file that nobody regenerated fails the build. This is
+> committed generated file that nobody regenerated fails the build (`gen:compat`'s
+> placeholder output is gitignored, so it is exempt). This is
 > **developer tooling**, kept **separate from the [CLI](../reference/cli.md)** (the CLI
 > is a user/admin product; these are repo build/dev scripts). They live under
 > `scripts/` and are run locally via `bun run` **and** wrapped as CI/CD jobs
@@ -24,12 +25,12 @@ truth for the behaviour, no drift between local and CI.
 | Script | Does | Notes |
 |--------|------|-------|
 | **regenerate-api-clients** | Generate the typed API clients from the **latest OpenAPI spec** into **both** the CLI and the webui SPA | **orval**; the first one we build. [ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md) |
-| **regenerate-compatibility** | Regenerate `compatibility.json` from the external Claude Code source of truth | [compatibility.md](../start/compatibility.md) |
+| **regenerate-compatibility** | Regenerate `compatibility.json` from the external Claude Code source of truth | **Placeholder**: writes version `0.0.0` with no hooks; the output is gitignored. [compatibility.md](../start/compatibility.md) |
 | **mirror-images** | Pull the pinned third-party backing-service images and push them to the **GitHub Container Registry (GHCR)** | [ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md), [containers.md](../operate/containers.md) |
 | **release** | Stamp one lockstep semver across every component manifest (`--check` verifies without writing); CI does the building on the tag | [ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md), [releasing.md](../operate/releasing.md) |
 | **gen-diagram** | Render the architecture diagram from the app model's topology into committed SVGs | see below; consumed by the README and [architecture.md](../design/architecture.md) |
-| **build-docs** | Render `docs/*.md` (+ `decisions/`) into a self-contained static HTML site | see below; feeds GitHub Pages `/docs` and the combined image |
-| **migrate** *(via cli, not here)* | Schema/view migrations | lives in [cli/](../operate/tools.md), not `scripts/` |
+| **build-docs** | Render `docs/**/*.md` (incl. `design/decisions/`) into a self-contained static HTML site | see below; feeds GitHub Pages `/docs` and the combined image |
+| **migrate** *(via cli, not here)* | Schema/view migrations | lives in [`packages/cli/`](../operate/tools.md), not `scripts/` |
 
 ## Client generation (orval)
 
@@ -39,7 +40,8 @@ source of truth. `bun run gen:clients` (`regenerate-api-clients`) runs in two st
 1. **Emit the spec offline** — `packages/webapi/src/write-openapi.ts` builds the
    OpenAPI document from the registered routes with **no server and no Couch/S3
    connections** (route registration doesn't touch the backends), writing the
-   gitignored `openapi.json`. Deterministic, runnable anywhere — no live port.
+   committed `openapi.json` (`check:contract`'s baseline). Deterministic, runnable
+   anywhere — no live port.
 2. **Run [orval](https://orval.dev)** over that spec (`orval.config.ts`) to emit:
    - the **CLI**'s client → `packages/cli/src/api/generated.ts` (fetch client; a
      hand-written **mutator**, `src/api/http.ts`, injects the off-origin base URL),
@@ -117,7 +119,7 @@ would simply render nothing.
 ## Docs static build (build-docs)
 
 `bun run build:docs` (`scripts/build-docs.ts`) renders the Markdown in `docs/`
-(plus `docs/decisions/`) into a self-contained, theme-aware HTML site with a
+(including `docs/design/decisions/`) into a self-contained, theme-aware HTML site with a
 sidebar, writing to `build/docs/` by default (`--out <dir>` to override). It is
 **dependency-free** — Bun + Node built-ins only, with a small GFM-subset Markdown
 renderer — so it needs no install (CI stays `--frozen-lockfile`) and its output is
@@ -128,6 +130,8 @@ minimal and swappable for a full SSG later.
 
 ## CI/CD wrapping
 
-Every `scripts/*` script has a matching GitHub Actions job that runs it (lint
-/ typecheck / build remain in `ci.yml`). Release jobs build the components and the
-combined image ([containers.md](../operate/containers.md)).
+`ci.yml` runs the generators, `check:contract` and `build:docs`; `pages.yml`,
+`mirror-images.yml` and `release-cli.yml` run `build-docs`, `mirror-images` and
+`build-cli-npm`. `stack`, `seed`, `bootstrap-garage`, `regenerate-mock-fixtures` and
+`release` are local-only. Release jobs build the components and the combined image
+([containers.md](../operate/containers.md)).

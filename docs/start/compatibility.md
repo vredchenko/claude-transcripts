@@ -1,13 +1,13 @@
 # Claude Code compatibility
 
-> **Status: structure defined, data auto-generated (not yet wired).** This doc
-> defines *how* we track which Claude Code versions we support and which hooks each
-> exposes. The data is **machine-generated from an external source of truth**, not
-> hand-maintained.
+> **Status: structure defined; the generator is a placeholder.** This doc defines
+> *how* we track which Claude Code versions we support and which hooks each exposes,
+> **machine-generated from an external source of truth**. `bun run gen:compat` (in
+> `gen:all`) writes only version `0.0.0` with no hooks, so `compatibility.json` stays
+> gitignored until it produces real data.
 
 We pin our relationship to Claude Code with a small **structured, formal
-definition** — a committed data file (working name `compatibility.json`) — that
-records three versions of interest and the hook set each supports:
+definition** — a data file, `compatibility.json` — that records three versions of interest and the hook set each supports:
 
 | Field | Meaning | Source |
 |-------|---------|--------|
@@ -55,5 +55,5 @@ owner's "what we do on each hook" column). `compatibility.json` is the
 **external-truth** per-version view. The drift check compares the two; a mismatch
 means Claude Code added/removed a hook we haven't accounted for.
 
-> Tier 1 ships the *structure* + the generator for `latestPublic`; the
-> compatibility-window automation is a later milestone gated on the e2e suite.
+> The real `latestPublic` scrape and the compatibility-window automation are later
+> milestones.

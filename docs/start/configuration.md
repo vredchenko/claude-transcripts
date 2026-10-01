@@ -145,12 +145,14 @@ The committed template, in full — this is the current shape, not a target:
 
 ## Environment variables (`.env`)
 
-See [`.env.template`](../../.env.template) — one file for both the host-run
-webapi/webui/CLI and the Compose stack (the stack runner passes it through). The
-secret/endpoint variables are: `COUCHDB_URL` (full base URL — wins over
-`COUCHDB_HOST/PORT`), `COUCHDB_HOST/PORT/USER/PASSWORD/DB`,
-`S3_ENDPOINT/REGION/ACCESS_KEY/SECRET_KEY/BUCKET`, and the webapi/webui
-host/port settings.
+See [`.env.template`](../../.env.template) — one file for the host-run
+webapi/webui/CLI and the Compose stack: CouchDB, S3, Meilisearch and Garage-cluster
+secrets/endpoints, image refs (`IMAGE_NS`, `*_TAG`) and ports/hosts. Store **names**
+come from `config/`, not env.
+
+Overrides: `CT_WEBAPI_URL` (= `--webapi`), `CT_HOME` (relocate a whole install),
+`CT_HOOK_CONFIG`, `CT_CONFIG_DIR`; the app image sets `CT_STATIC_DIR`, `CT_DOCS_DIR`,
+`CT_CLI_BIN`, `CT_VERSION`.
 
 ## Backend topology — bundled or external
 
@@ -160,13 +162,12 @@ same image runs in two topologies ([containers.md](../operate/containers.md)):
 - **Bundled** — the `deploy/` Docker Compose stack brings up CouchDB + Garage (S3)
   + Meilisearch locally; the env points at those localhost services (Tier 1
   default). The bundled services ask the operator to supply **no credentials of
-  their own** — Meilisearch runs with no master key, Garage ships a pre-baked
-  key, and CouchDB gets a fixed default admin (`admin`/`admin`), because CouchDB 3
-  refuses to start without one. The stack binds to localhost only. Search and
-  `S3_*` auth fields may be left empty for the bundled case; `COUCHDB_USER` /
-  `COUCHDB_PASSWORD` must match whatever the CouchDB container was started with.
-  See
-  [ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md).
+  their own** — Meilisearch runs with no master key, Garage's app key is minted on
+  first setup (`install`, or `bun run bootstrap:garage` from source) and written to
+  the env file, and CouchDB gets a fixed default admin (`admin`/`admin`), because
+  CouchDB 3 refuses to start without one. The stack binds to localhost only, and the
+  search key may stay empty; `COUCHDB_USER`/`COUCHDB_PASSWORD` must match the CouchDB
+  container's. See [ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md).
 - **External** — run the app container alone with env pointing at remote services
   (e.g. managed CouchDB + **Cloudflare R2** + a hosted Meilisearch). Nothing in
   the image assumes localhost: each backend is addressed by a full URL —
@@ -208,9 +209,8 @@ tracked in [#14](../design/roadmap.md).
 The intent is that **as much as possible is configurable** — names, feature
 toggles, tunables, service URLs, and (per
 [ADR 0017](../design/decisions/0017-hooks-and-actions-decoupled.md)) the hook→action
-bindings — all flow from `claude-transcripts.config.json` (non-secret) + `.env` (secret), with
-no second config source. New knobs extend this file rather than introducing
-another.
+bindings — all flow from `config/` (non-secret) + `.env` (secret), with no second
+config source. New knobs extend `config/` rather than introducing another source.
 
 ## Search
 

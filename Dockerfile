@@ -4,7 +4,7 @@
 #
 # This is the root app Dockerfile. Other images (base Bun runtime, Claude-Code
 # runtime, CLI-utils, mirrored backing services, …) will get their own Dockerfiles
-# (likely under dockerfiles/) as they're built — see docs/containers.md.
+# (likely under dockerfiles/) as they're built — see docs/operate/containers.md.
 
 # ── deps: install dependencies once; shared by the build stages ─────────────
 FROM oven/bun:1 AS deps
