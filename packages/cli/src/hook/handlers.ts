@@ -9,7 +9,7 @@
  *
  * Every handler is best-effort; the dispatcher swallows what they throw.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import {
   buildChunkEntries,
   chunkDocId,
@@ -23,19 +23,43 @@ import { commonFields, type HookContext, makeChunkState, resolveTargets } from "
 
 export type Handler = (ctx: HookContext) => Promise<void>;
 
-/** Reset per-session counters + chunk offset, but only for a genuinely new session. */
+/**
+ * Reset per-session counters + chunk offset, but only for a genuinely new session.
+ *
+ * A resume or compact keeps the offset, so flushes stay on the stored chunk boundaries
+ * (#168). With no usable local offset (`/tmp` lost to a reboot) it is seeded from the
+ * store's chunk high-water; an offset past the end of the file — a rewritten transcript —
+ * is never used, since nothing would be chunked until the file grew past it.
+ */
 const seedSessionStart: Handler = async (ctx) => {
   const source = ctx.payload?.source;
-  // A resume or compact continues the same transcript, so the byte offset must survive.
-  if (!source || source === "startup" || source === "clear") {
-    ctx.counts.reset();
-    makeChunkState(ctx.sessionId).seed();
-  }
   // The resolved targets, for the statusline and the banner. Always rewritten: config
   // can change between a session's start and its resume, and the file is cheap.
   // `lastWriteMs` starts at 0 — "recording" is earned by a write landing, not claimed.
   ctx.targets.write(resolveTargets(ctx.config, safeWebapiUrl()));
+
+  const cs = makeChunkState(ctx.sessionId);
+  if (!source || source === "startup" || source === "clear") {
+    ctx.counts.reset();
+    cs.seed();
+    return;
+  }
+  if (!ctx.config.features?.midFlightChunking) return;
+  const size = fileSize(ctx.transcriptPath);
+  const fits = (offset: number) => size === null || offset <= size;
+  const local = cs.load().offset;
+  if (local > 0 && fits(local)) return;
+  const highWater = await ctx.chunkHighWater();
+  cs.seed(highWater !== null && fits(highWater) ? highWater : 0);
 };
+
+function fileSize(path: string | undefined): number | null {
+  try {
+    return path ? statSync(path).size : null;
+  } catch {
+    return null;
+  }
+}
 
 function safeWebapiUrl(): string | undefined {
   try {
@@ -191,8 +215,9 @@ const flushTranscriptChunk: Handler = async (ctx) => {
     }
     cs.save({ offset: advance, lastFlushMs: now });
   } finally {
+    // Only the lock goes, SessionEnd included: the offset is what a resume of this
+    // session continues from (see seedSessionStart).
     cs.release();
-    if (ctx.event === "SessionEnd") cs.clear();
   }
 };
 

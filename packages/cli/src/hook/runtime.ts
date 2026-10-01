@@ -117,6 +117,11 @@ export interface CouchClient {
   upsertDoc(db: string, id: string, doc: object, timeoutMs?: number): Promise<void>;
 }
 
+/** Basic auth for the direct CouchDB, or nothing for the bundled no-auth default. */
+function couchAuthHeaders(config: HookConfig): Record<string, string> {
+  return config.couch.auth ? { Authorization: `Basic ${btoa(config.couch.auth)}` } : {};
+}
+
 /**
  * CouchDB over plain HTTP with a short timeout — a slow store must not stall a session.
  *
@@ -126,8 +131,7 @@ export interface CouchClient {
  */
 function makeDirectCouch(config: HookConfig, onWrite?: (ok: boolean) => void): CouchClient {
   const root = config.couch.url;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (config.couch.auth) headers.Authorization = `Basic ${btoa(config.couch.auth)}`;
+  const headers = { "Content-Type": "application/json", ...couchAuthHeaders(config) };
 
   return {
     async postDoc(db, doc) {
@@ -509,8 +513,8 @@ const STALE_LOCK_MS = 30_000;
 export interface ChunkStateStore {
   load(): ChunkState;
   save(s: ChunkState): void;
-  seed(): void;
-  clear(): void;
+  /** Start the offset at `offset` (0 for a new transcript) with a fresh flush baseline. */
+  seed(offset?: number): void;
   acquire(): boolean;
   release(): void;
   readTail(path: string, offset: number): string;
@@ -520,6 +524,9 @@ export interface ChunkStateStore {
  * Byte offset we've chunked up to, plus a lock serialising concurrent flushes —
  * rapid events spawn overlapping hook processes. A lock left behind by a crashed
  * flush is stolen after {@link STALE_LOCK_MS}.
+ *
+ * The state file is never deleted: a resume after SessionEnd continues from its offset
+ * (#168). It is a few bytes, and `/tmp` is swept by the OS.
  */
 export function makeChunkState(sessionId: string): ChunkStateStore {
   const stateFile = `/tmp/claude-transcripts-${sessionId}.chunkstate`;
@@ -545,16 +552,7 @@ export function makeChunkState(sessionId: string): ChunkStateStore {
     save,
     // Baseline the flush timer at session start so the first interval measures from
     // now, not epoch 0 (which would always look elapsed).
-    seed: () => save({ offset: 0, lastFlushMs: Date.now() }),
-    clear() {
-      for (const f of [stateFile, lockFile]) {
-        try {
-          unlinkSync(f);
-        } catch {
-          // already gone
-        }
-      }
-    },
+    seed: (offset = 0) => save({ offset, lastFlushMs: Date.now() }),
     acquire() {
       try {
         closeSync(openSync(lockFile, "wx")); // O_EXCL
@@ -594,6 +592,44 @@ export function makeChunkState(sessionId: string): ChunkStateStore {
   };
 }
 
+/** How long a resume waits on CouchDB for the chunk high-water mark before giving up. */
+const HIGH_WATER_TIMEOUT_MS = 2_000;
+
+/**
+ * The `byte_end` of a session's last chunk doc in the direct CouchDB, or null.
+ *
+ * Chunk ids sort in byte order ({@link chunkDocId}) and live chunks tile the file, so the
+ * last id under the prefix (`descending`, `limit=1`; startkey is the high end) is the one
+ * that ends furthest. Mirrors aren't asked — they may lag. Any failure is null.
+ */
+export async function fetchChunkHighWater(
+  config: HookConfig,
+  db: string,
+  sessionId: string,
+  timeoutMs = HIGH_WATER_TIMEOUT_MS,
+): Promise<number | null> {
+  try {
+    const prefix = `chunk:${sessionId}:`;
+    const qs = new URLSearchParams({
+      startkey: JSON.stringify(`${prefix}\ufff0`),
+      endkey: JSON.stringify(prefix),
+      descending: "true",
+      limit: "1",
+      include_docs: "true",
+    });
+    const res = await fetch(`${config.couch.url}/${encodeURIComponent(db)}/_all_docs?${qs}`, {
+      headers: couchAuthHeaders(config),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { rows?: { doc?: { byte_end?: unknown } }[] };
+    const end = body.rows?.[0]?.doc?.byte_end;
+    return typeof end === "number" && Number.isFinite(end) && end > 0 ? end : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Context ──────────────────────────────────────────────────────────────────
 
 export interface SessionStartOutput {
@@ -621,6 +657,12 @@ export interface HookContext {
    * of them have settled.
    */
   output: SessionStartOutput;
+  /**
+   * The highest `byte_end` this session's chunk docs reach in the direct CouchDB, or
+   * null when there are none or the store can't say in time. Lets a resume pick up the
+   * offset when `/tmp` lost it (see {@link fetchChunkHighWater}).
+   */
+  chunkHighWater(): Promise<number | null>;
   sessionsDb: string;
   sessionsBucket?: string;
 }
@@ -632,8 +674,10 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
   const sessionId: string | undefined = payload?.session_id;
   if (!event || !sessionId) return null;
   const targets = makeTargets(sessionId);
+  const sessionsDb = config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB;
   return {
     output: {},
+    chunkHighWater: () => fetchChunkHighWater(config, sessionsDb, sessionId),
     event,
     sessionId,
     cwd: payload?.cwd ?? "",
@@ -646,7 +690,7 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
     blob: makeBlob(config),
     counts: makeCounts(sessionId),
     targets,
-    sessionsDb: config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB,
+    sessionsDb,
     sessionsBucket: config.blob?.buckets.sessions,
   };
 }
