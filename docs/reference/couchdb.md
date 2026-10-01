@@ -283,7 +283,10 @@ Maps `event`, `summary` and `chunk` docs (added by migration v2; see
 `aggregate` (`group=true`) backs the session list and detail route, including sessions
 that haven't ended. The webapi caches it in memory, patched from `_changes`
 ([webapi.md](webapi.md#the-session-index)). Its reduce returns one bounded object per
-session, hence `reduce_limit` is disabled on the bundled instance.
+session, hence `reduce_limit` is disabled on the bundled instance. Since v10, `model`,
+`cwd` and `hostname` come from the session's earliest doc carrying one (each value is
+emitted with its timestamp as `modelAt` / `cwdAt` / `hostnameAt`), so the row is the
+same however CouchDB groups the re-reduce.
 
 `event_times` (v9) is the same documents reduced to nothing but their timestamps, so
 **active duration** — wall-clock minus gaps longer than

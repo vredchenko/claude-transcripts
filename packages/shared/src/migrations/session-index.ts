@@ -20,6 +20,11 @@
  * on the detail page, far too much for a list of them. One string per row is what
  * makes the list able to ask for a page's worth at a time.
  *
+ * `model`, `cwd` and `hostname` come from the session's earliest doc that has one
+ * (migration v10): each travels with its timestamp (`modelAt` …), and a merge keeps the
+ * smaller timestamp, ties going to the smaller value. CouchDB groups and re-reduces in
+ * no fixed order, so keeping the "last value seen" was not stable between queries.
+ *
  * The reduce output is bounded per session (a fixed-shape object + a small tools
  * map), but CouchDB's `reduce_limit` overflow guard can still reject
  * object-accumulating reduces. The webapi's boot (`ensure.ts`) sets
@@ -36,7 +41,8 @@ const AGGREGATE_MAP = `function (doc) {
   if (doc.type === "chunk") {
     emit(doc.session_id, {
       ended: 0, events: 0, prompts: 0, errors: 0, started: 0, tools: {},
-      first: "", last: "", model: "", cwd: "", hostname: "", summary: null,
+      first: "", last: "", model: "", cwd: "", hostname: "",
+      modelAt: "", cwdAt: "", hostnameAt: "", summary: null,
       chunkEntries: doc.entries ? doc.entries.length : 0,
       chunkBytes: doc.byte_end || 0
     });
@@ -44,6 +50,8 @@ const AGGREGATE_MAP = `function (doc) {
   }
   if (doc.type !== "event" && doc.type !== "summary") return;
   var isSummary = doc.type === "summary";
+  var ts = doc.timestamp || "";
+  var model = (doc.event === "SessionStart" || isSummary) ? (doc.model || "") : "";
   var tools = {};
   if (doc.event === "PostToolUse" && doc.tool_name) tools[doc.tool_name] = 1;
   emit(doc.session_id, {
@@ -53,11 +61,14 @@ const AGGREGATE_MAP = `function (doc) {
     errors: doc.event === "PostToolUseFailure" ? 1 : 0,
     started: doc.event === "SessionStart" ? 1 : 0,
     tools: tools,
-    first: doc.timestamp || "",
-    last: doc.timestamp || "",
-    model: (doc.event === "SessionStart" || isSummary) ? (doc.model || "") : "",
+    first: ts,
+    last: ts,
+    model: model,
     cwd: doc.cwd || "",
     hostname: doc.hostname || "",
+    modelAt: model ? ts : "",
+    cwdAt: doc.cwd ? ts : "",
+    hostnameAt: doc.hostname ? ts : "",
     summary: isSummary ? {
       event_count: doc.event_count || 0,
       prompt_count: doc.prompt_count || 0,
@@ -75,7 +86,14 @@ const AGGREGATE_MAP = `function (doc) {
 }`;
 
 const AGGREGATE_REDUCE = `function (keys, values, rereduce) {
-  var acc = { ended:0, events:0, prompts:0, errors:0, started:0, tools:{}, first:"", last:"", model:"", cwd:"", hostname:"", summary:null, chunkEntries:0, chunkBytes:0 };
+  var acc = { ended:0, events:0, prompts:0, errors:0, started:0, tools:{}, first:"", last:"", model:"", cwd:"", hostname:"", modelAt:"", cwdAt:"", hostnameAt:"", summary:null, chunkEntries:0, chunkBytes:0 };
+  // Keep the earliest-stamped value; an unstamped one sorts last, ties go to the smaller value.
+  function earliest(v, f) {
+    var val = v[f];
+    if (!val) return;
+    var at = v[f + "At"] || "", a = at || "\\uffff", b = acc[f + "At"] || "\\uffff";
+    if (acc[f] === "" || a < b || (a === b && val < acc[f])) { acc[f] = val; acc[f + "At"] = at; }
+  }
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
     if (!v) continue;
@@ -88,13 +106,17 @@ const AGGREGATE_REDUCE = `function (keys, values, rereduce) {
     acc.started += v.started || 0;
     if (v.last && v.last > acc.last) acc.last = v.last;
     if (v.first && (acc.first === "" || v.first < acc.first)) acc.first = v.first;
-    if (v.model) acc.model = v.model;
-    if (v.cwd) acc.cwd = v.cwd;
-    if (v.hostname) acc.hostname = v.hostname;
+    earliest(v, "model");
+    earliest(v, "cwd");
+    earliest(v, "hostname");
+    // A session has one \`summary:<id>\` doc, so there is only ever one to keep.
     if (v.summary) acc.summary = v.summary;
     var t = v.tools || {};
     for (var k in t) { if (t.hasOwnProperty(k)) acc.tools[k] = (acc.tools[k] || 0) + t[k]; }
   }
+  var names = Object.keys(acc.tools).sort(), tools = {};
+  for (var j = 0; j < names.length; j++) tools[names[j]] = acc.tools[names[j]];
+  acc.tools = tools;
   return acc;
 }`;
 
@@ -134,6 +156,10 @@ export interface SessionAggregate {
   model: string;
   cwd: string;
   hostname: string;
+  /** Timestamp of the doc each of `model` / `cwd` / `hostname` was taken from (v10). */
+  modelAt?: string;
+  cwdAt?: string;
+  hostnameAt?: string;
   summary: {
     event_count: number;
     prompt_count: number;

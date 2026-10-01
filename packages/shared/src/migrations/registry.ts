@@ -216,6 +216,27 @@ const sessionIndexEventTimes: Migration = {
   },
 };
 
+/**
+ * v10 — redeploy `_design/session_index` so `aggregate` picks a session's `model`,
+ * `cwd` and `hostname` deterministically: from its earliest doc carrying one, not
+ * whichever value the reduce happened to see last (which varied between queries under
+ * re-reduce). The map now emits `modelAt` / `cwdAt` / `hostnameAt` for the merge to
+ * compare; readers ignore them. View-only; `down` is a no-op since the previous
+ * definition is no more correct, and v2 still owns the design doc's existence.
+ */
+const sessionIndexDeterministic: Migration = {
+  id: 10,
+  name: "session-index-deterministic",
+  async up(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (earliest model/cwd/hostname)`);
+    const { _rev, ...body } = SESSION_INDEX_DESIGN;
+    await ctx.putDoc(SESSION_INDEX_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (deterministic pick left in place)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
 export const MIGRATIONS: Migration[] = [
   initialSchema,
@@ -227,6 +248,7 @@ export const MIGRATIONS: Migration[] = [
   sessionIndexChunkCoverage,
   chunkEntryKind,
   sessionIndexEventTimes,
+  sessionIndexDeterministic,
 ];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */
