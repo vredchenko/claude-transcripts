@@ -8,7 +8,7 @@
  * (`stack`, `provision`, `hook install`, `doctor`), so a failure is resumable and an
  * expert can drive one piece. Phases are idempotent — re-running a finished install
  * re-verifies rather than reinstalling — and each failure names the command that
- * resumes from it. See docs/design/installation.md.
+ * resumes from it. See docs/start/installation.md.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";

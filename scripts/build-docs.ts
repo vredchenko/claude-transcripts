@@ -81,7 +81,7 @@ const SECTIONS: Section[] = [
     dir: "design",
     title: "Design & specification",
     blurb: "What the system is meant to be, and the reasoning behind it.",
-    lead: ["specification.md", "architecture.md", "tiers.md", "roadmap.md"],
+    lead: ["architecture.md", "roadmap.md"],
   },
   {
     dir: "design/decisions",
@@ -487,8 +487,7 @@ const WIP_BANNER = [
   '<span class="wip-tag">Work in progress</span>',
   "<strong>Under active development — not tested as ready for use.</strong> ",
   "Breaking changes land without notice, stored data may need to be discarded ",
-  "between revisions, and there is no auth or security model. These docs describe ",
-  "the intended design as much as the current state.",
+  "between revisions, and there is no auth or security model.",
   "</div>",
 ].join("");
 

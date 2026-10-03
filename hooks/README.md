@@ -103,14 +103,14 @@ resolves everything itself. The copies were retired along with the
 
 ## Where this is going
 
-[docs/design/plugin.md](../docs/design/plugin.md) is the plan; P1–P3's skills are
-built. Still open from P3: an optional MCP server (once recall has earned permanent
+[docs/design/plugin.md](../docs/design/plugin.md) describes the design; the skills are
+built. Still open: an optional MCP server (once recall has earned permanent
 context space) and a vector index for retrieval quality.
 
 ## Which install path to use
 
 `claude-transcripts hook install` is the normal one: it registers the binary with
 Claude Code directly and needs no plugin, no Bun and no checkout
-([installation.md](../docs/design/installation.md)). This plugin is for people who
+([installation.md](../docs/start/installation.md)). This plugin is for people who
 prefer Claude Code's plugin mechanism; it still requires the CLI to be installed,
 because that's what does the work.

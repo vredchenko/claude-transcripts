@@ -1,91 +1,72 @@
-# Database & search-engine choice
+# Database and search choices
 
-A standing assessment of the two backing-technology choices the owner asked to
-keep under review: the **document store** (currently CouchDB) and the **search
-engine** (currently Meilisearch). Constraint: **do not consider MongoDB,
-Elasticsearch, or PostgreSQL** as replacements.
+**Keep CouchDB as the store. Keep Meilisearch for lexical search, and expect to add a
+vector index for agent recall.** Both stay swappable because every consumer goes
+through the webapi. MongoDB, Elasticsearch and PostgreSQL were ruled out from the
+start.
 
-> TL;DR: **keep CouchDB** — it is unusually well-suited to this design. **Keep
-> Meilisearch for lexical/human search**, but expect Tier-2 agent retrieval to
-> want a **vector index** (Qdrant or LanceDB) behind the same webapi search
-> abstraction. Both stay swappable because everything goes through the webapi.
+## CouchDB
 
-## Document store — keep CouchDB
+Several CouchDB traits carry weight in this design
+([ADR 0007](decisions/0007-couchdb-primary-store.md)):
 
-CouchDB is not just adequate here; several of its defining traits are *load-bearing*
-for the architecture:
+- **Its API is HTTP + JSON**, so the read-only `/api/couch` proxy is a passthrough
+  rather than a reimplementation.
+- **Masterless replication** is the Tier 3 multiplayer model, built in. The
+  append-only document rule exists to keep it conflict-free.
+- **The `_changes` feed** drives derived state (search, the session index).
+- **Map/reduce views** aggregate close to the data; schemaless docs fit a mixed
+  event/summary/chunk corpus.
 
-1. **Its API is HTTP + JSON.** The `/api/couch` read-only proxy
-   ([routes.md](../reference/routes.md), [ADR 0016](decisions/0016-webapi-is-the-io-gateway.md))
-   is trivial and honest precisely because CouchDB's native interface already *is*
-   a RESTful document API. With a store whose protocol isn't HTTP, "expose the DB
-   as part of our API surface" would mean re-implementing CRUD.
-2. **Masterless multi-master replication *is* the Tier-3 multiplayer model.**
-   Bi-directional, conflict-tolerant replication between nodes is a built-in, not a
-   bolt-on. Nothing else in the allowed set offers it natively. The append-only /
-   immutable document rule in Tier 1 exists to make this conflict-free
-   (#15).
-3. **`_changes` feed** gives a clean tail to drive derived indexes (Meilisearch /
-   vectors) and reactive consumers.
-4. **Map-reduce design views** do the feature extraction (events of interest, token
-   rollups, content features) close to the data.
-5. **Schemaless + append-only** fits a heterogeneous event/summary/chunk corpus and
-   the immutability rule.
+Weaknesses: JavaScript views are clunky and ad-hoc queries limited (Mango covers common
+cases; richer logic lives in the webapi), and heavy analytics is not its strength. If
+Tier 2 analytics hit that ceiling, the answer is an added analytical store, not a
+replacement.
 
-**Known weaknesses (and why they're acceptable):** map-reduce JS views are clunky
-and ad-hoc querying is limited — **Mango** indexes cover the common cases, and the
-webapi owns any richer query logic. Operational footprint is real but modest at
-Tier-1 scale. Heavy analytical aggregation is not CouchDB's strength (the
-observability tools we studied reach for columnar stores like ClickHouse at large
-scale) — noted as a **scale ceiling** for the Tier-2 analytics work, not a Tier-1
-problem.
+Considered: SQLite/libSQL (small footprint, but no HTTP API or replication; fine for a
+local-only tool, which this isn't aiming to stay), SurrealDB (younger, different
+replication model), RethinkDB (dormant). PouchDB is a possible future complement for
+offline clients, since it speaks CouchDB's replication protocol.
 
-**Alternatives weighed (within the constraint):**
+## Meilisearch
 
-- **SQLite / libSQL** — great single-machine footprint, but loses the HTTP-native
-  proxy story *and* masterless replication; pushes more logic into the webapi.
-  Several competitors (Phoenix, claude-mem, claude-self-reflect) prove the
-  single-file-DB approach for *local single-user* tools — exactly the niche where
-  our replication/HTTP advantages don't pay off, so it validates CouchDB for our
-  *server/multiplayer* aim rather than displacing it.
-- **SurrealDB** — multi-model with HTTP/WS + live queries; interesting, but
-  heavier/younger and its replication story doesn't match CouchDB's masterless
-  model. Not worth a switch.
-- **RethinkDB** — changefeeds are nice but the project is effectively dormant.
-- **PouchDB** — not a replacement but a *complement*: CouchDB's replication
-  protocol means an embedded/offline PouchDB client stays open as a future edge
-  path. Worth remembering for Tier 3.
+Fast, typo-tolerant, easy to self-host, and run as a per-node index derived from
+CouchDB rather than replicated ([ADR 0009](decisions/0009-meilisearch-search.md)).
+Typesense would be a near drop-in alternative; it was never evaluated.
 
-**Verdict: keep CouchDB.** Revisit only if Tier-2 analytics hit the aggregation
-ceiling — and even then the answer is likely an *added* analytical/derived store,
-not replacing the source of truth.
+Agent recall is a semantic retrieval workload, and the projects below that do it reach
+for vector stores (Qdrant, Chroma, LanceDB). Meilisearch's hybrid mode may not be
+enough, so expect a vector index (Qdrant as a service, or LanceDB embedded) behind the
+same `/api/search`, rebuilt from CouchDB like the rest.
 
-## Search engine — keep Meilisearch, plan for vectors
+## Prior art
 
-Meilisearch fits the **human + lexical** search need well: fast, typo-tolerant,
-easy to self-host, good DX, and recent **hybrid (lexical + vector)** support. As a
-**per-node derived index fed by `_changes`** (not replicated, rebuildable from
-CouchDB) it matches the intended design, which
-[ADR 0009](decisions/0009-meilisearch-search.md) accepted.
+A survey of twelve open-source projects (June 2026; per-project notes in issues
+#18–#29, indexed by #30):
 
-But Tier-2's "agents recall / self-learn from history" is fundamentally a
-**semantic retrieval** workload, and the competitor study is clear that this lane
-reaches for **dedicated vector stores**: Mem0/claude-mem use Qdrant/Chroma, Reor
-uses LanceDB, basic-memory/claude-self-reflect use FastEmbed + local vectors,
-Graphiti pairs vectors with a temporal graph. Meilisearch's hybrid mode may not be
-enough for that.
+| Project | Store | Memory model | Recall interface | Keeps raw transcript? |
+|---------|-------|--------------|------------------|------------------------|
+| claude-mem | SQLite + Chroma | compressed summaries | MCP + hooks | no |
+| claude-self-reflect | SQLite (Rust) | embeddings + decay | MCP | imports `.jsonl` |
+| Mem0 | vector (+ graph) | reconciled facts | SDK/REST/MCP | no |
+| Letta | Postgres/pgvector | RAM/disk tiers | tool calls | yes (messages) |
+| Zep/Graphiti | graph DB | bi-temporal graph | REST/MCP | source episodes |
+| Cognee | vector + graph | graph + vectors | SDK | no |
+| Basic Memory | markdown + SQLite | observation/relation graph | MCP | no |
+| Khoj | Postgres + pgvector | RAG over documents | web/REST | n/a |
+| Reor (archived) | LanceDB | similarity | desktop app | n/a |
+| Langfuse | Postgres + ClickHouse + S3 | trace/observation | SDK/REST/UI | inputs/outputs |
+| Arize Phoenix (ELv2) | SQLite/Postgres | OTel spans | GraphQL/REST/UI | spans |
+| Laminar | Postgres + ClickHouse + Qdrant | spans | SQL/SDK/UI | spans |
 
-**Recommendation:**
+What it means for this project:
 
-- **Keep Meilisearch** as the lexical/human search backend (or swap for
-  **Typesense** — a near drop-in; ADR 0009 chose Meilisearch without that eval).
-- **Expect to add a vector index** (lean **Qdrant** for a service, or **LanceDB**
-  for an embedded/low-footprint option) for Tier-2 agent retrieval, possibly
-  alongside Meilisearch.
-- **Keep all of it behind a webapi `/api/search` abstraction** so the engine is
-  swappable and consumers never bind to a specific backend
-  ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)). The derived-index
-  design already assumes it rebuilds from CouchDB, so swapping/adding is cheap.
-
-See [competitive-landscape.md](competitive-landscape.md) for the evidence behind
-the search/vector reasoning.
+- Most memory tools keep distilled facts and discard the transcript. Keeping the
+  transcript as ground truth, with distillation as an optional derived layer, gives
+  recall with provenance.
+- Recall ideas worth borrowing without their stores: Mem0's add/update/delete
+  reconciliation, Graphiti's bi-temporal validity, Letta's background reflection,
+  Basic Memory's reflection skills.
+- MCP is the common recall surface; the plugin starts with skills and keeps MCP as an
+  option ([plugin.md](plugin.md#part-2--skills)).
+- Langfuse's observation → trace → session hierarchy is a useful reference vocabulary.

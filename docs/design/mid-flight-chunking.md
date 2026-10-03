@@ -1,130 +1,66 @@
-# Notes — mid-flight transcript chunking (issue #4, P1)
+# Mid-flight chunking
 
-> **Status: implemented, including full-content chunks.** The shared byte-faithful
-> slicer (`@claude-transcripts/shared` `sliceIntoChunks` — one copy, imported directly
-> since the CLI became the hook) is live: `backfill` reconstructs `chunk`
-> docs, and the hook's `flush-transcript-chunk` tails the transcript incrementally
-> (byte-offset + lock state in `/tmp`, gated behind `features.midFlightChunking`).
-> Both produce identical byte boundaries. With `couchFullContentChunks` on, both also
-> embed the pruned `entries[]`, and the webapi reads turns from them
-> ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)). **Still deferred:**
-> the content-feature views (`features/urls` and friends).
+The hook copies the transcript into CouchDB `chunk` docs while the session runs, rather
+than only at `SessionEnd`. A crashed or killed session loses at most the last unflushed
+delta instead of everything, and a running session's transcript can be read and
+searched. The byte-exact transcript still goes to S3 at `SessionEnd`. Decision:
+[ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md), which narrows
+[ADR 0014](decisions/0014-transcripts-live-in-s3-only.md).
 
-Working notes for the logging rework; the decision is
-[ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md) (narrows 0014). These
-notes keep the design detail.
+Every hook payload carries `transcript_path`, and Claude Code writes the transcript as
+JSONL as it goes, so any event can read it from disk. Event docs stay small markers;
+content comes from the file.
 
-## What changed
+## How a flush works
 
-Until now everything durable happened at `SessionEnd`: the summary doc + the S3
-transcript upload. If a session crashed / was killed / the machine rebooted before
-`SessionEnd`, the content was lost and the session was stuck `running` forever.
+- **When:** `flush-transcript-chunk` runs on `UserPromptSubmit`, `PostToolUse`,
+  `PostToolUseFailure` and `Stop`, plus a final flush at `SessionEnd`.
+- **What:** bytes from the stored offset to the end of the file, whole
+  newline-terminated lines only; a partial last line waits for the next flush.
+- **Batching:** flush once `system.logging.chunk.maxEntriesPerChunk` (200) entries are
+  buffered or `flushIntervalMs` (15 s) has passed since the last flush. `Stop` and
+  `SessionEnd` always flush. Below the threshold the offset doesn't move.
+- **State:** `/tmp/claude-transcripts-<sessionId>.chunkstate` (`{ offset, lastFlushMs }`).
+  Each hook event is a separate process, so the read → write → advance step holds an
+  `O_EXCL` lock file (`.chunklock`, stale after 30 s). If the lock is taken, the flush
+  is skipped and the next one catches up.
+- **Doc:** `chunk:<sessionId>:<byte_start padded to 12>`, shaped as in
+  [couchdb.md](../reference/couchdb.md#chunk). Keying on the byte offset keeps ids
+  unique across resumes and makes a re-flush replace rather than duplicate.
+- **Pruning:** oversized strings are truncated and base64 images dropped, leaving a
+  marker. S3 keeps the unpruned original. A real pruning policy is tied to secrets
+  masking (#11).
 
-Now the hook **tails the live transcript file mid-session** and writes append-only
-`chunk:` docs to CouchDB as the session runs. The full byte-faithful transcript is
-still uploaded to S3 at `SessionEnd` (unchanged). Couch chunks make the content
-queryable by map-reduce views and give crash resilience (worst case = lose the last
-un-flushed delta, not the whole session).
+Chunks are not deduplicated: Claude Code writes several entries per streamed message,
+and merging them (by `message.id`, as `sumTranscriptTokens` does) is a read-time job.
+Keeping each chunk faithful to its slice keeps chunks append-only.
 
-## Key enabling facts
+## Resumes
 
-- `transcript_path` is a **common Claude Code hook input field on every event**, not
-  just `SessionEnd`. The transcript is written incrementally as JSONL during the
-  session, so any mid-session handler can read it.
-- We read the transcript **from the filesystem** (`transcript_path`) — the granular
-  event hooks stay light markers; the rich content comes from parsing the file.
+On `SessionStart` with `source` `startup` or `clear`, the offset resets to 0. On
+`resume` or `compact` it carries over: `SessionEnd` releases the lock but keeps the
+state file. If the state is gone (a reboot cleared `/tmp`), the hook asks CouchDB for
+the highest `byte_end` among the session's chunks (`_all_docs` over the
+`chunk:<sessionId>:` prefix, descending, limit 1) and continues from there; if CouchDB
+doesn't answer within 2 s, it starts at 0. An offset past the end of the file (a
+rewritten transcript) is never used. Restarting at 0 on a resume re-slices the
+transcript on new boundaries with new ids, duplicating content
+([#168](https://github.com/vredchenko/claude-transcripts/issues/168)), which is why the
+offset is recovered.
 
-## Design (as built)
+## Flags
 
-- **Trigger:** the `flush-transcript-chunk` action runs on `UserPromptSubmit`,
-  `PostToolUse`, `PostToolUseFailure`, and `Stop` (bound alongside the other per-event
-  actions in the app model). A final flush runs at `SessionEnd`.
-- **Tail + offset:** the hook runtime reads new bytes from the last offset
-  to EOF, consuming only **complete `\n`-terminated lines** (a partial trailing line
-  is left for next time so we never split a JSON record). Offset state lives in
-  `/tmp/claude-transcripts-<sessionId>.chunkstate` (`{ offset, lastFlushMs }`), guarded by
-  a sibling `.chunklock` so concurrent hook processes can't interleave a flush.
-  `/tmp` loss is recoverable — S3 still has the full transcript.
-- **Batch policy:** flush when buffered entries ≥ `logging.chunk.maxEntriesPerChunk`
-  (200) **or** `logging.chunk.flushIntervalMs` (15000ms) since the last flush —
-  whichever first. `Stop` and `SessionEnd` always force a flush. Below the threshold
-  the offset is **not** advanced (the delta waits in the file).
-- **Concurrency:** hook events spawn separate processes that race on the offset. A
-  `O_EXCL` lockfile (`/tmp/claude-transcripts-<sessionId>.chunklock`, stale after 30s) guards the
-  read→write→advance critical section; if the lock is held the flush is **skipped**
-  and the delta is caught on the next flush / at `SessionEnd`.
-- **Chunk doc** (`chunk:<sessionId>:<byteStart padded to 12>`):
-  ```jsonc
-  {
-    "type": "chunk", "session_id": "<cc id>",
-    "byte_start": 10240, "byte_end": 10752, "entry_count": 8,
-    "timestamp": "…", "hostname": "…", "cwd": "…", "source": "live",
-    "schema_version": 2, // 1 for a byte-range-only chunk (no entries)
-    "entries": [ /* parsed, pruned JSONL entries — only when couchFullContentChunks */ ]
-  }
-  ```
-  The id is keyed on `byte_start` (monotonic, unique per session) rather than a
-  sequence counter, so it never collides across resumes even if `/tmp` state was lost.
-- **Append-only, no mutation.** Lifecycle stays *derived*: `SessionStart` event +
-  presence of `summary:<id>` ⇒ ended; chunks-but-no-summary ⇒ running/incomplete.
-- **Pruning**: placeholder only — truncate oversized string fields
-  and drop base64 image data, leaving a marker. Real policy is a later issue (ties to
-  secrets masking #11). S3 keeps the un-pruned master.
-- **Resumes:** on `SessionStart` with `source` `startup`/`clear`, offset resets to 0.
-  On `resume`/`compact` the offset carries over: `SessionEnd` releases the lock but
-  keeps the `.chunkstate` file, so a resumed session flushes on from where it ended.
-  If that state is gone (a reboot clears `/tmp`), the hook asks CouchDB for the highest
-  `byte_end` among the session's chunk docs (`_all_docs` over the `chunk:<sessionId>:`
-  prefix, descending, limit 1) and starts there; if the store can't answer within 2s,
-  the offset starts at 0. An offset past the end of the file (a rewritten transcript) is
-  never used, local or stored — nothing would be chunked until the file outgrew it. Starting at 0 on a resume re-slices the transcript on
-  boundaries no live flush used, and those chunks get new ids — duplicated content
-  ([#168](https://github.com/vredchenko/claude-transcripts/issues/168)). Leftover
-  `.chunkstate` files are a few bytes each, keyed by a session id that is never reused
-  for a new transcript, and are left for the OS to sweep with the rest of `/tmp`.
+Both default on, in `features` ([configuration.md](../start/configuration.md#settings)):
 
-## Feature flags (`features.*` in the app config, both default `true`)
+- `midFlightChunking` — off: nothing is chunked during the session; only the summary
+  and the S3 upload at `SessionEnd`.
+- `couchFullContentChunks` — off: chunks carry offsets and counts only, no `entries`.
 
-- `features.midFlightChunking` — master switch for the `flush-transcript-chunk`
-  handler. Off ⇒ nothing is chunked mid-session; only the `SessionEnd` summary + S3
-  upload run.
-- `features.couchFullContentChunks` — when on, chunk docs carry the `entries` content;
-  when off, they're light markers (offsets + counts only).
+Change them in `config/config.json` (or the instance's `app.json`) and re-run `setup`
+or `install`.
 
-To change them, edit the instance's `app.json` (`~/.config/claude-transcripts/`) or
-`config/config.json` in a checkout, then re-run `install` / `setup`.
+## Not done
 
-## Views (added through a migration — `packages/shared/src/migrations/`)
-
-- `chunks/by_session` — `[session_id, byte_start] → {byte_start, byte_end, entry_count}`
-  for ordered reassembly of a session's content from its chunks.
-- `chunks/entry_count_by_session` — `session_id → Σ entry_count` (`_sum`): how much
-  content was chunked into Couch for a session.
-- `chunks/entries_by_session` and the `speaker_split` views read the embedded
-  `entries[]` (per-turn reads, [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)).
-- `features/urls` (and other content-feature views) is **deferred to the fast-follow**
-  — a regex map view can't be validated here without running CouchDB, so it isn't
-  committed in this pass.
-
-Dedup of the streaming/duplicate assistant messages is left to **read/view time**
-(mirror `sumTranscriptTokens`' heaviest-usage-per-message-id rule) — chunks stay
-byte-faithful to their slice, which keeps them append-only and replication-safe.
-
-## Done in this pass
-
-- the byte-faithful slicer + chunk state in `@claude-transcripts/shared` and the hook
-  runtime (`packages/cli/src/hook/runtime.ts`)
-- the `flush-transcript-chunk` action and its model bindings
-- `seed-session-start` (reset/seed offset) and the `SessionEnd` final flush + lock
-  release
-- the `_design/chunks` design doc, installed by the migration registry (one definition)
-
-## Not done yet (follow-ups)
-
-- **Reconciliation sweep** for stale `running` sessions (chunks/S3 → summary) — fold
-  into the `backfill` tool (#6) or a light `SessionStart` sweep.
-- **Feature-view route** once the feature views exist.
-- **Feature views**: `features/urls` first (validate the regex map against CouchDB),
-  then repos/PRs/issues/`/`-commands/models.
-- **Test the hook's live `flush-transcript-chunk`** (`doctor` covers chunk docs via
-  ingest only).
+- Feature views (`features/urls`, then repos, PRs, issues, slash commands, models).
+- `reconcile` for sessions that never reached `SessionEnd`
+  ([roadmap.md](roadmap.md)).

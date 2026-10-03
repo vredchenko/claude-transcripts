@@ -76,7 +76,7 @@ generator must not bake in.
 - `deploy/k8s/base/` is generated: edits there are lost. Overrides live in overlays.
 - The projection is deliberately narrow — single replica, no resource limits, no
   StatefulSets — because the model describes a single-user, single-node stack
-  ([tiers.md](../tiers.md)). Multi-node or HA shapes are a Tier 3 concern and would
+  ([architecture.md](../architecture.md#tiers)). Multi-node or HA shapes are a Tier 3 concern and would
   extend the model, not the generator.
 - The `hook` still writes to CouchDB and S3 directly ([ADR 0016](0016-webapi-is-the-io-gateway.md));
   on Kubernetes that means the machine running Claude Code needs a route to those

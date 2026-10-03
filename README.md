@@ -272,7 +272,7 @@ default (non-`--upstream`) stack mode pulls mirrored backing images from your ow
   [getting started](docs/start/installation.md),
   [development](docs/develop/getting-started.md),
   [operations](docs/operate/releasing.md), [reference](docs/reference/webapi.md),
-  and [design](docs/design/specification.md) (with the
+  and [design](docs/design/architecture.md) (with the
   [ADRs](docs/design/decisions/README.md) nested under it). Published at
   [vredchenko.github.io/claude-transcripts/docs](https://vredchenko.github.io/claude-transcripts/docs/).
 - [`CHANGELOG.md`](CHANGELOG.md) — what shipped in each release (lockstep-versioned;

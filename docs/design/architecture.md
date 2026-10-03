@@ -2,81 +2,105 @@
 
 ![Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
 
-**Every read goes through the webapi** ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)):
-the webui, CLI, and agents all reach the stores through it, never around it. The one
-deliberate exception is **the hook, which writes to CouchDB and S3 directly**
-([amendment](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer))
-— recording a session must not depend on the webapi being up, which is also why the
-`_changes` follower exists and why hook-written docs get no write-time validation.
-The webapi is **non-optional** — the *stability column* whose contract holds even
-as internals change. It transparently proxies, **read-only**, to CouchDB
-(`/api/couch`) and S3 (`/api/s3`) where their native API is itself a useful
-surface; **writes are never proxied** — they go through curated endpoints that own
-the document/blob shapes. See [routes.md](../reference/routes.md) and [tiers.md](tiers.md).
+Claude Code keeps transcripts per machine, where they are easy to lose and hard to
+search across. Claude Transcripts records every session into stores you run and serves
+it back to people and agents. The long-term aim is for Claude Code itself to be the
+main reader, recalling and learning from past sessions; that is why the transcript is
+kept whole rather than summarised, and why documents are append-only.
 
-> **Core vs optional:** webapi + CouchDB are core. webui, CLI, Meilisearch, and S3
-> are optional/removable — losing one degrades a feature (UI, terminal/agent UX,
-> search, blob backups), never the system. Graceful degradation is a first
-> principle. Full breakdown in [tiers.md](tiers.md).
+Scope is Claude Code only, not agent sessions in general
+([ADR 0010](decisions/0010-claude-code-specific-scope.md)).
+
+## Data flow
+
+- **The hook writes.** `claude-transcripts hook run`, registered with Claude Code,
+  writes events, chunks and the end-of-session summary to CouchDB and the transcript to
+  S3, directly, so recording never depends on the webapi
+  ([ADR 0016 amendment](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
+  It never blocks a session.
+- **The webapi is the gateway.** The webui, the CLI and agents read only through it,
+  and write only through its curated routes (`/api/ingest/*`, `/api/migrate/*`,
+  `/api/search/reindex`). It proxies CouchDB (`/api/couch`) and S3 (`/api/s3`)
+  read-only, because their native APIs are useful read surfaces; writes are never
+  proxied. Its API is the stable contract while internals change
+  ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)).
+- **Derived state follows CouchDB.** Because the hook bypasses the webapi, the webapi
+  follows CouchDB's `_changes` feed to keep the search indexes and its in-memory
+  session index current. Hook-written docs get no write-time validation.
+- **Provisioning** (`install`, `setup`, `provision`) creates databases and buckets
+  directly.
 
 ## Components
 
-| Path | What it is |
-|------|-----------|
-| `hooks/` | Claude Code plugin wrapper. `hooks/scripts/dispatch.ts` pipes each hook payload to `claude-transcripts hook run` and always exits 0; it holds no logging code. The writer — events/summaries to CouchDB, transcript blobs to S3, written **directly** so a session is never lost to a webapi outage ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)) — is `packages/cli/src/hook/`. |
-| `packages/shared/` | The app model + cross-cutting types + `sumTranscriptTokens`. Imported by the webapi and by the CLI's hook — one copy, no duplication. |
-| `packages/webapi/` | Hono + Bun gateway. Creates the CouchDB databases and applies pending migrations on boot; serves reads and the curated writes ([routes.md](../reference/routes.md)); serves the SPA and static docs in prod. |
-| `packages/webui/` | React + Vite + MUI SPA. Session list, detail, transcript viewer. |
-| `packages/cli/` | Bun + Ink CLI (`claude-transcripts`): the hook's writer (`src/hook/`), install/provisioning, and read/admin commands ([cli.md](../reference/cli.md)). Reads and admin go through the webapi; only the hook (writes) and provisioning (store setup) bypass it. |
-| `deploy/` | docker-compose stack (CouchDB + Garage + Meilisearch + app). |
+| Component | Path | Role | Reference |
+|-----------|------|------|-----------|
+| hook | `packages/cli/src/hook/`, plugin shim in `hooks/` | The writer | [hook.md](../reference/hook.md) |
+| webapi | `packages/webapi/` | Gateway; applies migrations on boot; serves the SPA, docs and CLI binary in production | [webapi.md](../reference/webapi.md) |
+| webui | `packages/webui/` | Optional React SPA | [webui.md](../reference/webui.md) |
+| CLI | `packages/cli/` | Installer, admin tool, terminal client, and the hook | [cli.md](../reference/cli.md) |
+| shared | `packages/shared/` | The app model, migrations, cross-cutting types, `sumTranscriptTokens` | [webapi.md](../reference/webapi.md#packagesshared) |
+| plugin | `hooks/` | Skills, status command, statusline for Claude Code | [plugin.md](plugin.md) |
 
-## Data model (CouchDB `claude-transcripts-sessions`)
+**The app model** (`packages/shared/src/model/`) is the central description of the
+system: services and ports, stores, hook events, actions and bindings, routes, env
+schema, the CLI spec. It is built from `config/` and the environment, served at `/` and
+`/api/model`, and projected into Compose files, the k8s base, the plugin's
+`hooks.json`, the architecture diagram and the CLI reference.
 
-- **event docs** (`type: "event"`) — one per hook event, POSTed live.
-- **summary docs** (`_id: "summary:<sessionId>"`, `type: "summary"`) — written at
-  `SessionEnd`, carrying counts, `tool_counts`, `token_usage`, and
-  `transcript_bytes` (the transcript's size; the transcript *file* lives in S3 only,
-  never as a CouchDB attachment, see [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)).
-- **chunk docs** (`type: "chunk"`) — written mid-session, one per slice of up to
-  `maxEntriesPerChunk` entries; with `couchFullContentChunks` (default on) they carry
-  the parsed turns (`schema_version: 2`,
-  [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)), so a live session can
-  be read before `SessionEnd`.
+## Storage
 
-Design docs (owned by the migrations in `packages/shared/src/migrations/`, applied at webapi boot):
+| Store | Holds | If removed |
+|-------|-------|-----------|
+| **CouchDB** (core) | `event`, `summary` and `chunk` docs; full-content chunks carry the parsed, pruned turns ([couchdb.md](../reference/couchdb.md)) | Not allowed: it is the source of truth |
+| **S3**, bundled as [Garage](https://garagehq.deuxfleurs.fr) (`features.s3Blobs`) | `<bucket>/<sessionId>/transcript.jsonl` (byte-exact, its only home, [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)) and `summary.json` | No byte-exact transcript; CouchDB keeps the pruned turns |
+| **Meilisearch** (`features.meilisearch`) | Derived search indexes over session metadata and turns, rebuildable with `reindex` | No search, nothing else changes |
 
-- `sessions/by_date`, `sessions/by_cwd`
-- `events/by_session`, `events/by_type`
-- `tools/usage`, `tools/failures`, `tools/errors`
-- `activity/timeline`
-- `chunks/by_session`, `chunks/entry_count_by_session`, `chunks/entries_by_session`
-- `session_meta/start_meta` (running-session enrichment), `session_meta/tokens_by_date`
-- `session_index/aggregate` (one row per session), `session_index/event_times`
-- `speaker_split/by_role`, `speaker_split/by_role_time` (per-turn reads, [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md))
+The webapi and CouchDB are the only required parts. The webui, CLI, S3 and Meilisearch
+are optional, and losing one loses only its feature. S3 is reached through
+`Bun.S3Client`, so Garage, MinIO, R2 or AWS work by changing the environment
+([ADR 0003](decisions/0003-vendor-neutral-s3-drop-minio-and-rclone.md)). Why these
+technologies: [database-choice.md](database-choice.md).
 
-Blobs live in S3 under `<bucket>/<sessionId>/{summary.json,transcript.jsonl}` —
-the transcript's sole durable home. The webapi reads transcripts from S3 only.
+## Session lifecycle
 
-## Session status
+1. `SessionStart` resets per-session state, writes an event doc, prints the banner and
+   injects the recall primer.
+2. Each prompt, tool call and stop writes an event doc; the transcript is tailed into
+   `chunk` docs every 200 entries or 15 s ([mid-flight-chunking.md](mid-flight-chunking.md)),
+   so a live or crashed session can be read.
+3. `SessionEnd` flushes the last chunk, writes `summary:<id>` with counts and token
+   usage, and uploads the transcript to S3.
 
-A session is `ended` once its summary doc lands. Before that it is `running` if it
-logged activity within the **live window** — `system.sessions.liveWindowMs`, 24 h by
-default — and `incomplete` beyond it (it died without a `SessionEnd`). Separately,
-`system.sessions.idleThresholdMs` (5 min) is the gap above which time stops counting
-towards a session's *active* duration, which is what distinguishes real working time
-from a session left open in a terminal.
+Status is derived: `ended` once the summary exists, otherwise `running` within
+`system.sessions.liveWindowMs` (24 h) of its last activity and `incomplete` after.
+Active duration excludes gaps longer than `system.sessions.idleThresholdMs` (5 min).
 
-## Storage decisions
+## Tiers
 
-- **CouchDB** — document store + map/reduce views (event, summary and chunk docs;
-  chunk docs carry per-turn content, but the transcript file itself never goes in
-  CouchDB).
-- **Garage** — vendor-neutral S3 for durable transcript/summary blobs. Accessed
-  via Bun's built-in `S3Client`, so MinIO / R2 / AWS work by changing env only.
-- **Meilisearch** — full-text search over session metadata *and* conversation
-  content, served by `/api/search`. Derived and rebuildable (`claude-transcripts
-  reindex`), so losing it costs search and nothing else. It may be bundled or
-  external ([ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)).
+Three tiers, each a superset of the one below and none allowed to break it
+([ADR 0015](decisions/0015-tiered-architecture.md)):
 
-> Remaining scope lives in [roadmap.md](roadmap.md); what is in and out of Tier 1
-> is set out in [tiers.md](tiers.md).
+- **Tier 1 (current)** — one machine, one user. Durable capture, browse and search,
+  programmatic access. No auth: the bundled services bind to localhost and need no
+  credentials from you, except CouchDB's default admin
+  ([ADR 0020](decisions/0020-bundled-services-default-no-auth.md)). Its exit gate, an
+  end-to-end suite that fakes Claude Code sessions, is in place
+  ([testing.md](../develop/testing.md)).
+- **Tier 2** — make history useful to future sessions: recall during live sessions
+  (started, [plugin.md](plugin.md)), learning from past sessions, analytics,
+  attribution across machines and users.
+- **Tier 3** — multiplayer and public release: CouchDB replication between instances
+  (which the append-only document model is designed for), auth, hook-drift checks in
+  CI.
+
+What is planned within each: [roadmap.md](roadmap.md).
+
+## Stack
+
+Bun + TypeScript (ESM, strict) throughout, in one workspace
+([ADR 0004](decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)). webapi: Hono,
+`@hono/zod-openapi`, `nano`. webui: React 19, Vite, MUI, TanStack Router and Query. CLI:
+Ink. API clients are generated from the OpenAPI spec with orval
+([ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md)). Biome and
+lefthook. Releases on GitHub Actions to GHCR and GitHub Releases
+([releasing.md](../operate/releasing.md)).

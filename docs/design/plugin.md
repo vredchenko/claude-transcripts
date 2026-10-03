@@ -1,305 +1,109 @@
-# The Claude Code plugin — visibility, recall, policy
+# The Claude Code plugin
 
-> **Status: P0–P3 built, except P3's optional MCP server and vector index.** The
-> `session-history` and `transcripts-admin` skills exist, on a new `claude-transcripts
-> turns` command. Visibility: `announce-recording`, the
-> statusline (`claude-transcripts statusline`), `/claude-transcripts:status`,
-> `subagentStatusLine`, the marketplace file. Recall: the `recall` skill, the `recall`
-> config section resolved through the model ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)),
-> `inject-recall-policy`, plugin `userConfig`. See [`hooks/README.md`](../../hooks/README.md).
-> Deviations: the policy is a **section of the one config file**, not `config/recall.json`
-> (the loaders are single-file today); `hooks/` was **not** renamed (open question 1). This is the plan for growing
-> [`hooks/`](../../hooks/) from a write-only shim into a full Claude Code plugin that
-> (a) *shows* the user their session is being recorded and where, (b) gives Claude
-> **skills** for reading the corpus back, and (c) carries **config** that tells Claude
-> when to reach for history on its own. It closes two roadmap items — the
-> [statusline indicator](roadmap.md) and the [recall plugin (#10)](roadmap.md) — and is
-> the first Tier-2 feature that makes the archive an *input* rather than a record
-> ([tiers.md](tiers.md#tier-2--make-history-actively-useful)).
-
-## The problem, in three parts
-
-Today the plugin is honest and invisible. `scripts/dispatch.ts` pipes a hook payload to
-`claude-transcripts hook run` and exits 0 whatever happens ([hook.md](../reference/hook.md)).
-That is exactly right for a writer — **the hook never blocks a session** — but it means:
-
-1. **You cannot tell whether it is working.** A silent hook and a broken hook look
-   identical from inside Claude Code. The only way to find out you lost a week of
-   history is to go looking for it.
-2. **Claude cannot read what it wrote.** The corpus is queryable — `/api/search`,
-   `/api/turns`, the speaker-split views ([routes.md](../reference/routes.md)) — but nothing
-   tells a live session that any of it exists.
-3. **Even when Claude knows, it waits to be asked.** "Search my history" is a thing
-   users have to think of. The value is in the sessions where they *don't* think of it.
-
-Each part needs a different mechanism, and the third is the one that is easy to get
-wrong.
-
-## Shape: one plugin, grown in place
-
-`hooks/` becomes the plugin root and gains skills, a slash command, a statusline
-renderer and user config. The repo gains a `.claude-plugin/marketplace.json` so it is
-its own marketplace.
+`hooks/` is a Claude Code plugin that does three things beyond pointing Claude Code at
+the writer: it shows that a session is being recorded and where, gives Claude skills
+for reading history back, and carries the policy that tells Claude when to look without
+being asked. Usage: [`hooks/README.md`](../../hooks/README.md).
 
 ```
-.claude-plugin/marketplace.json        NEW  the repo is the marketplace
-hooks/                                      the plugin root (rename → plugin/, see below)
-├── .claude-plugin/plugin.json              grows: skills, commands, userConfig, bin
-├── hooks/hooks.json                        generated from BINDINGS — mechanism unchanged
-├── scripts/dispatch.ts                     the shim — unchanged
-├── settings.json                     NEW  subagentStatusLine (the one key we may set)
-├── bin/
-│   └── claude-transcripts-statusline NEW  statusline renderer (plugin bin/ lands on PATH)
-├── commands/
-│   └── status.md                     NEW  /claude-transcripts:status
-└── skills/
-    ├── recall/SKILL.md               NEW  "have we done this before?"
-    ├── session-history/SKILL.md      NEW  patterns across the corpus
-    └── transcripts-admin/SKILL.md    NEW  operate + troubleshoot the store
+.claude-plugin/marketplace.json        the repo is its own marketplace
+hooks/
+├── .claude-plugin/plugin.json         manifest: commands, skills, userConfig
+├── hooks/hooks.json                   generated from BINDINGS (bun run gen:hooks)
+├── scripts/dispatch.ts                shim → claude-transcripts hook run
+├── settings.json                      subagentStatusLine
+├── bin/claude-transcripts-statusline  statusline renderer (a plugin's bin/ is on PATH)
+├── commands/status.md                 /claude-transcripts:status
+└── skills/{recall,session-history,transcripts-admin}/SKILL.md
 ```
 
-**Why one plugin and not two.** Splitting writer and reader looks tidy — Tier 1 vs
-Tier 2 — but it costs the user two installs to get one feature, and the reader would
-have to rediscover the instance the writer already resolved. The recall half is gated
-by `userConfig` instead, so a user who only wants logging turns it off and pays
-nothing for it.
+Install with `/plugin marketplace add vredchenko/claude-transcripts` and
+`/plugin install claude-transcripts@claude-transcripts`. The CLI must be installed too:
+the plugin does no work itself. `claude-transcripts install` remains the main path and
+registers the hook and statusline without the plugin
+([installation.md](../start/installation.md#registering-the-hook-binary-or-plugin)).
 
-**Installation.** With the marketplace file in the repo root:
+It is one plugin rather than a writer and a reader, so one install gets both; a user
+who only wants logging sets `recall_mode` to `off`. Two platform constraints shape it:
+installing copies the plugin directory to a cache, so nothing in it may reference
+`../`; and a plugin's `settings.json` may set only `agent` and `subagentStatusLine`,
+not `statusLine`.
+
+## Part 1 — visibility
+
+A silent hook and a broken hook look the same from inside Claude Code. Three channels
+answer "is it recording?" at different moments.
+
+### 1a. Session-start banner
+
+The `announce-recording` action, on `SessionStart`, prints hook JSON whose
+`systemMessage` names where the session is recorded:
 
 ```
-/plugin marketplace add vredchenko/claude-transcripts
-/plugin install claude-transcripts@claude-transcripts
+Claude Transcripts — recording to couchdb://…/claude-transcripts-sessions + s3://claude-transcripts-sessions · http://127.0.0.1:7650/app/sessions/<session_id>
 ```
 
-`claude-transcripts install` stays the primary path ([installation.md](installation.md)) —
-it needs neither Bun nor a checkout. The plugin is for people who prefer Claude Code's
-own mechanism, and it still requires the CLI, because the CLI does the work.
+It runs ahead of the config check, so an unconfigured machine says so:
+`Claude Transcripts — not recording (no instance configured). Run claude-transcripts install.`
+Every URL comes from the resolved config. It is the only hook output on stdout, which
+is why `SessionStart` is registered synchronously ([hook.md](../reference/hook.md#dispatch)).
 
-**Two platform constraints to design around**, both verified against the plugin
-reference:
-
-- Installing **copies the plugin directory to a cache**, so nothing in it may reference
-  `../`. The shim already only uses `CLAUDE_PLUGIN_ROOT` and the installed binary; the
-  statusline renderer must be equally self-contained.
-- A plugin's `settings.json` accepts **only `agent` and `subagentStatusLine`**.
-  `statusLine` is *not* a key a plugin can set. The main statusline therefore has to be
-  registered into the user's `~/.claude/settings.json` — see below.
-
-**Rename `hooks/` → `plugin/`?** `hooks/hooks/hooks.json` is already confusing, and the
-directory is about to hold three skills and a command. The move is mechanical (one path
-in `scripts/sync-hooks.ts`, the marketplace `source`, some doc links) and safe, because
-no one installs by path today. Recommended, but separable from everything else here.
-
----
-
-## Part 1 — visibility: "recording, and here's where"
-
-Three channels, because a user needs the answer at three different moments: when the
-session opens, continuously while they work, and on demand when they suspect something
-is wrong.
-
-### 1a. The session-start banner
-
-A new action, **`announce-recording`**, bound to `SessionStart`. Dispatch already runs
-actions from the model's `BINDINGS` ([ADR 0017](decisions/0017-hooks-and-actions-decoupled.md)), and
-`SessionStart` is one of the two long-timeout events, so there is room. It writes hook
-JSON on stdout:
-
-```json
-{
-  "systemMessage": "Claude Transcripts — recording to couchdb://…/claude-transcripts-sessions + s3://claude-transcripts-sessions · http://127.0.0.1:7650/app/sessions/<session_id>",
-  "hookSpecificOutput": {
-    "hookEventName": "SessionStart",
-    "additionalContext": "…"
-  }
-}
-```
-
-`systemMessage` renders in the transcript for the user; `additionalContext` is Part 3's
-payload and is discussed there. Three details matter:
-
-- **stdout is currently unused and must stay that way elsewhere.** Only `SessionStart`,
-  `UserPromptSubmit` and `UserPromptExpansion` treat hook stdout as context; on every
-  other event it goes to the debug log. `announce-recording` is bound to `SessionStart`
-  alone, and nothing else in the hook may start printing to stdout. The plugin shim
-  inherits the child's stdout, so this passes through both install paths unchanged.
-- **The negative case is the important one.** Today `loadHookConfig` returning `null`
-  means "not installed → silently do nothing". Silence is precisely the failure this
-  whole part exists to fix, so the announcement has to run *before* the config gate and
-  say so:
-  `Claude Transcripts — not recording (no instance configured). Run `claude-transcripts install`.`
-  This is the one deliberate exception to the config gate, and it still must never
-  block: a failure to announce is swallowed like any other.
-- **No environment specifics.** Every URL in the banner comes from the resolved
-  instance config, never a literal.
-
-### 1b. The statusline
-
-A persistent one-liner is what actually answers "is it still working" while you work:
+### 1b. Statusline
 
 ```
 ● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → sessions@127.0.0.1:7652
+◐ ct stalled …
 ○ ct@dev off · no instance configured
 ```
 
-The version is the **recording binary's**, not the instance's. Everything is
-lockstep-versioned ([ADR 0023](decisions/0023-lockstep-versioning-and-combined-image.md))
-and `install` pins the app image to the CLI's version, so when a machine drifts the
-hook doing the writing is the half you cannot otherwise see. It shows `ct@dev` from a
-checkout. It cannot show the *app's* version instead — that needs a request, and this
-renders on every refresh.
+`claude-transcripts statusline render` reads the hook's per-session scratch files in
+`/tmp` (counters, and a `.targets` file with the resolved stores, webapi and time of the
+last successful write, credentials stripped) and makes no network calls. The last-write
+time is what separates recording from configured-but-failing. The version shown is the
+recording binary's (`ct@dev` from a checkout), since that is the half of a version skew
+you otherwise can't see.
 
-The `v` is not decoration: `CT_VERSION` is baked from the git tag, so `--version`,
-`GET /health` and the app image tag all spell it `v0.3.0` too. The statusline matches
-them rather than inventing a second spelling.
-
-The renderer ships as `bin/claude-transcripts-statusline` (a plugin's `bin/` is added to
-PATH). It receives the statusline JSON on stdin — `session_id`, `cwd`, `model`,
-`context_window`, and the rest — and must be **cheap**, because it runs on a tight
-refresh. So it does **no network I/O at all**. Two candidate implementations:
-
-| | How | Cost | Drift risk |
-|---|---|---|---|
-| **A. Read the scratch files** | Parse `/tmp/claude-transcripts-<id>.counts` directly | Free | Two spellings of the path and format, one of them in a directory that gets copied to a cache |
-| **B. Spawn the CLI** (recommended) | `claude-transcripts statusline render` and print what it says | One short-lived binary start per refresh | None — one implementation, the same resolution `dispatch.ts` already does |
-
-Recommend **B**, falling back to a bare `○ ct off` when the binary isn't resolvable —
-same posture as the shim. It keeps the **one writer, one implementation** rule
-([CLAUDE.md](../../CLAUDE.md#key-invariants)) instead of reintroducing the
-"keep these two files identical" problem the plugin was just freed from.
-
-Either way the data is local. The hook already maintains per-session state across its
-many short-lived processes (`makeCounts`, `makeChunkState` in
-`packages/cli/src/hook/runtime.ts`) — that is the live counter. It is missing the
-*where*, so `seed-session-start` gains a sibling scratch file holding the resolved
-targets (Couch URL + database, bucket, webapi URL, active features) and the timestamp
-of the last successful write. That last field is what lets the indicator distinguish
-**recording** from **configured but failing** — a store that has been refusing writes
-for five minutes should not show a confident green dot.
-
-**Registration.** Because a plugin may not set `statusLine`, this needs a new CLI
-command — `claude-transcripts statusline install|uninstall|status` — merging into
-`~/.claude/settings.json` exactly the way `hook install` already does, and with the same
-care: never touch a key that isn't ours. `statusLine` is a *single* setting, so if the
-user already has one, we do not overwrite it — print the snippet, explain how to
-compose it, and exit. `install` offers to wire it; `--no-statusline` opts out.
-
-`subagentStatusLine` **can** ship in the plugin's `settings.json`, so subagent rows get
-the same indicator for free.
+The plugin's `bin/claude-transcripts-statusline` just finds the installed CLI and runs
+`statusline render`, falling back to `○ ct off`, so the state format has one
+implementation. Because a plugin can't set `statusLine`, the CLI registers it:
+`claude-transcripts statusline install` (run by `install` unless `--no-statusline`)
+merges it into `~/.claude/settings.json` and leaves an existing `statusLine` alone,
+printing how to combine the two. The plugin's `settings.json` sets
+`subagentStatusLine`.
 
 ### 1c. `/claude-transcripts:status`
 
-The on-demand, full answer — a `commands/status.md` slash command that renders what
-`hook status`, `doctor` and the live counters already know: instance URL and version,
-hook registration state and which events, Couch databases and reachability, S3 bucket,
-Meilisearch state, this session's document id and a deep link into the webui, and the
-running event/token counts. When something is wrong, this is the page that says what.
+The on-demand answer: instance URL and version, hook registration and events, CouchDB
+and S3 reachability, Meilisearch state, this session's id and webui link, and the
+running counts.
 
----
+## Part 2 — skills
 
-## Part 2 — skills: how Claude uses the history
+Skills load only when their description matches, so they cost nothing until used. They
+call the CLI with `--json`.
 
-Skills are the right carrier: they are lazy-loaded, so they cost nothing until their
-description matches, and the CLI is already meant to be the surface
-"[AI agents drive] headless" ([cli.md](../reference/cli.md)).
+- **`recall`** — "have we done this before?". Triggers on did-we / why-is-this /
+  what-did-we-decide questions, familiar errors, and before re-deriving prior work.
+  Runs `claude-transcripts search "<query>" --json`, opens at most one or two sessions,
+  and answers citing session id, date and cwd. Snippets only, never a whole transcript;
+  results capped by `maxResults` and `maxSnippetChars`; says when nothing was found;
+  respects the configured scope.
+- **`session-history`** — patterns across your own history (repeated requests, failing
+  tools, token use per project), via `claude-transcripts turns` and the `/api/couch`
+  views.
+- **`transcripts-admin`** — `doctor`, `backfill`, `reindex`, `export`/`import`,
+  `migrate`, `stack`, and what to do for each statusline state.
 
-### `recall` — "have we done this before?"
+An MCP server would be more native, but every tool definition is charged on every turn
+and it needs a running process. It remains an option once recall proves it is worth
+permanent context.
 
-The core skill. Triggers on *did we / have we / why is this like this / what did we
-decide* questions, on an error that smells familiar, and before re-deriving something
-that looks like prior work.
+## Part 3 — recall policy
 
-Procedure: `claude-transcripts search "<query>" --json` → session hits (metadata) and
-turn hits (content, cropped snippets) → `claude-transcripts sessions <id> --json` only
-for the one or two that matter → answer **citing session id, date and cwd** so the user
-can open the source. Hard rules in the skill body:
-
-- Snippets and ids, **never a whole transcript**. A recalled session must not eat the
-  context window it is supposed to save.
-- Cap results (`maxResults`, default 5) and snippet length.
-- Say when recall found nothing, rather than reasoning from an empty result.
-- Respect the configured scope (Part 3) — by default, sessions from this project only.
-
-### `session-history` — patterns across the corpus
-
-Questions about your own working history rather than one past answer: what do I keep
-asking for, which tools fail most, where did this file get touched, token and cost
-rollups per project. Built on `/api/turns` (cross-session, speaker-split, time-ordered)
-and the `/api/couch` view proxy — the surfaces that already exist for exactly this
-([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)).
-
-### `transcripts-admin` — operate and troubleshoot
-
-Makes the plugin self-supporting: `doctor`, `backfill`, `reindex`, `export`/`import`,
-`migrate`, `stack`, plus a decision tree from each indicator state ("statusline says
-*off*" → "*configured but failing*" → …) to the command that fixes it. This is where the
-"where is my data" question gets its long answer.
-
-### Skills or an MCP server?
-
-An MCP server exposing `search_sessions` / `get_session` / `list_turns` would be more
-native. It is also **always in context** — every tool definition is charged on every
-turn of every session, whether or not history is ever consulted — and it needs a live
-process. Skills cost nothing until triggered and reuse the CLI we already ship. So:
-**skills now**; revisit an optional `mcpServers` entry once the recall loop has proven
-it earns permanent context space.
-
-### Prerequisite, and it is a real one
-
-`claude-transcripts search` runs since 0.0.12 (it had been in the model's `CLI_SPEC`
-without a `COMMANDS` entry, and fell through to the help UI; a test now keeps the two
-lists equal in both directions — `packages/cli/src/commands/index.test.ts`).
-`sessions`, `search` and `turns` take `--json`, which both skills rely on.
-
----
-
-## Part 3 — config: when to reach for history unprompted
-
-This is the part that is easy to hand-wave. A skill's `description` only decides whether
-Claude *loads* the skill; it does not make Claude think of looking. For history to be
-consulted without being asked, two things have to be true at turn zero: Claude must know
-**the rules**, and it must know **that there is something here to find**.
-
-### The policy lives in `config/`
-
-Deployment-wide, non-secret config belongs in `config/`, and config is expected to grow
-to several files there ([CLAUDE.md](../../CLAUDE.md#key-invariants)). So: `config/recall.json`,
-template-committed with conservative defaults, projected through the app model like
-everything else — consumers read `model.recall`, they do not re-derive it.
-
-```jsonc
-{
-  "recall": {
-    "mode": "auto",             // off | suggest | auto
-    "scope": "project",         // project | host | all
-    "maxResults": 5,
-    "maxSnippetChars": 400,
-    "triggers": {
-      "priorWorkQuestion": true,   // "did we…", "why is this…", "what did we decide…"
-      "repeatedError": true,       // an error that appears in past sessions
-      "beforeRederiving": true     // about to redo something that looks like prior work
-    },
-    "excludeCwdGlobs": [],      // paths never recalled from
-    "primer": { "onSessionStart": true, "maxTokens": 200 }
-  }
-}
-```
-
-### Per-user override via `userConfig`
-
-The plugin manifest's `userConfig` is prompted at enable time and needs no file editing,
-which makes it the right place for the per-user, per-machine slice: `recall_mode`,
-`recall_scope`, `webapi_url`, `max_results`. Values arrive as `${user_config.KEY}`
-substitutions in hook commands and as `CLAUDE_PLUGIN_OPTION_*` environment variables.
-
-**Precedence, stated once:** `userConfig` (this user, this machine) → `config/recall.json`
-(this deployment) → built-in defaults.
-
-### How it reaches Claude: the session-start primer
-
-A second `SessionStart` action, **`inject-recall-policy`**, emits
-`hookSpecificOutput.additionalContext` — a short block combining the rules with the
-local facts that make them worth acting on:
+A skill description decides whether Claude loads a skill, not whether it thinks to
+look. So the `inject-recall-policy` action adds a short `additionalContext` at session
+start, combining the policy with a fact that makes it actionable
+([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)):
 
 ```
 Session history for this project is available via `claude-transcripts search`.
@@ -309,83 +113,35 @@ re-deriving something that looks like prior work here, search history first.
 Cite the session id and date. Scope: this project. Max 5 results, snippets only.
 ```
 
-The count is what converts a generic instruction into a triggered one — Claude knows
-there *is* history here, not merely that history is a concept. It costs one cheap
-cwd-scoped query at session start.
+The count comes from one `GET /api/sessions` with a 2 s timeout. The primer is capped
+(`primer.maxTokens`, 200) and omitted when `mode` is `off`, the directory matches
+`excludeCwdGlobs`, it has no history, or the webapi doesn't answer in time.
 
-**Budget discipline.** This is charged on every session, so it is capped (~200 tokens),
-and it is **omitted entirely** when `mode: "off"`, when the store is unreachable, or
-when this cwd has no prior sessions. An empty corpus must not pay for a primer telling
-Claude to search it.
+The policy is the `recall` section of the app config
+([configuration.md](../start/configuration.md#settings)), resolved through the app
+model and baked into the hook config. The plugin's `userConfig` options
+`recall_mode`, `recall_scope` and `max_results` override it per user. Precedence:
+`userConfig`, then the deployment config, then built-in defaults.
 
-### Rejected: nudging on `UserPromptSubmit`
+Injecting per prompt on `UserPromptSubmit` was rejected: it puts a process start and a
+prompt classifier on the hot path of a component that must not fail.
 
-Injecting per-prompt, only when the prompt matches a trigger, is the obvious
-"smarter" design. It is also on the hot path — a 5-second timeout and a process start on
-every single prompt — and it puts a fragile prompt classifier in a component that is not
-allowed to fail. The session-start primer plus the skill descriptions get most of the
-benefit at none of that cost. Revisit only with evidence that the primer is being
-ignored.
+## Invariants
 
----
+1. Never block a session: every surface exits 0 and stays quiet on failure.
+2. Never claim to be recording when it isn't: the indicator comes from the writer's own
+   config and a real recent write.
+3. The statusline makes no network calls.
+4. No environment specifics: every host, port, database and bucket comes from config.
+5. Recall never puts a whole transcript into context.
+6. One implementation of the state format, in the CLI.
 
-## Invariants this plugin must not break
+## Privacy
 
-1. **Never block a session.** Every new surface — announce, primer, statusline,
-   registration — exits 0, prints nothing on failure, and is wrapped. This overrides
-   everything else on this page.
-2. **Never claim to be recording when it isn't.** The indicator is derived from the same
-   config the writer reads and from a real recent write, not from "the plugin is
-   installed". A confident green dot over a dead store is worse than no dot.
-3. **The statusline does no network I/O**, ever.
-4. **No environment specifics** in the plugin. Every host, port, database and bucket is
-   resolved from config; only the documented `127.0.0.1` dev defaults ship.
-5. **Recall never dumps a transcript into context** — ids and snippets, capped.
-6. **One implementation.** The statusline renders through the CLI rather than growing a
-   second copy of the state format ([CLAUDE.md](../../CLAUDE.md#key-invariants)).
+Recall reads past sessions into the current one. `scope: "project"` and
+`excludeCwdGlobs` limit what can come back, and wider scopes are opt-in. With
+`features.secretsMasking` still unimplemented, masking is a prerequisite for scopes
+wider than `project`.
 
-### Privacy, and a flag on `secretsMasking`
-
-Recall reads prior sessions back into a live one. Default `scope: "project"` and
-`excludeCwdGlobs` are the guardrails, and cross-project recall stays opt-in. Worth
-stating plainly: `features.secretsMasking` is currently `false`, and content flowing
-*back into* a session is exactly the case that makes masking matter. Turning recall on
-raises that flag's priority from nice-to-have to prerequisite for `scope` values wider
-than `project`.
-
----
-
-## Sequencing
-
-| Phase | Work | Closes |
-|---|---|---|
-| **P0 — prerequisites** ✅ | `--json` on `search` and `sessions`; extend the per-session scratch state with resolved targets + last-write time (`/tmp/claude-transcripts-<id>.targets`, credentials stripped) | — |
-| **P1 — visibility** ✅ | `.claude-plugin/marketplace.json`; plugin manifest grows; `announce-recording` action; `/claude-transcripts:status`; statusline renderer + `statusline install`; `subagentStatusLine` | roadmap *statusline indicator* |
-| **P2 — recall** ✅ | `recall` skill; `recall` config section + model projection ([ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md)); `inject-recall-policy`; `userConfig` | roadmap #10, Tier 2 recall |
-| **P3 — depth** | `session-history` + `transcripts-admin` skills ✅ (+ `claude-transcripts turns`); optional MCP server; vector index for retrieval quality — both still open | #9 |
-
-P1 is independently shippable and useful on its own — it is the half that stops the
-system being invisible. P2 is the half that makes it valuable.
-
-## Decisions to record
-
-- **ADR — the repo is its own plugin marketplace, one plugin grown in place.** Why not
-  two plugins, and what the copy-to-cache constraint means for the layout.
-- **ADR — recall policy is config-driven and injected at session start.** Why not the
-  per-prompt hot path, and how `userConfig` and `config/` compose. *Recorded as
-  [ADR 0029](decisions/0029-recall-policy-config-driven-session-start.md).*
-- **ADR — the statusline is registered by the CLI, not the plugin.** Documents the
-  platform constraint so the next person does not rediscover it, and the rule about
-  never overwriting an existing `statusLine`.
-
-## Questions (resolved)
-
-1. Rename `hooks/` → `plugin/` as part of P1, or leave it? *P1 shipped without the
-   rename; still `hooks/`.*
-2. Default `recall.mode` — `auto` (the point of the feature) or `suggest` (Claude
-   proposes, the user confirms) for the first release? *`auto` (config template).*
-3. Should `install` wire the statusline by default, or only on `--statusline`?
-   *Default on; `--no-statusline` opts out.*
-4. Does the primer's "37 sessions here" count justify a cwd-scoped query on every
-   session start, or should it be cached in the scratch state and refreshed daily?
-   *Uncached, 2 s timeout.*
+Not done: the optional MCP server, a vector index for better retrieval, and renaming
+`hooks/` to `plugin/`.

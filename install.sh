@@ -7,7 +7,7 @@
 # matching release binary, verify it, and hand over to `claude-transcripts install`,
 # which does the actual work. Anything implemented here couldn't be tested, reused by a
 # future `upgrade`, or run by someone who already has the binary — so it lives in the CLI.
-# (`upgrade` is designed in docs/design/installation.md but is not implemented yet.)
+# (`upgrade` is not implemented yet; see docs/start/installation.md#upgrading.)
 #
 #   CT_VERSION=v0.1.0   install a specific release (default: latest)
 #   CT_BIN_DIR=~/.local/bin
