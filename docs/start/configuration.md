@@ -74,7 +74,7 @@ The committed template:
 | `features.meilisearch` | Full-text search. Off: no search, nothing else changes. |
 | `features.secretsMasking` | Placeholder; nothing is masked yet. |
 | `servicesMenu` | Admin-UI links in the webui (keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`; any other key is an extra link). Unset keys are derived as `http://127.0.0.1:<host port>`; set one when the dashboards live elsewhere, e.g. `{ "couchdbFauxton": "https://couch.example.org/_utils/" }`. |
-| `userSettings` | How much the webui fetches: page sizes per request, and how many transcript entries load before the viewer offers a "load the rest" button (the list isn't virtualised). Out-of-range values fall back to the defaults. |
+| `userSettings` | How much the webui fetches: page sizes per request, and how many transcript entries load before the viewer offers a "load the rest" button (the list isn't virtualised). Values above a per-key ceiling are capped; missing, non-numeric or below-1 values use the default. |
 | `recall` | When a live session consults its own history ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)). `mode`: `off`/`suggest`/`auto`; `scope`: `project`/`host`/`all`. Keep `scope: project` while `secretsMasking` is off. The plugin's `recall_mode`, `recall_scope` and `max_results` options override it per user. |
 
 Omit a section to get its defaults.
