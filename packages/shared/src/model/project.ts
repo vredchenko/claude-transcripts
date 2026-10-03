@@ -53,9 +53,18 @@ function apiSummary(model: AppModel): { spec: string; paths: number } | undefine
   return { spec: "/api/openapi.json", paths: Object.keys(spec.paths ?? {}).length };
 }
 
-/** The env vars (host ports + image tags) docker compose consumes. */
+/**
+ * Store names a container must know itself — today only Fossil's, which it seeds on
+ * start because Fossil can't create a repository over HTTP. Comes from config/, so the
+ * runners pass it at `up` time rather than baking the template's names into compose.
+ */
+export function toStoreEnv(model: AppModel): Record<string, string> {
+  return { FOSSIL_REPOSITORIES: Object.values(model.stores.repositories).join(",") };
+}
+
+/** The env vars (host ports, image tags, store names) docker compose consumes. */
 export function toComposeEnv(model: AppModel): Record<string, string> {
-  const out: Record<string, string> = {};
+  const out: Record<string, string> = { ...toStoreEnv(model) };
   for (const s of model.services) {
     for (const p of s.ports ?? []) {
       const resolved = s.resolvedPorts?.find((r) => r.internal === p.internal);

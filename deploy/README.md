@@ -79,17 +79,12 @@ it yet ([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructur
   official release source (pinned tarball, sha256-checked, static binary on
   `scratch`). To upgrade, bump the three `ARG`s there and `defaultTag` in
   `packages/shared/src/model/services.ts`; a test fails if they disagree.
-- **Repository** — the container serves every `*.fossil` file in `data/fossil/` at
-  `/<name>/` and lists them at `/`. It creates none: the app's repository is named by
-  `fossil.repositories` in `config/` (default `claude-transcripts-sessions`, like the
-  database and bucket) and will be seeded by the app. Until then the list is empty;
-  to create one by hand (no auth, like the rest of the stack — ADR 0020):
-
-  ```bash
-  F="docker exec claude-transcripts-fossil fossil"
-  $F new --admin-user admin /museum/claude-transcripts-sessions.fossil
-  $F user capabilities nobody s -R /museum/claude-transcripts-sessions.fossil
-  ```
+- **Repository** — named by `fossil.repositories` in `config/` (default
+  `claude-transcripts-sessions`, like the database and bucket). The container seeds it
+  on start if it doesn't exist (`fossil/entrypoint.sh`; the runner passes the names as
+  `FOSSIL_REPOSITORIES`) and never touches it again. No auth, like the rest of the
+  stack (ADR 0020): Fossil's `nobody` user has every capability. Every `*.fossil` in
+  `data/fossil/` is served at `/<name>/` and listed at `/`.
 - **API** — built with Fossil's JSON API. The webapi reads it read-only at
   `/api/fossil/<repoKey>/json/...` (see [webapi.md](../docs/reference/webapi.md)).
 

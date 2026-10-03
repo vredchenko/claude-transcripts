@@ -94,6 +94,8 @@ services:
   fossil:
     image: ${IMAGE_NS}/claude-transcripts-fossil:${FOSSIL_TAG:-2.28}
     container_name: claude-transcripts-fossil
+    environment:
+      - FOSSIL_REPOSITORIES=${FOSSIL_REPOSITORIES:-claude-transcripts-sessions}
     ports:
       - 127.0.0.1:${FOSSIL_PORT:-7658}:8080
     volumes:

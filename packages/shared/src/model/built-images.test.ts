@@ -12,7 +12,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildAppModel } from "./build";
 import { k8sImageRef, toKubernetesObjects } from "./k8s";
-import { toComposeOverrideObject, toImageBuildPlan, toMirrorPlan } from "./project";
+import {
+  toComposeEnv,
+  toComposeOverrideObject,
+  toImageBuildPlan,
+  toMirrorPlan,
+  toStoreEnv,
+} from "./project";
 import { SERVICES } from "./services";
 import type { AppConfigFile } from "./types";
 
@@ -96,5 +102,25 @@ describe("fossil readiness", () => {
     const c = (dep.spec as { template: { spec: { containers: Array<Record<string, unknown>> } } })
       .template.spec.containers[0];
     expect(c?.readinessProbe).toMatchObject({ tcpSocket: { port: 8080 } });
+  });
+});
+
+describe("fossil seed", () => {
+  test("the runners pass the configured repository names", () => {
+    const named = buildAppModel(
+      { ...CONFIG, fossil: { repositories: { a: "one", b: "two" } } },
+      {},
+    );
+    expect(toComposeEnv(named).FOSSIL_REPOSITORIES).toBe("claude-transcripts-sessions,one,two");
+  });
+
+  test("the compose fallback is the config template's default", () => {
+    const template = JSON.parse(
+      readFileSync(join(DEPLOY, "..", "config", "config.template.json"), "utf8"),
+    ) as AppConfigFile;
+    const fossil = SERVICES.find((s) => s.key === "fossil");
+    expect(fossil?.containerEnv?.FOSSIL_REPOSITORIES).toBe(
+      `\${FOSSIL_REPOSITORIES:-${toStoreEnv(buildAppModel(template, {})).FOSSIL_REPOSITORIES}}`,
+    );
   });
 });

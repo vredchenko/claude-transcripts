@@ -34,6 +34,11 @@ const ASSETS: { key: string; from: string; to: string }[] = [
   // builds it from this file (its context is the directory, nothing else) — an
   // install has no repo to build from otherwise.
   { key: "fossilDockerfile", from: "deploy/fossil/Dockerfile", to: "deploy/fossil/Dockerfile" },
+  {
+    key: "fossilEntrypoint",
+    from: "deploy/fossil/entrypoint.sh",
+    to: "deploy/fossil/entrypoint.sh",
+  },
   { key: "appConfig", from: "config/config.template.json", to: "config/app.json" },
 ];
 

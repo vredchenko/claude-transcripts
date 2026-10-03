@@ -9,7 +9,9 @@
  * Backing images come from their canonical public registries (the `upstream` overlay),
  * because a user has no reason to have a registry mirror configured.
  */
+import { buildAppModel, toStoreEnv } from "@claude-transcripts/shared";
 import { $ } from "bun";
+import { loadAppConfig } from "./app-config";
 import { composeFiles } from "./assets";
 import type { EnvMap } from "./instance-env";
 import type { InstallPaths } from "./paths";
@@ -21,6 +23,15 @@ export interface ComposeOptions {
   app?: boolean;
 }
 
+/**
+ * Store names from the instance's app config (Fossil seeds its repositories by name on
+ * start). Passed per call rather than written to the instance env, so editing
+ * `app.json` takes effect on the next `up` without regenerating anything.
+ */
+function storeEnv(): Record<string, string> {
+  return toStoreEnv(buildAppModel(loadAppConfig(), {}));
+}
+
 function fileArgs(paths: InstallPaths): string[] {
   return composeFiles(paths, true).flatMap((f) => ["-f", f]);
 }
@@ -29,7 +40,7 @@ function fileArgs(paths: InstallPaths): string[] {
 export async function compose(opts: ComposeOptions, args: string[]): Promise<void> {
   const profile = opts.app ? ["--profile", "app"] : [];
   await $`docker compose --env-file ${opts.paths.instanceEnv} ${fileArgs(opts.paths)} ${profile} ${args}`.env(
-    { ...process.env, ...opts.env },
+    { ...process.env, ...storeEnv(), ...opts.env },
   );
 }
 
@@ -42,7 +53,7 @@ export async function composeQuiet(
   try {
     const text =
       await $`docker compose --env-file ${opts.paths.instanceEnv} ${fileArgs(opts.paths)} ${profile} ${args}`
-        .env({ ...process.env, ...opts.env })
+        .env({ ...process.env, ...storeEnv(), ...opts.env })
         .quiet()
         .text();
     return { ok: true, text };
