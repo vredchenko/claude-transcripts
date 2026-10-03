@@ -173,11 +173,14 @@ export const SESSIONS: Session[] = [
     model: "claude-opus-4-8",
     source: "backfill",
   }),
+  // A cwd far wider than a phone. Its row stacks into a column below `md`, and a
+  // column flex item centred rather than stretched sizes to its content, so a long
+  // path widened the row past the list and scrolled the whole page sideways.
   session({
     sessionId: "88888888-8888-4888-8888-888888888888",
     startTimestamp: iso(-9 * DAY),
     durationMs: 5 * HOUR,
-    cwd: "/srv/projects/legacy-import",
+    cwd: "/srv/projects/archive/imports-from-the-previous-history-store/with-a-deliberately-deep-directory-chain/legacy-import",
     model: "claude-opus-4-8",
     source: "backfill",
     hostname: HOSTS[1],
