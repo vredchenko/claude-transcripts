@@ -12,6 +12,14 @@
 # requires one; the generated password is discarded, as nothing needs it.
 set -eu
 
+# What a new repository holds beyond `fossil new` and no-auth. A placeholder: the seed's
+# contents (users and roles, wiki, ticket schema, tags, settings) are still to be
+# defined — https://github.com/vredchenko/claude-transcripts/issues/210. Runs once, on
+# the not-yet-served copy, so anything added here must only ever create.
+seed_content() {
+  : "$1"
+}
+
 IFS=','
 for name in ${FOSSIL_REPOSITORIES:-}; do
   name="${name# }"
@@ -32,6 +40,7 @@ for name in ${FOSSIL_REPOSITORIES:-}; do
   /bin/busybox rm -f "$repo.new"
   fossil new --admin-user claude-transcripts --project-name "$name" "$repo.new" >/dev/null
   fossil user capabilities nobody s -R "$repo.new" >/dev/null
+  seed_content "$repo.new"
   /bin/busybox mv "$repo.new" "$repo"
   echo "fossil-seed: created $repo (no auth: nobody has every capability)"
 done
