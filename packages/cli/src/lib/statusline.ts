@@ -282,10 +282,16 @@ const SHRINK: ((l: StatuslineLine) => StatuslineLine)[] = [
   ({ where: _, more: __, ...l }) => l,
 ];
 
-/** `db@host:port` → `db`; a mirror's `host.example.net:7650` → `host`. */
-function shortWhere(where: string): string {
+/**
+ * `db@host:port` → `db`; a mirror's `host.example.net:7650` → `host`. An IP address is
+ * kept whole (port dropped): its first octet names nothing.
+ */
+export function shortWhere(where: string): string {
   const at = where.indexOf("@");
-  return at > 0 ? where.slice(0, at) : (where.split(/[.:]/)[0] ?? where);
+  if (at > 0) return where.slice(0, at);
+  const host = where.startsWith("[") ? where.slice(0, where.indexOf("]") + 1) : where.split(":")[0];
+  if (!host || host.startsWith("[") || /^\d+(\.\d+){3}$/.test(host)) return host || where;
+  return host.split(".")[0] || host;
 }
 
 /** Draw a line. With no options it is the plain line every earlier release printed. */

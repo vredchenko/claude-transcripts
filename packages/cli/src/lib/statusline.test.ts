@@ -10,6 +10,7 @@ import {
   hookSilent,
   renderStatusline,
   STALL_AFTER_MS,
+  shortWhere,
   storeState,
   transcriptMtimeMs,
   versionLabel,
@@ -322,5 +323,15 @@ describe("renderStatusline, drawing", () => {
   test("width is measured on what shows, not on the escapes", () => {
     const line = renderStatusline(rec, NOW, { color: true, link: "http://x/y", columns: 80 });
     expect(visible(line)).toBe(renderStatusline(rec, NOW, { columns: 80 }));
+  });
+});
+
+describe("shortWhere", () => {
+  test("keeps a name that still says which store it is", () => {
+    expect(shortWhere("sessions@couch.example.net:5984")).toBe("sessions");
+    expect(shortWhere("backup.example.net:7650")).toBe("backup");
+    // An IP's first octet names nothing, so it stays whole, minus the port.
+    expect(shortWhere("10.0.0.5:7650")).toBe("10.0.0.5");
+    expect(shortWhere("[::1]:7650")).toBe("[::1]");
   });
 });
