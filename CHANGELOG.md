@@ -28,12 +28,24 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 - **Paging defaults live in the OpenAPI spec.** `limit`/`skip`/`offset` defaults and
   descriptions were applied in handlers only, so generated clients didn't know them
   ([#182]).
+- **A long project path no longer scrolls the session list sideways** at narrow widths.
+  Below `md` a row's cells sized to their content, so the ellipsis never engaged
+  ([#203]).
+- **An unknown session id says "Session not found"**, with the id and a way back,
+  instead of the raw request line, and a 4xx is no longer retried after a back-off
+  ([#203]).
+- **A transcript with no turns says "No conversation recorded"** and how many system
+  records it holds, instead of showing a lone fold ([#203]).
 
 ### Changed
 
 - **Tests and docs trimmed** ([#147]): unit tests that restated the implementation or
   duplicated a branch are gone (about 220 of them), and `docs/` is condensed, merged where
   pages overlapped, and corrected against the code ([#199], [#200]).
+- **`test:browser:capture` shoots the first screenful** (`.fold.png`) next to each
+  full-page shot, adds a phone width and the states the routes never reached (menus
+  open, filters applied, no results, an unknown session), and takes `CAPTURE_DIR` /
+  `CAPTURE_ONLY` ([#203]).
 
 ## [0.3.3] — 2026-10-01
 
@@ -1624,6 +1636,7 @@ of them had ever executed:
 [#200]: https://github.com/vredchenko/claude-transcripts/pull/200
 [#201]: https://github.com/vredchenko/claude-transcripts/pull/201
 [#202]: https://github.com/vredchenko/claude-transcripts/pull/202
+[#203]: https://github.com/vredchenko/claude-transcripts/pull/203
 [Unreleased]: https://github.com/vredchenko/claude-transcripts/compare/v0.3.3...HEAD
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
