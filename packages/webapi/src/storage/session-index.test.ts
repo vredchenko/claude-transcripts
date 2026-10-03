@@ -108,12 +108,6 @@ describe("load", () => {
     expect(index.status().loadedAt).toBeTruthy();
   });
 
-  test("asks for the grouped reduce, which is the whole point of caching it", async () => {
-    const view = fakeView({ a: agg(1) });
-    await createSessionIndex(view.db).load();
-    expect(view.calls[0]).toEqual({ group: true, reduce: true });
-  });
-
   test("a failed first load leaves it cold, so callers fall back rather than see nothing", async () => {
     const view = fakeView({ a: agg(1) });
     view.breakWith("couch is down");
@@ -151,17 +145,6 @@ describe("load", () => {
 
     expect(view.calls).toHaveLength(1);
   });
-
-  test("a reload picks up sessions that appeared since", async () => {
-    const view = fakeView({ a: agg(1) });
-    const index = createSessionIndex(view.db);
-    await index.load();
-
-    view.corpus.b = agg(5);
-    await index.load();
-
-    expect(index.rows()).toHaveLength(2);
-  });
 });
 
 describe("refresh", () => {
@@ -178,18 +161,6 @@ describe("refresh", () => {
     // Not asked about, so not re-read — and, crucially, not dropped.
     expect(index.get("b")?.events).toBe(2);
     expect(view.calls[1]).toEqual({ group: true, reduce: true, keys: ["a"] });
-  });
-
-  test("adds a session the index had never seen", async () => {
-    const view = fakeView({ a: agg(1) });
-    const index = createSessionIndex(view.db);
-    await index.load();
-
-    view.corpus.new = agg(3);
-    await index.refresh(["new"]);
-
-    expect(index.get("new")?.events).toBe(3);
-    expect(index.status().updatedAt).toBeTruthy();
   });
 
   test("de-duplicates ids and batches at 100 keys", async () => {

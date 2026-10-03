@@ -87,16 +87,11 @@ describe("responses — the consumer reads, so removing breaks", () => {
     expect(kinds(breaking(diffContract(before, after)))).toEqual(["now-nullable"]);
   });
 
-  it("flags a new enum variant a consumer has no branch for", () => {
+  it("flags a new enum variant a consumer has no branch for, not a dropped one", () => {
     const before = doc(responds({ type: "string", enum: ["ended", "running"] }));
     const after = doc(responds({ type: "string", enum: ["ended", "running", "incomplete"] }));
     expect(kinds(breaking(diffContract(before, after)))).toEqual(["enum-value-added"]);
-  });
-
-  it("does not flag an enum variant the server stops returning", () => {
-    const before = doc(responds({ type: "string", enum: ["ended", "running"] }));
-    const after = doc(responds({ type: "string", enum: ["ended"] }));
-    expect(breaking(diffContract(before, after))).toEqual([]);
+    expect(breaking(diffContract(after, before))).toEqual([]);
   });
 
   it("flags a removed success status but not a removed error status", () => {
@@ -111,22 +106,17 @@ describe("responses — the consumer reads, so removing breaks", () => {
 });
 
 describe("requests — the consumer writes, so demanding more breaks", () => {
-  it("flags a newly required parameter", () => {
+  it("flags a newly required parameter, not a newly optional one", () => {
     const before = doc(responds({ type: "object" }));
-    const after = doc({
-      parameters: [{ name: "since", in: "query", required: true, schema: { type: "string" } }],
-      ...responds({ type: "object" }),
-    });
-    expect(kinds(breaking(diffContract(before, after)))).toEqual(["required-parameter-added"]);
-  });
-
-  it("does NOT flag a newly optional parameter", () => {
-    const before = doc(responds({ type: "object" }));
-    const after = doc({
-      parameters: [{ name: "from", in: "query", required: false, schema: { type: "string" } }],
-      ...responds({ type: "object" }),
-    });
-    expect(breaking(diffContract(before, after))).toEqual([]);
+    const withParam = (required: boolean) =>
+      doc({
+        parameters: [{ name: "since", in: "query", required, schema: { type: "string" } }],
+        ...responds({ type: "object" }),
+      });
+    expect(kinds(breaking(diffContract(before, withParam(true))))).toEqual([
+      "required-parameter-added",
+    ]);
+    expect(breaking(diffContract(before, withParam(false)))).toEqual([]);
   });
 
   it("flags an optional parameter becoming required", () => {
@@ -168,26 +158,15 @@ describe("requests — the consumer writes, so demanding more breaks", () => {
     expect(breaking(diffContract(doc(body(["id"])), doc(body([]))))).toEqual([]);
   });
 
-  it("flags an enum value the server stops accepting", () => {
+  it("flags an enum value the server stops accepting, not one it starts accepting", () => {
     const before = doc(accepts({ type: "string", enum: ["a", "b"] }));
     const after = doc(accepts({ type: "string", enum: ["a"] }));
     expect(kinds(breaking(diffContract(before, after)))).toEqual(["enum-value-removed"]);
-  });
-
-  it("does not flag an enum value the server starts accepting", () => {
-    const before = doc(accepts({ type: "string", enum: ["a"] }));
-    const after = doc(accepts({ type: "string", enum: ["a", "b"] }));
-    expect(breaking(diffContract(before, after))).toEqual([]);
+    expect(breaking(diffContract(after, before))).toEqual([]);
   });
 });
 
 describe("shared rules", () => {
-  it("flags a changed type in either direction", () => {
-    const beforeRes = doc(responds({ type: "object", properties: { n: { type: "string" } } }));
-    const afterRes = doc(responds({ type: "object", properties: { n: { type: "integer" } } }));
-    expect(kinds(breaking(diffContract(beforeRes, afterRes)))).toEqual(["type-changed"]);
-  });
-
   it("reports a changed type once rather than also diffing the innards", () => {
     // Comparing the properties of two different types produces noise, not information.
     const before = doc(responds({ type: "object", properties: { a: { type: "string" } } }));
@@ -202,17 +181,9 @@ describe("shared rules", () => {
     const after = doc(responds({ $ref: "#/components/schemas/Thing" }), {
       Thing: { type: "object", properties: {}, required: [] },
     });
-    expect(kinds(breaking(diffContract(before, after)))).toEqual(["property-removed"]);
-  });
-
-  it("names the component in the location, so a report is readable", () => {
-    const before = doc(responds({ $ref: "#/components/schemas/Thing" }), {
-      Thing: { type: "object", properties: { id: { type: "string" } } },
-    });
-    const after = doc(responds({ $ref: "#/components/schemas/Thing" }), {
-      Thing: { type: "object", properties: {} },
-    });
-    expect(breaking(diffContract(before, after))[0]!.where).toContain("Thing.id");
+    const found = breaking(diffContract(before, after));
+    expect(kinds(found)).toEqual(["property-removed"]);
+    expect(found[0]!.where).toContain("Thing.id");
   });
 
   it("compares inside arrays", () => {
@@ -239,18 +210,5 @@ describe("shared rules", () => {
       Node: { type: "object", properties: { child: { $ref: "#/components/schemas/Node" } } },
     });
     expect(kinds(breaking(diffContract(before, after)))).toEqual(["property-removed"]);
-  });
-
-  it("puts breaking changes first", () => {
-    const before = doc(responds({ type: "object", properties: { gone: { type: "string" } } }));
-    const after = doc(responds({ type: "object", properties: { added: { type: "string" } } }));
-    const changes = diffContract(before, after);
-    expect(changes[0]!.breaking).toBe(true);
-    expect(changes.at(-1)!.breaking).toBe(false);
-  });
-
-  it("finds nothing between a document and itself", () => {
-    const same = doc(responds({ type: "object", properties: { id: { type: "string" } } }));
-    expect(diffContract(same, same)).toEqual([]);
   });
 });

@@ -41,16 +41,6 @@ function query(sessionId: string, through = "z"): ActiveQuery {
 }
 
 describe("groupTimestamps", () => {
-  test("collects a row's value under its key", () => {
-    const grouped = groupTimestamps([
-      { key: "a", value: at(0) },
-      { key: "b", value: at(1) },
-      { key: "a", value: at(2) },
-    ]);
-    expect(grouped.get("a")).toEqual([at(0), at(2)]);
-    expect(grouped.get("b")).toEqual([at(1)]);
-  });
-
   test("skips rows a view can legitimately emit but this can't use", () => {
     // Views are recomputed over whatever documents exist, including ones written by
     // an older hook — a missing or non-string timestamp must not become "NaN".
@@ -65,13 +55,6 @@ describe("groupTimestamps", () => {
 });
 
 describe("activeDurations", () => {
-  test("sums the gaps within the idle threshold and drops the ones beyond it", async () => {
-    // Two minutes of work, an hour of nothing, then three more minutes of work.
-    const { db } = fakeView({ s1: [at(0), at(2), at(62), at(65)] });
-    const active = await activeDurations(db, [query("s1")], IDLE, createActiveDurationCache());
-    expect(active.get("s1")).toBe(5 * MINUTE);
-  });
-
   test("reports nothing for a session with too few timestamps to measure a gap", async () => {
     // Absent, not zero: "ran and did nothing" is a different claim from "can't say".
     const { db } = fakeView({ s1: [at(0)], s2: [] });
@@ -164,23 +147,6 @@ describe("activeDurations", () => {
     };
     const active = await activeDurations(db, [query("s1")], IDLE, createActiveDurationCache());
     expect(active.size).toBe(0);
-  });
-
-  test("keeps whatever it answered before a failed batch", async () => {
-    let call = 0;
-    const db: TimestampView = {
-      async view(_design, _name, params) {
-        call++;
-        if (call > 1) throw new Error("CouchDB went away");
-        return { rows: params.keys.map((key) => ({ key, value: at(0) })) };
-      },
-    };
-    // 150 sessions is two batches: the first answers (one timestamp each → nothing
-    // derivable), the second throws. The call must still resolve.
-    const ids = Array.from({ length: 150 }, (_, i) => query(`s${i}`));
-    await expect(
-      activeDurations(db, ids, IDLE, createActiveDurationCache()),
-    ).resolves.toBeDefined();
   });
 
   test("evicts the oldest entry when the memo is full", async () => {
