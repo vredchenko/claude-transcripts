@@ -31,7 +31,7 @@ not prose:
   automation** (a future suite that runs the [e2e tests](../../develop/testing.md) against
   multiple CC versions), not by hand.
 - The same generated data backs the **hook-drift check** (Tier 3, #13): diff the
-  codebase's hook list ([hooks.md](../../reference/hooks.md)) against the generated truth.
+  codebase's hook list ([hook-events.md](../../reference/hook-events.md)) against the generated truth.
 
 ## Consequences
 

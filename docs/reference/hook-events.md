@@ -12,7 +12,7 @@ example **payload fixtures** under
 [`tests/mock/claude-code/hooks/`](../../tests/mock/claude-code/hooks/) (the inputs Claude Code sends a hook
 on stdin — used for both these docs and test automation), and the action(s) we run.
 
-This table is the **payload/fixture reference**. The complementary [hooks.md](hooks.md)
+This table is the **payload/fixture reference**. [actions.md](actions.md)
 narrates the hook → action model, and [hook.md](hook.md) covers the writer
 mechanics. A per-**version** list (which events each Claude Code version exposes) is
 planned as `compatibility.json`
@@ -153,7 +153,7 @@ We currently bind actions to **11** of the 30 events —
 `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`. The rest are **intentionally ignored** — the "What we do" column gives
 the reason per event: a passive, observe-only writer gains nothing from
 blocking / UX / orchestration hooks, and every hook invocation costs a Bun startup,
-so we wire only the events that carry the session record ([hooks.md](hooks.md)).
+so we wire only the events that carry the session record ([actions.md](actions.md)).
 Wiring an ignored event = add the [action](actions.md) + binding in the model, then
 regenerate `hooks.json` (`bun run gen:hooks`).
 

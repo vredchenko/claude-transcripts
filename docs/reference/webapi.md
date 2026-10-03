@@ -1,327 +1,158 @@
-# webapi — codebase reference
+# webapi
 
-A [Hono](https://hono.dev) + Bun service: the project's **I/O gateway**
-([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)). Consumers read through it and write only via curated routes
-(`/api/ingest/*`, `/api/migrate/*`, `/api/search/reindex`); the hook writes to
-CouchDB/S3 directly ([amendment](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)),
-which is why the `_changes` follower exists. In production it also serves the SPA, the
-docs and the CLI binary. Full URL surface: [routes.md](routes.md).
+`packages/webapi/`: Bun + [Hono](https://hono.dev) with
+[`@hono/zod-openapi`](https://github.com/honojs/middleware/tree/main/packages/zod-openapi),
+[`nano`](https://github.com/apache/couchdb-nano) for CouchDB, `Bun.S3Client` for S3, and
+[Scalar](https://github.com/scalar/scalar) at `/api/docs`.
 
-- **Package:** `packages/webapi/` (workspace name `@claude-transcripts/webapi`)
-- **Runtime:** Bun, TypeScript (ESM, strict)
-- **Framework:** Hono via [`@hono/zod-openapi`](https://github.com/honojs/middleware/tree/main/packages/zod-openapi) (OpenAPI-typed routes) + [Scalar](https://github.com/scalar/scalar) (`@scalar/hono-api-reference`) for the rendered reference at `/api/docs`
-- **CouchDB client:** [`nano`](https://github.com/apache/couchdb-nano)
-- **S3 client:** Bun's built-in `Bun.S3Client` (no SDK dependency)
+It is the I/O gateway ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)):
+consumers read through it and write only via `/api/ingest/*`, `/api/migrate/*` and
+`/api/search/reindex`. The hook writes to CouchDB and S3 directly, which is why the
+webapi follows CouchDB's `_changes` feed. In production it also serves the SPA, the docs
+and the CLI binary. URL list: [routes.md](routes.md).
 
-The OpenAPI spec is the contract source of truth: `orval` generates the CLI + webui
-clients from it ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)),
-and Scalar renders it at `/api/docs`. The committed copy is the repo-root
-`openapi.json`, built offline by `src/write-openapi.ts` (`bun run gen:clients`).
+## Configuration
 
-## File layout
+Settings from `config/config.json`, else the template (`CT_CONFIG_DIR` overrides the
+directory); secrets and endpoints from the environment
+([configuration.md](../start/configuration.md)).
 
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | Boot sequence: load config, build the app model, open CouchDB + S3 (+ Meilisearch) handles, `ensureCouchDbs`, start the session index + `_changes` follower, serve. |
-| `src/server.ts` | `OpenAPIHono` app factory: compression, error handler, `/health`, every route module under `/api`, the OpenAPI doc + Scalar UI, the `/` manifest, and (when configured) `/app`, `/docs` and `/cli/download`. |
-| `src/config.ts` | Config loader ([below](#configuration-configts)). |
-| `src/caching.ts` | Compression wrapper + `Cache-Control` policy for `/app` and `/docs` (below). |
-| `src/contract-diff.ts` | Classifies differences between two versions of the spec as breaking or not, for the contract check. |
-| `src/routes/*.ts` | One module per URL prefix (sessions, ingest, search, migrate, proxy, model, manifest); `validation.ts` holds `validationHook` (the `defaultHook`: request-validation failures → `{ error }` 400). |
-| `src/storage/couch.ts` | `makeCouch(config)` — `nano` server scope + `db(key)` by logical key; `couchFetch` for raw HTTP. |
-| `src/storage/blob-store.ts` | `BlobStore` interface (`get`, `stat`, `put`, `remove`). |
-| `src/storage/s3-blob-store.ts` | `S3BlobStore` — `Bun.S3Client` implementation (path-style, vendor-neutral). |
-| `src/storage/ensure.ts` | `ensureCouchDbs` — creates the system + configured databases, applies pending migrations, creates the Mango index. |
-| `src/storage/migrations.ts` | The concrete `MigrationContext` over a `nano` database, which the migration engine writes through. |
-| `src/storage/meili.ts` | Minimal fetch-based Meilisearch client + the session/turn search-doc projections. |
-| `src/storage/session-index.ts` | Per-session aggregates held in memory, patched from the change feed — what makes the session list fast. |
-| `src/storage/changes-follower.ts` | Follows CouchDB `_changes`; feeds the session index (always) and Meilisearch (when search is on). |
-| `src/storage/active-duration.ts` | Active (working) time per session — the span minus idle gaps, from `session_index/event_times`. |
-
-## Configuration (`config.ts`)
-
-Two layers ([configuration.md](../start/configuration.md)): `config/config.json`
-(else the committed template; `CT_CONFIG_DIR` overrides the directory) for non-secret
-settings, `.env` for secrets/endpoints. Stores are named by logical key, never by env
-var.
-
-- **CouchDB:** `COUCHDB_URL` (full base URL; https + path prefix supported, wins
-  over `COUCHDB_HOST/PORT`), `COUCHDB_HOST/PORT/USER/PASSWORD`.
-- **S3:** `S3_ENDPOINT` (full URL, default `http://127.0.0.1:7653`), `S3_REGION`
-  (Garage default `garage`), `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
-- **Meilisearch:** `MEILI_HOST` (default `http://127.0.0.1:7656`), `MEILI_API_KEY`;
-  used only when `features.meilisearch` is true.
-- **webapi:** `WEBAPI_HOST`/`WEBAPI_PORT` (default `127.0.0.1:7650`),
-  `CT_STATIC_DIR` (optional — enables SPA serving at `/app`), `CT_DOCS_DIR` (optional —
-  enables `/docs`), `CT_CLI_BIN` (optional — enables `/cli/download`), `CT_VERSION`
-  (baked at image build from the git tag; surfaced on `/health`).
-- **Session list** (`system.sessions` in config): `liveWindowMs` (default `86400000`,
-  24 h) and `idleThresholdMs` (default `300000`, 5 min) — see
-  [List behaviour](#list-behaviour-running-session-detection).
+| Variables | Default |
+|-----------|---------|
+| `COUCHDB_URL`, or `COUCHDB_HOST` + `COUCHDB_PORT`; `COUCHDB_USER`, `COUCHDB_PASSWORD` | `http://127.0.0.1:7652` |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | `http://127.0.0.1:7653`, `garage` |
+| `MEILI_HOST`, `MEILI_API_KEY` (used only when `features.meilisearch` is on) | `http://127.0.0.1:7656` |
+| `WEBAPI_HOST`, `WEBAPI_PORT` | `127.0.0.1:7650` |
+| `CT_STATIC_DIR`, `CT_DOCS_DIR`, `CT_CLI_BIN` | unset; each enables `/app`, `/docs`, `/cli/download` |
+| `CT_VERSION` | baked into the image from the git tag; reported by `/health` |
 
 ## HTTP API
 
-Typed routes use `createRoute` + zod, so the spec is generated, not hand-written:
-`/api/sessions*`, `/api/turns`, `/api/search*`, `/api/ingest/*` and `/api/migrate/*`.
-Their parameters, defaults, descriptions and response shapes live in the spec only —
-browse them at **`/api/docs`** (Scalar) or read `/api/openapi.json` (committed at the
-repo root as `openapi.json`). Don't copy them here; a hand-kept table drifts.
+The typed routes (`/api/sessions*`, `/api/turns`, `/api/search*`, `/api/ingest/*`,
+`/api/migrate/*`) are defined with `createRoute` + zod, so the OpenAPI spec is
+generated from the code. Their parameters and response shapes are documented only
+there: browse `/api/docs`, or read `/api/openapi.json` (committed as `openapi.json`,
+regenerated by `bun run gen:clients`). Validation failures return `400 { error }`.
 
-The routes below are plain Hono routes and **not** in the spec:
+Plain Hono routes, not in the spec: `/health`, `/`, `/api/model*`, the `/api/couch/*`
+and `/api/s3/{bucketKey}/*` proxies (GET/HEAD only), `/api/docs`, `/api/openapi.json`,
+`/app/*`, `/docs/*`, `/cli/download`.
 
-| Method | Path | Query | Returns |
-|--------|------|-------|---------|
-| `GET` | `/health` | — | `{ ok, status, version, startedAt, stores, sessionIndex }` — see below |
-| `GET` | `/api/model` | — | The app model, minus `apiSpec` |
-| `GET` | `/api/model/{services,hooks,actions,env}` | — | One facet of the model (`actions` returns `{ actions, bindings }`) |
-| `GET`/`HEAD` | `/api/couch/*` | passed through | CouchDB's HTTP API, read-only |
-| `GET`/`HEAD` | `/api/s3/{bucketKey}/*` | — | An object from the bucket with that logical key, read-only |
-| `GET` | `/api/openapi.json` | — | OpenAPI 3.0 spec |
-| `GET` | `/api/docs` | — | Scalar API reference |
-| `GET` | `/` | — | App manifest (JSON, the agent entrypoint — not a UI page) |
-| `GET` | `/app/*` | — | SPA static + `index.html` fallback (**only when `CT_STATIC_DIR` is set**) |
-| `GET` | `/docs/*` | — | Prebuilt static docs (**only when `CT_DOCS_DIR` is set**) |
-| `GET` | `/cli/download` | — | The bundled CLI binary (**only when `CT_CLI_BIN` is set**) |
+### Health
 
-`/api/sessions` filters apply before paging (`totalCount` is the filtered count);
-`from`/`to` match by overlap, the rest are exact.
+`GET /health` always returns 200 while the process is up, so probes can use the status
+code for liveness. The body answers whether the stores are usable:
 
-### Health and store readiness
+```
+{ ok, status, version, startedAt, stores, sessionIndex }
+```
 
-`/health` answers two questions that are easy to conflate:
+- `ok: false`, `status: "degraded"` when the sessions database can't be reached;
+  `stores.couch.error` says why, and `stores.couch.provisioned` /
+  `provisioningError` report whether boot-time database creation and migrations
+  finished.
+- `sessionIndex` reports `ready`, the number of `sessions` held, `loadedAt`,
+  `updatedAt` and any `error`. `ready: false` means the list is being served straight
+  from CouchDB: correct but slow.
 
-- **Is the process alive?** It always returns **HTTP 200** while it is. Callers
-  that only want liveness (the e2e suite, container probes) can keep using the
-  status code.
-- **Are its stores usable?** The body carries that: `ok: false` and
-  `status: "degraded"` when the sessions database can't be reached, with
-  `stores.couch.error` explaining why (missing database, rejected credentials,
-  unreachable server) and `stores.couch.provisioned` reporting whether boot-time
-  provisioning — database creation plus [migrations](../operate/migrations.md) —
-  completed, with `provisioningError` when it didn't.
-- **Is the session list being served from memory?** `sessionIndex` reports
-  `ready`, how many `sessions` are held, when it last fully `loadedAt` and was last
-  patched (`updatedAt`), and any `error`. `ready: false` means the list is querying
-  CouchDB directly — correct, but slow. This is reported because a stale index is
-  otherwise invisible: the list keeps answering, just with an older set.
+Boot never waits for the stores, so the webapi comes up even when they are broken and
+`/health` can say what is wrong. `doctor` checks it before writing anything.
 
-Boot deliberately never blocks on the stores ([index.ts](../../packages/webapi/src/index.ts)):
-the webapi must come up so you can *see* what is wrong. That makes this
-distinction load-bearing — without it, a webapi with no databases is
-indistinguishable from a healthy one until the first write fails. `cli doctor`
-checks it before writing anything.
+### Session list
 
-### List behaviour (running-session detection)
+Rows come from the `session_index/aggregate` view, one per `session_id`. A session with
+a `summary` doc is `ended`; otherwise `running` if its last event is within
+`system.sessions.liveWindowMs` (24 h), else `incomplete`. Filters (`cwd`, `model`,
+`hostname`, `source` exact; `from`/`to` by overlap) apply before paging, and
+`totalCount` is the filtered count. Each row carries `activeMs`: the session's span
+minus gaps longer than `idleThresholdMs`, from `session_index/event_times`.
 
-Every session comes from `session_index/aggregate` (one row per `session_id`),
-served from the in-memory [session index](#the-session-index) when warm. With a
-`summary:` doc it is `ended`; without one, `running` if its last activity is within
-`system.sessions.liveWindowMs` (24 h), else `incomplete` — a recency heuristic, with no
-heartbeat. The route filters, sorts by last activity and pages in memory. Each returned
-row gets `activeMs` (span minus gaps longer than `idleThresholdMs`, from
-`session_index/event_times`, memoised).
+### Transcripts
 
-### Detail / transcript
+`GET /api/sessions/{id}/transcript` reads from the CouchDB chunk docs by default
+(`chunks/entries_by_session`, paged at the view), so a running or crashed session is
+readable before `SessionEnd`. It falls back to the S3 blob when that covers more bytes:
+sessions recorded without full-content chunks, or a missed final flush. The response
+reports `source` (`chunks` or `s3`) and `byteCoverage`. Both sources are normalised to
+the same pruned per-turn shape, so raw JSONL is available only through
+`/api/s3/sessions/<id>/transcript.jsonl`. A 502 means CouchDB had nothing and S3
+failed; a 404 means no transcript is stored.
 
-- **Detail** fetches the `summary:<id>` doc. If a transcript blob exists in S3 but
-  the summary lacks `token_usage`, it computes it on the fly with
-  `sumTranscriptTokens` (see shared, below).
-- **Transcript** reads from the **CouchDB `chunk` docs by default**, via
-  `chunks/entries_by_session` (turns keyed `[session_id, byte_start, entry_index]`,
-  i.e. transcript order across all speakers), paged at the view by `limit`/`offset`.
-  Because chunks are flushed *mid-session*, this serves a **live** session's
-  transcript-so-far — it no longer waits for the SessionEnd upload, which is why a
-  session that crashed before finalising is still readable.
+Session detail reads `summary:<id>` and, when `token_usage` is missing but a transcript
+exists, computes it with `sumTranscriptTokens`.
 
-  The S3 blob (`<id>/transcript.jsonl`) is the fallback, used when it reaches
-  further than the chunks: for a session logged with `couchFullContentChunks` off
-  (byte-range-only chunks carry no turns), or when a final flush was missed so the
-  last chunk falls short of the uploaded file. The rule is *whichever source covers
-  more bytes, chunks winning ties* — identical for an ended or backfilled session,
-  chunks for a live one. The response reports which store answered (`source`:
-  `chunks` | `s3`) and how far it reaches (`byteCoverage`).
+### Search
 
-  Both sources normalise to the same pruned per-turn shape
-  ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)), so the response
-  never changes form with `source`. That means the endpoint no longer returns raw
-  Claude Code JSONL — byte-exact lines remain available through the read-only S3
-  proxy (`/api/s3/sessions/<id>/transcript.jsonl`). This narrows
-  [ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md): S3 is still
-  the durable, byte-faithful home, but it is no longer the *read* path.
+Two Meilisearch indexes named in `meilisearch.indexes`: sessions (metadata, one doc per
+session) and turns (one doc per user, assistant or tool-result turn; other transcript
+lines aren't indexed). They are derived from CouchDB and kept current three ways:
 
-  A 502 (rather than 404) distinguishes "nothing in CouchDB and S3 itself failed"
-  from "no transcript stored".
+- the ingest routes index as they write;
+- the `_changes` follower catches everything else, including the hook's writes. It
+  checkpoints in the local document `_local/search_checkpoint` (local docs don't appear
+  in `_changes`, so the checkpoint can't wake the follower) and on first run starts at
+  "now";
+- `POST /api/search/reindex` (`claude-transcripts reindex`) clears and rebuilds, for
+  history that predates search, renamed indexes and deletes. Unlike ingest it waits on
+  Meilisearch's tasks and reports failures.
 
-### Search indexes (derived state)
+`DELETE /api/ingest/{id}` also removes the session's search entries.
 
-Two Meilisearch indexes, named from `config/` (`meilisearch.indexes`, namespaced so a
-shared engine can't collide — [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md)):
-`claude-transcripts-sessions` (one doc per session, metadata search) and
-`claude-transcripts-turns` (one doc per conversation turn, content search).
+Meilisearch accepts only `a-zA-Z0-9`, `-` and `_` in document ids, so build them with
+`searchDocId()`. It validates batches asynchronously (`202 Accepted`, then failure in
+the task queue): if an index is unexpectedly empty, check `GET /tasks` on Meilisearch.
 
-They are **derived** — everything in them is a projection of CouchDB, so losing the
-engine costs a `reindex`, not data. Three write paths keep them current:
+### Session index
 
-- **The ingest routes** index as they write, so `backfill` / `import` / `doctor` are
-  searchable immediately.
-- **A CouchDB `_changes` follower** catches everything else — including the hook's
-  direct writes, which never touch the webapi. It checkpoints its sequence, so a
-  restart resumes rather than replaying; its *first* run starts at `now`, because
-  bulk-loading an existing corpus is far cheaper via `reindex`.
+`session_index/aggregate` has a JavaScript reduce, which CouchDB can't serve from
+stored btree values when grouped per session, so querying it per request cost about
+20 ms per session (8 s for ~460 sessions, [#107](https://github.com/vredchenko/claude-transcripts/issues/107)).
+`src/storage/session-index.ts` runs the grouped query once at boot, then re-reads only
+the sessions each `_changes` batch touches; the route filters, sorts and pages in
+memory (5–70 ms).
 
-  The checkpoint is a **local document** (`_local/search_checkpoint`), which is not a
-  detail: CouchDB keeps local docs out of `_changes`, and an ordinary doc there made
-  the follower wake itself — the checkpoint write was a change, the batch held nothing
-  indexable, and it checkpointed again, about ten times a second forever (#89). An
-  instance upgrading from an earlier version adopts the old doc's position on first
-  boot and deletes it.
-- **`POST /api/search/reindex`** (`cli reindex`) clears and rebuilds. The reconciliation
-  step for history that predates search, for an index rename, and for deletes.
+- It is a cache: rows are stored as the view returns them, and `reindex` still queries
+  CouchDB.
+- It fails soft: while cold or after a failed load the route queries the view directly;
+  a failed reload keeps the last good data.
+- A full reload runs every 15 minutes in case the feed died, and `/health` reports its
+  state.
 
-Worth knowing: only conversation turns (`user`/`assistant`/`tool_result`) enter the
-turns index. Non-message lines carry a display summary but are deliberately not
-indexed — they're context, not content, and there are more of them than user turns.
-Deleting a session through `DELETE /api/ingest/{id}` removes its search entries too.
+The change follower therefore runs even with Meilisearch off.
 
-Two Meilisearch behaviours the write path has to respect:
+## Storage and boot
 
-- **Document ids accept only `a-zA-Z0-9`, `-` and `_`.** Build them with
-  `searchDocId()`, never by joining parts with a separator like `:`. Ids must also be a
-  pure function of their parts so re-ingesting a chunk *replaces* its turns.
-- **Validation is asynchronous.** `POST /documents` answers `202 Accepted` and rejects
-  the batch later, in the task queue, so an invalid batch is indistinguishable from
-  success at the call site. Ingest accepts that (search must never break a write); the
-  reindex path instead waits on the tasks and surfaces failures. If an index is
-  unexpectedly empty, read `GET /tasks` on Meilisearch — that is where the error is.
+- **CouchDB** (`src/storage/couch.ts`): `db(key)` opens a database by its logical key
+  in `couchdb.databases`.
+- **S3** (`src/storage/s3-blob-store.ts`): path-style addressing (Garage, MinIO), so
+  switching provider is an environment change. Writes only via
+  `PUT /api/ingest/{id}/transcript` and `DELETE /api/ingest/{id}?blobs=true`. Never
+  creates the bucket.
+- **Boot** (`src/storage/ensure.ts`, idempotent): creates CouchDB's system databases and
+  every configured database, applies pending [migrations](../operate/migrations.md),
+  creates a Mango index on `type`, then starts the session index and the change
+  follower.
 
-## Storage
+## Serving the SPA and docs
 
-- **CouchDB** (`couch.ts`): `nano` against the resolved base URL (credentials folded
-  in when set). Returns a server scope (DB create) + `db(key)`, a document scope for a
-  database named by its logical key in `couchdb.databases`.
-- **S3** (`s3-blob-store.ts`): `Bun.S3Client` with `endpoint`/`region`/keys from
-  config, **path-style** addressing (required by Garage/MinIO). Reads via `get`/`stat`;
-  writes only via `put` (`PUT /api/ingest/{id}/transcript`) and `remove`
-  (`DELETE /api/ingest/{id}?blobs=true`). Never creates the bucket. Swapping Garage →
-  MinIO/R2/AWS is an env change only ([ADR 0003](../design/decisions/0003-vendor-neutral-s3-drop-minio-and-rclone.md),
-  [ADR 0008](../design/decisions/0008-garage-s3-object-store.md)).
+With `CT_STATIC_DIR` set, the SPA is served under `/app/` with an `index.html` fallback
+for client-side routes (Vite builds with `base: "/app/"`). In development the variable
+is unset and Vite serves the UI, proxying `/api` here.
 
-## Schema setup on boot (`ensure.ts`)
+`src/caching.ts`:
 
-`ensureCouchDbs` runs every boot and is idempotent: it creates CouchDB's system
-databases and every configured database (ignoring "already exists"), applies any
-**pending migrations** to the sessions database, then creates a Mango index on
-`type` (non-fatal on error).
-
-The design docs come from the migration registry
-(`@claude-transcripts/shared` `src/migrations/`) and nowhere else — there is one
-authoritative definition, applied through the versioned path rather than upserted
-blindly, so a view can never drift from the document shapes it maps over
-([migrations.md](../operate/migrations.md)). The full view catalogue is documented in
-[couchdb.md](couchdb.md).
-
-## SPA serving (prod)
-
-In production the combined image sets `CT_STATIC_DIR` to the built SPA
-(`packages/webui/dist`); `server.ts` then serves it under `/app/` (Vite builds with
-`base: "/app/"`) with an `index.html` fallback for client-side routing, and `/app`
-redirects to `/app/`. `/` is not the UI — it is the JSON manifest. One container
-serves API + UI ([ADR 0002](../design/decisions/0002-single-combined-container.md)). In dev the var is
-unset and Vite serves the UI, proxying `/api` to this service.
-
-### Compression and caching
-
-`src/caching.ts` supplies both, and `server.ts` mounts them.
-
-**Compression** wraps hono's `compress()` and applies to every response, API JSON
-included. The wrapper exists because the stock middleware cannot honour its own size
-threshold: the option is tested against `Content-Length`, and a `Response` built by a
-handler has none — per the Fetch standard that header is added by the server when it
-serialises the response, not by the constructor, so this is true on Node as well as
-Bun. The threshold therefore never fires for anything a route returns, and *every*
-response was encoded, including short ones that got bigger in the process. The
-wrapper sizes the body itself — peeking at the stream rather than buffering it, so
-large responses stay streamed — and hands a small one back untouched with a real
-`Content-Length`. Binary bodies (the CLI download, proxied blobs) and
-`text/event-stream` are excluded by content type; CouchDB change feeds proxied
-through `/api/couch?feed=continuous` are excluded explicitly, because buffering one
-into compression blocks would stall it.
-
-`Vary: Accept-Encoding` was missing too, and this wrapper used to set it. Hono fixed
-that in **4.13.0** ([honojs/hono#5137](https://github.com/honojs/hono/pull/5137)),
-which is why the dependency is pinned at or above that version rather than at the
-`^4.6.14` it was written against.
-
-The middleware must be registered **before** the routes it wraps. A `use("*")` added
-afterwards matches nothing, and the only symptom is that responses come back
-uncompressed.
-
-**Caching** turns on whether a file's URL changes when its bytes do:
-
-| Served from | `Cache-Control` | ETag |
-|---|---|---|
-| `/app/assets/*` — Vite's content-hashed bundles | `public, max-age=31536000, immutable` | no |
-| `/app/*` — the `index.html` shell | `no-cache` | yes |
-| `/docs/*` — never content-hashed | `no-cache` | yes |
-
-The split is by **directory**, not by the shape of a filename: Vite writes hashed
-artefacts to `assets/` and leaves the shell and anything from `public/` unhashed, and
-the docs build has an `assets/` directory of its own that is *not* hashed. An ETag is
-computed only where a client will actually revalidate — hashing a 670 KB bundle on
-every request to produce a header no client will ever send back is pure cost.
-
-## The session index
-
-`GET /api/sessions` needs one aggregate row per session, and gets it from
-`session_index/aggregate` — a view whose reduce is **JavaScript**. CouchDB can serve
-a reduce from the values stored in its btree nodes only when a node's whole span
-falls inside one group; grouped per session it never does, so each request pushed
-essentially the entire corpus back through the `couchjs` query server. Measured on a
-real instance: **~20 ms per session, every request**, which at 463 sessions and 49 k
-documents made the landing page an 8-second wait ([#107](https://github.com/vredchenko/claude-transcripts/issues/107)).
-
-`src/storage/session-index.ts` stops asking. A session's rollup changes only when
-that session gets new documents, and `_changes` says exactly which sessions those
-are — so the grouped query runs **once** at boot, and after that only the sessions a
-change batch touched are re-read (`keys=[…]`). The route then filters, sorts and
-paginates in memory, which is what it already did with the view's rows.
-
-|  | before | after |
-|---|---|---|
-| `GET /api/sessions?limit=50` | 8,000–8,700 ms | **5–70 ms** |
-| one change batch touching a session | — | ~95 ms |
-| full (re)load | — | ~8 s, at boot and every 15 min |
-
-Three properties it is built to keep:
-
-- **It is a cache, not a source of truth.** Rows are stored exactly as the view
-  returns them, and every judgement about what a row *means* stays in the route.
-  `POST /api/search/reindex` deliberately still queries CouchDB: it is the
-  reconciliation path, and rebuilding one cache from another could not detect the
-  drift it exists to fix.
-- **It fails soft.** While cold, and after any failed load, `ready` is false and the
-  route queries the view exactly as before. A broken index costs latency, never
-  correctness — and a failed *re*load keeps serving the last good answer rather than
-  an empty one.
-- **It self-heals.** The change feed is the update path, but a feed that died would
-  leave a silently stale list, so a full reload runs every 15 minutes as a backstop
-  and `/health` reports the index's state.
-
-Because the index needs the feed, `changes-follower.ts` runs even when Meilisearch is
-off — one feed with two consumers rather than two feeds learning the same facts.
+- **Compression** wraps Hono's `compress()` for every response. The wrapper measures the
+  body itself, because a handler-built `Response` has no `Content-Length` and the stock
+  threshold never fires. Binary bodies, `text/event-stream` and proxied continuous
+  CouchDB feeds are not compressed. It must be registered before the routes.
+- **Caching**: `/app/assets/*` (content-hashed) gets
+  `public, max-age=31536000, immutable`; the SPA shell and `/docs/*` get `no-cache`
+  with an ETag.
 
 ## `packages/shared`
 
-`packages/shared/src/index.ts` holds cross-cutting domain types + helpers. The webui
-and CLI take their wire types from the client **generated from the OpenAPI spec**
-(`src/api/generated.ts` in each; [ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md),
-superseding 0006), so `shared` keeps the hand-written equivalents and genuinely
-cross-cutting helpers like `sumTranscriptTokens`:
-
-- **Types:** `TokenUsage`, `SessionStatus` (`"ended" | "running" | "incomplete"`),
-  `SessionSummary`, `SessionsResponse`, `TranscriptResponse`.
-- **`sumTranscriptTokens(jsonl)`** — sums Anthropic token usage from a transcript,
-  **deduplicating by `message.id`** (keeping the heaviest usage block per id) so
-  streamed/snapshotted duplicates aren't double-counted. One definition, imported by
-  the webapi and by the CLI's hook alike — the hook's byte-identical copy was retired
-  when the CLI became the hook ([ADR 0004](../design/decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)).
+Cross-cutting types (`TokenUsage`, `SessionStatus`, `SessionSummary`, ...) and helpers.
+`sumTranscriptTokens(jsonl)` sums token usage from a transcript, deduplicating by
+`message.id` and keeping the largest usage block per id, so streamed duplicates aren't
+counted twice. The webapi and the hook import the same copy. The webui and CLI take
+their wire types from the generated clients.
