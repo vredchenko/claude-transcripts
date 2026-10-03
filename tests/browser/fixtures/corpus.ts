@@ -16,6 +16,8 @@
  * when you fix a rendering bug, and the suite keeps it fixed.
  */
 
+import { buildAppModel } from "@claude-transcripts/shared";
+
 /** Anchor for every timestamp in the corpus. Fixed so the fixtures never drift. */
 export const NOW = Date.parse("2026-03-18T14:30:00.000Z");
 
@@ -347,6 +349,20 @@ export const SEARCH_FACETS = {
   source: ["backfill", "doctor", "live"],
 };
 
+/**
+ * The model facets the header menus project from, built the way the webapi builds the
+ * one it serves — so the Services/Dev/About menus show what a bundled stack would,
+ * rather than a hand-kept copy that drifts from the real model.
+ */
+const BUILT_MODEL = buildAppModel({
+  system: { logging: { chunk: { maxEntriesPerChunk: 200, flushIntervalMs: 15000 } } },
+  couchdb: { databases: { sessions: "claude-transcripts-sessions" } },
+  s3: { buckets: { sessions: "claude-transcripts-sessions" } },
+  meilisearch: { indexes: { sessions: "claude-transcripts-sessions" } },
+  features: { meilisearch: true },
+  servicesMenu: {},
+});
+
 /** `GET /api/model` — only the fields the SPA actually reads. */
 export const APP_MODEL = {
   identity: {
@@ -354,8 +370,13 @@ export const APP_MODEL = {
     slug: "claude-transcripts",
     title: "Claude Transcripts",
     version: "v0.0.0-test",
+    repository: BUILT_MODEL.identity.repository,
   },
-  servicesMenu: {} as Record<string, string>,
+  servicesMenu: BUILT_MODEL.servicesMenu,
+  services: BUILT_MODEL.services,
+  topology: BUILT_MODEL.topology,
+  routes: BUILT_MODEL.routes,
+  stores: BUILT_MODEL.stores,
   features: { meilisearch: true },
   // The reader tunables the webui asks this endpoint for. Mirrors the shipped
   // defaults; the views fall back to the same numbers if the field is absent.

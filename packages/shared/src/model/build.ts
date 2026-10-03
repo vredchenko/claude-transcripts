@@ -93,11 +93,13 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
       slug: config.app?.name ?? "claude-transcripts",
       title: "Claude Transcripts",
       version,
+      repository: "https://github.com/vredchenko/claude-transcripts",
     },
     services,
     stores: {
       databases: { ...config.couchdb.databases },
       buckets: { ...config.s3.buckets },
+      indexes: { ...config.meilisearch?.indexes },
       repositories: resolveRepositories(config),
     },
     hooks: HOOK_TYPES,

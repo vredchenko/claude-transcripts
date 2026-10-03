@@ -14,20 +14,27 @@ bun run build         # → packages/webui/dist/, served via CT_STATIC_DIR
 
 - **Sessions** (`/`) — two views, chosen in the URL (`/?view=calendar&month=2026-03`):
   - **List** (default): grouped by day, newest first, infinite scroll. Each row shows
-    start time, project and full `cwd`, runtime with an active/idle bar, host and model,
-    top tools, tokens, a status chip and a copy-id button. Columns are not sortable.
+    start time, project with its host and full `cwd`, runtime with an active/idle bar,
+    model, top tools, tokens, status with when it applies (the end time of an ended
+    session, the last write of a live or abandoned one), and the short session id with
+    a copy button and a `⋯` menu of links to the session's raw data. Columns are not
+    sortable.
   - **Calendar**: one month as 24-hour lanes per day, bars placed by clock time and
     coloured per project, opacity showing the active share.
 
   Filters (`cwd`, `model`, `hostname`, `source`, `from`/`to`) are URL parameters passed
   to `GET /api/sessions`, shown as removable chips.
 - **Session detail** (`/sessions/$id`) — metadata (start, total runtime, active and
-  idle time, model, host, recording source, end reason, counts, transcript size),
-  working directory, token usage, tool calls, and the transcript viewer.
+  idle time, end or last-write time, model, host, recording source, end reason, counts,
+  transcript size), working directory, token usage, tool calls, and the transcript
+  viewer. The identity bar links the session's raw data: the API's JSON, its events and
+  (once ended) summary doc through the read-only CouchDB proxy and in Fauxton, and its
+  transcript blob through the S3 proxy.
 - **Search results** (`/search`) — paged, filterable by project, model, host and
   provenance, with all state in the query string.
 
-Status chips read **live** (running), **abandoned** (incomplete) or **ended**;
+Status reads **live** (running, a pulsing dot), **abandoned** (incomplete, a hollow
+ring) or **ended** (a square);
 provenance chips read **live** or **backfilled**. Active time is runtime minus gaps
 longer than `system.sessions.idleThresholdMs`; it shows `—` where the API couldn't
 derive it.
@@ -52,9 +59,22 @@ from search (`?q=`) opens at the matching entry with terms highlighted.
 
 ### Header
 
-Title and build version (from `/api/model`), the omnibox, a settings menu (light / dark /
-system theme, stored in `localStorage`) and a links menu (API docs, OpenAPI spec,
-`/api/model`, the backing services' admin UIs from `servicesMenu`, the repo, the docs).
+Title and build version (from `/api/model`), the omnibox, and four menus, all projected
+from the app model (`src/nav-menus.ts`):
+
+- **Services** — one section per backing store (CouchDB, Garage, Meilisearch, Fossil),
+  with its mark, its admin UIs from `servicesMenu`, and the databases, buckets, indexes
+  and repositories it holds. Each CouchDB database lists its design views, read live
+  from the database through the proxy; each Fossil repository links its timeline through
+  the read-only `/api/fossil` proxy and its page in Fossil's own web UI. `servicesMenu`
+  links no service claims appear under **Other**.
+- **Dev** — the gateway routes the model marks for the menu (`RouteDef.nav`): API
+  reference, OpenAPI spec, app model, docs, the CLI download; plus a placeholder for the
+  Claude Code plugin.
+- **About** — version, and the project links derived from `identity.repository`.
+- **Settings** — a placeholder for now.
+
+The webui has one theme, dark.
 
 The omnibox takes free text, `project:` / `host:` / `model:` / `source:` operators, date
 phrases, an id prefix or `>` commands. Enter filters the list, Shift+Enter searches,
@@ -65,8 +85,9 @@ filters, and shows a hint when search is off.
 
 | Path (`src/`) | Holds |
 |---------------|-------|
-| `main.tsx`, `router.tsx` | Root: Query client (30 s `staleTime`, no refetch on focus, `retry: 1`), colour mode, code-based router with basepath `/app`. Each route validates its own query-string state and falls back to defaults. |
-| `color-mode.tsx`, `theme.ts` | Light/dark/system mode and the MUI theme; components use semantic palette tokens. |
+| `main.tsx`, `router.tsx` | Root: Query client (30 s `staleTime`, no refetch on focus, `retry: 1`), the theme, code-based router with basepath `/app`. Each route validates its own query-string state and falls back to defaults. |
+| `theme.ts` | The one (dark) MUI theme; components use semantic palette tokens. |
+| `nav-menus.ts` | The header menus and a session's data links, projected from `/api/model`. |
 | `api/generated.ts` | orval output: types, fetchers, query-key helpers, React Query hooks. Never edit; `bun run gen:clients`. |
 | `api/http.ts` | The orval mutator: same-origin requests, unwraps the body, throws `ApiRequestError` on non-2xx. |
 | `api/model.ts` | Hand-written `useAppModel` for `/api/model`, which is not in the OpenAPI spec. |

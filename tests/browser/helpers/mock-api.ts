@@ -15,7 +15,7 @@
  *
  * Specs that want the real thing skip all of this — see `LIVE` in `./app.ts`.
  */
-import { HIGHLIGHT_POST, HIGHLIGHT_PRE } from "@claude-transcripts/shared";
+import { HIGHLIGHT_POST, HIGHLIGHT_PRE, INITIAL_DESIGNS } from "@claude-transcripts/shared";
 import type { Page, Route } from "@playwright/test";
 import {
   APP_MODEL,
@@ -102,6 +102,12 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       const path = url.pathname;
 
       if (path === "/api/model") return json(route, APP_MODEL);
+
+      // The Services menu lists each database's design views, read through the CouchDB
+      // proxy. The shipped designs stand in for whatever the migrations installed.
+      if (path.startsWith("/api/couch/") && path.endsWith("/_all_docs")) {
+        return json(route, { rows: INITIAL_DESIGNS.map((doc) => ({ id: doc._id, doc })) });
+      }
 
       if (options.failSessions && path.startsWith("/api/sessions")) {
         return json(route, { error: "CouchDB unreachable" }, 500);

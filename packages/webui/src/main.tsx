@@ -1,10 +1,11 @@
+import { CssBaseline, ThemeProvider } from "@mui/material";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { shouldRetry } from "./api/http";
-import { ColorModeProvider } from "./color-mode";
 import { router } from "./router";
+import { theme } from "./theme";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,9 +19,10 @@ if (!el) throw new Error("#root element not found");
 createRoot(el).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ColorModeProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
         <RouterProvider router={router} />
-      </ColorModeProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

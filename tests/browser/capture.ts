@@ -11,7 +11,7 @@
  *     bun run test:browser:capture                # a real instance, real history
  *
  * Output lands in `tests/browser/.captures/` (gitignored; `CAPTURE_DIR` overrides it):
- * per route × viewport × colour mode, a full-page PNG and a `.fold.png` of just the
+ * per route × viewport, a full-page PNG and a `.fold.png` of just the
  * first screenful, plus `report.md` listing every overflow and console error found. It
  * is a *report*, not an assertion — nothing fails here, so it stays useful on a UI
  * you already know is broken.
@@ -20,7 +20,7 @@
  * shot tens of thousands of pixels tall, which shows that nothing overflows but not
  * what a reader actually sees on arrival — how much of the first screen is chrome.
  *
- * `CAPTURE_ONLY=links-menu,omnibox` limits the run to routes whose name contains one
+ * `CAPTURE_ONLY=services-menu,omnibox` limits the run to routes whose name contains one
  * of the given substrings, for iterating on one view.
  */
 import { mkdir, writeFile } from "node:fs/promises";
@@ -46,7 +46,8 @@ const VIEWPORTS = [
   { name: "phone", width: 412, height: 915 },
 ] as const;
 
-const MODES = ["light", "dark"] as const;
+/** The app has one theme; kept as a list so a second one is a one-line change. */
+const MODES = ["dark"] as const;
 
 interface RouteSpec {
   name: string;
@@ -149,10 +150,24 @@ async function routes(): Promise<RouteSpec[]> {
       },
     },
     {
-      name: "links-menu",
+      name: "services-menu",
       path: "/app/",
       prepare: async (page) => {
-        await page.getByRole("button", { name: /^Links/ }).click();
+        await page.getByRole("button", { name: /^Services/ }).click();
+      },
+    },
+    {
+      name: "dev-menu",
+      path: "/app/",
+      prepare: async (page) => {
+        await page.getByRole("button", { name: /^Dev/ }).click();
+      },
+    },
+    {
+      name: "about-menu",
+      path: "/app/",
+      prepare: async (page) => {
+        await page.getByRole("button", { name: /^About/ }).click();
       },
     },
   ];
@@ -179,9 +194,6 @@ async function main(): Promise<void> {
         viewport: { width: viewport.width, height: viewport.height },
         colorScheme: mode,
       });
-      // The app reads its stored preference on mount; setting it up front avoids a
-      // reload-flash between every shot.
-      await context.addInitScript((m) => window.localStorage.setItem("ct.colorMode", m), mode);
 
       for (const spec of specs) {
         const page = await context.newPage();

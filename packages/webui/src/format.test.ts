@@ -7,7 +7,7 @@
  * bug.
  */
 import { describe, expect, test } from "bun:test";
-import { durationSplit, durationSplitLabel } from "./format";
+import { clockTime, durationSplit, durationSplitLabel, statusTime } from "./format";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -55,5 +55,55 @@ describe("durationSplit", () => {
 describe("durationSplitLabel", () => {
   test("says active time is missing rather than implying it was zero", () => {
     expect(durationSplitLabel(HOUR, undefined)).toContain("not recorded");
+  });
+});
+
+describe("statusTime", () => {
+  const base = {
+    timestamp: "2026-10-03T18:00:00.000Z",
+    lastActivity: "2026-10-03T18:20:00.000Z",
+  };
+
+  test("an ended session reports when it ended", () => {
+    expect(statusTime({ ...base, status: "ended" })).toEqual({
+      iso: base.timestamp,
+      label: "ended",
+    });
+  });
+
+  test("a live or abandoned session reports its last write", () => {
+    for (const status of ["running", "incomplete"]) {
+      expect(statusTime({ ...base, status })).toEqual({
+        iso: base.lastActivity,
+        label: "last write",
+      });
+    }
+  });
+
+  test("falls back to the summary timestamp, and gives up on garbage", () => {
+    expect(statusTime({ status: "running", timestamp: base.timestamp })?.iso).toBe(base.timestamp);
+    expect(statusTime({ status: "ended", timestamp: "not a date" })).toBeUndefined();
+    expect(statusTime({ status: "ended" })).toBeUndefined();
+  });
+});
+
+describe("clockTime", () => {
+  // Local-time construction so the assertions hold in any TZ the tests run in.
+  const at = (day: number, h: number, m: number) => new Date(2026, 9, day, h, m).toISOString();
+
+  test("is just the clock on the reference day", () => {
+    expect(clockTime(at(3, 9, 5), at(3, 8, 0))).toBe("09:05");
+    expect(clockTime(at(3, 9, 5))).toBe("09:05");
+  });
+
+  test("names the day when it differs from the reference", () => {
+    const out = clockTime(at(4, 1, 30), at(3, 23, 0));
+    expect(out.endsWith("01:30")).toBe(true);
+    expect(out).not.toBe("01:30");
+  });
+
+  test("is empty for missing or invalid input", () => {
+    expect(clockTime(undefined)).toBe("");
+    expect(clockTime("nope")).toBe("");
   });
 });

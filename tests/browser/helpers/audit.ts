@@ -157,12 +157,3 @@ export function describeOverflows(items: Overflow[]): string {
     )
     .join("\n");
 }
-
-/**
- * Switch the app to a colour mode. The toggle lives behind the header's settings
- * menu, and the choice persists to `localStorage`, so this survives navigation.
- */
-export async function setColorMode(page: Page, mode: "light" | "dark"): Promise<void> {
-  await page.evaluate((m) => window.localStorage.setItem("ct.colorMode", m), mode);
-  await page.reload();
-}

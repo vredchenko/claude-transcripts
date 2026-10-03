@@ -11,8 +11,9 @@ Vite serves it on `7651` and proxies `/api` → webapi on `7650`.
 
 ## Layout
 
-- `src/main.tsx` — mounts the app (QueryClient + ColorModeProvider + Router).
-- `src/color-mode.tsx` / `src/theme.ts` — light/dark theme + persisted mode.
+- `src/main.tsx` — mounts the app (QueryClient + ThemeProvider + Router).
+- `src/theme.ts` — the one (dark) theme.
+- `src/nav-menus.ts` — the header menus, projected from `/api/model`.
 - `src/router.tsx` — code-based route tree (`/` list, `/sessions/$id` detail,
   `/search` results), `basepath: "/app"`.
 - `src/api/generated.ts` — the orval snapshot (fetchers + react-query hooks).

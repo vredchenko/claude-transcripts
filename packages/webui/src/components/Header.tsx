@@ -2,25 +2,15 @@ import { AppBar, Box, Toolbar, Typography } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { useAppModel } from "../api/model";
 import logoMark from "../assets/logo-mark.svg";
+import { displayVersion } from "../format";
 import { MONO } from "../theme";
-import { LinksMenu } from "./LinksMenu";
+import { AboutMenu, DevMenu, ServicesMenu } from "./nav/HeaderMenus";
 import { Omnibox } from "./Omnibox";
 import { SettingsMenu } from "./SettingsMenu";
 
 /**
- * Exactly one leading "v" on the version.
- *
- * `identity.version` from `GET /api/model` already carries one ("v0.0.7"), so a
- * hardcoded prefix rendered "vv0.0.7". Normalising instead of dropping the prefix,
- * because the model is free to report either form and the header shouldn't care which.
- */
-function displayVersion(version: string): string {
-  return version.startsWith("v") ? version : `v${version}`;
-}
-
-/**
  * The thin top header: app title + build version (left), a search box (center,
- * placeholder), and the settings + links menus (right). Title/version come from
+ * placeholder), and the Services / Dev / About menus + settings (right). Title/version come from
  * `GET /api/model`, falling back to sensible defaults while it loads.
  */
 export function Header() {
@@ -96,8 +86,10 @@ export function Header() {
             flexShrink: 0,
           }}
         >
+          <ServicesMenu />
+          <DevMenu />
+          <AboutMenu />
           <SettingsMenu />
-          <LinksMenu />
         </Box>
       </Toolbar>
     </AppBar>

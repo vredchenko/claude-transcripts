@@ -14,11 +14,27 @@ import type { RouteDef } from "./types";
  * omitting search, ingest, migrate and turns entirely, so the map was missing rooms.
  */
 export const ROUTES: RouteDef[] = [
-  { path: "/", serves: "machine-readable app manifest (agent entrypoint)" },
-  { path: "/health", serves: "liveness + store reachability" },
+  {
+    path: "/",
+    serves: "machine-readable app manifest (agent entrypoint)",
+    nav: { label: "App manifest", section: "Reference" },
+  },
+  {
+    path: "/health",
+    serves: "liveness + store reachability",
+    nav: { label: "Health", section: "Reference" },
+  },
   { path: "/api", serves: "app JSON API (the gateway)" },
-  { path: "/api/docs", serves: "Scalar API reference (renders the OpenAPI spec)" },
-  { path: "/api/openapi.json", serves: "OpenAPI spec (contract source of truth)" },
+  {
+    path: "/api/docs",
+    serves: "Scalar API reference (renders the OpenAPI spec)",
+    nav: { label: "API reference", section: "Reference" },
+  },
+  {
+    path: "/api/openapi.json",
+    serves: "OpenAPI spec (contract source of truth)",
+    nav: { label: "OpenAPI spec", section: "Reference" },
+  },
   { path: "/api/couch/*", serves: "read-only CouchDB proxy" },
   { path: "/api/s3/*", serves: "read-only S3 proxy" },
   { path: "/api/fossil/*", serves: "read-only Fossil JSON API proxy" },
@@ -30,8 +46,20 @@ export const ROUTES: RouteDef[] = [
     serves: "curated write surface (summary/events/chunks/transcript, reset)",
   },
   { path: "/api/migrate", serves: "schema migration status / up / down" },
-  { path: "/api/model", serves: "app model introspection (services/hooks/actions/env)" },
+  {
+    path: "/api/model",
+    serves: "app model introspection (services/hooks/actions/env)",
+    nav: { label: "App model", section: "Reference" },
+  },
   { path: "/app", serves: "webui SPA" },
-  { path: "/docs", serves: "rendered technical docs" },
-  { path: "/cli/download", serves: "the bundled CLI binary" },
+  {
+    path: "/docs",
+    serves: "rendered technical docs",
+    nav: { label: "Technical docs", section: "Reference" },
+  },
+  {
+    path: "/cli/download",
+    serves: "the bundled CLI binary",
+    nav: { label: "Download CLI", section: "Install" },
+  },
 ];
