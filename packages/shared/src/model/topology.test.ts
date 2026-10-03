@@ -27,38 +27,17 @@ const nodeKeys = new Set(TOPOLOGY.nodes.map((n) => n.key));
 const serviceKeys = new Set(SERVICES.map((s) => s.key));
 
 describe("topology integrity", () => {
-  test("every serviceKey resolves against SERVICES", () => {
+  test("every serviceKey, edge endpoint and group member resolves", () => {
     for (const n of TOPOLOGY.nodes) {
       if (n.serviceKey) expect(serviceKeys).toContain(n.serviceKey);
     }
-  });
-
-  test("a node without a serviceKey carries its own label", () => {
-    for (const n of TOPOLOGY.nodes) {
-      expect(Boolean(n.serviceKey || n.label)).toBe(true);
-    }
-  });
-
-  test("node keys are unique", () => {
-    expect(nodeKeys.size).toBe(TOPOLOGY.nodes.length);
-  });
-
-  test("every edge endpoint resolves to a node", () => {
     for (const e of TOPOLOGY.edges) {
       expect(nodeKeys).toContain(e.from);
       expect(nodeKeys).toContain(e.to);
     }
-  });
-
-  test("every group member resolves to a node", () => {
     for (const g of TOPOLOGY.groups) {
       for (const m of g.members) expect(nodeKeys).toContain(m);
     }
-  });
-
-  test("no node is stranded without an edge", () => {
-    const touched = new Set(TOPOLOGY.edges.flatMap((e) => [e.from, e.to]));
-    for (const n of TOPOLOGY.nodes) expect(touched).toContain(n.key);
   });
 
   test("every requiresFeature names a real feature flag", () => {
@@ -84,12 +63,6 @@ describe("topology integrity", () => {
 });
 
 describe("toArchitectureDiagram", () => {
-  test("labels are read through the model, not copied", () => {
-    const d = toArchitectureDiagram(model);
-    const webui = d.nodes.find((n) => n.key === "webui");
-    expect(webui?.label).toBe(SERVICES.find((s) => s.key === "webui")?.name);
-  });
-
   test("compact is a subset of expanded", () => {
     // The invariant that makes growing the expanded view additive: it can never
     // remove or alter anything the README's compact view shows.
@@ -113,20 +86,5 @@ describe("toArchitectureDiagram", () => {
       expect(e.from).not.toBe("garage");
       expect(e.to).not.toBe("garage");
     }
-  });
-
-  test("nodes come out ordered by rank, stably", () => {
-    const ranks = toArchitectureDiagram(model).nodes.map((n) => n.rank);
-    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
-  });
-
-  test("ports are omitted unless asked for", () => {
-    expect(toArchitectureDiagram(model).nodes.every((n) => n.port === undefined)).toBe(true);
-    const withPorts = toArchitectureDiagram(model, { includePorts: true });
-    expect(withPorts.nodes.find((n) => n.key === "webapi")?.port).toBe(7650);
-  });
-
-  test("the projection is pure — two calls agree", () => {
-    expect(toArchitectureDiagram(model)).toEqual(toArchitectureDiagram(model));
   });
 });

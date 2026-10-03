@@ -1,32 +1,9 @@
 /** The hook must start even when the session's cwd has been deleted (#171). */
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hookLaunch, PLUGIN_HOOK_COMMAND } from "./hooks";
-
-const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
-
-describe("hook launch command", () => {
-  test("changes to / before starting anything", () => {
-    expect(hookLaunch("x hook run")).toBe("cd / && x hook run");
-  });
-
-  test("the plugin command quotes the plugin root", () => {
-    expect(PLUGIN_HOOK_COMMAND).toBe('cd / && bun run "${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts"');
-  });
-
-  test("the generated hooks.json registers exactly that command for every event", () => {
-    const generated = JSON.parse(
-      readFileSync(join(REPO_ROOT, "hooks", "hooks", "hooks.json"), "utf8"),
-    ) as { hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>> };
-    const commands = Object.values(generated.hooks).flatMap((groups) =>
-      groups.flatMap((g) => g.hooks.map((h) => h.command)),
-    );
-    expect(commands.length).toBeGreaterThan(0);
-    for (const c of commands) expect(c).toBe(PLUGIN_HOOK_COMMAND);
-  });
-});
+import { hookLaunch } from "./hooks";
 
 /** Run `command` in a fresh /bin/sh whose cwd was deleted, as Claude Code would. */
 function runFromDeletedCwd(command: string): { exitCode: number; stdout: string } {

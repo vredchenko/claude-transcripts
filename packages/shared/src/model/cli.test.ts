@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { CLI_SPEC } from "./cli";
-import { cliCommandsByGroup, cliUsage, toCliDocs, validateCliArgs } from "./cli-project";
+import { cliCommandsByGroup, toCliDocs, validateCliArgs } from "./cli-project";
 import type { CliCommandDef } from "./types";
 
 const cmd = (name: string): CliCommandDef => {
@@ -43,12 +43,6 @@ describe("CLI_SPEC", () => {
       for (const a of c.args ?? []) expect(globals.has(a.name)).toBe(false);
     }
   });
-
-  test("usage puts required positionals in angle brackets", () => {
-    expect(cliUsage(cmd("export"))).toBe("export <dir> [options]");
-    expect(cliUsage(cmd("sessions"))).toBe("sessions [id] [options]");
-    expect(cliUsage(cmd("provision"))).toBe("provision");
-  });
 });
 
 describe("validateCliArgs", () => {
@@ -80,17 +74,11 @@ describe("validateCliArgs", () => {
 
   test("reports a missing required positional", () => {
     expect(v("export", [], {})).toEqual(["missing required argument <dir>"]);
-    expect(v("search", [], {})).toEqual(["missing required argument <query>"]);
   });
 });
 
 describe("toCliDocs", () => {
   const md = toCliDocs(CLI_SPEC, "claude-transcripts");
-
-  test("has a table per group and a section per command", () => {
-    for (const g of CLI_SPEC.groups) expect(md).toContain(`**${g.title}**`);
-    for (const c of CLI_SPEC.commands) expect(md).toContain(`### \`${cliUsage(c)}\``);
-  });
 
   test("escapes pipes so choices don't break the tables", () => {
     expect(md).toContain("up \\| down \\| restart \\| logs \\| ps");

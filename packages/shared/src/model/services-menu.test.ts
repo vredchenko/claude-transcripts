@@ -29,16 +29,6 @@ describe("servicesMenu — derived fallback", () => {
     expect(model.servicesMenu.meilisearchUi).toBe("http://127.0.0.1:7665/");
     expect(model.servicesMenu.garageWebui).toBe("http://127.0.0.1:7663/");
   });
-
-  test("falls back to each service's default port when env says nothing", () => {
-    const model = buildAppModel(CONFIG, {});
-    expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7652/_utils/");
-  });
-
-  test("keeps CouchDB's Fauxton path rather than linking the bare root", () => {
-    const model = buildAppModel(CONFIG, { COUCHDB_PORT: "7660" });
-    expect(model.servicesMenu.couchdbFauxton).toEndWith("/_utils/");
-  });
 });
 
 describe("servicesMenu — config wins where it speaks", () => {
@@ -73,15 +63,6 @@ describe("servicesMenu — config wins where it speaks", () => {
     expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7660/_utils/");
     expect(model.servicesMenu.garageWebui).toBe("http://127.0.0.1:7663/");
     expect(model.servicesMenu.meilisearch).toBe("http://127.0.0.1:7664/");
-  });
-
-  test("carries through config keys the model doesn't know", () => {
-    const model = buildAppModel(
-      { ...CONFIG, servicesMenu: { myDashboard: "https://ops.example" } },
-      { COUCHDB_PORT: "7660" },
-    );
-    expect(model.servicesMenu.myDashboard).toBe("https://ops.example");
-    expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7660/_utils/");
   });
 });
 

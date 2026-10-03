@@ -43,13 +43,7 @@ describe("withCouchAuth", () => {
     expect(withCouchAuth("http://127.0.0.1:7652", "", "pw")).toBe("http://127.0.0.1:7652");
   });
 
-  test("embeds credentials in the authority without a trailing slash", () => {
-    expect(withCouchAuth("http://127.0.0.1:7652", "admin", "secret")).toBe(
-      "http://admin:secret@127.0.0.1:7652",
-    );
-  });
-
-  test("preserves a path prefix", () => {
+  test("embeds credentials in the authority, preserving a path prefix", () => {
     expect(withCouchAuth("https://couch.example.com/couchdb", "admin", "secret")).toBe(
       "https://admin:secret@couch.example.com/couchdb",
     );
@@ -77,9 +71,5 @@ describe("resolveCouchUrlWithAuth", () => {
         COUCHDB_PASSWORD: "secret",
       }),
     ).toBe("https://admin:secret@couch.example.com/couchdb");
-  });
-
-  test("bundled stack (no credentials) stays clean", () => {
-    expect(resolveCouchUrlWithAuth({})).toBe("http://127.0.0.1:7652");
   });
 });

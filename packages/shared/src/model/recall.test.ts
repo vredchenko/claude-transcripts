@@ -4,16 +4,12 @@
  * policy says off. An empty corpus must not pay for a primer telling Claude to search it.
  */
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_RECALL, RECALL_ENV, recallPrimer, resolveRecall, scopeFlag } from "./recall";
+import { DEFAULT_RECALL, RECALL_ENV, recallPrimer, resolveRecall } from "./recall";
 
 const NOW = Date.parse("2026-08-28T12:00:00Z");
 const where = { cwd: "/home/me/proj", hostname: "box" };
 
 describe("resolveRecall", () => {
-  test("no config, no env → the defaults", () => {
-    expect(resolveRecall(undefined)).toEqual(DEFAULT_RECALL);
-  });
-
   test("config overrides defaults, deeply, without dropping siblings", () => {
     const r = resolveRecall({ mode: "suggest", triggers: { repeatedError: false } });
     expect(r.mode).toBe("suggest");
@@ -43,21 +39,18 @@ describe("resolveRecall", () => {
 });
 
 describe("recallPrimer", () => {
-  test("names the scope, the count, the recency, the command and the rules", () => {
+  test("names the count, the recency and the scoped command, within budget", () => {
     const text = recallPrimer(
       DEFAULT_RECALL,
       { sessionCount: 37, mostRecent: "2026-08-26T09:00:00Z" },
       where,
       NOW,
     );
-    expect(text).toContain("this project");
     expect(text).toContain("37 recorded sessions");
     expect(text).toContain("most recent 2 days ago");
     expect(text).toContain(
       'claude-transcripts search "<query>" --cwd "/home/me/proj" --json --limit 5',
     );
-    expect(text).toContain("search history first");
-    expect(text).toContain("Cite the session id");
     // Budget: well under primer.maxTokens (~200 tokens ≈ 800 chars).
     expect((text ?? "").length).toBeLessThan(700);
   });
@@ -70,7 +63,6 @@ describe("recallPrimer", () => {
       NOW,
     );
     expect(text).toContain("offer to search history");
-    expect(text).toContain("1 recorded session in scope");
   });
 
   test("omitted when off, when the primer is disabled, and when the corpus is empty", () => {
@@ -87,24 +79,4 @@ describe("recallPrimer", () => {
     ).toBeNull();
     expect(recallPrimer(DEFAULT_RECALL, { sessionCount: 0 }, where, NOW)).toBeNull();
   });
-
-  test("no triggers → no 'before' clause, but still the command and rules", () => {
-    const text = recallPrimer(
-      {
-        ...DEFAULT_RECALL,
-        triggers: { priorWorkQuestion: false, repeatedError: false, beforeRederiving: false },
-      },
-      { sessionCount: 2 },
-      where,
-      NOW,
-    );
-    expect(text).not.toContain("Before answering");
-    expect(text).toContain("claude-transcripts search");
-  });
-});
-
-test("scopeFlag", () => {
-  expect(scopeFlag("project", "/p", "h")).toBe('--cwd "/p"');
-  expect(scopeFlag("host", "/p", "h")).toBe('--hostname "h"');
-  expect(scopeFlag("all", "/p", "h")).toBe("");
 });

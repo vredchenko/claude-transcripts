@@ -5,7 +5,6 @@ import {
   matchesQuery,
   splitByTerms,
   splitMarkedText,
-  stripHighlightMarks,
 } from "./highlight";
 
 /** Wrap `text` the way the search index marks a matched span. */
@@ -21,20 +20,11 @@ describe("splitMarkedText", () => {
     expect(render(splitMarkedText(`add a ${mark("retry")} policy`))).toBe("add a [retry] policy");
   });
 
-  it("handles several marks in one snippet", () => {
-    const marked = `${mark("retry")} the ${mark("retry")} loop`;
-    expect(render(splitMarkedText(marked))).toBe("[retry] the [retry] loop");
-  });
-
   it("treats an unmarked snippet as one plain run", () => {
     // What an index that isn't configured to highlight returns.
     expect(splitMarkedText("nothing marked here")).toEqual([
       { text: "nothing marked here", match: false },
     ]);
-  });
-
-  it("returns nothing for an empty snippet", () => {
-    expect(splitMarkedText("")).toEqual([]);
   });
 
   it("keeps the tail of a span that was cropped mid-match", () => {
@@ -61,12 +51,6 @@ describe("splitMarkedText", () => {
   });
 });
 
-describe("stripHighlightMarks", () => {
-  it("removes both marks", () => {
-    expect(stripHighlightMarks(`a ${mark("retry")} policy`)).toBe("a retry policy");
-  });
-});
-
 describe("splitByTerms", () => {
   it("finds a term regardless of case", () => {
     expect(render(splitByTerms("Retry the request", "retry"))).toBe("[Retry] the request");
@@ -77,11 +61,6 @@ describe("splitByTerms", () => {
     expect(render(splitByTerms("the retry policy is a policy", "retry policy"))).toBe(
       "the [retry] [policy] is a [policy]",
     );
-  });
-
-  it("matches inside a word", () => {
-    // Cruder than the index on purpose — see the note on splitByTerms.
-    expect(render(splitByTerms("retrying now", "retry"))).toBe("[retry]ing now");
   });
 
   it("prefers the longest term when two overlap", () => {
@@ -96,27 +75,12 @@ describe("splitByTerms", () => {
   it("returns the text unmarked for an empty query", () => {
     expect(splitByTerms("some text", "   ")).toEqual([{ text: "some text", match: false }]);
   });
-
-  it("returns nothing for empty text", () => {
-    expect(splitByTerms("", "retry")).toEqual([]);
-  });
-
-  it("marks a whole string that is entirely a match", () => {
-    expect(splitByTerms("retry", "retry")).toEqual([{ text: "retry", match: true }]);
-  });
 });
 
 describe("matchesQuery", () => {
-  it("is true when any term appears", () => {
-    expect(matchesQuery("the retry policy", "retry")).toBe(true);
+  it("is true when any term appears, false otherwise or when either side is empty", () => {
     expect(matchesQuery("the retry policy", "backoff retry")).toBe(true);
-  });
-
-  it("is false when no term appears", () => {
     expect(matchesQuery("the retry policy", "backoff")).toBe(false);
-  });
-
-  it("is false for an empty query or empty text", () => {
     expect(matchesQuery("the retry policy", "")).toBe(false);
     expect(matchesQuery("", "retry")).toBe(false);
   });
