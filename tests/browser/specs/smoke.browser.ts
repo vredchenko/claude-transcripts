@@ -141,7 +141,12 @@ test.describe("session detail", () => {
   test("an unknown session id reports not-found rather than hanging", async ({ page }) => {
     await setupPage(page);
     await page.goto("/app/sessions/does-not-exist");
-    await expect(page.getByText(/not found|404/i)).toBeVisible();
+    await expect(page.getByText("Session not found")).toBeVisible();
+    await expect(page.getByText("does-not-exist")).toBeVisible();
+    // The answer, not the request that produced it.
+    await expect(page.getByText(/GET \/api\//)).toHaveCount(0);
+    await page.getByRole("link", { name: "Back to all sessions" }).click();
+    await expect(page).toHaveURL(/\/app\/?$/);
   });
 });
 
