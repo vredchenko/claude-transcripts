@@ -1236,7 +1236,7 @@ accumulate history you'd mind losing.
   anything unless the install can actually work — and distinguishes failures that look
   alike but need different fixes, like a Docker daemon that isn't running versus a
   socket you lack permission for. Also `uninstall`, which keeps recorded history
-  unless `--purge`. Design: [installation.md](docs/design/installation.md).
+  unless `--purge`. Design: [installation.md](docs/start/installation.md).
 
 - **The CLI is now the hook.** Registration points Claude Code at
   `claude-transcripts hook run` instead of `bun run <repo>/hooks/scripts/dispatch.ts`,

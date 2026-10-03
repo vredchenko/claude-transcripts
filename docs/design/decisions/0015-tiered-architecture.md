@@ -32,7 +32,7 @@ may break a lower tier**:
   static-HTML docs in the combined container, hook-drift automation, bundled
   extensibility tooling.
 
-The full feature breakdown lives in [tiers.md](../tiers.md).
+The current breakdown lives in [architecture.md](../architecture.md#tiers) and [roadmap.md](../roadmap.md).
 
 ## Consequences
 
