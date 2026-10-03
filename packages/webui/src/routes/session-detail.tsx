@@ -20,10 +20,11 @@ import {
 import { Link, useNavigate, useParams, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useState } from "react";
 import { useGetSession } from "../api/generated";
+import { ApiRequestError } from "../api/http";
 import { couchProxyUrl, fauxtonUrlFor, useAppModel } from "../api/model";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
-import { ErrorState, Loading } from "../components/states";
+import { EmptyState, ErrorState, Loading } from "../components/states";
 import { TranscriptView } from "../components/TranscriptView";
 import {
   durationSplit,
@@ -90,6 +91,9 @@ export function SessionDetailPage() {
     sessionsDb && fauxtonUrl ? fauxtonUrlFor(fauxtonUrl, sessionsDb, summaryId) : undefined;
   const garageUrl = model?.servicesMenu?.garageWebui;
   const apiJsonUrl = `/api/sessions/${id}`;
+  // A 404 is an answer about the id, not a failure to report: say which session
+  // isn't here and offer the way back, rather than the request line that asked.
+  const notFound = isError && error instanceof ApiRequestError && error.status === 404;
 
   return (
     <Box>
@@ -105,7 +109,7 @@ export function SessionDetailPage() {
         </Link>
 
         {isPending && <Loading label="Loading session…" />}
-        {isError && <ErrorState error={error} />}
+        {isError && !notFound && <ErrorState error={error} />}
 
         {session && (
           <>
@@ -146,6 +150,23 @@ export function SessionDetailPage() {
           </>
         )}
       </Stack>
+
+      {notFound && (
+        <EmptyState
+          title="Session not found"
+          action={
+            <Button component={Link} to="/" variant="outlined" size="small">
+              Back to all sessions
+            </Button>
+          }
+        >
+          No session with id{" "}
+          <Box component="span" sx={{ fontFamily: MONO, wordBreak: "break-all" }}>
+            {id}
+          </Box>{" "}
+          is recorded here.
+        </EmptyState>
+      )}
 
       {session && (
         <>

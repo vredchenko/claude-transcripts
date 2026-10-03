@@ -34,6 +34,20 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * react-query's retry policy: one retry, but never for a 4xx.
+ *
+ * A 4xx is the server's answer, not a transient failure — an unknown session id is
+ * still unknown a second later. Retrying one only delays the outcome by the back-off,
+ * which put an unknown session behind a second of spinner before it said so.
+ */
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiRequestError && error.status >= 400 && error.status < 500) {
+    return false;
+  }
+  return failureCount < 1;
+}
+
 /** Best-effort ": <server message>" for a failed response; "" if there is none. */
 async function errorDetail(res: Response): Promise<string> {
   try {
