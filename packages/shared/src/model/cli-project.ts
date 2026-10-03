@@ -188,146 +188,157 @@ export type CompletionShell = (typeof COMPLETION_SHELLS)[number];
 
 /**
  * A shell completion script for `bin`, printed by `claude-transcripts completions
- * <shell>` for the user to `eval` or source. What it completes, in every shell:
+ * <shell>` for the user to `eval` or source. It offers only what the CLI will accept,
+ * so it follows the dispatcher and `parseFlags`, not an idealised grammar:
  *
- *   - the command name, then the command's flags plus the global ones;
- *   - a positional with `choices` (`stack <action>`) to those values;
- *   - a flag that takes a value (`type` string/number, or `choices`) to its choices if
- *     it has any, else to nothing — the next word is that flag's, not a new argument;
- *   - a positional without `choices` to nothing: the spec can't tell a session id from
- *     a directory, and offering filenames for an id would be worse than silence.
+ *   - the command is the first word, and only the first (cli.tsx): before it, command
+ *     names and the boolean global flags; after a leading flag, nothing;
+ *   - after the command, its flags plus the global ones, and a positional's `choices`;
+ *   - a bare `--flag` takes the next word as its value unless that word is another
+ *     `--flag`, whatever the flag's declared type (`parseFlags`). After a valued flag
+ *     that word completes to its `choices`, else to nothing; after a boolean flag, to
+ *     flags only, since a positional there would be read as the flag's value and
+ *     rejected;
+ *   - a positional without `choices` completes to nothing: the spec can't tell a
+ *     session id from a directory, and offering filenames for an id would be worse.
  *
- * Valued flags are skipped when counting positionals, mirroring `parseFlags`, so
- * `stack --webapi http://x <TAB>` still offers the actions. Generated, so it can't drift
- * from the binary; no I/O, so it's snapshot-tested per shell.
+ * Generated, so it can't drift from the binary; no I/O, so it's snapshot-tested.
  */
 export function toCompletions(spec: CliSpec, shell: CompletionShell, bin: string): string {
+  const model = completionModel(spec);
   const fn = `_${bin.replace(/[^A-Za-z0-9]/g, "_")}`;
   switch (shell) {
     case "bash":
-      return bashCompletions(spec, bin, fn);
+      return bashCompletions(model, bin, fn);
     case "zsh":
-      return zshCompletions(spec, bin, fn);
+      return zshCompletions(model, bin, fn);
     case "fish":
-      return fishCompletions(spec, bin, fn);
+      return fishCompletions(model, bin, fn);
   }
 }
 
 const takesValue = (a: CliArgDef): boolean => isFlag(a) && cliArgType(a) !== "boolean";
-const flagsOf = (c: CliCommandDef): CliArgDef[] => (c.args ?? []).filter(isFlag);
-const positionalsOf = (c: CliCommandDef): CliArgDef[] => (c.args ?? []).filter((a) => !isFlag(a));
-const header = (shell: string, bin: string) =>
-  `# ${shell} completion for ${bin} — generated from CLI_SPEC; do not edit.`;
 
-/** `cmd:--flag` keys for every valued flag (global ones as `*:--flag`). */
-function valuedKeys(spec: CliSpec): string[] {
-  return [
-    ...spec.globalArgs.filter(takesValue).map((a) => `*:${a.name}`),
-    ...spec.commands.flatMap((c) =>
-      flagsOf(c)
-        .filter(takesValue)
-        .map((a) => `${c.name}:${a.name}`),
-    ),
-  ];
+/** The facts every shell's script is written from. Keys are `cmd:--flag` / `cmd:<n>`. */
+interface CompletionModel {
+  commands: CliCommandDef[];
+  /** Flags that work before a command: the boolean globals (`--help`, `--version`). */
+  leading: CliArgDef[];
+  /** A command's flags, then the global ones (every global applies after a command). */
+  flags: Map<string, CliArgDef[]>;
+  valued: string[];
+  choices: [key: string, values: readonly string[]][];
 }
 
-function bashCompletions(spec: CliSpec, bin: string, fn: string): string {
-  const globals = spec.globalArgs.map((a) => a.name).join(" ");
-  const commands = spec.commands.map((c) => c.name).join(" ");
-  const flagCases = spec.commands
-    .map(
-      (c) =>
-        `    ${c.name}) flags="${flagsOf(c)
-          .map((a) => a.name)
-          .join(" ")}" ;;`,
-    )
+function completionModel(spec: CliSpec): CompletionModel {
+  const flags = new Map<string, CliArgDef[]>();
+  const valued: string[] = [];
+  const choices: [string, readonly string[]][] = [];
+  for (const c of spec.commands) {
+    const all = [...(c.args ?? []).filter(isFlag), ...spec.globalArgs.filter(isFlag)];
+    flags.set(c.name, all);
+    for (const a of all) {
+      if (!takesValue(a)) continue;
+      valued.push(`${c.name}:${a.name}`);
+      if (a.choices) choices.push([`${c.name}:${a.name}`, a.choices]);
+    }
+    (c.args ?? [])
+      .filter((a) => !isFlag(a))
+      .forEach((a, i) => {
+        if (a.choices) choices.push([`${c.name}:${i + 1}`, a.choices]);
+      });
+  }
+  const leading = spec.globalArgs.filter((a) => isFlag(a) && !takesValue(a));
+  return { commands: spec.commands, leading, flags, valued, choices };
+}
+
+const header = (shell: string, bin: string) =>
+  `# ${shell} completion for ${bin} — generated from CLI_SPEC; do not edit.`;
+const names = (args: CliArgDef[]) => args.map((a) => a.name).join(" ");
+
+function bashCompletions(m: CompletionModel, bin: string, fn: string): string {
+  const flagCases = m.commands
+    .map((c) => `    ${c.name}) printf '%s' "${names(m.flags.get(c.name) ?? [])}" ;;`)
     .join("\n");
-  const choiceCases = [
-    ...spec.globalArgs.filter((a) => a.choices).map((a) => [`*:${a.name}`, a.choices] as const),
-    ...spec.commands.flatMap((c) => [
-      ...flagsOf(c)
-        .filter((a) => a.choices)
-        .map((a) => [`${c.name}:${a.name}`, a.choices] as const),
-      ...positionalsOf(c).flatMap((a, i) =>
-        a.choices ? [[`${c.name}:${i + 1}`, a.choices] as const] : [],
-      ),
-    ]),
-  ]
-    .map(([k, v]) => `    ${k}) choices="${v?.join(" ")}" ;;`)
+  const choiceCases = m.choices
+    .map(([k, v]) => `    ${k}) printf '%s' "${v.join(" ")}" ;;`)
     .join("\n");
-  const valued = valuedKeys(spec);
 
   return `${header("bash", bin)}
 # Load it with:  eval "$(${bin} completions bash)"   (e.g. in ~/.bashrc)
+# Works with bash 3.2+ and needs no bash-completion package.
 
-# Does flag $2 take a value under command $1 (empty before the command)?
+# Does flag \`cmd:--flag\` ($1) take a value?
 ${fn}_valued() {
-  case "$1:$2" in
-    ${valued.length ? `${valued.join("|")}) return 0 ;;` : ""}
+  case "$1" in
+    ${m.valued.length ? `${m.valued.join("|")}) return 0 ;;` : ""}
   esac
   return 1
 }
 
-# Values to offer for key $1 — \`cmd:--flag\` or \`cmd:<positional index>\`.
+# The values to offer for $1 — \`cmd:--flag\` or \`cmd:<positional index>\`.
 ${fn}_choices() {
-  local choices=""
   case "$1" in
 ${choiceCases}
   esac
-  printf '%s' "$choices"
+}
+
+# The flags command $1 accepts, its own and the global ones.
+${fn}_flags() {
+  case "$1" in
+${flagCases}
+  esac
 }
 
 ${fn}() {
-  local cur="\${COMP_WORDS[COMP_CWORD]}" cmd="" npos=0 i w flag="" flags=""
+  # Split the line ourselves: COMP_WORDS also breaks at ":" and "=", which would turn
+  # \`--webapi http://x\` into four words and miscount everything after it.
+  local line="\${COMP_LINE:0:COMP_POINT}" cur cmd npos=0 flag="" i n w
+  local -a words
+  read -ra words <<<"$line"
+  [[ $line == *[[:space:]] || \${#words[@]} -eq 0 ]] && words+=("")
+  n=\${#words[@]}
+  cur="\${words[n - 1]}"
   COMPREPLY=()
-  # Walk the words before the cursor: find the command, count its positionals, and
-  # note whether the word being completed is the value of a valued flag. Bash splits
-  # \`--flag=value\` into \`--flag\`, \`=\`, \`value\`, hence the "=" handling.
-  for ((i = 1; i < COMP_CWORD; i++)); do
-    w="\${COMP_WORDS[i]}"
-    if [[ -n $flag ]]; then
-      [[ $w == "=" ]] && continue
+  # \`--flag=value\`: bash replaces only the part after "=", which compgen can't target.
+  [[ $cur == *=* ]] && return 0
+
+  if ((n == 2)); then
+    if [[ $cur == -* ]]; then
+      COMPREPLY=($(compgen -W "${names(m.leading)}" -- "$cur"))
+    else
+      COMPREPLY=($(compgen -W "${m.commands.map((c) => c.name).join(" ")}" -- "$cur"))
+    fi
+    return 0
+  fi
+
+  # Only the first word is the command; after a leading flag nothing runs a command.
+  cmd="\${words[1]}"
+  [[ $cmd == -* ]] && return 0
+
+  # Count positionals the way parseFlags reads them: a bare --flag takes the next word
+  # as its value unless that word is another --flag.
+  for ((i = 2; i < n - 1; i++)); do
+    w="\${words[i]}"
+    if [[ -n $flag && $w != --* ]]; then
       flag=""
       continue
     fi
+    flag=""
     case "$w" in
-      -*) ${fn}_valued "$cmd" "$w" && flag="$w" ;;
-      "=") ;;
-      *) if [[ -z $cmd ]]; then cmd="$w"; else npos=$((npos + 1)); fi ;;
+      --*=*) ;;
+      --*) flag="$w" ;;
+      *) npos=$((npos + 1)) ;;
     esac
   done
-  [[ $cur == "=" ]] && cur=""
 
-  if [[ -n $flag ]]; then
-    local key="$cmd:$flag"
-    [[ -z $cmd ]] && key="*:$flag"
-    local choices
-    choices="$(${fn}_choices "$key")"
-    [[ -z $choices ]] && choices="$(${fn}_choices "*:$flag")"
-    [[ -n $choices ]] && mapfile -t COMPREPLY < <(compgen -W "$choices" -- "$cur")
-    return 0
+  if [[ -n $flag ]] && ${fn}_valued "$cmd:$flag"; then
+    COMPREPLY=($(compgen -W "$(${fn}_choices "$cmd:$flag")" -- "$cur"))
+  elif [[ $cur == -* || -n $flag ]]; then
+    COMPREPLY=($(compgen -W "$(${fn}_flags "$cmd")" -- "$cur"))
+  else
+    COMPREPLY=($(compgen -W "$(${fn}_choices "$cmd:$((npos + 1))")" -- "$cur"))
   fi
-
-  if [[ -z $cmd ]]; then
-    if [[ $cur == -* ]]; then
-      mapfile -t COMPREPLY < <(compgen -W "${globals}" -- "$cur")
-    else
-      mapfile -t COMPREPLY < <(compgen -W "${commands}" -- "$cur")
-    fi
-    return 0
-  fi
-
-  if [[ $cur == -* ]]; then
-    case "$cmd" in
-${flagCases}
-    esac
-    mapfile -t COMPREPLY < <(compgen -W "$flags ${globals}" -- "$cur")
-    return 0
-  fi
-
-  local choices
-  choices="$(${fn}_choices "$cmd:$((npos + 1))")"
-  [[ -n $choices ]] && mapfile -t COMPREPLY < <(compgen -W "$choices" -- "$cur")
   return 0
 }
 
@@ -335,74 +346,97 @@ complete -F ${fn} ${bin}
 `;
 }
 
-/** Text inside an `_arguments` `[description]`, single-quoted in the script. */
-const zshDesc = (s: string) =>
-  s
-    .replace(/\\/g, "\\\\")
-    .replace(/([[\]:])/g, "\\$1")
-    .replace(/'/g, "'\\''");
+/** A single-quoted zsh word. */
+const zshQ = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+/** A `_describe` entry: `name:description`, with colons in the name escaped. */
+const zshEntry = (name: string, desc = "") => zshQ(`${name.replace(/:/g, "\\:")}:${desc}`);
 
-/** An `_arguments` spec for a flag: `'--json[desc]'`, `'--limit=[desc]:n: '`. */
-function zshFlagSpec(a: CliArgDef): string {
-  const desc = zshDesc(a.description ?? "");
-  if (!takesValue(a)) return `'${a.name}[${desc}]'`;
-  const label = cliArgType(a) === "number" ? "n" : "value";
-  return `'${a.name}=[${desc}]:${label}:${zshAction(a)}'`;
-}
-
-/** Complete to `choices`, else nothing (a space: no matches, but no error either). */
-const zshAction = (a: CliArgDef) => (a.choices ? `(${a.choices.join(" ")})` : " ");
-
-function zshCompletions(spec: CliSpec, bin: string, fn: string): string {
-  const indent = (n: number) => " ".repeat(n);
-  const globals = spec.globalArgs.map((a) => `${indent(4)}${zshFlagSpec(a)}`).join("\n");
-  const commands = spec.commands
-    .map((c) => `${indent(4)}'${c.name.replace(/:/g, "\\:")}:${zshDesc(c.summary)}'`)
+function zshCompletions(m: CompletionModel, bin: string, fn: string): string {
+  const entries = (args: CliArgDef[]) => args.map((a) => zshEntry(a.name, a.description)).join(" ");
+  const flagCases = m.commands
+    .map((c) => `    (${c.name}) reply=(${entries(m.flags.get(c.name) ?? [])}) ;;`)
     .join("\n");
-  const cases = spec.commands
-    .map((c) => {
-      const specs = [
-        ...positionalsOf(c).map((a, i) => `'${i + 1}:${a.name}:${zshAction(a)}'`),
-        ...flagsOf(c).map(zshFlagSpec),
-        // Extra positionals (`stack logs <svc…>`) are allowed, so don't reject them.
-        "'*: : '",
-      ];
-      return [
-        `${indent(8)}(${c.name})`,
-        `${indent(10)}_arguments -S $globals \\`,
-        ...specs.map((s, i) => `${indent(12)}${s}${i < specs.length - 1 ? " \\" : ""}`),
-        `${indent(10)};;`,
-      ].join("\n");
-    })
-    .join("\n");
+  const choiceCases = m.choices.map(([k, v]) => `    (${k}) reply=(${v.join(" ")}) ;;`).join("\n");
+  const commands = m.commands.map((c) => `    ${zshEntry(c.name, c.summary)}`).join("\n");
 
   return `#compdef ${bin}
 ${header("zsh", bin)}
 # Load it with:  eval "$(${bin} completions zsh)"   (after compinit, e.g. in ~/.zshrc)
 # or save it as \`${fn}\` in a directory on $fpath.
 
+${fn}_valued() {
+  case $1 in
+    (${m.valued.join("|")}) return 0 ;;
+  esac
+  return 1
+}
+
+${fn}_choices() {
+  reply=()
+  case $1 in
+${choiceCases}
+  esac
+}
+
+${fn}_flags() {
+  reply=()
+  case $1 in
+${flagCases}
+  esac
+}
+
 ${fn}() {
-  local curcontext="$curcontext" state line
-  local -a globals commands
-  globals=(
-${globals}
-  )
+  local cur=$words[CURRENT] cmd=$words[2] npos=0 flag="" i w
+  local -a reply commands
   commands=(
 ${commands}
   )
 
-  _arguments -C -S $globals '1: :->command' '*:: :->args' && return 0
-
-  case $state in
-    (command)
+  if (( CURRENT == 2 )); then
+    if [[ $cur == -* ]]; then
+      reply=(${entries(m.leading)})
+      _describe -t options option reply
+    else
       _describe -t commands '${bin} command' commands
-      ;;
-    (args)
-      case $words[1] in
-${cases}
-      esac
-      ;;
-  esac
+    fi
+    return
+  fi
+
+  # Only the first word is the command; after a leading flag nothing runs a command.
+  [[ $cmd == -* ]] && return 1
+
+  # Count positionals the way parseFlags reads them: a bare --flag takes the next word
+  # as its value unless that word is another --flag.
+  for (( i = 3; i < CURRENT; i++ )); do
+    w=$words[i]
+    if [[ -n $flag && $w != --* ]]; then
+      flag=""
+      continue
+    fi
+    flag=""
+    case $w in
+      (--*=*) ;;
+      (--*) flag=$w ;;
+      (*) npos=$((npos + 1)) ;;
+    esac
+  done
+
+  if [[ $cur == --*=* ]]; then
+    flag=\${cur%%=*}
+    ${fn}_valued "$cmd:$flag" || return 1
+    compset -P '*='
+  fi
+
+  if [[ -n $flag ]] && ${fn}_valued "$cmd:$flag"; then
+    ${fn}_choices "$cmd:$flag"
+    if (( $#reply )); then compadd -a reply; else _message value; fi
+  elif [[ $cur == -* || -n $flag ]]; then
+    ${fn}_flags "$cmd"
+    _describe -t options option reply
+  else
+    ${fn}_choices "$cmd:$((npos + 1))"
+    (( $#reply )) && compadd -a reply
+  fi
 }
 
 if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
@@ -416,88 +450,72 @@ fi
 /** A fish single-quoted string. */
 const fishQ = (s: string) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 
-function fishCompletions(spec: CliSpec, bin: string, fn: string): string {
+function fishCompletions(m: CompletionModel, bin: string, fn: string): string {
   const c = `complete -c ${bin}`;
-  const valued = valuedKeys(spec)
-    .map((k) => fishQ(k))
-    .join(" ");
-  const flagLine = (cond: string | undefined, a: CliArgDef) => {
-    const parts = [c];
-    if (cond) parts.push("-n", fishQ(cond));
-    parts.push("-l", a.name.slice(2));
-    if (takesValue(a)) parts.push(a.choices ? `-xa ${fishQ(a.choices.join(" "))}` : "-x");
+  const flagLine = (cond: string, a: CliArgDef, cmd?: string) => {
+    const parts = [c, "-n", fishQ(cond), "-l", a.name.slice(2)];
+    if (takesValue(a)) {
+      const ch = m.choices.find(([k]) => k === `${cmd}:${a.name}`)?.[1];
+      parts.push(ch ? `-xa ${fishQ(ch.join(" "))}` : "-x");
+    }
     if (a.description) parts.push("-d", fishQ(a.description));
     return parts.join(" ");
   };
 
   const lines: string[] = [];
-  for (const cmd of spec.commands) {
-    lines.push(`${c} -n '${fn}_at_command' -a ${cmd.name} -d ${fishQ(cmd.summary)}`);
+  for (const cmd of m.commands) {
+    lines.push(`${c} -n ${fn}_at_command -a ${cmd.name} -d ${fishQ(cmd.summary)}`);
   }
-  lines.push("");
-  for (const a of spec.globalArgs) lines.push(flagLine(undefined, a));
-  for (const cmd of spec.commands) {
-    const pos = positionalsOf(cmd);
-    const flags = flagsOf(cmd);
-    if (!pos.some((a) => a.choices) && flags.length === 0) continue;
+  for (const a of m.leading) lines.push(flagLine(`${fn}_at_command`, a));
+  for (const cmd of m.commands) {
     lines.push("");
-    pos.forEach((a, i) => {
-      if (!a.choices) return;
-      lines.push(
-        `${c} -n '${fn}_at_positional ${cmd.name} ${i + 1}' -a ${fishQ(a.choices.join(" "))}`,
-      );
-    });
-    for (const a of flags) lines.push(flagLine(`${fn}_in ${cmd.name}`, a));
+    for (const [key, values] of m.choices) {
+      const [name, pos] = key.split(":");
+      if (name !== cmd.name || pos?.startsWith("--")) continue;
+      lines.push(`${c} -n '${fn}_at_positional ${cmd.name} ${pos}' -a ${fishQ(values.join(" "))}`);
+    }
+    for (const a of m.flags.get(cmd.name) ?? [])
+      lines.push(flagLine(`${fn}_in ${cmd.name}`, a, cmd.name));
   }
 
   return `${header("fish", bin)}
 # Load it with:  ${bin} completions fish | source   (e.g. in ~/.config/fish/config.fish)
 # or save it as ~/.config/fish/completions/${bin}.fish
 
-# Does flag $argv[2] take a value under command $argv[1] (empty before the command)?
-function ${fn}_valued
-    switch "$argv[1]:$argv[2]"
-        case ${valued}
-            return 0
-    end
-    return 1
+# Nothing typed after the binary yet: the next word is the command.
+function ${fn}_at_command
+    test (count (commandline -opc)) -eq 1
 end
 
-# The non-option words before the cursor (command first), skipping valued flags' values.
-function ${fn}_words
-    set -l tokens (commandline -opc)
-    set -e tokens[1]
-    set -l out
-    set -l skip 0
-    for t in $tokens
-        if test $skip = 1
-            set skip 0
+# The command (the first word, and only the first) is $argv[1].
+function ${fn}_in
+    set -l t (commandline -opc)
+    test "$t[2]" = "$argv[1]"
+end
+
+# The word being completed is positional $argv[2] of command $argv[1]. Positionals
+# are counted the way parseFlags reads them: a bare --flag takes the next word as its
+# value unless that word is another --flag.
+function ${fn}_at_positional
+    set -l t (commandline -opc)
+    test "$t[2]" = "$argv[1]"; or return 1
+    set -l npos 0
+    set -l flag 0
+    for w in $t[3..-1]
+        if test $flag = 1; and not string match -q -- '--*' $w
+            set flag 0
             continue
         end
-        switch $t
+        set flag 0
+        switch $w
             case '--*=*'
-            case '-*'
-                ${fn}_valued "$out[1]" $t; and set skip 1
+            case '--*'
+                set flag 1
             case '*'
-                set -a out $t
+                set npos (math $npos + 1)
         end
     end
-    # A bare \`printf\` with no words still prints one empty line, which would count.
-    test (count $out) -gt 0; and printf '%s\\n' $out
-end
-
-function ${fn}_at_command
-    test (count (${fn}_words)) -eq 0
-end
-
-function ${fn}_in
-    set -l w (${fn}_words)
-    test "$w[1]" = "$argv[1]"
-end
-
-function ${fn}_at_positional
-    set -l w (${fn}_words)
-    test "$w[1]" = "$argv[1]"; and test (count $w) -eq $argv[2]
+    test $flag = 0; and test $npos -eq (math $argv[2] - 1)
 end
 
 ${c} -f
