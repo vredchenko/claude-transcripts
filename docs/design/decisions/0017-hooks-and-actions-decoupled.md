@@ -30,7 +30,7 @@ with an explicit **many-to-many mapping** between them.
 - **Hook types** — the canonical list of Claude Code hook events, one entry per
   event that exists in Claude Code, each with a (possibly no-op/placeholder)
   handler. Maintained as data so it can be validated against an external source
-  of truth (Tier 3 drift check). See [hooks.md](../../reference/hooks.md).
+  of truth (Tier 3 drift check). See [actions.md](../../reference/actions.md).
 - **Actions** — the catalogue of event-handling behaviours the system can perform
   (write event-marker doc, flush transcript chunk, update counts, extract feature,
   enrich metadata, …), defined independently of any specific hook. See

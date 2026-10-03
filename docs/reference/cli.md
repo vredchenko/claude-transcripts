@@ -1,94 +1,32 @@
 # CLI
 
-> **Status: built and released.** `@claude-transcripts/cli` ships as a compiled
-> binary per platform on each release, and as the CLI bundled into the app image. It
-> **is** the hook (`hook run`), the installer (`install`), and the admin surface
-> (`backfill`, `export`/`import`, `migrate`, `reindex`, `doctor`, `sessions`,
-> `search`). The scripts it consolidated are gone; `scripts/` now holds dev-only repo
-> automation ([dev-automation.md](../develop/dev-automation.md)).
+`claude-transcripts` is the installer, the hook (`hook run`), the admin tool and a
+terminal client. Release binaries for Linux and macOS (x64, arm64) embed the Bun
+runtime; the app image bundles one at `/cli/download`; from a checkout run
+`bun run cli <command>`.
 
-A terminal client for the system, and the **admin utility** for setup and data
-operations. It is an **optional interface** — the system is fully usable without
-it (and without the webui) — but it's the most convenient surface for humans at a
-terminal and for **AI agents driving the system headless**.
+- **Client commands** (`sessions`, `search`, `turns`, `export`, `import`, `migrate`,
+  `reindex`, `doctor`, `backfill`) go through the webapi, using a client generated from
+  its OpenAPI spec ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)).
+  `sessions`, `search` and `turns` take `--json` for scripts and agents.
+- **Host commands** (`install`, `uninstall`, `setup`, `provision`, `stack`, `hook`,
+  `statusline`) work on the local machine: containers, store provisioning, Claude
+  Code's settings. `hook run` writes to CouchDB and S3 directly
+  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
 
-## Two roles
+**Which webapi:** `--webapi`, else `CT_WEBAPI_URL`, else `WEBAPI_PORT` (on
+`WEBAPI_HOST`, default `127.0.0.1`), else `webapi.url` in the hook runtime config, else
+the installed instance's port from `instance.env`, else `127.0.0.1:7650`.
+`WEBAPI_HOST` alone does not count as choosing a target, because `.env.template` sets
+it.
 
-1. **Application client** (talks to the webapi). Everything the webui can do, the
-   CLI can do, because both are just webapi consumers
-   ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)): list/inspect sessions,
-   read transcripts, query views via `/api/couch`, fetch blobs via `/api/s3`,
-   run searches. **All app-side reads and writes go through the webapi** — except
-   `hook run`, the hook itself, which writes to CouchDB/S3 directly
-   ([ADR 0016 amendment](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
-2. **Admin / host-side utility** (talks to the host). The operations that are
-   inherently local: `doctor` (end-to-end smoke test), `install`/`setup` (register
-   the hook, generate runtime config), `export`/`import` (bundle round-trip), and
-   `backfill` (adopt on-disk `~/.claude` transcripts as first-class history). Host-side
-   **metadata ingestion** (reading local config/transcripts the container can't
-   see) is the one legitimately non-webapi path — it's an input source, delivered
-   *to* the webapi, not a backend write around it.
+**Exit codes:** `0` success (also `--help`, `--version`); `1` the command ran and
+failed; `2` usage error (unknown command or option, bad value), with usage on stderr.
+Help, version and usage errors are handled before a command runs, so
+`backfill --help` never starts a backfill.
 
-## Architecture — an aggregate of internal modules
-
-The CLI is a **single tool assembled from multiple internal sources** — the same
-way Claude Code itself is built. Each capability is its own TS module/package,
-imported as an internal library; the CLI is the aggregate front end that exposes
-them under one command surface:
-
-| Internal module | Responsibility | Source |
-|-----------------|----------------|--------|
-| **webapi client** | All app-side reads/writes | **generated** from the webapi OpenAPI spec ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)) and imported as a lib — never hand-written |
-| **`.claude/` reader/parser** | Read + parse the local `~/.claude/` filesystem (transcripts, projects, config) for `backfill` and verification | its own module/package within the CLI |
-| **hooks setup** | Install/register the Claude Code hooks, generate runtime config | host-side |
-| **export / import** | User-data bundle round-trip (dump/restore), format conversion | shares the [migrations](../operate/migrations.md) machinery |
-| **admin** | `install` / `setup` / `doctor` | host-side |
-
-New functionality is added as **another internal module + a command**, so the tool
-grows by composition. The `.claude/` reader is deliberately a standalone module
-(like the generated client) so it can be reused/tested in isolation and never
-blocks core CLI use if absent.
-
-## Stack
-
-- **Bun + [Ink](https://github.com/vadimdemedes/ink)** — the same runtime + TUI
-  stack Claude Code itself is built with, so the CLI feels native alongside it and
-  we can follow Claude Code's own Bun/TS/CLI build practices.
-- **Generated API client** (above) — the same source of truth the webui uses.
-- Reads the same backend config as the rest of the repo for host-side operations
-  (`COUCHDB_*`, `S3_*`); for app-side operations it only needs the webapi base URL.
-- **Finding the webapi** (`src/api/http.ts`) — `--webapi`, else `CT_WEBAPI_URL`, else
-  `WEBAPI_PORT`, else the **installed instance's** `instance.env`, else `7650`.
-  `install` allocates a port per instance, so without the `instance.env` step the bare
-  commands would report a dead webapi on a port nothing was listening on. Only the
-  *port* pins the target; `WEBAPI_HOST` just chooses the host for it — `.env.template`
-  ships a `WEBAPI_HOST` and Bun loads it for anything run from a checkout, so letting
-  it count as a named target would suppress the lookup. The webui's dev proxy resolves
-  the same way ([webui.md](webui.md#build--dev-viteconfigts)). Resolution happens on
-  **first use and is then memoised** — importing the module stays inert, so a fault in
-  the resolver can't take down every command at load, and `--webapi` skips the instance
-  read entirely.
-
-## Packaging (deferred)
-
-To make the host-side CLI portable to machines without a Bun runtime, we intend to
-ship **compiled single-file binaries** per OS (Bun supports `bun build
---compile`). The exact packaging/release flow is **deferred** — for now it runs
-under Bun. In the combined container the CLI is **bundled in the image**, and the
-webui offers a **download link** for it as a convenience
-([containers.md](../operate/containers.md), [routes.md](routes.md)).
-
-## Command surface
-
-The authoritative list is the app model's `CLI_SPEC` (`packages/shared/src/model/cli.ts`).
-Four things project from it: the help screen (`claude-transcripts <command> --help`),
-argument validation before dispatch, this reference (generated below by
-`bun run gen:cli-docs`; CI fails if it is stale), and the shell completions
-(`claude-transcripts completions <shell>`). Edit the spec, not this section.
-
-### Shell completions
-
-`completions` prints a script for bash, zsh or fish; source it from your shell's rc:
+**Shell completions:** `completions <shell>` prints a script for bash, zsh or fish.
+Nothing edits an rc file for you, `install` included:
 
 ```bash
 eval "$(claude-transcripts completions bash)"   # ~/.bashrc
@@ -96,26 +34,14 @@ eval "$(claude-transcripts completions zsh)"    # ~/.zshrc, after compinit
 claude-transcripts completions fish | source    # ~/.config/fish/config.fish
 ```
 
-It completes command names, each command's flags (plus the global ones), and the
-values of anything the spec lists `choices` for (`stack <action>`, `turns --role`).
-After a flag that takes a free-form value it offers nothing, since the next word is
-that flag's. It follows how the CLI actually reads a line: the command must be the
-first word, and a bare `--flag` takes the next word as its value unless that word is
-another flag, so after a boolean flag only flags are offered. Bash completes flag
-values in the `--flag value` form, not `--flag=value`. Nothing edits an rc file for you, `install` included; where the script
-is sourced from is your call.
+It completes command names, flags (plus the global ones), and the values of anything
+the spec lists `choices` for (`stack <action>`, `turns --role`). The command must be
+the first word, and bash completes flag values in the `--flag value` form only.
 
-### Exit codes
-
-| Exit | Means |
-|---|---|
-| `0` | success; also `--help` / `--version` |
-| `1` | the command ran and failed (the message says why) |
-| `2` | usage error — unknown command, unknown option, bad value; help/usage goes to **stderr** |
-
-`--help`, `--version` and the usage errors are handled *before* a command runs, which
-is why `backfill --help` shows help rather than running a backfill, and why a script
-can tell a typo from a failure.
+The command reference below is generated from `CLI_SPEC`
+(`packages/shared/src/model/cli.ts`) by `bun run gen:cli-docs`; edit the spec, not
+this page. The same spec drives `--help`, argument validation and the completions.
+Not built: `couch` / `s3` passthroughs and `meta post` enrichment.
 
 <!-- gen:cli-docs:start — generated from CLI_SPEC by `bun run gen:cli-docs`; do not edit -->
 **Lifecycle**
@@ -457,6 +383,3 @@ claude-transcripts completions bash
 claude-transcripts completions fish | source
 ```
 <!-- gen:cli-docs:end -->
-
-Not built, and listed here only so the gap is visible: `couch` / `s3` power-user
-passthroughs, and `meta post` enrichment.

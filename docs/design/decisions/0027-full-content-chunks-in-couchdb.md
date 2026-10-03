@@ -66,7 +66,7 @@ directly on turns.
   the **role/type** (`user` | `assistant` | tool result | system), a stable
   per-entry index, timestamps, and the content (text + tool-use structure). The
   exact per-entry projection is defined in
-  [couchdb-documents.md](../../reference/couchdb-documents.md) and the shared validators, not
+  [couchdb.md](../../reference/couchdb.md) and the shared validators, not
   here.
 - **Append-only + immutable**, like every other doc
   ([ADR 0016](0016-webapi-is-the-io-gateway.md)): content chunks are written once
