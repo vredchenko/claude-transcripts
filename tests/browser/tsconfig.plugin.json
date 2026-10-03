@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // capture-plugin.ts renders the CLI's own output in Bun, so it gets Bun's types and
+    // not the DOM lib the specs need (the two disagree about fetch bodies).
+    "types": ["bun"],
+    "noEmit": true
+  },
+  "include": ["capture-plugin.ts"]
+}

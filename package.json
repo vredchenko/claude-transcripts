@@ -17,7 +17,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "typecheck": "bun --filter '*' typecheck && tsc --noEmit -p tests/browser/tsconfig.json",
+    "typecheck": "bun --filter '*' typecheck && tsc --noEmit -p tests/browser/tsconfig.json && tsc --noEmit -p tests/browser/tsconfig.plugin.json",
     "gen:clients": "bun run scripts/regenerate-api-clients.ts",
     "gen:compat": "bun run scripts/regenerate-compatibility.ts",
     "gen:hooks": "bun run scripts/sync-hooks.ts",
@@ -44,6 +44,7 @@
     "test:browser": "playwright test",
     "test:browser:install": "playwright install --with-deps chromium firefox",
     "test:browser:capture": "bun run tests/browser/capture.ts",
+    "test:browser:capture:plugin": "bun run tests/browser/capture-plugin.ts",
     "postinstall": "bunx lefthook install"
   },
   "engines": {

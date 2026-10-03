@@ -40,6 +40,9 @@ Playwright over Chromium and Firefox at two widths. Besides rendering checks it 
 layout geometry (content escaping its container, pages scrolling sideways). Set
 `E2E_BASE_URL` to run it against a real instance. `bun run test:browser:capture` saves
 screenshots and a report under `tests/browser/.captures/`.
+`bun run test:browser:capture:plugin` does the same for the plugin's terminal output
+(every statusline state, the statusline at several widths, the session-start banner),
+rendered from synthetic targets into `tests/browser/.captures/plugin/`.
 
 ## Contract
 
