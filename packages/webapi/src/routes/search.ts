@@ -178,14 +178,28 @@ const searchRoute = createRoute({
   operationId: "search",
   request: {
     query: z.object({
-      q: z.string().optional(),
-      limit: z.coerce.number().int().nonnegative().optional(),
-      offset: z.coerce.number().int().nonnegative().optional(),
+      q: z.string().optional().openapi({
+        description: "Query text. Empty or omitted returns no hits.",
+      }),
+      limit: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(20)
+        .openapi({ description: "Page size (hits per index)." }),
+      offset: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(0)
+        .openapi({ description: "Hits to skip." }),
       /** Narrow to one project directory / model / host / provenance. */
-      cwd: z.string().optional(),
-      model: z.string().optional(),
-      hostname: z.string().optional(),
-      source: z.string().optional(),
+      cwd: z.string().optional().openapi({
+        description: "Exact project directory. Applies to sessions and turns.",
+      }),
+      model: z.string().optional().openapi({ description: "Exact model id (sessions only)." }),
+      hostname: z.string().optional().openapi({ description: "Exact hostname (sessions only)." }),
+      source: z.string().optional().openapi({ description: "Exact provenance (sessions only)." }),
     }),
   },
   responses: {
@@ -213,9 +227,9 @@ export function searchRoutes(ctx: AppContext) {
   };
 
   route.openapi(searchRoute, async (c: any) => {
-    const q = (c.req.query("q") ?? "").trim();
-    const limit = Number(c.req.query("limit") ?? 20);
-    const offset = Number(c.req.query("offset") ?? 0);
+    const query = c.req.valid("query");
+    const { limit, offset, cwd, model, hostname, source } = query;
+    const q = (query.q ?? "").trim();
 
     // Only `sessions` carries these attributes; the turns index has cwd alone. Filter
     // each index by what it actually holds rather than sending Meilisearch a filter on
@@ -223,12 +237,12 @@ export function searchRoutes(ctx: AppContext) {
     const eq = (attr: string, value?: string) =>
       value ? `${attr} = ${JSON.stringify(value)}` : null;
     const sessionFilter = [
-      eq("cwd", c.req.query("cwd")),
-      eq("model", c.req.query("model")),
-      eq("hostname", c.req.query("hostname")),
-      eq("source", c.req.query("source")),
+      eq("cwd", cwd),
+      eq("model", model),
+      eq("hostname", hostname),
+      eq("source", source),
     ].filter((f): f is string => f !== null);
-    const turnFilter = [eq("cwd", c.req.query("cwd"))].filter((f): f is string => f !== null);
+    const turnFilter = [eq("cwd", cwd)].filter((f): f is string => f !== null);
 
     if (!q) {
       return c.json({

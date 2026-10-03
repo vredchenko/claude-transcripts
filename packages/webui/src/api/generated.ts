@@ -265,30 +265,52 @@ export interface MigrationRunResult {
 
 export type ListSessionsParams = {
   /**
+   * Page size (sessions).
    * @minimum 0
    * @nullable
    */
   limit?: number | null;
   /**
+   * Sessions to skip before the page starts.
    * @minimum 0
    * @nullable
    */
   skip?: number | null;
+  /**
+   * ISO instant. Keep sessions that end at or after it (overlap, not containment).
+   */
   from?: string;
+  /**
+   * ISO instant. Keep sessions that started at or before it (overlap).
+   */
   to?: string;
+  /**
+   * Exact project directory; a trailing slash is ignored.
+   */
   cwd?: string;
+  /**
+   * Exact hostname.
+   */
   hostname?: string;
+  /**
+   * Exact model id. Sessions with no recorded model never match.
+   */
   model?: string;
+  /**
+   * Exact provenance (`source`).
+   */
   source?: string;
 };
 
 export type GetSessionTranscriptParams = {
   /**
+   * Page size (transcript entries).
    * @minimum 0
    * @nullable
    */
   limit?: number | null;
   /**
+   * Entries to skip, in transcript order.
    * @minimum 0
    * @nullable
    */
@@ -296,13 +318,15 @@ export type GetSessionTranscriptParams = {
 };
 
 export type GetSessionTurnsParams = {
-  role?: SpeakerRole;
+  role?: SpeakerRole & unknown;
   /**
+   * Page size (turns).
    * @minimum 0
    * @nullable
    */
   limit?: number | null;
   /**
+   * Turns to skip, in role-then-transcript order.
    * @minimum 0
    * @nullable
    */
@@ -310,15 +334,23 @@ export type GetSessionTurnsParams = {
 };
 
 export type GetTurnsParams = {
-  role?: SpeakerRole;
+  role?: SpeakerRole & unknown;
+  /**
+   * ISO timestamp lower bound.
+   */
   from?: string;
+  /**
+   * ISO timestamp upper bound.
+   */
   to?: string;
   /**
+   * Page size (turns).
    * @minimum 0
    * @nullable
    */
   limit?: number | null;
   /**
+   * Turns to skip, in time order.
    * @minimum 0
    * @nullable
    */
@@ -532,20 +564,37 @@ export type ResetSession500 = {
 };
 
 export type SearchParams = {
+  /**
+   * Query text. Empty or omitted returns no hits.
+   */
   q?: string;
   /**
+   * Page size (hits per index).
    * @minimum 0
    * @nullable
    */
   limit?: number | null;
   /**
+   * Hits to skip.
    * @minimum 0
    * @nullable
    */
   offset?: number | null;
+  /**
+   * Exact project directory. Applies to sessions and turns.
+   */
   cwd?: string;
+  /**
+   * Exact model id (sessions only).
+   */
   model?: string;
+  /**
+   * Exact hostname (sessions only).
+   */
   hostname?: string;
+  /**
+   * Exact provenance (sessions only).
+   */
   source?: string;
 };
 
