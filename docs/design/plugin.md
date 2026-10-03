@@ -40,11 +40,16 @@ The `announce-recording` action, on `SessionStart`, prints hook JSON whose
 `systemMessage` names where the session is recorded:
 
 ```
-Claude Transcripts — recording to couchdb://…/claude-transcripts-sessions + s3://claude-transcripts-sessions · http://127.0.0.1:7650/app/sessions/<session_id>
+● Claude Transcripts recording → claude-transcripts-sessions@127.0.0.1:7652 (+ s3://claude-transcripts-sessions)
+  http://127.0.0.1:7650/app/sessions/<session_id>
 ```
 
-It runs ahead of the config check, so an unconfigured machine says so:
-`Claude Transcripts — not recording (no instance configured). Run claude-transcripts install.`
+The store is named the way the statusline names it, and the session link sits on a line
+of its own: a `systemMessage` is plain text (no colour, no OSC 8), so the link is
+clickable only where the terminal spots URLs itself, which it does most reliably when
+nothing is attached to either end. It runs ahead of the config check, so an unconfigured
+machine says so:
+`○ Claude Transcripts not recording — no instance configured. Run claude-transcripts install.`
 Every URL comes from the resolved config. It is the only hook output on stdout, which
 is why `SessionStart` is registered synchronously ([hook.md](../reference/hook.md#dispatch)).
 
@@ -62,6 +67,14 @@ last successful write, credentials stripped) and makes no network calls. The las
 time is what separates recording from configured-but-failing. The version shown is the
 recording binary's (`ct@dev` from a checkout), since that is the half of a version skew
 you otherwise can't see.
+
+`render` draws the line for a terminal: the glyph and state word coloured by state
+(green `rec`, yellow `stalled`, cyan `ready`, dim `off`; none under `NO_COLOR`), the
+store label an OSC 8 link to the session in the webui when the instance has a webapi
+URL, and the line fitted to `COLUMNS` by dropping detail in a fixed order — tool count,
+then the store's host, the event count, the age, the store — never the glyph, state or
+version. Deciding *what* the line says (`statuslineLine`) is separate from drawing it
+(`formatStatusline`), so the plain, coloured and shortened forms cannot disagree.
 
 The plugin's `bin/claude-transcripts-statusline` just finds the installed CLI and runs
 `statusline render`, falling back to `○ ct off`, so the state format has one
