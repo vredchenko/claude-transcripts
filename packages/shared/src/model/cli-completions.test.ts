@@ -47,45 +47,60 @@ describe("toCompletions", () => {
   });
 });
 
+test("the bash script avoids bash 4+ features (macOS still ships bash 3.2)", () => {
+  const script = toCompletions(CLI_SPEC, "bash", BIN);
+  for (const bash4 of ["mapfile", "readarray", "declare -A", "local -A", ",,}", "^^}"]) {
+    expect(script).not.toContain(bash4);
+  }
+});
+
 describe.skipIf(!has("bash"))("bash completion, run", () => {
   const script = scriptFor("bash");
-  /** What `<TAB>` offers after `words` (the last one is the word being completed). */
-  const complete = (...words: string[]): string[] => {
-    const quoted = words.map((w) => `'${w.replace(/'/g, "'\\''")}'`).join(" ");
+  /** What `<TAB>` offers at the end of `line` (everything after the binary name). */
+  const complete = (line: string): string[] => {
     const r = Bun.spawnSync([
       "bash",
       "-c",
-      `source '${script}'; COMP_WORDS=(${BIN} ${quoted}); COMP_CWORD=$((\${#COMP_WORDS[@]} - 1)); _claude_transcripts; printf '%s\\n' "\${COMPREPLY[@]}"`,
+      `source '${script}'; COMP_LINE="$1"; COMP_POINT=\${#1}; _claude_transcripts; printf '%s\\n' "\${COMPREPLY[@]}"`,
+      "_",
+      `${BIN} ${line}`,
     ]);
     return r.stdout.toString().split("\n").filter(Boolean);
   };
+  const ACTIONS = ["up", "down", "restart", "logs", "ps"];
 
-  test("completes command names, and only global flags before a command", () => {
+  test("completes command names, and only the boolean globals before a command", () => {
     expect(complete("st")).toEqual(["stack", "statusline"]);
-    expect(complete("--")).toEqual(["--webapi", "--help", "--version"]);
+    expect(complete("--")).toEqual(["--help", "--version"]);
   });
 
-  test("completes a positional's choices, skipping valued flags and their values", () => {
-    expect(complete("stack", "")).toEqual(["up", "down", "restart", "logs", "ps"]);
-    expect(complete("--webapi", "http://x", "stack", "")).toEqual([
-      "up",
-      "down",
-      "restart",
-      "logs",
-      "ps",
-    ]);
-    expect(complete("stack", "--app", "")).toEqual(["up", "down", "restart", "logs", "ps"]);
-    expect(complete("stack", "up", "")).toEqual([]);
+  test("only the first word is the command, as in cli.tsx", () => {
+    // `--webapi x stack ps` shows help and runs nothing, so don't complete toward it.
+    expect(complete("--webapi http://x st")).toEqual([]);
+  });
+
+  test("completes a positional's choices, skipping flag values the way parseFlags does", () => {
+    expect(complete("stack ")).toEqual(ACTIONS);
+    // A URL value: COMP_WORDS would split it at ":" and miscount what follows.
+    expect(complete("stack --webapi http://x ")).toEqual(ACTIONS);
+    expect(complete("stack up ")).toEqual([]);
+  });
+
+  test("after a boolean flag, offers flags only (parseFlags would take a positional as its value)", () => {
+    const flags = ["--app", "--volumes", "--webapi", "--help", "--version"];
+    expect(complete("stack --app ")).toEqual(flags);
+    expect(complete("stack --app --volumes ")).toEqual(flags);
   });
 
   test("a valued flag completes to its choices, else to nothing", () => {
-    expect(complete("turns", "--role", "a")).toEqual(["assistant"]);
-    expect(complete("turns", "--role", "=", "")).toHaveLength(5);
-    expect(complete("turns", "--limit", "")).toEqual([]);
+    expect(complete("turns --role a")).toEqual(["assistant"]);
+    expect(complete("turns --role ")).toHaveLength(5);
+    expect(complete("turns --limit ")).toEqual([]);
+    expect(complete("turns --limit 5 --r")).toEqual(["--role"]);
   });
 
   test("offers the command's flags plus the global ones", () => {
-    expect(complete("hook", "install", "--")).toEqual([
+    expect(complete("hook install --")).toEqual([
       "--dry-run",
       "--force",
       "--webapi",

@@ -99,7 +99,10 @@ claude-transcripts completions fish | source    # ~/.config/fish/config.fish
 It completes command names, each command's flags (plus the global ones), and the
 values of anything the spec lists `choices` for (`stack <action>`, `turns --role`).
 After a flag that takes a free-form value it offers nothing, since the next word is
-that flag's. Nothing edits an rc file for you, `install` included; where the script
+that flag's. It follows how the CLI actually reads a line: the command must be the
+first word, and a bare `--flag` takes the next word as its value unless that word is
+another flag, so after a boolean flag only flags are offered. Bash completes flag
+values in the `--flag value` form, not `--flag=value`. Nothing edits an rc file for you, `install` included; where the script
 is sourced from is your call.
 
 ### Exit codes
