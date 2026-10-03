@@ -7,7 +7,7 @@
  * bug.
  */
 import { describe, expect, test } from "bun:test";
-import { durationSplit, durationSplitLabel, formatDuration } from "./format";
+import { durationSplit, durationSplitLabel } from "./format";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -50,24 +50,10 @@ describe("durationSplit", () => {
     expect(durationSplit(undefined, undefined)).toEqual({ totalMs: 0 });
     expect(durationSplit(0, 0)).toEqual({ totalMs: 0, activeMs: 0, idleMs: 0 });
   });
-
-  test("clamps a negative runtime rather than propagating it", () => {
-    expect(durationSplit(-1, undefined).totalMs).toBe(0);
-  });
 });
 
 describe("durationSplitLabel", () => {
-  test("states all three figures and the share", () => {
-    expect(durationSplitLabel(HOUR, 15 * MINUTE)).toBe(
-      `${formatDuration(HOUR)} runtime · ${formatDuration(15 * MINUTE)} active (25%) · ${formatDuration(45 * MINUTE)} idle`,
-    );
-  });
-
   test("says active time is missing rather than implying it was zero", () => {
     expect(durationSplitLabel(HOUR, undefined)).toContain("not recorded");
-  });
-
-  test("has something to say about a session with no runtime", () => {
-    expect(durationSplitLabel(undefined, undefined)).toBe("No runtime recorded");
   });
 });

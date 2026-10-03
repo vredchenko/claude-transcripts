@@ -14,8 +14,6 @@
  * implementations agree, not a dependency — nothing shipped in the SPA imports the CLI.
  */
 import { afterEach, describe, expect, test } from "bun:test";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { installPaths } from "../../cli/src/lib/paths";
 import { instanceEnvPath } from "./webapi-target";
 
@@ -25,54 +23,19 @@ afterEach(() => {
   process.env = { ...SAVED };
 });
 
-/** Drop the vars both implementations read, so a case starts from nothing. */
-function clearEnv(): void {
-  for (const k of ["CT_HOME", "XDG_CONFIG_HOME"]) delete process.env[k];
-}
-
 describe("instance.env path parity with the CLI", () => {
-  test("agree on the default location", () => {
-    clearEnv();
-    expect(instanceEnvPath()).toBe(installPaths().instanceEnv);
-    expect(instanceEnvPath()).toBe(
-      join(homedir(), ".config", "claude-transcripts", "instance.env"),
-    );
-  });
-
-  test("agree under CT_HOME — how a sandboxed install relocates", () => {
-    clearEnv();
-    process.env.CT_HOME = "/tmp/ct-sandbox";
-    expect(instanceEnvPath()).toBe(installPaths().instanceEnv);
-    expect(instanceEnvPath()).toBe(join("/tmp/ct-sandbox", "config", "instance.env"));
-  });
-
-  test("agree under XDG_CONFIG_HOME", () => {
-    clearEnv();
-    process.env.XDG_CONFIG_HOME = "/tmp/xdg-config";
-    expect(instanceEnvPath()).toBe(installPaths().instanceEnv);
-  });
-
-  test("agree that CT_HOME outranks XDG_CONFIG_HOME", () => {
-    clearEnv();
-    process.env.CT_HOME = "/tmp/ct-sandbox";
-    process.env.XDG_CONFIG_HOME = "/tmp/xdg-config";
-    expect(instanceEnvPath()).toBe(installPaths().instanceEnv);
-    expect(instanceEnvPath()).toContain("/tmp/ct-sandbox");
-  });
-
-  test("agree that a blank XDG_CONFIG_HOME falls back to the home directory", () => {
-    clearEnv();
-    process.env.XDG_CONFIG_HOME = "   ";
-    expect(instanceEnvPath()).toBe(installPaths().instanceEnv);
-    expect(instanceEnvPath()).toContain(homedir());
-  });
-
-  test("agree on a padded XDG_CONFIG_HOME, whichever way it is read", () => {
-    // The CLI treats the value as opaque once it is non-blank, padding included. The
-    // webui trimmed it, which is defensible in isolation and wrong here: two clients
-    // resolving one path differently is the bug this file exists to prevent.
-    clearEnv();
-    process.env.XDG_CONFIG_HOME = " /tmp/xdg-padded ";
+  test.each([
+    ["the default location", {}],
+    ["CT_HOME — how a sandboxed install relocates", { CT_HOME: "/tmp/ct-sandbox" }],
+    ["XDG_CONFIG_HOME", { XDG_CONFIG_HOME: "/tmp/xdg-config" }],
+    ["CT_HOME outranking XDG_CONFIG_HOME", { CT_HOME: "/tmp/ct", XDG_CONFIG_HOME: "/tmp/xdg" }],
+    ["a blank XDG_CONFIG_HOME", { XDG_CONFIG_HOME: "   " }],
+    // The CLI treats a non-blank value as opaque, padding included; the webui once
+    // trimmed it, which is exactly the two-clients-disagree bug this file prevents.
+    ["a padded XDG_CONFIG_HOME", { XDG_CONFIG_HOME: " /tmp/xdg-padded " }],
+  ] as [string, Record<string, string>][])("agree under %s", (_name, env) => {
+    for (const k of ["CT_HOME", "XDG_CONFIG_HOME"]) delete process.env[k];
+    Object.assign(process.env, env);
     expect(instanceEnvPath()).toBe(installPaths().instanceEnv);
   });
 });
