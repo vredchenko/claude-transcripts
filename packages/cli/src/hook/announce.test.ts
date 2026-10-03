@@ -63,6 +63,14 @@ describe("recordingBanner", () => {
     expect(banner).not.toContain("mirror(s)");
     expect(banner).not.toContain("user:pw");
   });
+
+  test("the session link stands on a line of its own, so terminals can pick it up", () => {
+    const t = resolveTargets(config, "http://127.0.0.1:7650");
+    expect(recordingBanner(t, "abc123").split("\n")).toEqual([
+      "● Claude Transcripts recording → claude-transcripts-sessions@127.0.0.1:7652 (+ s3://claude-transcripts-sessions, mirrors: mirror.example.net:7650)",
+      "  http://127.0.0.1:7650/app/sessions/abc123",
+    ]);
+  });
 });
 
 test("the envelope carries the primer as SessionStart additionalContext, and is null when empty", () => {

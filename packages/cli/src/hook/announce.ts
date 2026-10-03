@@ -11,24 +11,30 @@
  * Pure: takes the resolved targets, returns the text. The handler decides what to do
  * with it, and the tests don't need a session to check the wording.
  */
+import { sessionLink, whereLabel } from "../lib/statusline";
 import { hostOf, type SessionStartOutput, type Targets } from "./runtime";
 
-/** Where a recorded session can be opened, if the instance has a webapi URL. */
-export function sessionLink(webapiUrl: string | undefined, sessionId: string): string | null {
-  return webapiUrl ? `${webapiUrl.replace(/\/$/, "")}/app/sessions/${sessionId}` : null;
-}
-
+/**
+ * Two lines: what is recording where, then the link on a line of its own. A banner is
+ * plain text (Claude Code draws no colour or OSC 8 in it), so the link only becomes
+ * clickable where the terminal spots URLs itself — and it spots one far more reliably
+ * when nothing is glued to either end of it.
+ *
+ * The store is named as the statusline names it (`db@host`), so the two agree at a
+ * glance; the S3 bucket and the mirrors follow in brackets.
+ */
 export function recordingBanner(targets: Targets, sessionId: string): string {
-  const where = [`couchdb://${targets.couchUrl.replace(/^https?:\/\//, "")}/${targets.sessionsDb}`];
-  if (targets.bucket) where.push(`s3://${targets.bucket}`);
+  const also: string[] = [];
+  if (targets.bucket) also.push(`s3://${targets.bucket}`);
   // Name the mirrors rather than counting them. A bare "+ 1 mirror(s)" let a banner
   // headline a store that was dead while the mirror held everything — the reader could
   // not tell where their history was actually going without opening the config.
   if (targets.mirrors.length) {
-    where.push(`mirrors: ${targets.mirrors.map(hostOf).join(", ")}`);
+    also.push(`mirrors: ${targets.mirrors.map(hostOf).join(", ")}`);
   }
+  const head = `● Claude Transcripts recording → ${whereLabel(targets)}${also.length ? ` (+ ${also.join(", ")})` : ""}`;
   const link = sessionLink(targets.webapiUrl, sessionId);
-  return `Claude Transcripts — recording to ${where.join(" + ")}${link ? ` · ${link}` : ""}`;
+  return link ? `${head}\n  ${link}` : head;
 }
 
 /**
@@ -36,7 +42,7 @@ export function recordingBanner(targets: Targets, sessionId: string): string {
  * identical from inside Claude Code, so "not recording" has to be said out loud.
  */
 export const NOT_RECORDING_BANNER =
-  "Claude Transcripts — not recording (no instance configured). Run `claude-transcripts install`.";
+  "○ Claude Transcripts not recording — no instance configured. Run `claude-transcripts install`.";
 
 /** The Claude Code hook-output envelope for SessionStart, or null if there is nothing to say. */
 export function sessionStartEnvelope(out: SessionStartOutput): object | null {
