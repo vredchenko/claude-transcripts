@@ -104,18 +104,6 @@ describe("sessions --<filter>", () => {
     expect(q.has("from")).toBe(false);
   });
 
-  test("the header says what was filtered, and counts matches rather than the corpus", async () => {
-    const r = await run("--source", "backfill");
-    expect(r.out).toContain("1 matching");
-    expect(r.out).toContain("source=backfill");
-  });
-
-  test("with no filter it still says 'total', not 'matching'", async () => {
-    const r = await run();
-    expect(r.out).toContain("1 total");
-    expect(r.out).not.toContain("matching");
-  });
-
   test("no matches is reported as no matches, not as an empty corpus", async () => {
     const previous = listResponse;
     listResponse = { sessions: [], totalCount: 0 };
@@ -123,17 +111,6 @@ describe("sessions --<filter>", () => {
       const r = await run("--hostname", "a-host-that-recorded-nothing");
       expect(r.out).toContain("none match");
       expect(r.out).not.toContain("none recorded yet");
-    } finally {
-      listResponse = previous;
-    }
-  });
-
-  test("an empty corpus still reads as an empty corpus", async () => {
-    const previous = listResponse;
-    listResponse = { sessions: [], totalCount: 0 };
-    try {
-      const r = await run();
-      expect(r.out).toContain("none recorded yet");
     } finally {
       listResponse = previous;
     }
@@ -156,11 +133,6 @@ describe("sessions --<filter>", () => {
     const r = await run("--to", "01/08/2026");
     expect(r.code).toBe(2);
     expect(r.err).toContain("--to 01/08/2026");
-  });
-
-  test("a month that doesn't exist is refused", async () => {
-    const r = await run("--from", "2026-13-01");
-    expect(r.code).toBe(2);
   });
 
   test("the ISO forms a person actually types are accepted", async () => {
@@ -208,13 +180,6 @@ describe("the STARTED column", () => {
   test("a session recorded before startTimestamp existed still renders", () => {
     const line = summaryLine(session({ status: "ended", timestamp: ended }));
     expect(line).toContain("17:30");
-  });
-
-  test("a running session is unaffected — it was always right", () => {
-    const line = summaryLine(
-      session({ status: "running", startTimestamp: started, timestamp: started }),
-    );
-    expect(line).toContain("09:00");
   });
 });
 

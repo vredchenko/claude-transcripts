@@ -50,11 +50,7 @@ export function crossTurnLine(t: CrossSessionTurn, width: number = crossTextWidt
   ]);
 }
 
-export function sessionTurnLine(
-  t: SpeakerTurn,
-  i: number,
-  width: number = sessionTextWidth(),
-): string {
+function sessionTurnLine(t: SpeakerTurn, i: number, width: number = sessionTextWidth()): string {
   const tools = (t.toolUses ?? []).map((u) => `⚙ ${u.name}`).join(" ");
   const text = t.text ?? "";
   return row([

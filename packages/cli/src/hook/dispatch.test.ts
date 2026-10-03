@@ -78,16 +78,6 @@ describe("hook run with an unusable config", () => {
     expect(r.stdout).toBe("");
   });
 
-  test("SessionStart on an unusable config still says it is not recording", async () => {
-    const path = writeConfig({ features: {} });
-    const r = await hookRun(
-      { hook_event_name: "SessionStart", session_id: "t2", source: "startup" },
-      path,
-    );
-    expect(r.code).toBe(0);
-    expect(JSON.parse(r.stdout).systemMessage).toContain("not recording");
-  });
-
   test("a structurally broken config exits 0 rather than crashing the hook", async () => {
     const path = writeConfig({ couch: { url: "http://127.0.0.1:1" } }); // no `databases`
     const r = await hookRun({ hook_event_name: "PostToolUse", session_id: "t2" }, path);

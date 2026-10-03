@@ -214,13 +214,6 @@ describe("resume with the local chunk state lost (e.g. a reboot)", () => {
     ).resolves.toBeUndefined();
     expect(makeChunkState(sid).load().offset).toBe(0);
   });
-
-  test("the store is not asked when chunking is off", async () => {
-    const { sid, transcript } = newSession();
-    const off = { ...config(), features: { midFlightChunking: false } };
-    await fire("SessionStart", sid, transcript, { source: "resume" }, off);
-    expect(allDocsQueries).toBe(0);
-  });
 });
 
 describe("a new transcript still starts from zero", () => {

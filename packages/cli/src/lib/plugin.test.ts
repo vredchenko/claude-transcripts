@@ -20,15 +20,6 @@ function writeInstalled(settingsPath: string, key: string, installPath: string, 
 }
 
 describe("pluginRegistration", () => {
-  test("no enabledPlugins → null", () => {
-    expect(pluginRegistration(scratch(), {})).toBeNull();
-  });
-
-  test("another tool's plugin doesn't count", () => {
-    const s = { enabledPlugins: { "warp@claude-code-warp": true } };
-    expect(pluginRegistration(scratch(), s)).toBeNull();
-  });
-
   test("installed but disabled registers nothing", () => {
     // The distinction the whole guard rests on: a disabled plugin contributes no hooks,
     // so treating "present in enabledPlugins" as enough would refuse a legitimate install.

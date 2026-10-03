@@ -28,15 +28,9 @@ function joined(lines: string[] | null): string {
 }
 
 describe("checkSchema", () => {
-  test("allows a bundle at the target's own schema version", () => {
+  test("allows a same-version bundle, or an older one whose gap has no doc transform", () => {
     expect(checkSchema(7, { current: 7, latest: 9 }, viewOnly)).toBeNull();
-  });
-
-  test("allows an older bundle when the gap is view-only", () => {
     expect(checkSchema(3, { current: 7, latest: 9 }, viewOnly)).toBeNull();
-  });
-
-  test("allows an older bundle when the document transform sits outside the gap", () => {
     // v8 reshapes docs, but the target is still at v7 — it hasn't run yet.
     expect(checkSchema(3, { current: 7, latest: 9 }, withTransform)).toBeNull();
   });

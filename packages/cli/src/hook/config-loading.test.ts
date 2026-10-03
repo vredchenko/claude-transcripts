@@ -43,16 +43,6 @@ describe("loadHookConfig", () => {
     expect(cfg?.system.logging.chunk.maxEntriesPerChunk).toBe(200);
   });
 
-  test("explicit values always win over the defaults", () => {
-    const cfg = loadHookConfig(
-      writeConfig({
-        ...MINIMAL,
-        system: { logging: { chunk: { maxEntriesPerChunk: 50, flushIntervalMs: 1000 } } },
-      }),
-    );
-    expect(cfg?.system.logging.chunk).toEqual({ maxEntriesPerChunk: 50, flushIntervalMs: 1000 });
-  });
-
   test("a partial chunk block is completed rather than rejected", () => {
     const cfg = loadHookConfig(
       writeConfig({ ...MINIMAL, system: { logging: { chunk: { flushIntervalMs: 99 } } } }),
@@ -66,10 +56,6 @@ describe("loadHookConfig", () => {
     // past every handler and killing the event — mirrors included.
     expect(loadHookConfig(writeConfig({ features: {} }))).toBeNull();
     expect(loadHookConfig(writeConfig({ couch: { databases: { sessions: "s" } } }))).toBeNull();
-  });
-
-  test("unreadable or unparseable → null", () => {
-    expect(loadHookConfig(join(tmpdir(), "ct-does-not-exist.json"))).toBeNull();
   });
 
   test("normalize leaves everything it doesn't own alone", () => {

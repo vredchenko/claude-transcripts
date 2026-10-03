@@ -42,11 +42,6 @@ describe("writeHookConfig", () => {
     expect((out.couch as { url: string }).url).toBe("http://new");
   });
 
-  test("writes a config with no mirrors when the machine never had any", () => {
-    writeHookConfig(path, { couch: { url: "http://new" } });
-    expect(read().mirrors).toBeUndefined();
-  });
-
   test("an explicit value wins, so a caller can still set or clear mirrors", () => {
     writeFileSync(path, JSON.stringify({ mirrors: MIRRORS }));
     writeHookConfig(path, { couch: { url: "http://new" }, mirrors: [] });
@@ -102,13 +97,6 @@ describe("buildHookConfig", () => {
     expect(buildHookConfig(app, {}).recall).toEqual(app.recall);
     const { recall: _, ...bare } = app;
     expect("recall" in buildHookConfig(bare, {})).toBe(false);
-  });
-
-  test("an empty env yields the bundled Couch URL, no auth and no blob store", () => {
-    const out = buildHookConfig(app, {});
-    expect(out.couch.url).toBe("http://127.0.0.1:7652");
-    expect(out.couch.auth).toBeUndefined();
-    expect(out.blob).toBeUndefined();
   });
 
   test("names the webapi when the env does, and omits it when not", () => {

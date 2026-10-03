@@ -33,7 +33,7 @@ function couchAuthHeader(env: EnvMap): Record<string, string> {
   return { authorization: `Basic ${btoa(`${user}:${env.COUCHDB_PASSWORD ?? ""}`)}` };
 }
 
-export function couchUrl(env: EnvMap): string {
+function couchUrl(env: EnvMap): string {
   return resolveCouchUrl(env);
 }
 

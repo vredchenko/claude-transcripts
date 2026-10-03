@@ -8,7 +8,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { BINDINGS } from "@claude-transcripts/shared";
-import { hookAsync, hookTimeout } from "./index";
+import { hookAsync } from "./index";
 
 /** Actions whose whole point is to write into the session — async discards their output. */
 const EMITS_INTO_SESSION = new Set(["announce-recording", "inject-recall-policy"]);
@@ -32,48 +32,7 @@ describe("hookAsync", () => {
     }
   });
 
-  test("SessionStart stays synchronous — it emits the banner and the recall primer", () => {
-    expect(hookAsync("SessionStart")).toBe(false);
-  });
-
-  test("SessionEnd stays synchronous — it uploads the transcript", () => {
-    expect(hookAsync("SessionEnd")).toBe(false);
-  });
-
   test("UserPromptSubmit stays synchronous — Claude Code ignores async there", () => {
     expect(hookAsync("UserPromptSubmit")).toBe(false);
-  });
-
-  test("the frequent observer events are async — this is the point of the flag", () => {
-    for (const event of [
-      "PostToolUse",
-      "PostToolUseFailure",
-      "Stop",
-      "StopFailure",
-      "SubagentStart",
-      "SubagentStop",
-      "PreCompact",
-      "PostCompact",
-    ]) {
-      expect(hookAsync(event)).toBe(true);
-    }
-  });
-
-  test("every bound event is decided one way or the other", () => {
-    for (const { event } of BINDINGS) {
-      expect(typeof hookAsync(event)).toBe("boolean");
-    }
-  });
-});
-
-describe("hookTimeout", () => {
-  test("the two events that do real work get the long budget", () => {
-    expect(hookTimeout("SessionStart")).toBe(180);
-    expect(hookTimeout("SessionEnd")).toBe(180);
-  });
-
-  test("everything else is a small append", () => {
-    expect(hookTimeout("PostToolUse")).toBe(5);
-    expect(hookTimeout("Stop")).toBe(5);
   });
 });

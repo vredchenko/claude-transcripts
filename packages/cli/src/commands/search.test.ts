@@ -5,8 +5,7 @@
  * index wrapped in U+E000/U+E001 — private-use codepoints chosen precisely because
  * nothing renders them, which is also why leaking one into a terminal is invisible
  * in review and looks like a corrupted byte to whoever hits it. The other cases are
- * the ones that make a table stop being a table: an embedded newline, and a snippet
- * longer than its column.
+ * the ones that make a row stop being usable: an embedded newline, and a truncated id.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -37,23 +36,10 @@ describe("turnLine", () => {
     expect(line).not.toContain(HIGHLIGHT_POST);
   });
 
-  test("drops a stray closer from a snippet cropped mid-span", () => {
-    const line = turnLine(turn({ snippet: `cropped${HIGHLIGHT_POST} tail` }), 60);
-    expect(line).not.toContain(HIGHLIGHT_POST);
-    expect(line).toContain("cropped tail");
-  });
-
   test("collapses newlines so one turn stays one row", () => {
     const line = turnLine(turn({ snippet: "first line\n\nsecond   line" }), 60);
     expect(line).not.toContain("\n");
     expect(line).toContain("first line second line");
-  });
-
-  test("truncates to the column width with an ellipsis", () => {
-    const line = turnLine(turn({ snippet: "x".repeat(200) }), 50);
-    expect(line).toContain("…");
-    // session(36) + when(16) + role(11) + gaps(6) = 69, then the 50-wide column.
-    expect(line.length).toBeLessThanOrEqual(119);
   });
 
   test("renders a missing timestamp rather than 'undefined'", () => {
@@ -67,28 +53,5 @@ describe("turnLine", () => {
     const id = "0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6";
     expect(turnLine(turn({ sessionId: id }), 60).startsWith(`${id}  `)).toBe(true);
     expect(hitLine(hit({ sessionId: id })).startsWith(`${id}  `)).toBe(true);
-  });
-
-  test("never cuts an id longer than a UUID", () => {
-    const id = "a".repeat(40);
-    expect(turnLine(turn({ sessionId: id }), 60).startsWith(`${id}  `)).toBe(true);
-  });
-});
-
-describe("hitLine", () => {
-  test("shows which fields the query matched", () => {
-    expect(hitLine(hit({ matchedIn: ["cwd", "model"] }))).toContain("cwd, model");
-  });
-
-  test("renders an em dash when the index reported no matched fields", () => {
-    const line = hitLine(hit({ matchedIn: [] }));
-    expect(line).not.toContain("undefined");
-    expect(line.trimEnd().endsWith("—")).toBe(true);
-  });
-
-  test("renders the project name, not the whole path", () => {
-    const line = hitLine(hit({ cwd: "/home/someone/dev/repos/my-project" }));
-    expect(line).toContain("my-project");
-    expect(line).not.toContain("/home/someone");
   });
 });

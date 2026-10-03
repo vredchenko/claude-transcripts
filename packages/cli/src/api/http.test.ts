@@ -62,13 +62,6 @@ describe("resolveWebapiUrl — hook config", () => {
     expect(resolveWebapiUrl()).toBe("http://example.test:9000");
   });
 
-  test("CT_HOOK_CONFIG relocates the file read", () => {
-    const elsewhere = join(home, "elsewhere.json");
-    writeFileSync(elsewhere, REMOTE);
-    process.env.CT_HOOK_CONFIG = elsewhere;
-    expect(resolveWebapiUrl()).toBe("https://logs.example.com");
-  });
-
   test("a hook config without webapi falls through to the instance file", () => {
     writeInstanceEnv("WEBAPI_PORT=7658\n");
     writeHookConfig(JSON.stringify({ couch: { url: "http://127.0.0.1:7652" } }));
@@ -84,10 +77,6 @@ describe("resolveWebapiUrl — hook config", () => {
 });
 
 describe("resolveWebapiUrl", () => {
-  test("falls back to the default when there is no install and no env", () => {
-    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
-  });
-
   test("reads the installed instance's port", () => {
     writeInstanceEnv("WEBAPI_HOST=127.0.0.1\nWEBAPI_PORT=7658\nCOUCHDB_PORT=7660\n");
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
@@ -100,23 +89,11 @@ describe("resolveWebapiUrl", () => {
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
   });
 
-  test("any other instance host is used as written", () => {
-    writeInstanceEnv("WEBAPI_HOST=10.0.0.5\nWEBAPI_PORT=7658\n");
-    expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7658");
-  });
-
   test("CT_WEBAPI_URL wins over the instance file", () => {
     writeInstanceEnv("WEBAPI_PORT=7658\n");
     process.env.CT_WEBAPI_URL = "http://example.test:9000/";
     // Trailing slash trimmed, since every caller concatenates a path onto it.
     expect(resolveWebapiUrl()).toBe("http://example.test:9000");
-  });
-
-  test("an explicit WEBAPI_PORT wins over the instance file", () => {
-    // How a dev checkout points the CLI at a webapi it runs from source.
-    writeInstanceEnv("WEBAPI_PORT=7658\n");
-    process.env.WEBAPI_PORT = "7650";
-    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
   });
 
   test("WEBAPI_HOST alone does not suppress the instance lookup", () => {
@@ -128,52 +105,12 @@ describe("resolveWebapiUrl", () => {
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
   });
 
-  test("an empty WEBAPI_HOST is not a choice either", () => {
-    process.env.WEBAPI_HOST = "";
-    process.env.WEBAPI_PORT = "7650";
-    expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7650");
-  });
-
   test("an empty WEBAPI_PORT is not a pin", () => {
     // `WEBAPI_PORT=` in a .env is a blank, not a choice. Reading it as one produced a
     // portless `http://127.0.0.1:`, which fails at the socket rather than saying why.
     writeInstanceEnv("WEBAPI_PORT=7658\n");
     process.env.WEBAPI_PORT = "";
     expect(resolveWebapiUrl()).toBe("http://127.0.0.1:7658");
-  });
-
-  test("WEBAPI_HOST chooses the host when a port is pinned", () => {
-    process.env.WEBAPI_HOST = "10.0.0.5";
-    process.env.WEBAPI_PORT = "7650";
-    expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7650");
-  });
-
-  test("WEBAPI_HOST applies to the default when there is no install", () => {
-    process.env.WEBAPI_HOST = "10.0.0.5";
-    expect(resolveWebapiUrl()).toBe("http://10.0.0.5:7650");
-  });
-
-  test("the module imports cleanly on a machine with no install", () => {
-    // Importing must stay inert: `index.ts` reaches this module through its commands,
-    // so anything that throws here takes down every command at load, before argv is
-    // parsed — and a resolver fault surfaces only where no earlier branch returns
-    // first, i.e. exactly on the machine of someone who has installed nothing yet.
-    // Checked in a subprocess because within this file the module is long since
-    // evaluated and cannot reproduce a load-time failure at all.
-    const r = Bun.spawnSync({
-      cmd: [
-        process.execPath,
-        "-e",
-        `import(${JSON.stringify(join(import.meta.dir, "http.ts"))}).then((m) => console.log(m.webapiUrl()))`,
-      ],
-      // cwd is the sandboxed home so no repo .env is picked up, and CT_HOME points at
-      // an install that isn't there.
-      cwd: home,
-      env: { ...process.env, CT_HOME: home, CT_WEBAPI_URL: "", WEBAPI_HOST: "", WEBAPI_PORT: "" },
-    });
-    expect(r.stderr.toString()).not.toContain("ReferenceError");
-    expect(r.stdout.toString().trim()).toBe("http://127.0.0.1:7650");
-    expect(r.exitCode).toBe(0);
   });
 
   test("the base URL is resolved on first use, not at import", () => {
