@@ -32,7 +32,7 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Tests and docs trimmed** ([#147]): unit tests that restated the implementation or
-  duplicated a branch are gone (627 → about 400), and `docs/` is condensed, merged where
+  duplicated a branch are gone (about 220 of them), and `docs/` is condensed, merged where
   pages overlapped, and corrected against the code ([#199], [#200]).
 
 ## [0.3.3] — 2026-10-01
