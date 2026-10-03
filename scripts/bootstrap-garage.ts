@@ -10,7 +10,8 @@
  * grant it read/write, and write `S3_ACCESS_KEY` / `S3_SECRET_KEY` into `.env`.
  *
  * Idempotent: it no-ops if `.env` already has S3 keys, skips layout assignment if
- * a role is present, and reuses an existing bucket. Run it AFTER `stack:up`, while
+ * a role is present, and reuses an existing bucket. When it does mint a key, earlier
+ * app keys (orphaned by clearing `.env`) are deleted. Run it AFTER `stack:up`, while
  * Garage is healthy. It drives Garage's **v2 admin HTTP API** (RPC-style `/v2/*`
  * operations — v1 is deprecated as of Garage 2.0) on `GARAGE_ADMIN_PORT` (default
  * 7654), authed with `GARAGE_ADMIN_TOKEN` — no `docker exec`. (If your Garage
@@ -176,6 +177,21 @@ async function main() {
   console.log(
     "[garage] wrote S3_ACCESS_KEY + S3_SECRET_KEY to .env — restart the app to pick them up.",
   );
+
+  // 7. Delete earlier app keys. We only mint when .env has none and Garage never hands a
+  //    secret back, so any other key under KEY_NAME is one nothing holds any more — still
+  //    a valid read/write credential. Best-effort: the new key already works.
+  const list = await api("GET", "/v2/ListKeys");
+  if (!list.ok || !Array.isArray(list.json)) {
+    console.warn(`[garage] could not list keys to remove stale ones (HTTP ${list.status})`);
+    return;
+  }
+  for (const k of list.json) {
+    if (k?.name !== KEY_NAME || typeof k.id !== "string" || k.id === accessKey) continue;
+    const del = await api("POST", `/v2/DeleteKey?id=${encodeURIComponent(k.id)}`);
+    if (del.ok) console.log(`[garage] deleted stale app key: ${k.id}`);
+    else console.warn(`[garage] could not delete stale app key ${k.id} (HTTP ${del.status})`);
+  }
 }
 
 await main();
