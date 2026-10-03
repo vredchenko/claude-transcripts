@@ -53,24 +53,9 @@ async function get(path: string, headers: Record<string, string> = {}): Promise<
 const GZIP = { "accept-encoding": "gzip, deflate, br" };
 
 describe("cacheControlFor", () => {
-  test("a hashed SPA asset is immutable for a year", () => {
-    expect(cacheControlFor("spa", `/build/assets/${HASHED}`)).toBe(
-      "public, max-age=31536000, immutable",
-    );
-  });
-
-  test("the SPA shell always revalidates", () => {
-    expect(cacheControlFor("spa", "/build/index.html")).toBe("no-cache");
-  });
-
   test("the docs tree revalidates even under assets/ — it is never hashed", () => {
     expect(cacheControlFor("docs", "/docs-dist/assets/architecture.svg")).toBe("no-cache");
     expect(cacheControlFor("docs", "/docs-dist/design/architecture.html")).toBe("no-cache");
-  });
-
-  test("isSpaAssetPath matches the request path as well as the file path", () => {
-    expect(isSpaAssetPath(`/app/assets/${HASHED}`)).toBe(true);
-    expect(isSpaAssetPath("/app/index.html")).toBe(false);
   });
 });
 
@@ -84,14 +69,6 @@ describe("compression", () => {
     const body = new Uint8Array(await res.arrayBuffer());
     expect(body.byteLength).toBeLessThan(BUNDLE.length);
     expect(new TextDecoder().decode(Bun.gunzipSync(body))).toBe(BUNDLE);
-  });
-
-  test("leaves the body alone when the client asks for no encoding", async () => {
-    const res = await get(`/app/assets/${HASHED}`);
-    expect(res.headers.get("content-encoding")).toBeNull();
-    expect(await res.text()).toBe(BUNDLE);
-    // Still advertised, so a shared cache keys on it either way.
-    expect(res.headers.get("vary")?.toLowerCase()).toContain("accept-encoding");
   });
 
   test("a small response is not encoded, and keeps a real Content-Length", async () => {

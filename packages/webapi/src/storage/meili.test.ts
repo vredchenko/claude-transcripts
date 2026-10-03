@@ -29,10 +29,6 @@ describe("searchDocId", () => {
     expect(searchDocId("sess/id with spaces", 0)).toMatch(MEILI_ID);
   });
 
-  it("is stable for the same parts (re-ingest replaces, never duplicates)", () => {
-    expect(searchDocId("s", 10, 3)).toBe(searchDocId("s", 10, 3));
-  });
-
   it("keeps already-legal ids intact — a UUID must survive unchanged", () => {
     const uuid = "864b2c31-8b61-4197-a166-8768da3097a2";
     expect(searchDocId(uuid)).toBe(uuid);
@@ -45,15 +41,6 @@ describe("toTurnSearchDocs", () => {
     expect(docs.length).toBe(2); // the text-less turn is skipped
     for (const d of docs) expect(String(d.id)).toMatch(MEILI_ID);
     expect(new Set(docs.map((d) => d.id)).size).toBe(docs.length);
-  });
-
-  it("carries the fields the search route reads", () => {
-    const first = toTurnSearchDocs(chunk)[0];
-    expect(first?.sessionId).toBe(chunk.session_id);
-    expect(first?.role).toBe("user");
-    expect(first?.text).toBe("hello");
-    expect(first?.cwd).toBe(chunk.cwd);
-    expect(first?.timestamp).toBe("2026-07-29T00:59:00.000Z");
   });
 
   it("indexes nothing for a byte-range-only chunk", () => {

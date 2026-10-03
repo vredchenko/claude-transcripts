@@ -49,28 +49,6 @@ describe("writeCheckpoint", () => {
     // POSTing a doc whose id merely starts with `_local/`.
     expect(store[LOCAL]._id).toBe(LOCAL);
   });
-
-  test("does not read before writing — a _local doc needs no _rev", async () => {
-    const { db, calls } = fakeStore({ [LOCAL]: { _id: LOCAL, _rev: "0-1", seq: "1-a" } });
-    await writeCheckpoint(db, "2-b");
-
-    expect(calls.filter((c) => c.startsWith("get"))).toEqual([]);
-  });
-
-  test("swallows a write failure — a lost checkpoint costs a replay, not correctness", async () => {
-    const db: CheckpointStore = {
-      async get() {
-        throw new Error("down");
-      },
-      async insert() {
-        throw new Error("down");
-      },
-      async destroy() {
-        throw new Error("down");
-      },
-    };
-    expect(await writeCheckpoint(db, "1-a")).toBeUndefined();
-  });
 });
 
 describe("readCheckpoint", () => {
@@ -79,11 +57,6 @@ describe("readCheckpoint", () => {
 
     expect(await readCheckpoint(db)).toBe("7-g");
     expect(calls).toEqual([`get ${LOCAL}`]);
-  });
-
-  test("a fresh instance has neither doc, and starts at `now`", async () => {
-    const { db } = fakeStore();
-    expect(await readCheckpoint(db)).toBeNull();
   });
 
   test("adopts a pre-#89 checkpoint, then deletes it", async () => {

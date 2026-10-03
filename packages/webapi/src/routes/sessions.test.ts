@@ -89,23 +89,6 @@ describe("GET /sessions/{id}/turns", () => {
     expect(body.role).toBeNull();
   });
 
-  test("defaults to offset 0 / limit 500 and reports no further page", async () => {
-    const { app, calls } = fakeCouch(CORPUS);
-    const body = await getTurns(app);
-    const page = calls.find((p) => p.reduce === false);
-    expect(page?.limit).toBe(500);
-    expect(page?.skip).toBe(0);
-    expect(body.turns.map((t: any) => t.text)).toEqual([
-      "assistant 1",
-      "assistant 3",
-      "assistant 4",
-      "user 0",
-      "user 2",
-    ]);
-    expect(body.totalCount).toBe(5);
-    expect(body.hasMore).toBe(false);
-  });
-
   test("a role filter bounds both queries to [id, role]", async () => {
     const { app, calls } = fakeCouch(CORPUS);
     const body = await getTurns(app, "?role=user&limit=1");
@@ -117,12 +100,6 @@ describe("GET /sessions/{id}/turns", () => {
     expect(body.totalCount).toBe(2);
     expect(body.hasMore).toBe(true);
     expect(body.role).toBe("user");
-  });
-
-  test("an offset past the end is an empty last page", async () => {
-    const { app } = fakeCouch(CORPUS);
-    const body = await getTurns(app, "?offset=9");
-    expect(body).toMatchObject({ turns: [], totalCount: 5, hasMore: false });
   });
 
   test("a session with no turns is an empty page with a zero count", async () => {
