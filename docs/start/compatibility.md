@@ -1,59 +1,31 @@
 # Claude Code compatibility
 
-> **Status: structure defined; the generator is a placeholder.** This doc defines
-> *how* we track which Claude Code versions we support and which hooks each exposes,
-> **machine-generated from an external source of truth**. `bun run gen:compat` (in
-> `gen:all`) writes only version `0.0.0` with no hooks, so `compatibility.json` stays
-> gitignored until it produces real data.
+**Not built yet.** There is no verified range of supported Claude Code versions. The
+hook targets the hook events listed in [hook-events.md](../reference/hook-events.md).
 
-We pin our relationship to Claude Code with a small **structured, formal
-definition** — a data file, `compatibility.json` — that records three versions of interest and the hook set each supports:
+The plan ([ADR 0025](../design/decisions/0025-claude-code-compatibility-matrix.md)) is
+a generated `compatibility.json` recording three Claude Code versions and the hook
+events each supports:
 
 | Field | Meaning | Source |
 |-------|---------|--------|
-| `latestPublic` | The latest publicly released Claude Code CLI version | **auto-generated** from the external source of truth (CC releases/docs) |
-| `earliestCompatible` | Oldest CC version our system is verified to work with | **test automation** (not built yet — see below) |
-| `latestCompatible` | Newest CC version our system is verified to work with | **test automation** (not built yet) |
-
-For **each** of those three versions we record the **complete list of supported
-hook events** (so we can reason about coverage and drift per version).
-
-## Shape (placeholder)
+| `latestPublic` | Latest released Claude Code | scraped from Claude Code's published docs/releases |
+| `earliestCompatible` | Oldest version verified to work | an e2e run against several Claude Code versions |
+| `latestCompatible` | Newest version verified to work | the same |
 
 ```jsonc
 {
   "generatedAt": "<iso8601>",
-  "source": "<url of the external source of truth>",
+  "source": "<url>",
   "claudeCode": {
     "latestPublic":       { "version": "x.y.z", "hooks": ["SessionStart", "…"] },
-    "latestCompatible":   { "version": "d.e.f", "hooks": ["…"] },
-    "earliestCompatible": { "version": "a.b.c", "hooks": ["…"] }
+    "latestCompatible":   { "version": "x.y.z", "hooks": ["…"] },
+    "earliestCompatible": { "version": "x.y.z", "hooks": ["…"] }
   }
 }
 ```
 
-(Version strings are placeholders — they are filled by automation, never by hand.)
-
-## How it's produced
-
-- **`latestPublic` + per-version hook lists** — a dev script
-  ([dev-automation.md](../develop/dev-automation.md)) scrapes/queries the **external source of
-  truth** for Claude Code (its published hooks docs / release metadata) and
-  regenerates `compatibility.json`. Run locally via `bun run` and wrapped as a
-  CI/CD job; the same automation backs the **hook-drift check** (Tier 3,
-  [hooks.md](../reference/hooks.md), #13) — it diffs our codebase's hook list against the
-  generated set.
-- **`earliestCompatible` / `latestCompatible`** — determined by a **test
-  automation** suite we don't have yet: it runs the [e2e suite](../develop/testing.md)
-  against multiple Claude Code versions and records the verified compatibility
-  window. Until that exists these fields are placeholders.
-
-## Relationship to the hooks table
-
-[hooks.md](../reference/hooks.md) is the **codebase-side** master table of hook types (with the
-owner's "what we do on each hook" column). `compatibility.json` is the
-**external-truth** per-version view. The drift check compares the two; a mismatch
-means Claude Code added/removed a hook we haven't accounted for.
-
-> The real `latestPublic` scrape and the compatibility-window automation are later
-> milestones.
+A drift check would then diff the generated hook list against the app model's
+`HOOK_TYPES`. Today `bun run gen:compat` (part of `gen:all`) writes a placeholder
+(version `0.0.0`, no hooks), and `compatibility.json` is gitignored until it produces
+real data.
