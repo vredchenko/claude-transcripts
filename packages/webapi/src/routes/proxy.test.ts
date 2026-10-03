@@ -46,6 +46,9 @@ describe("fossilJsonPath", () => {
 
   test("JSONP is refused, and nothing outside /json is proxied", () => {
     expect(fossilJsonPath("json/version", q("jsonp=alert"))).toHaveProperty("error");
+    // Fossil lowercases an upper-case-initial parameter name, so these arrive as the same.
+    expect(fossilJsonPath("json/version", q("JSONP=alert"))).toHaveProperty("error");
+    expect(fossilJsonPath("json/version", q("Command=user/save"))).toHaveProperty("error");
     expect(fossilJsonPath("setup_ulist", q())).toHaveProperty("error");
     expect(fossilJsonPath("raw/abc", q())).toHaveProperty("error");
   });
@@ -91,6 +94,8 @@ describe("/api/fossil route", () => {
       headers: { cookie: "fossil-abc=login" },
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/json");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(seen.at(-1)).toEqual({
       path: "/claude-transcripts-sessions/json/timeline/checkin?limit=5",
       method: "GET",

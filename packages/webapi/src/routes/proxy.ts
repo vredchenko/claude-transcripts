@@ -32,7 +32,9 @@ export const FOSSIL_READ_COMMANDS: Record<string, readonly string[] | null> = {
 /**
  * Query parameters refused outright. `command` re-dispatches a bare `/json` request to
  * any command, around the allowlist; `jsonp` wraps the answer in a caller-named
- * function, which would serve attacker-chosen script from this origin.
+ * function, which would serve attacker-chosen script from this origin. Compared
+ * case-insensitively: Fossil lowercases a parameter name that starts upper-case
+ * (cgi.c), so `JSONP=` reaches it as `jsonp`.
  */
 const FOSSIL_REFUSED_PARAMS = ["command", "jsonp"];
 
@@ -58,7 +60,8 @@ export function fossilJsonPath(
   if (subs && (!sub || !subs.includes(sub))) {
     return { error: `Read-only subcommands of ${command}: ${subs.join(", ")}` };
   }
-  const refused = FOSSIL_REFUSED_PARAMS.find((p) => search.has(p));
+  const names = [...search.keys()].map((k) => k.toLowerCase());
+  const refused = FOSSIL_REFUSED_PARAMS.find((p) => names.includes(p));
   if (refused) return { error: `Query parameter not allowed: ${refused}` };
   return { path: `/${segments.map(encodeURIComponent).join("/")}` };
 }
@@ -133,7 +136,7 @@ export function proxyRoutes(ctx: AppContext) {
       return c.json({ error: `Unknown repository key: ${repoKey}` }, 404);
     }
     const url = new URL(c.req.url);
-    const rest = c.req.path.replace(new RegExp(`^/api/fossil/${repoKey}/?`), "");
+    const rest = c.req.path.slice(`/api/fossil/${repoKey}`.length);
     const target = fossilJsonPath(rest, url.searchParams);
     if ("error" in target) return c.json({ error: target.error }, 403);
     let res: Response;
@@ -149,9 +152,11 @@ export function proxyRoutes(ctx: AppContext) {
     } catch {
       return c.json({ error: "Fossil is unreachable" }, 502);
     }
+    // Always JSON, never sniffed: an HTML error page from Fossil must not render as a
+    // page of this origin.
     return new Response(res.body, {
       status: res.status,
-      headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
+      headers: { "content-type": "application/json", "x-content-type-options": "nosniff" },
     });
   });
 

@@ -72,8 +72,8 @@ Bind-mounted under `deploy/data/` (gitignored) — wipe it to reset the stack.
 
 [Fossil](https://fossil-scm.org) is version control whose single binary is also its
 server: the web UI (timeline, files, wiki, tickets) and the HTTP endpoint `fossil
-clone`/`sync` talk to. It is provisioned infrastructure only — nothing in the app uses
-it yet ([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructure.md)).
+clone`/`sync` talk to. The webapi reads it; nothing writes it yet
+([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructure.md)).
 
 - **Image** — Fossil publishes none, so `fossil/Dockerfile` builds one from the
   official release source (pinned tarball, sha256-checked, static binary on
@@ -82,9 +82,11 @@ it yet ([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructur
 - **Repository** — named by `fossil.repositories` in `config/` (default
   `claude-transcripts-sessions`, like the database and bucket). The container seeds it
   on start if it doesn't exist (`fossil/entrypoint.sh`; the runner passes the names as
-  `FOSSIL_REPOSITORIES`) and never touches it again. No auth, like the rest of the
-  stack (ADR 0020): Fossil's `nobody` user has every capability. Every `*.fossil` in
-  `data/fossil/` is served at `/<name>/` and listed at `/`.
+  `FOSSIL_REPOSITORIES`) and never touches it again. Reading needs no login; writing
+  does — anonymous write rights would let any web page you visit change the repository
+  through a GET (ADR 0031). Admin access to the UI:
+  `docker exec claude-transcripts-fossil fossil user password claude-transcripts 'NEW' -R /museum/<name>.fossil`.
+  Every `*.fossil` in `data/fossil/` is served at `/<name>/` and listed at `/`.
 - **API** — built with Fossil's JSON API. The webapi reads it read-only at
   `/api/fossil/<repoKey>/json/...` (see [webapi.md](../docs/reference/webapi.md)).
 

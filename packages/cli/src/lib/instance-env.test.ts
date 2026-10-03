@@ -53,3 +53,24 @@ describe("loadOrCreateInstanceEnv", () => {
     }
   });
 });
+
+describe("ports an upgrade adds", () => {
+  test("follow the instance's existing block, not this run's preflight base", () => {
+    // An instance at 7658 (the second 8-port block), upgraded while its stack runs:
+    // preflight shifts the base elsewhere, but FOSSIL_PORT belongs after 7658's block.
+    withTempEnv("WEBAPI_PORT=7658\nMEILI_UI_PORT=7665\n", (path) => {
+      const env = loadOrCreateInstanceEnv(path, { portBase: 7700 });
+      expect(env.FOSSIL_PORT).toBe("7666");
+      expect(env.FOSSIL_URL).toBe("http://127.0.0.1:7666");
+      expect(env.WEBAPI_PORT).toBe("7658");
+    });
+  });
+
+  test("an existing FOSSIL_PORT is never moved", () => {
+    withTempEnv("WEBAPI_PORT=7650\nFOSSIL_PORT=7690\nFOSSIL_URL=http://x\n", (path) => {
+      const env = loadOrCreateInstanceEnv(path, {});
+      expect(env.FOSSIL_PORT).toBe("7690");
+      expect(env.FOSSIL_URL).toBe("http://x");
+    });
+  });
+});
