@@ -6,7 +6,12 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] — 2026-10-03
+
+A minor release because the plugin looks different: the statusline is coloured by
+state, links to the session in the webui and fits narrow terminals, and the
+session-start banner is shorter, with the link on a line of its own ([#205]). Nothing
+about what is recorded or where changes.
 
 ### Changed
 
@@ -18,6 +23,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 - **The session-start banner is shorter.** It names the store as the statusline does
   (`db@host`, with the bucket and mirrors in brackets) and puts the session link on a
   line of its own, where terminals pick it up as a link.
+
+### Added
+
+- **Screenshots of the plugin.** `bun run test:browser:capture:plugin` renders every
+  statusline state, the statusline at several widths and the banner from synthetic
+  data, and screenshots them with Playwright, alongside the webui's `capture.ts` ([#167]).
 
 ## [0.4.0] — 2026-10-03
 
@@ -1657,6 +1668,9 @@ of them had ever executed:
 [#201]: https://github.com/vredchenko/claude-transcripts/pull/201
 [#202]: https://github.com/vredchenko/claude-transcripts/pull/202
 [#203]: https://github.com/vredchenko/claude-transcripts/pull/203
+[#167]: https://github.com/vredchenko/claude-transcripts/issues/167
+[#205]: https://github.com/vredchenko/claude-transcripts/pull/205
+[0.5.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.5.0
 [0.4.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.4.0
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
