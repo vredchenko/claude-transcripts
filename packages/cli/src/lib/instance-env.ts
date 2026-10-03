@@ -30,6 +30,8 @@ export const PORT_KEYS = [
   "GARAGE_WEBUI_PORT",
   "MEILI_PORT",
   "MEILI_UI_PORT",
+  // Appended, never inserted: existing instances keep every port they already have.
+  "FOSSIL_PORT",
 ] as const;
 
 /** URL-safe secret. Hex keeps it shell-safe and copy-pasteable in an env file. */
@@ -99,6 +101,7 @@ export function buildInstanceEnv(opts: InstanceEnvOptions = {}): EnvMap {
     GARAGE_UI_TAG: "1.1.0",
     MEILI_TAG: "v1.10",
     MEILI_UI_TAG: "latest",
+    FOSSIL_TAG: "2.28",
 
     COUCHDB_URL: "",
     COUCHDB_HOST: "127.0.0.1",

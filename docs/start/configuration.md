@@ -73,7 +73,7 @@ The committed template:
 | `features.couchFullContentChunks` | Put the parsed turns in those chunks ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)). Off: a live session's transcript can't be read until it ends, the speaker-split views are empty, and conversation content isn't searchable. |
 | `features.meilisearch` | Full-text search. Off: no search, nothing else changes. |
 | `features.secretsMasking` | Placeholder; nothing is masked yet. |
-| `servicesMenu` | Admin-UI links in the webui (keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`; any other key is an extra link). Unset keys are derived as `http://127.0.0.1:<host port>`; set one when the dashboards live elsewhere, e.g. `{ "couchdbFauxton": "https://couch.example.org/_utils/" }`. |
+| `servicesMenu` | Admin-UI links in the webui (keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`, `fossil`; any other key is an extra link). Unset keys are derived as `http://127.0.0.1:<host port>`; set one when the dashboards live elsewhere, e.g. `{ "couchdbFauxton": "https://couch.example.org/_utils/" }`. |
 | `userSettings` | How much the webui fetches: page sizes per request, and how many transcript entries load before the viewer offers a "load the rest" button (the list isn't virtualised). Values above a per-key ceiling are capped; missing, non-numeric or below-1 values use the default. |
 | `recall` | When a live session consults its own history ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)). `mode`: `off`/`suggest`/`auto`; `scope`: `project`/`host`/`all`. Keep `scope: project` while `secretsMasking` is off. The plugin's `recall_mode`, `recall_scope` and `max_results` options override it per user. |
 

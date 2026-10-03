@@ -19,8 +19,8 @@ reference at `/api/docs`, these docs at `/docs`, and the CLI binary at `/cli/dow
 ## One Compose stack, two uses
 
 `deploy/docker-compose.yml` is generated from the app model (`bun run gen:compose`).
-It holds CouchDB, Garage, Meilisearch and their admin UIs (Fauxton, Garage web UI,
-Meilisearch UI), plus the app under the `app` profile. Everything binds to
+It holds CouchDB, Garage, Fossil, Meilisearch and their admin UIs (Fauxton, Garage web
+UI, Meilisearch UI; Fossil is its own web UI), plus the app under the `app` profile. Everything binds to
 `127.0.0.1`.
 
 - **Development** — backing services only (`bun run stack:up:upstream`); the webapi,
@@ -32,8 +32,9 @@ Meilisearch UI), plus the app under the `app` profile. Everything binds to
 Images: the base file pulls from `${IMAGE_NS}`, your mirror in GHCR
 ([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md));
 `docker-compose.upstream.yml` (`--upstream`, and what `install` uses) swaps in the
-public upstream images; `docker-compose.build.yml` (`--build`) builds the app from the
-checkout.
+public upstream images — and builds Fossil, which publishes none, from
+`deploy/fossil/Dockerfile`; `docker-compose.build.yml` (`--build`) builds the app from
+the checkout.
 
 ## Other topologies
 
@@ -46,4 +47,6 @@ checkout.
   ([configuration.md](../start/configuration.md#backend-topology--bundled-or-external)).
 
 Planned, not built: maintained base images (pinned Bun runtime, a Claude Code runtime,
-our own builds of the backing services).
+our own builds of the backing services). Fossil is the one backing service already
+built here, because it has no upstream image
+([ADR 0031](../design/decisions/0031-fossil-as-bundled-infrastructure.md)).

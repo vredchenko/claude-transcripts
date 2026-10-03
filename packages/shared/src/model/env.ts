@@ -10,6 +10,7 @@ export const ENV_VARS: EnvVarDef[] = [
   { name: "COUCHDB_TAG", scope: "image", default: "3", description: "CouchDB image tag" },
   { name: "GARAGE_TAG", scope: "image", default: "v2.3.0", description: "Garage image tag" },
   { name: "GARAGE_UI_TAG", scope: "image", default: "1.1.0", description: "Garage UI image tag" },
+  { name: "FOSSIL_TAG", scope: "image", default: "2.28", description: "Fossil image tag" },
   { name: "MEILI_TAG", scope: "image", default: "v1.10", description: "Meilisearch image tag" },
   {
     name: "MEILI_UI_TAG",
@@ -46,6 +47,12 @@ export const ENV_VARS: EnvVarDef[] = [
     scope: "port",
     default: "7657",
     description: "Meilisearch UI host port",
+  },
+  {
+    name: "FOSSIL_PORT",
+    scope: "port",
+    default: "7658",
+    description: "Fossil web UI + sync host port",
   },
 
   { name: "WEBAPI_HOST", scope: "host", default: "127.0.0.1", description: "webapi bind host" },

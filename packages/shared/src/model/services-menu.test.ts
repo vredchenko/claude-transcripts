@@ -23,11 +23,13 @@ describe("servicesMenu — derived fallback", () => {
       MEILI_PORT: "7664",
       MEILI_UI_PORT: "7665",
       GARAGE_WEBUI_PORT: "7663",
+      FOSSIL_PORT: "7666",
     });
     expect(model.servicesMenu.couchdbFauxton).toBe("http://127.0.0.1:7660/_utils/");
     expect(model.servicesMenu.meilisearch).toBe("http://127.0.0.1:7664/");
     expect(model.servicesMenu.meilisearchUi).toBe("http://127.0.0.1:7665/");
     expect(model.servicesMenu.garageWebui).toBe("http://127.0.0.1:7663/");
+    expect(model.servicesMenu.fossil).toBe("http://127.0.0.1:7666/");
   });
 });
 

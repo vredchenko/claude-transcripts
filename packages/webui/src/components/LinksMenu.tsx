@@ -16,6 +16,7 @@ const SERVICE_LABELS: Record<string, string> = {
   garageWebui: "Garage · Web UI",
   meilisearch: "Meilisearch · API",
   meilisearchUi: "Meilisearch · UI",
+  fossil: "Fossil · Web UI",
 };
 
 interface LinkItem {

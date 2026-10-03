@@ -127,6 +127,20 @@ export const TOPOLOGY_NODES: TopologyNodeDef[] = [
     requiresFeature: "meilisearch",
     summary: "Rebuildable full-text index. Optional — losing it costs search, not history.",
   },
+  {
+    key: "fossil",
+    serviceKey: "fossil",
+    label: "Fossil",
+    caption: "version control",
+    role: "store",
+    icon: "fossil",
+    rank: 3,
+    lane: "store",
+    level: "compact",
+    // No edges yet, deliberately: it is provisioned infrastructure that nothing reads
+    // or writes. Drawing an arrow would claim wiring that doesn't exist.
+    summary: "Repositories, wiki and tickets with a web UI, from one binary. Not wired in yet.",
+  },
 
   // ── rank 4: admin UIs. Declared now so the level filter is exercised and tested;
   //    only the compact level is rendered today.
@@ -253,7 +267,7 @@ export const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
   {
     key: "stores",
     title: "your infrastructure",
-    members: ["couchdb", "garage", "meilisearch"],
+    members: ["couchdb", "garage", "meilisearch", "fossil"],
     level: "compact",
   },
 ];

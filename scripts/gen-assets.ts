@@ -30,6 +30,10 @@ const ASSETS: { key: string; from: string; to: string }[] = [
   // secrets arrive as env vars), so it travels with the compose files — without it
   // Garage has no config and won't start.
   { key: "garageToml", from: "deploy/garage.toml", to: "deploy/garage.toml" },
+  // The Fossil image's recipe. Fossil publishes no image, so the upstream override
+  // builds it from this file (its context is the directory, nothing else) — an
+  // install has no repo to build from otherwise.
+  { key: "fossilDockerfile", from: "deploy/fossil/Dockerfile", to: "deploy/fossil/Dockerfile" },
   { key: "appConfig", from: "config/config.template.json", to: "config/app.json" },
 ];
 

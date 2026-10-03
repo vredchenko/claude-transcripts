@@ -529,6 +529,7 @@ const ICON_FILES: Record<string, string> = {
   couchdb: join(ROOT, "brand", "icons", "couchdb.svg"),
   garage: join(ROOT, "brand", "icons", "garage.svg"),
   meilisearch: join(ROOT, "brand", "icons", "meilisearch.svg"),
+  fossil: join(ROOT, "brand", "icons", "fossil.svg"),
 };
 
 const icons = new Map<string, Icon>(

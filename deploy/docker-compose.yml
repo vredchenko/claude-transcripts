@@ -91,6 +91,16 @@ services:
     restart: unless-stopped
     networks:
       - claude-transcripts
+  fossil:
+    image: ${IMAGE_NS}/claude-transcripts-fossil:${FOSSIL_TAG:-2.28}
+    container_name: claude-transcripts-fossil
+    ports:
+      - 127.0.0.1:${FOSSIL_PORT:-7658}:8080
+    volumes:
+      - ./data/fossil:/museum
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
   meilisearch:
     image: ${IMAGE_NS}/claude-transcripts-meilisearch:${MEILI_TAG:-v1.10}
     container_name: claude-transcripts-meilisearch

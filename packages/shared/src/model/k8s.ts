@@ -138,13 +138,15 @@ function labelsFor(key: string): Record<string, string> {
 }
 
 /**
- * A workload's image in the base: backing services at their pinned upstream ref, our
- * own (the app) at the release tag, not compose's `latest`. Overlays retarget via `images:`.
+ * A workload's image in the base: backing services at their pinned upstream ref, ones we
+ * build from source at their published name and pinned tag, our own (the app) at the
+ * release tag, not compose's `latest`. Overlays retarget via `images:`.
  */
 export function k8sImageRef(s: ServiceDef, releaseVersion: string): string {
   const img = s.image;
   if (!img) throw new Error(`service ${s.key} has no image`);
   if (img.upstream) return `${img.upstream}:${img.defaultTag}`;
+  if (img.build) return `${RELEASE_IMAGE_NS}/claude-transcripts-${img.name}:${img.defaultTag}`;
   return `${RELEASE_IMAGE_NS}/claude-transcripts-${img.name}:${k8sReleaseTag(releaseVersion)}`;
 }
 
