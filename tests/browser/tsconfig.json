@@ -8,5 +8,8 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "noEmit": true
   },
-  "include": [".", "../../playwright.config.ts"]
+  "include": [".", "../../playwright.config.ts"],
+  // Imports CLI source, whose Bun `fetch` calls don't type-check against the DOM lib.
+  // It runs no browser code, so it is checked by tsconfig.plugin.json, without DOM.
+  "exclude": ["capture-plugin.ts", ".captures"]
 }
