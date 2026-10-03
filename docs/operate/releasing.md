@@ -1,106 +1,68 @@
-# Releasing & publishing
+# Releasing
 
-Everything is **lockstep-versioned** (ADR 0023): one `vMAJOR.MINOR.PATCH` git tag
-drives every published artifact. Push the tag and CI does the rest. What each release
-contained is recorded in [`CHANGELOG.md`](../../CHANGELOG.md).
+One `vX.Y.Z` tag versions everything together
+([ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md)); CI
+does the building. Release notes go in [`CHANGELOG.md`](../../CHANGELOG.md).
 
-## What a `vX.Y.Z` tag publishes
+## Cutting a release
+
+```bash
+bun run scripts/release.ts 0.4.0     # stamp the version everywhere (--check verifies)
+git commit -am "chore(release): 0.4.0"   # on a branch, merged via PR
+git tag v0.4.0 && git push origin v0.4.0 # from main, once merged
+```
+
+`release.ts` writes the version into the root and every `packages/*/package.json`,
+`hooks/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, and re-runs
+`gen:k8s` (the k8s base pins the app image to it). The tag is what CI acts on.
+
+## What a tag publishes
 
 | Artifact | Where | Workflow |
 |----------|-------|----------|
-| **App image** (`claude-transcripts-app` — webapi + webui SPA + docs + bundled CLI) | GHCR: `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
-| **Mirrored backing images** (CouchDB, Garage, Meilisearch + admin UIs) | GHCR: `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) (also on-demand) |
-| **CLI binaries** (Linux + macOS, x64 + arm64) + SHA-256 sums | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
-| **CLI on npm** (`@claude-transcripts/cli`, a bun-runnable bundle) | npmjs.org | `release-cli.yml` — **skipped with a warning until `NPM_TOKEN` is set** (below) |
+| App image `claude-transcripts-app` (webapi + webui + docs + CLI) | `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
+| Mirrored backing images (CouchDB, Garage, Meilisearch, admin UIs) | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
+| CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
+| `@claude-transcripts/cli` on npm (needs Bun at runtime) | npmjs.org | `release-cli.yml`, skipped with a warning until `NPM_TOKEN` is set |
 
-The CLI needs **bun** at runtime (it uses Bun APIs). So: the **compiled binaries** are
-the zero-dependency option (`curl` the one for your platform from the Release); the
-**npm** package is for bun users (`bunx @claude-transcripts/cli`, or a global install
-with bun on `PATH`).
+The binaries embed the Bun runtime and need nothing else. The npm package is a bundle
+with no runtime dependencies, for `bunx @claude-transcripts/cli`.
+
+`release-cli` and `mirror-images` can also be run by hand from the Actions tab; a
+manual `release-cli` run uploads the binaries as workflow artifacts without publishing.
 
 ### App image tags
 
 | Tag | Means | Pushed by |
 |-----|-------|-----------|
-| `vX.Y.Z` | that exact release | a `v*.*.*` tag |
-| `latest` | the **newest release** | a `v*.*.*` tag |
-| `main` | the **tip of `main`**, rebuilt on every merge | a push to `main` |
-| `<sha>` | one specific commit | any of the above, and manual dispatch |
+| `vX.Y.Z` | that release | a `v*.*.*` tag |
+| `latest` | the newest release | a `v*.*.*` tag |
+| `main` | the tip of `main` | every push to `main` |
+| `<short-sha>` | one commit | all of the above, and manual dispatch |
 
-`latest` deliberately tracks releases, not `main` — `install` uses it, and pointing it
-at unreleased code would hand users something untested. But that leaves a gap the
-`main` tag fills: between releases there would otherwise be **no image of the current
-code at all**. After 0.0.1 the app image sat at schema v5 while `main` reached v7, so
-an install could only pair a current CLI with a months-old app — which breaks the
-lockstep-versioning invariant ([ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md))
-silently, since everything starts and only some later read misbehaves.
+`latest` tracks releases, not `main`. `install` pins the app image to the CLI's own
+version, or to `main` for an unreleased CLI, and warns if the running app reports a
+different version. Every build is scanned with grype and trivy and fails on HIGH
+severity, so a base-image CVE can block a merge build too.
 
-Accordingly `install` pins the app image to the CLI's **own** version when the CLI is
-a release, and to `main` when it isn't, then reports the version the running app
-actually announces so a mismatch is visible rather than inferred.
+## One-time setup
 
-Building on every merge to `main` also means the image vulnerability scans (grype +
-trivy, failing on HIGH) now run per-merge instead of only at release — earlier
-warning, at the cost of a noisier signal when a base image picks up a CVE.
+Images are pushed with the built-in `GITHUB_TOKEN`; no secret is needed.
 
-## Cutting a release
+1. After the first publish, make each GHCR package public (package page → Package
+   settings → Change visibility). Workflow permissions (Settings → Actions → General)
+   must allow read/write.
+2. For npm: create the `claude-transcripts` org on npmjs, create an Automation access
+   token and store it as the repo secret `NPM_TOKEN`.
+3. Optionally, a protected `release` environment for a manual approval gate.
 
-```bash
-bun run scripts/release.ts 0.1.0   # stamp the lockstep version into every manifest
-git commit -am "chore(release): 0.1.0" && git push   # via a PR, per branching.md
-git tag v0.1.0 && git push origin v0.1.0             # from main, once merged
-```
+## Pulling from your own registry
 
-`scripts/release.ts <semver>` stamps the version into the root `package.json`, each
-`packages/*/package.json`, and the hook's `.claude-plugin/plugin.json` (ADR 0023);
-`--check` verifies they all match without writing. Stamping also re-runs `gen:k8s`
-(the k8s base pins the app image to the release). The tag is what CI reacts to — the
-stamped manifests just keep the tree honest about which release it is.
+To run the stack from your mirrored images rather than upstream registries, set
+`IMAGE_NS=ghcr.io/<owner>` in `.env` and use `bun run stack:up` (not
+`stack:up:upstream`).
 
-CI then builds + publishes all of the above. A **manual** `release-cli` /
-`mirror-images` dispatch (Actions tab → Run workflow) is available for testing —
-`release-cli` on dispatch uploads the binaries as workflow artifacts without
-publishing.
-
-## One-time setup ("click-admin")
-
-CI uses the built-in `GITHUB_TOKEN` to push to GHCR — **no secret needed** for the
-images. The manual bits, once:
-
-1. **Make the GHCR packages public** (so anyone can `docker pull` without auth):
-   after the first publish, each package appears under your profile/org → open it →
-   **Package settings → Change visibility → Public**. Do this for
-   `claude-transcripts-app` and each mirrored `claude-transcripts-*`. (Repo →
-   Settings → Actions → General → Workflow permissions should allow read/write.)
-2. **npm:**
-   - Own the scope: create the **`claude-transcripts` org** on npmjs (the package is
-     `@claude-transcripts/cli`, published with `--access public`).
-   - Create an npm **Automation** access token (npmjs → Access Tokens) and add it as
-     the repo secret **`NPM_TOKEN`** (Settings → Secrets and variables → Actions).
-3. *(Optional)* a protected **`release` environment** (Settings → Environments) if you
-   want a manual approval gate before publishing.
-
-## After releasing: pull from your own registry
-
-Point the stack at your mirrored images instead of external registries (so an
-unmaintained/unverified upstream can never ship you a surprise):
-
-```bash
-# in .env
-IMAGE_NS=ghcr.io/<owner>
-```
-
-Then `bun run stack:up` (not `stack:up:upstream`) pulls `couchdb`, `garage`,
-`meilisearch`, the admin UIs, **and** the app image from `ghcr.io/<owner>/…` only.
-Re-run `mirror-images` (or tag a release) whenever you bump a pinned upstream tag in
-the app model (`packages/shared/src/model/services.ts`) + `.env.template`.
-
-## Notes
-
-- **Backing image tags are pinned** in the app model
-  (`packages/shared/src/model/services.ts`, each service's `defaultTag`) and in
-  `.env.template` (`*_TAG`) — keep the two in lockstep. `scripts/mirror-images.ts`
-  holds no tags of its own: it projects its image list from the model (`toMirrorPlan`).
-- The npm bundle inlines all dependencies (`bun build --target=bun`), so the published
-  package declares **no runtime deps** (the workflow drops the `workspace:` protocol
-  before publishing). The binaries embed the bun runtime, so they need nothing.
+Backing-image tags are pinned in two places that must agree: each service's
+`defaultTag` in `packages/shared/src/model/services.ts`, and the `*_TAG` lines in
+`.env.template`. `mirror-images.ts` takes its list from the model. Re-run
+`mirror-images` (or tag a release) after bumping one.

@@ -1,109 +1,49 @@
-# Containers & images
+# Containers
 
-How the project is packaged. Two themes: the **single combined application
-image** (what you deploy) and a planned set of **base images** we maintain and
-build everything else from.
+## The app image
 
-## The combined application image
-
-One container serves the whole front door — webapi + the built webui SPA +
-the Scalar API reference (`/api/docs`) + the static HTML docs (rendered from `docs/*.md` by
-[build-docs](../develop/dev-automation.md), served at `/docs`) — under one origin
+`claude-transcripts-app` serves everything under one origin
 ([ADR 0002](../design/decisions/0002-single-combined-container.md),
-[routes.md](../reference/routes.md)). It also **bundles the CLI binary**, which the webui
-offers as a download link ([cli.md](../reference/cli.md)).
+[routes.md](../reference/routes.md)): the webapi, the webui at `/app`, the Scalar API
+reference at `/api/docs`, these docs at `/docs`, and the CLI binary at `/cli/download`
+(also on the container's `PATH`).
 
-- **Runtime:** `oven/bun:1` (own base images: planned, below).
-- **Config:** the image carries `config/` (the committed `config.template.json` as
-  non-secret defaults; mount a `config/config.json` to override); secrets
-  and **backend endpoints** come from env at run time — so the same image runs
-  against the bundled Compose stack **or** fully external backends (external
-  CouchDB, Cloudflare R2, remote Meilisearch). See
-  [configuration.md](../start/configuration.md).
-- **Releases:** `publish-image.yml` → GHCR
-  ([ADR 0012](../design/decisions/0012-github-actions-and-ghcr-for-releases.md)); tags in
-  [releasing.md](releasing.md).
+- Built from source by one multi-stage `Dockerfile` on `oven/bun:1`: the webui, the
+  docs (`build:docs`) and the compiled CLI each build in their own stage and are
+  copied into the runtime stage.
+- Carries `config/` with the committed template. Mount `/app/config/config.json` to
+  override it. Secrets and backend endpoints come from the environment at run time.
+- Listens on 7650 inside the container. Published by `publish-image.yml`
+  ([releasing.md](releasing.md#app-image-tags)).
 
-## Deployment topologies
+## One Compose stack, two uses
 
-The app container needs only to know *where* its backends are:
+`deploy/docker-compose.yml` is generated from the app model (`bun run gen:compose`).
+It holds CouchDB, Garage, Meilisearch and their admin UIs (Fauxton, Garage web UI,
+Meilisearch UI), plus the app under the `app` profile. Everything binds to
+`127.0.0.1`.
 
-- **Bundled** — Docker Compose brings up CouchDB + Garage (S3) + Meilisearch + the
-  app, all local to the stack (Tier 1 default). The backing-service **admin UIs**
-  (Fauxton, Garage WebUI, Meilisearch) are bundled too and linked from the webui
-  Services menu.
-- **Bundled, on Kubernetes** — the same stack as a generated kustomize base
-  (`deploy/k8s/`, [README](../../deploy/k8s/README.md)) for a single-node k3s or any
-  cluster with a default StorageClass
-  ([ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)).
-- **External** — run the app container alone, pointing its env at remote services
-  (e.g. managed CouchDB + Cloudflare R2 + a hosted search). Nothing in the image
-  assumes localhost.
+- **Development** — backing services only (`bun run stack:up:upstream`); the webapi,
+  webui and CLI run on the host. Data is bind-mounted under `deploy/data/`.
+- **Deployment** — the same stack with the app container added
+  (`bun run scripts/stack.ts up --app`, or `install`, which writes the compose files
+  under `~/.local/share/claude-transcripts/deploy/`).
 
-## Dev stack vs deployment stack
+Images: the base file pulls from `${IMAGE_NS}`, your mirror in GHCR
+([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md));
+`docker-compose.upstream.yml` (`--upstream`, and what `install` uses) swaps in the
+public upstream images; `docker-compose.build.yml` (`--build`) builds the app from the
+checkout.
 
-There is **one** `deploy/` Docker Compose definition, used two ways:
+## Other topologies
 
-- **Development** — Compose brings up only the **backing services**: CouchDB,
-  Garage, Meilisearch, **plus their admin web UIs** (Fauxton, Garage WebUI,
-  Meilisearch UI), on the reserved local **dev port range `7650`–`7661`** (see
-  [`CLAUDE.md`](../../CLAUDE.md), no-auth, localhost-only). The **webapi, webui, and
-  CLI run on the host** (`bun run dev:*`) against those Compose services. Fast
-  iteration: edit code on the host, no image rebuild.
-- **Deployment** — the **combined app image** we build from our own code
-  ([ADR 0002](../design/decisions/0002-single-combined-container.md)) is **added to the same
-  Compose stack** as another service, alongside the backing services. Same stack,
-  now self-contained.
+- **Kubernetes** — the same stack as a generated kustomize base in `deploy/k8s/`
+  ([README](../../deploy/k8s/README.md),
+  [ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)),
+  for a single-node k3s or any cluster with a default StorageClass.
+- **External backends** — run the app container alone with its environment pointing
+  at your own CouchDB, S3 and Meilisearch
+  ([configuration.md](../start/configuration.md#backend-topology--bundled-or-external)).
 
-So the only difference between dev and deploy is *where the app runs* — on the host
-(dev) or as a container in the stack (deploy); the backing services are the same
-Compose services either way.
-
-## Build & release
-
-Components are **built separately, then combined** into the deployment image, and
-**versioned together** (lockstep semver) —
-[ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md). Today
-that is one multi-stage `Dockerfile` build from source:
-
-1. Build each component in its own Docker stage: the webui SPA `dist/`, the static
-   docs (`build-docs`), and the compiled CLI binary.
-2. **Combine** them into the single app image ([routes.md](../reference/routes.md)).
-
-Driven by `scripts` + CI ([dev-automation.md](../develop/dev-automation.md)).
-
-## Mirrored backing images
-
-All third-party backing-service images (CouchDB, Garage, Meilisearch + admin UIs)
-are **mirrored into the GitHub Container Registry (GHCR)** and referenced from
-there, pinned — [ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md). The
-bundled stack uses the mirrored images by default so the whole system is
-reproducible from a registry we control.
-
-## Base images (planned)
-
-> **Status: plan / future scope.** We intend to maintain a small family of base
-> images and build the rest from them, so versions are pinned and reproducible.
-
-| Image | Purpose |
-|-------|---------|
-| **Bun runtime** | Pinned Bun + toolchain; base for the app image and CLI builds. |
-| **Claude Code runtime** | Bun base with Claude Code pre-installed — for running/automating agent sessions in-container. |
-| **CLI utils** | A container full of the operational CLIs ([tools.md](tools.md), [cli.md](../reference/cli.md)). |
-| **OpenHack** | The OpenHack cybersec toolset bundled for security workflows (future, see below). |
-| **Fossil / SCM / code-search util** | Optional Fossil (or git-like) + source-code search utility container (future). |
-| **CouchDB / Meilisearch / Garage** | Our own pinned builds of the backing services, so the stack is fully self-maintained. |
-
-## Future: extensibility & bundled tooling (Tier 3)
-
-Beyond the core, the roadmap envisions bundling additional capability and exposing
-**our own integration points** so third parties can extend the system:
-
-- Bundle the **OpenHack** cybersec repo with the project.
-- Optionally a **Fossil** (or git-like) layer for additional coding/versioning
-  functionality, and a source-code search utility.
-- Define and document **extension/integration points** (e.g. action plugins,
-  webapi extension routes) — placeholder; to be specified.
-
-These are explicitly Tier-3 / future scope ([tiers.md](../design/tiers.md)) — listed here so
-the image strategy accounts for them, not committed for Tier 1.
+Planned, not built: maintained base images (pinned Bun runtime, a Claude Code runtime,
+our own builds of the backing services).
