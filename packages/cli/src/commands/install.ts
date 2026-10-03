@@ -11,6 +11,7 @@
  * resumes from it. See docs/design/installation.md.
  */
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { searchReindex } from "../api/generated";
 import { setWebapiUrl } from "../api/http";
 import { loadAppConfig } from "../lib/app-config";
@@ -304,7 +305,7 @@ export async function runInstall(argv: string[]): Promise<number> {
   console.log("\ninstall: done.");
   console.log(`  UI       http://127.0.0.1:${env.WEBAPI_PORT}/app`);
   console.log(`  API      http://127.0.0.1:${env.WEBAPI_PORT}/api/docs`);
-  console.log(`  data     docker volumes (survive uninstall unless --purge)`);
+  console.log(`  data     ${join(paths.deployDir, "data")} (survives uninstall unless --purge)`);
   console.log("  remove   claude-transcripts uninstall");
   return 0;
 }
