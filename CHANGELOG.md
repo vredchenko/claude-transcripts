@@ -6,7 +6,14 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] — 2026-10-03
+
+A minor release because it adds a command: `completions` prints shell completion
+scripts. The rest is fixes. A plain `uninstall` no longer deletes recorded history,
+reinstalling no longer leaves an orphaned Garage key, and three webui bugs are gone: a
+long project path that scrolled the session list sideways on a phone, a raw request
+line for an unknown session, and a lone fold for a session with no turns. The test
+suite and `docs/` were also cut back to what earns its keep.
 
 ### Added
 
@@ -1637,7 +1644,7 @@ of them had ever executed:
 [#201]: https://github.com/vredchenko/claude-transcripts/pull/201
 [#202]: https://github.com/vredchenko/claude-transcripts/pull/202
 [#203]: https://github.com/vredchenko/claude-transcripts/pull/203
-[Unreleased]: https://github.com/vredchenko/claude-transcripts/compare/v0.3.3...HEAD
+[0.4.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.4.0
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
