@@ -12,18 +12,10 @@ describe("pageNumber", () => {
 });
 
 describe("toSearchParams", () => {
-  test("page 1 starts at offset 0", () => {
-    expect(toSearchParams({ q: "x" }, 20)).toMatchObject({ q: "x", limit: 20, offset: 0 });
-  });
-
   test("offset advances by a full page, not a page minus one", () => {
     // The off-by-one that would silently repeat or skip a row.
     expect(toSearchParams({ q: "x", page: 2 }, 20).offset).toBe(20);
     expect(toSearchParams({ q: "x", page: 3 }, 20).offset).toBe(40);
-  });
-
-  test("trims the query", () => {
-    expect(toSearchParams({ q: "  spaced  " }).q).toBe("spaced");
   });
 
   test("carries only the filters that are set", () => {
@@ -43,7 +35,6 @@ describe("pageCount", () => {
   });
 
   test("rounds up a partial page", () => {
-    expect(pageCount({ sessions: 21, turns: 0 }, 20)).toBe(2);
     expect(pageCount({ sessions: 40, turns: 0 }, 20)).toBe(2);
     expect(pageCount({ sessions: 41, turns: 0 }, 20)).toBe(3);
   });

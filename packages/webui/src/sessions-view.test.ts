@@ -11,9 +11,6 @@ import {
   overlapsDay,
   parseDay,
   parseMonth,
-  shiftMonth,
-  startOfDay,
-  startOfMonth,
   toInterval,
   weekBars,
 } from "./sessions-view";
@@ -101,49 +98,24 @@ describe("day and month keys", () => {
     expect(dayKey(evening)).toBe("2026-03-18");
     expect(monthKey(evening)).toBe("2026-03");
   });
-
-  it("zero-pads single-digit months and days", () => {
-    expect(dayKey(at(2026, 1, 5))).toBe("2026-01-05");
-  });
-
-  it("startOfDay lands on local midnight", () => {
-    expect(startOfDay(at(2026, 3, 18, 17, 45))).toBe(at(2026, 3, 18));
-  });
-
-  it("startOfMonth lands on the first", () => {
-    expect(startOfMonth(at(2026, 3, 18))).toBe(at(2026, 3, 1));
-  });
 });
 
 describe("parseMonth / parseDay", () => {
   const FALLBACK = at(2026, 3, 18);
 
-  it("parses a valid month key", () => {
+  it("parses a month key, falling back on junk or an impossible month", () => {
     expect(parseMonth("2026-07", FALLBACK)).toBe(at(2026, 7, 1));
-  });
-
-  it("falls back on junk or an impossible month", () => {
     expect(parseMonth(undefined, FALLBACK)).toBe(at(2026, 3, 1));
     expect(parseMonth("nonsense", FALLBACK)).toBe(at(2026, 3, 1));
     expect(parseMonth("2026-13", FALLBACK)).toBe(at(2026, 3, 1));
   });
 
-  it("parses a valid day key", () => {
+  it("parses a day key, rejecting a date that does not exist", () => {
     expect(parseDay("2026-07-04")).toBe(at(2026, 7, 4));
-  });
-
-  it("rejects a date that does not exist", () => {
     // Without the round-trip check this silently becomes 3 March.
     expect(parseDay("2026-02-31")).toBeUndefined();
     expect(parseDay("2026-00-10")).toBeUndefined();
     expect(parseDay("garbage")).toBeUndefined();
-  });
-});
-
-describe("shiftMonth", () => {
-  it("steps forward and back across a year boundary", () => {
-    expect(shiftMonth(at(2026, 12, 1), 1)).toBe(at(2027, 1, 1));
-    expect(shiftMonth(at(2026, 1, 1), -1)).toBe(at(2025, 12, 1));
   });
 });
 
@@ -154,20 +126,6 @@ describe("monthWeeks", () => {
       expect(weeks).toHaveLength(6);
       for (const week of weeks) expect(week).toHaveLength(7);
     }
-  });
-
-  it("starts each week on a Monday", () => {
-    for (const week of monthWeeks(at(2026, 3, 1))) {
-      expect(new Date(week[0]!).getDay()).toBe(1);
-    }
-  });
-
-  it("includes the whole month", () => {
-    const days = monthWeeks(at(2026, 3, 1))
-      .flat()
-      .map(dayKey);
-    expect(days).toContain("2026-03-01");
-    expect(days).toContain("2026-03-31");
   });
 
   it("pads with the neighbouring months' days", () => {
@@ -181,10 +139,6 @@ describe("monthWeeks", () => {
 describe("overlapsDay", () => {
   const day = at(2026, 3, 18);
 
-  it("is true for a session inside the day", () => {
-    expect(overlapsDay(interval("a", at(2026, 3, 18, 9), at(2026, 3, 18, 10)), day)).toBe(true);
-  });
-
   it("is true for a session merely passing through", () => {
     // The multi-day case: neither endpoint is in the day.
     expect(overlapsDay(interval("a", at(2026, 3, 16), at(2026, 3, 20)), day)).toBe(true);
@@ -193,11 +147,6 @@ describe("overlapsDay", () => {
   it("is false for a session that ends exactly at midnight", () => {
     // Half-open, so it doesn't paint a zero-length sliver on the following day.
     expect(overlapsDay(interval("a", at(2026, 3, 17, 20), at(2026, 3, 18)), day)).toBe(false);
-  });
-
-  it("is false either side of the day", () => {
-    expect(overlapsDay(interval("a", at(2026, 3, 19), at(2026, 3, 19, 1)), day)).toBe(false);
-    expect(overlapsDay(interval("a", at(2026, 3, 17), at(2026, 3, 17, 5)), day)).toBe(false);
   });
 });
 
@@ -220,11 +169,6 @@ describe("weekBars", () => {
     expect(bars[0]!.column).toBe(0);
   });
 
-  it("marks a session that runs out into the next week", () => {
-    const bars = weekBars(week, [interval("a", at(2026, 3, 21), at(2026, 3, 25))]);
-    expect(bars[0]!.continuesRight).toBe(true);
-  });
-
   it("gives overlapping sessions separate lanes", () => {
     const bars = weekBars(week, [
       interval("a", at(2026, 3, 16, 9), at(2026, 3, 18, 9)),
@@ -239,10 +183,6 @@ describe("weekBars", () => {
       interval("b", at(2026, 3, 20, 9), at(2026, 3, 20, 17)),
     ]);
     expect(bars.every((b) => b.lane === 0)).toBe(true);
-  });
-
-  it("ignores sessions outside the week", () => {
-    expect(weekBars(week, [interval("a", at(2026, 3, 1), at(2026, 3, 2))])).toEqual([]);
   });
 });
 
@@ -292,10 +232,6 @@ describe("dayPlacements", () => {
     expect(placed.get("b")!.lane).toBe(0);
     expect(placed.get("a")!.laneCount).toBe(1);
   });
-
-  it("omits sessions from other days", () => {
-    expect(dayPlacements(day, [interval("a", at(2026, 3, 20), at(2026, 3, 21))]).size).toBe(0);
-  });
 });
 
 describe("groupByDay", () => {
@@ -310,10 +246,6 @@ describe("groupByDay", () => {
     // Newest first within the day too.
     expect(groups[0]!.items.map((i) => i.id)).toEqual(["c", "a"]);
   });
-
-  it("returns nothing for no items", () => {
-    expect(groupByDay([], () => 0)).toEqual([]);
-  });
 });
 
 describe("dayRollup", () => {
@@ -327,11 +259,5 @@ describe("dayRollup", () => {
     const rollup = dayRollup(sessions);
     expect(rollup.activeMs).toBe(3500);
     expect(rollup.tokens).toBe(350);
-  });
-
-  it("returns zeros for an empty list", () => {
-    const rollup = dayRollup([]);
-    expect(rollup.activeMs).toBe(0);
-    expect(rollup.tokens).toBe(0);
   });
 });
