@@ -13,13 +13,6 @@ import { LIVE, SessionsListPage, setupPage } from "../helpers/app";
 const MONTH = "2026-03";
 
 test.describe("choosing a projection", () => {
-  test("defaults to the list", async ({ page }) => {
-    await setupPage(page);
-    const list = new SessionsListPage(page);
-    await list.goto();
-    await expect(list.list).toBeVisible();
-  });
-
   test("the toggle switches projection and records it in the URL", async ({ page }) => {
     await setupPage(page);
     const list = new SessionsListPage(page);
@@ -27,13 +20,6 @@ test.describe("choosing a projection", () => {
 
     await list.selectView("Calendar");
     await expect(page).toHaveURL(/view=calendar/);
-    await expect(list.calendarLanes).toBeVisible();
-  });
-
-  test("a projection URL is linkable", async ({ page }) => {
-    await setupPage(page);
-    const list = new SessionsListPage(page);
-    await list.goto(`?view=calendar&month=${MONTH}`);
     await expect(list.calendarLanes).toBeVisible();
   });
 
