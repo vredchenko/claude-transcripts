@@ -10,10 +10,18 @@
  *   E2E_BASE_URL=http://127.0.0.1:7650 \
  *     bun run test:browser:capture                # a real instance, real history
  *
- * Output lands in `tests/browser/.captures/` (gitignored): a PNG per route × viewport
- * × colour mode, plus `report.md` listing every overflow and console error found. It
+ * Output lands in `tests/browser/.captures/` (gitignored; `CAPTURE_DIR` overrides it):
+ * per route × viewport × colour mode, a full-page PNG and a `.fold.png` of just the
+ * first screenful, plus `report.md` listing every overflow and console error found. It
  * is a *report*, not an assertion — nothing fails here, so it stays useful on a UI
  * you already know is broken.
+ *
+ * The fold shot is the one to judge a layout by. A long transcript makes a full-page
+ * shot tens of thousands of pixels tall, which shows that nothing overflows but not
+ * what a reader actually sees on arrival — how much of the first screen is chrome.
+ *
+ * `CAPTURE_ONLY=links-menu,omnibox` limits the run to routes whose name contains one
+ * of the given substrings, for iterating on one view.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -27,13 +35,15 @@ import {
 } from "./helpers/audit";
 import { mockApi } from "./helpers/mock-api";
 
-const OUT_DIR = join(import.meta.dir, ".captures");
+const OUT_DIR = process.env.CAPTURE_DIR || join(import.meta.dir, ".captures");
+const ONLY = (process.env.CAPTURE_ONLY ?? "").split(",").filter(Boolean);
 const LIVE_ORIGIN = process.env.E2E_BASE_URL;
 const ORIGIN = LIVE_ORIGIN || `http://127.0.0.1:${process.env.WEBUI_PORT || 7651}`;
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "narrow", width: 768, height: 1024 },
+  { name: "phone", width: 412, height: 915 },
 ] as const;
 
 const MODES = ["light", "dark"] as const;
@@ -52,13 +62,17 @@ interface RouteSpec {
  */
 async function routes(): Promise<RouteSpec[]> {
   let sessionId = MULTI_DAY_SESSION.sessionId;
+  let cwd = MULTI_DAY_SESSION.cwd;
   if (LIVE_ORIGIN) {
     try {
       const res = await fetch(`${LIVE_ORIGIN}/api/sessions?limit=50`);
-      const body = (await res.json()) as { sessions?: { sessionId: string; eventCount: number }[] };
+      const body = (await res.json()) as {
+        sessions?: { sessionId: string; eventCount: number; cwd?: string }[];
+      };
       // The busiest session is the one most likely to expose a layout problem.
       const busiest = (body.sessions ?? []).sort((a, b) => b.eventCount - a.eventCount)[0];
       if (busiest) sessionId = busiest.sessionId;
+      if (busiest?.cwd) cwd = busiest.cwd;
     } catch {
       // Instance unreachable — the fixture id will 404 and the report will say so.
     }
@@ -68,7 +82,7 @@ async function routes(): Promise<RouteSpec[]> {
   // calendar opens on by default, which is the current one.
   const month = LIVE_ORIGIN ? "" : `&month=${MULTI_DAY_SESSION.startTimestamp.slice(0, 7)}`;
 
-  return [
+  const all: RouteSpec[] = [
     { name: "sessions-list", path: "/app/" },
     { name: "sessions-calendar", path: `/app/?view=calendar${month}` },
     { name: "session-detail", path: `/app/sessions/${sessionId}` },
@@ -106,7 +120,43 @@ async function routes(): Promise<RouteSpec[]> {
       },
     },
     { name: "search-results", path: `/app/search?q=${encodeURIComponent(SEARCH_QUERY)}` },
+    // States the routes above never reach: filters applied, nothing found, menus and
+    // the omnibox open. Each is a layout of its own, and the empty ones are where a
+    // page most often looks broken rather than empty.
+    { name: "sessions-list-filtered", path: `/app/?cwd=${encodeURIComponent(cwd)}` },
+    { name: "search-no-results", path: "/app/search?q=zzqxv-no-such-term" },
+    { name: "session-not-found", path: "/app/sessions/no-such-session" },
+    {
+      name: "omnibox-open",
+      path: "/app/",
+      prepare: async (page) => {
+        await page.getByLabel("Omnibox").click();
+      },
+    },
+    {
+      name: "omnibox-typed",
+      path: "/app/",
+      prepare: async (page) => {
+        await page.getByLabel("Omnibox").fill(SEARCH_QUERY);
+        await page.waitForTimeout(500);
+      },
+    },
+    {
+      name: "settings-menu",
+      path: "/app/",
+      prepare: async (page) => {
+        await page.getByRole("button", { name: "Settings" }).click();
+      },
+    },
+    {
+      name: "links-menu",
+      path: "/app/",
+      prepare: async (page) => {
+        await page.getByRole("button", { name: /^Links/ }).click();
+      },
+    },
   ];
+  return all.filter((r) => ONLY.length === 0 || ONLY.some((o) => r.name.includes(o)));
 }
 
 interface Finding {
@@ -138,14 +188,24 @@ async function main(): Promise<void> {
         const console_ = watchConsole(page);
         if (!LIVE_ORIGIN) await mockApi(page);
 
-        const shot = `${spec.name}-${viewport.name}-${mode}.png`;
+        const base = `${spec.name}-${viewport.name}-${mode}`;
+        const shot = `${base}.png`;
         try {
           await page.goto(`${ORIGIN}${spec.path}`, { waitUntil: "domcontentloaded" });
           // Content arrives via react-query; give it a beat to settle rather than
           // racing the first paint.
           await page.waitForLoadState("networkidle").catch(() => {});
+          // react-query retries a failed request after a back-off, so "network idle"
+          // can land between attempts with the page still on its loading state — a
+          // 404 was captured as a spinner. Wait for the loading state to resolve.
+          await page
+            .getByText(/^Loading.*…$/)
+            .first()
+            .waitFor({ state: "detached", timeout: 15_000 })
+            .catch(() => {});
           await spec.prepare?.(page);
           await page.waitForTimeout(300);
+          await page.screenshot({ path: join(OUT_DIR, `${base}.fold.png`) });
           await page.screenshot({ path: join(OUT_DIR, shot), fullPage: true });
 
           findings.push({
