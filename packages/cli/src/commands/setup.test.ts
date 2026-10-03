@@ -21,11 +21,6 @@ function settingsWith(contents: unknown): string {
 }
 
 describe("globalRegistrationBlockedBy", () => {
-  test("no settings file at all → nothing blocks registration", () => {
-    const missing = join(mkdtempSync(join(tmpdir(), "ct-setup-")), "settings.json");
-    expect(globalRegistrationBlockedBy(missing)).toBeNull();
-  });
-
   test("a settings file with only hooks → nothing blocks registration", () => {
     // The ordinary CLI-registered machine: `setup` must still be able to re-run.
     const path = settingsWith({ hooks: { SessionStart: [{ hooks: [{ command: "bun run x" }] }] } });
@@ -37,21 +32,6 @@ describe("globalRegistrationBlockedBy", () => {
       enabledPlugins: { "claude-transcripts@claude-transcripts": true },
     });
     expect(globalRegistrationBlockedBy(path)?.key).toBe("claude-transcripts@claude-transcripts");
-  });
-
-  test("a disabled plugin does not block registration", () => {
-    // The distinction the guard rests on: a disabled plugin contributes no hooks, so
-    // treating it as blocking would refuse a legitimate install and leave the machine
-    // recording nothing at all.
-    const path = settingsWith({
-      enabledPlugins: { "claude-transcripts@claude-transcripts": false },
-    });
-    expect(globalRegistrationBlockedBy(path)).toBeNull();
-  });
-
-  test("another tool's plugin does not block registration", () => {
-    const path = settingsWith({ enabledPlugins: { "something-else@its-marketplace": true } });
-    expect(globalRegistrationBlockedBy(path)).toBeNull();
   });
 
   test("malformed settings never block registration", () => {

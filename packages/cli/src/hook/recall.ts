@@ -19,7 +19,7 @@ import type { HookContext } from "./runtime";
 const FACTS_TIMEOUT_MS = 2000;
 
 /** Does `cwd` match any of the excluded globs? Bun's glob, absolute paths as given. */
-export function isExcluded(cwd: string, globs: string[]): boolean {
+function isExcluded(cwd: string, globs: string[]): boolean {
   for (const g of globs) {
     try {
       if (new Bun.Glob(g).match(cwd)) return true;

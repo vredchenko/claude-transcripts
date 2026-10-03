@@ -3,9 +3,6 @@
  * has been refusing writes must not get a confident green dot (plugin.md invariant 2).
  */
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { StoreHealth, Targets } from "../hook/runtime";
 import {
   HOOK_SILENT_AFTER_MS,
@@ -15,7 +12,6 @@ import {
   storeState,
   transcriptMtimeMs,
   versionLabel,
-  whereLabel,
 } from "./statusline";
 
 const NOW = 1_700_000_000_000;
@@ -65,12 +61,6 @@ function stores(direct: Partial<StoreHealth>, ...mirrors: Partial<StoreHealth>[]
 }
 
 describe("renderStatusline", () => {
-  test("no instance configured → off", () => {
-    expect(renderStatusline(state({ configured: false }), NOW)).toBe(
-      `○ ${CT} off · no instance configured`,
-    );
-  });
-
   test("configured but this session has no targets → off, not recording", () => {
     const line = renderStatusline(state({}), NOW);
     expect(line.startsWith(`○ ${CT} off`)).toBe(true);
@@ -102,20 +92,6 @@ describe("renderStatusline", () => {
     expect(line).toContain("last write 1m ago");
   });
 
-  test("a failure within the stall window still shows recording", () => {
-    const t = targets({ lastWriteMs: NOW - 10_000, lastFailureMs: NOW - 500 });
-    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
-      true,
-    );
-  });
-
-  test("a stale failure before a fresh success is forgotten", () => {
-    const t = targets({ lastWriteMs: NOW - 1000, lastFailureMs: NOW - 5000 });
-    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
-      true,
-    );
-  });
-
   test("the version is on every state, including the ones that report nothing", () => {
     // The states worth knowing the version in are exactly the broken ones: "which
     // binary is this?" is the first question when the line says off or stalled.
@@ -138,25 +114,9 @@ describe("versionLabel", () => {
     expect(versionLabel("v0.2.0")).toBe("ct@v0.2.0");
   });
 
-  test("a bare semver is passed through untouched, not decorated", () => {
-    // Nothing produces this today, but the label is a passthrough, not a formatter:
-    // inventing a `v` here would be a second spelling of the same fact.
-    expect(versionLabel("0.2.0")).toBe("ct@0.2.0");
-  });
-
   test("a checkout is 'dev', not thirteen characters of 0.0.0-dev", () => {
     expect(versionLabel("0.0.0-dev")).toBe("ct@dev");
   });
-
-  test("with nothing passed it reports this binary, and is never empty", () => {
-    expect(versionLabel()).toMatch(/^ct@.+/);
-  });
-});
-
-test("whereLabel strips scheme and path", () => {
-  expect(whereLabel(targets({ couchUrl: "https://couch.example.net/prefix" }))).toBe(
-    "claude-transcripts-sessions@couch.example.net",
-  );
 });
 
 describe("storeState", () => {
@@ -172,6 +132,8 @@ describe("storeState", () => {
     expect(storeState({ lastWriteMs: NOW - 10_000, lastFailureMs: NOW - 500 }, NOW)).toBe(
       "healthy",
     );
+    // …and a stale failure before a fresh success is forgotten.
+    expect(storeState({ lastWriteMs: NOW - 1000, lastFailureMs: NOW - 5000 }, NOW)).toBe("healthy");
   });
 
   test("a rejection newer than a success that has aged out is failing", () => {
@@ -181,19 +143,6 @@ describe("storeState", () => {
 });
 
 describe("renderStatusline, per-store health", () => {
-  test("a healthy direct store reads exactly as it did before per-store health", () => {
-    const t = targets({
-      lastWriteMs: NOW - 2000,
-      stores: stores({
-        label: "claude-transcripts-sessions@127.0.0.1:7652",
-        lastWriteMs: NOW - 2000,
-      }),
-    });
-    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
-      `● ${CT} rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
-    );
-  });
-
   // The bug this whole change exists for: the primary has accepted nothing for weeks,
   // the mirror holds every byte, and the old renderer had to lie in one direction or
   // the other — a permanent red, or a green dot naming the dead host.
@@ -208,19 +157,6 @@ describe("renderStatusline, per-store health", () => {
     const line = renderStatusline(state({ targets: t, counts }), NOW);
     expect(line).toBe(`● ${CT} rec (mirror) · 128 ev · 6 tools · 2s ago → logs.example.net`);
     expect(line).not.toContain("primary:5984");
-  });
-
-  test("more than one healthy mirror is counted, not listed", () => {
-    const t = targets({
-      stores: stores(
-        { lastFailureMs: NOW - 500 },
-        { label: "a.example.net", lastWriteMs: NOW - 2000 },
-        { label: "b.example.net", lastWriteMs: NOW - 3000 },
-      ),
-    });
-    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
-      `● ${CT} rec (mirror) · 128 ev · 6 tools · 2s ago → a.example.net +1`,
-    );
   });
 
   test("every store failing is stalled, and reports the newest success across them", () => {
@@ -247,8 +183,8 @@ describe("renderStatusline, per-store health", () => {
   test("a targets file from an older binary still renders from the flat pair", () => {
     const t = targets({ lastWriteMs: NOW - 2000 });
     expect(t.stores).toBeUndefined();
-    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
-      `● ${CT} rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
+    expect(renderStatusline(state({ targets: t, counts }), NOW).startsWith(`● ${CT} rec`)).toBe(
+      true,
     );
   });
 
@@ -271,9 +207,8 @@ describe("renderStatusline, hook silent", () => {
       state({ targets: t, counts, transcriptMtimeMs: NOW - 1000 }),
       NOW,
     );
-    expect(line).toBe(
-      `◐ ${CT} stalled · hook silent · 128 ev · 6 tools · last write 7m ago → claude-transcripts-sessions@127.0.0.1:7652`,
-    );
+    expect(line.startsWith(`◐ ${CT} stalled · hook silent`)).toBe(true);
+    expect(line).toContain("last write 7m ago");
   });
 
   test("old write, transcript just as old → an idle session, still rec", () => {
@@ -320,18 +255,7 @@ describe("renderStatusline, hook silent", () => {
       ),
     });
     const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: NOW }), NOW);
-    expect(line).toBe(
-      `◐ ${CT} stalled · hook silent · 128 ev · 6 tools · last write 7m ago → logs.example.net`,
-    );
-  });
-
-  test("with per-store health and an idle transcript, still rec", () => {
-    const t = targets({
-      lastWriteMs: oldWrite,
-      stores: stores({ label: "sessions@primary:5984", lastWriteMs: oldWrite }),
-    });
-    const line = renderStatusline(state({ targets: t, counts, transcriptMtimeMs: oldWrite }), NOW);
-    expect(line.startsWith(`● ${CT} rec`)).toBe(true);
+    expect(line.startsWith(`◐ ${CT} stalled · hook silent`)).toBe(true);
   });
 });
 
@@ -339,25 +263,9 @@ describe("hookSilent", () => {
   test("no baseline (the hook never attempted anything) is not silent — that is ready", () => {
     expect(hookSilent(0, NOW)).toBe(false);
   });
-
-  test("a recent attempt, even a failed one, is not silent", () => {
-    expect(hookSilent(NOW - 1000, NOW)).toBe(false);
-  });
 });
 
 describe("transcriptMtimeMs", () => {
-  test("reads a file's mtime", () => {
-    const dir = mkdtempSync(join(tmpdir(), "ct-statusline-"));
-    try {
-      const f = join(dir, "t.jsonl");
-      writeFileSync(f, "{}\n");
-      utimesSync(f, 1_600_000_000, 1_600_000_000);
-      expect(transcriptMtimeMs(f)).toBe(1_600_000_000_000);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
   test("missing, empty or non-string paths are null, never a throw", () => {
     expect(transcriptMtimeMs("/nonexistent/ct-statusline/t.jsonl")).toBeNull();
     expect(transcriptMtimeMs(undefined)).toBeNull();

@@ -52,33 +52,18 @@ function fresh() {
 }
 
 describe("upsertDoc", () => {
-  test("a first write lands, as a plain PUT", async () => {
-    fresh();
-    const ok: boolean[] = [];
-    await makeCouch(config(), (o) => ok.push(o)).upsertDoc("s", "summary:a", { event_count: 1 });
-    expect(store.get("summary:a")?.event_count).toBe(1);
-    expect(ok).toEqual([true]);
-    expect(puts).toEqual(["no-rev"]);
-  });
-
   test("a second write REPLACES the first instead of conflicting away", async () => {
     fresh();
-    const couch = makeCouch(config());
+    const ok: boolean[] = [];
+    const couch = makeCouch(config(), (o) => ok.push(o));
     await couch.upsertDoc("s", "summary:a", { event_count: 354 });
     await couch.upsertDoc("s", "summary:a", { event_count: 371 });
     // The bug: this used to still read 354, forever.
     expect(store.get("summary:a")?.event_count).toBe(371);
     // Bare PUT, 409, then a retry carrying the rev it just read.
     expect(puts).toEqual(["no-rev", "no-rev", "1-x"]);
-  });
-
-  test("the replacement is reported as a write that landed", async () => {
-    fresh();
-    const ok: boolean[] = [];
-    const couch = makeCouch(config(), (o) => ok.push(o));
-    await couch.upsertDoc("s", "summary:a", { n: 1 });
-    await couch.upsertDoc("s", "summary:a", { n: 2 });
-    // A silent false here is what let the statusline call a stalled store healthy.
+    // …and reported as a write that landed: a silent false here is what let the
+    // statusline call a stalled store healthy.
     expect(ok).toEqual([true, true]);
   });
 

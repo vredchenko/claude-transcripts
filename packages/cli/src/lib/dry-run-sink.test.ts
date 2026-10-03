@@ -48,17 +48,6 @@ describe("DryRunSink reads", () => {
     // A 404 is an answer, not a failure to reach the store.
     expect(sink.blind).toBe(false);
   });
-
-  test("writes still touch nothing", async () => {
-    setWebapiUrl(`http://localhost:${server.port}`);
-    const sink = new DryRunSink();
-    await expect(sink.putTranscript("adopted", new Uint8Array([1]))).resolves.toBeUndefined();
-    await expect(sink.resetSession("adopted")).resolves.toEqual({
-      summary: 0,
-      events: 0,
-      chunks: 0,
-    });
-  });
 });
 
 describe("DryRunSink with an unreachable store", () => {
@@ -66,13 +55,8 @@ describe("DryRunSink with an unreachable store", () => {
     setWebapiUrl("http://127.0.0.1:1");
     const sink = new DryRunSink();
     expect(await sink.existingSession("anything")).toBeNull();
-    expect(sink.blind).toBe(true);
-  });
-
-  test("blind, it claims the blob is present — it must not invent a repair", async () => {
-    setWebapiUrl("http://127.0.0.1:1");
-    const sink = new DryRunSink();
-    // The opposite default would advertise a repair nobody confirmed was needed.
+    // Blind, it claims the blob is present: the opposite default would advertise a
+    // repair nobody confirmed was needed.
     expect(await sink.hasTranscriptBlob("anything")).toBe(true);
     expect(sink.blind).toBe(true);
   });

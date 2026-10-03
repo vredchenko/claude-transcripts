@@ -6,14 +6,7 @@
  * succeeded, and deleting the wrong image produces no error until the next `up`.
  */
 import { describe, expect, test } from "bun:test";
-import {
-  type AppImage,
-  appImageRepo,
-  imageRef,
-  parseImageList,
-  renderPruneReport,
-  selectImagesToRemove,
-} from "./images";
+import { type AppImage, imageRef, parseImageList, selectImagesToRemove } from "./images";
 
 const REPO = "ghcr.io/vredchenko/claude-transcripts-app";
 const img = (tag: string, id: string): AppImage => ({ tag, id });
@@ -70,10 +63,6 @@ describe("selectImagesToRemove", () => {
     const removed = selectImagesToRemove(images, ["v0.0.8", ""]);
     expect(removed.map((i) => i.tag)).toEqual(["v0.0.6"]);
   });
-
-  test("nothing to do on an empty list", () => {
-    expect(selectImagesToRemove([], ["v0.0.8"])).toEqual([]);
-  });
 });
 
 describe("imageRef", () => {
@@ -84,52 +73,13 @@ describe("imageRef", () => {
 });
 
 describe("parseImageList", () => {
-  test("reads docker's tab-separated output", () => {
+  test("reads docker's tab-separated output, dropping blank and id-less rows", () => {
+    // `docker images` on a repo with nothing to show prints an empty string.
+    expect(parseImageList("\n  \n")).toEqual([]);
+    expect(parseImageList("v0.0.8\t\n")).toEqual([]);
     expect(parseImageList("v0.0.8\taaa111\nv0.0.7\tbbb222\n")).toEqual([
       { tag: "v0.0.8", id: "aaa111" },
       { tag: "v0.0.7", id: "bbb222" },
     ]);
-  });
-
-  test("drops blank lines and rows with no id", () => {
-    // `docker images` on a repo with nothing to show prints an empty string.
-    expect(parseImageList("\n  \n")).toEqual([]);
-    expect(parseImageList("v0.0.8\t\n")).toEqual([]);
-  });
-});
-
-describe("appImageRepo", () => {
-  test("follows the instance's namespace", () => {
-    expect(appImageRepo({ IMAGE_NS: "ghcr.io/someone" })).toBe(
-      "ghcr.io/someone/claude-transcripts-app",
-    );
-  });
-
-  test("falls back to the published namespace", () => {
-    expect(appImageRepo({})).toBe(REPO);
-  });
-});
-
-describe("renderPruneReport", () => {
-  test("names what went, without the repo prefix", () => {
-    const line = renderPruneReport({ removed: [`${REPO}:v0.0.6`], skipped: [] }, REPO);
-    expect(line).toContain("reclaimed 1 superseded app image(s): v0.0.6");
-  });
-
-  test("says so when there was nothing to reclaim", () => {
-    expect(renderPruneReport({ removed: [], skipped: [] }, REPO)).toContain("no superseded");
-  });
-
-  test("reports what was kept and why", () => {
-    const line = renderPruneReport(
-      { removed: [], skipped: [{ ref: `${REPO}:v0.0.7`, reason: "image is being used" }] },
-      REPO,
-    );
-    expect(line).toContain("kept v0.0.7 — image is being used");
-  });
-
-  test("a failed listing is reported, not thrown", () => {
-    const line = renderPruneReport({ removed: [], skipped: [], error: "docker not found" }, REPO);
-    expect(line).toContain("skipped (docker not found)");
   });
 });

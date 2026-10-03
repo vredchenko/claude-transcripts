@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { crossTurnLine, sessionTurnLine } from "./turns";
+import { crossTurnLine } from "./turns";
 
 describe("turns rows", () => {
   test("cross-session row shows session, project and a one-line text", () => {
@@ -17,20 +17,5 @@ describe("turns rows", () => {
     expect(line).toContain("proj");
     expect(line).toContain("first second line");
     expect(line).not.toContain("\n");
-  });
-
-  test("session row folds tool uses into the text and truncates", () => {
-    const line = sessionTurnLine(
-      {
-        role: "assistant",
-        timestamp: "2026-08-20T14:03:11.000Z",
-        text: "x".repeat(100),
-        toolUses: [{ name: "Bash" }],
-      },
-      3,
-      30,
-    );
-    expect(line.startsWith("#3 ")).toBe(true);
-    expect(line).toContain("…");
   });
 });

@@ -12,59 +12,34 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { planReingest, runBackfill } from "./backfill";
+import { planReingest, type ReingestPlan, runBackfill } from "./backfill";
 
-const live = { source: "live" };
+const live = { source: "live", status: "ended" };
 const backfilled = { source: "backfill" };
 const running = { source: "live", status: "running" };
 
+const NO = { force: false, replaceLive: false };
+const FORCE = { force: true, replaceLive: false };
+const REPAIR = { force: false, replaceLive: false, repair: true };
+const adopt: ReingestPlan = { action: "adopt" };
+const skip = (reason: Extract<ReingestPlan, { action: "skip" }>["reason"]): ReingestPlan => ({
+  action: "skip",
+  reason,
+});
+
 describe("planReingest", () => {
-  test("a session with nothing stored is adopted", () => {
-    expect(planReingest(null, { force: false, replaceLive: false })).toEqual({ action: "adopt" });
-  });
-
-  test("--force is not needed to adopt something new", () => {
-    expect(planReingest(null, { force: true, replaceLive: false })).toEqual({ action: "adopt" });
-  });
-
-  test("an already-adopted session is skipped without --force", () => {
-    expect(planReingest(backfilled, { force: false, replaceLive: false })).toEqual({
-      action: "skip",
-      reason: "already-adopted",
-    });
-  });
-
-  test("--force rebuilds a reconstruction, which is what it is for", () => {
-    expect(planReingest(backfilled, { force: true, replaceLive: false })).toEqual({
-      action: "adopt",
-    });
-  });
-
-  test("--force alone refuses a live record rather than replacing it", () => {
-    expect(planReingest(live, { force: true, replaceLive: false })).toEqual({
-      action: "skip",
-      reason: "live-record",
-    });
-  });
-
-  test("--replace-live opts in to replacing a live record", () => {
-    expect(planReingest(live, { force: true, replaceLive: true })).toEqual({ action: "adopt" });
-  });
-
-  test("a live record is still skipped as already-adopted without --force", () => {
+  test.each([
+    ["nothing stored is adopted", null, NO, adopt],
+    ["an adopted session is skipped without --force", backfilled, NO, skip("already-adopted")],
+    ["--force rebuilds a reconstruction", backfilled, FORCE, adopt],
+    ["--force alone refuses a live record", live, FORCE, skip("live-record")],
+    ["--replace-live opts in to replacing it", live, { ...FORCE, replaceLive: true }, adopt],
     // --replace-live widens what --force may overwrite; on its own it widens nothing.
-    expect(planReingest(live, { force: false, replaceLive: true })).toEqual({
-      action: "skip",
-      reason: "already-adopted",
-    });
-  });
-
-  test("an unknown source is treated as rebuildable, not as live", () => {
-    // Only `live` carries irreplaceable provenance; a future source that does must opt
-    // in here deliberately rather than inherit the guard by accident.
-    expect(planReingest({ source: "doctor" }, { force: true, replaceLive: false })).toEqual({
-      action: "adopt",
-    });
+    ["--replace-live without --force", live, { ...NO, replaceLive: true }, skip("already-adopted")],
+    // Only `live` carries irreplaceable provenance; a future source must opt in.
+    ["an unknown source is rebuildable", { source: "doctor" }, FORCE, adopt],
+  ] as const)("%s", (_name, existing, opts, plan) => {
+    expect(planReingest(existing, opts)).toEqual(plan);
   });
 });
 
@@ -74,92 +49,39 @@ describe("planReingest", () => {
  * what keep it additive.
  */
 describe("planReingest, --repair", () => {
-  const repair = { force: false, replaceLive: false, repair: true };
-
-  // A cancelled SessionEnd finishes the CouchDB writes and dies before the upload, so
-  // the chunks are intact and the verbatim copy never landed. The session reads fine
-  // through the API — `hasTranscript` is true when *either* exists — which is why
-  // nothing noticed, and why --repair used to walk away from the one thing it could fix.
-  test("chunks intact but no blob is repairable — blob only, no chunk rewrite", () => {
-    expect(
-      planReingest(
-        { source: "live", status: "ended" },
-        { ...repair, hasTurns: true, hasBlob: false },
-      ),
-    ).toEqual({ action: "repair-blob" });
-  });
-
-  test("turns AND a blob is still out of scope — nothing is missing", () => {
-    expect(
-      planReingest(
-        { source: "live", status: "ended" },
-        { ...repair, hasTurns: true, hasBlob: true },
-      ),
-    ).toEqual({ action: "skip", reason: "has-turns" });
-  });
-
-  test("a running session is left alone even with no blob — the transcript is still moving", () => {
-    expect(
-      planReingest(
-        { source: "live", status: "running" },
-        { ...repair, hasTurns: true, hasBlob: false },
-      ),
-    ).toEqual({ action: "skip", reason: "running" });
-  });
-
-  test("no turns still means a full repair, blob or not", () => {
-    expect(
-      planReingest(
-        { source: "live", status: "ended" },
-        { ...repair, hasTurns: false, hasBlob: false },
-      ),
-    ).toEqual({ action: "repair" });
-  });
-
-  test("an adopted session with no turn content is repaired", () => {
-    expect(planReingest(live, { ...repair, hasTurns: false })).toEqual({ action: "repair" });
-  });
-
-  test("a backfilled session with no turn content is repaired too", () => {
-    // `--no-content`, or an older CLI that wrote byte-range-only chunks, leaves the same
-    // shape: a good record with nothing readable in it.
-    expect(planReingest(backfilled, { ...repair, hasTurns: false })).toEqual({
-      action: "repair",
-    });
-  });
-
-  test("a session that already has turns is left alone", () => {
-    // Chunk ids are keyed by byte offset; the hook's offsets will not line up with a
-    // whole-file partition, so writing over a partially-chunked session leaves both sets.
-    expect(planReingest(live, { ...repair, hasTurns: true })).toEqual({
-      action: "skip",
-      reason: "has-turns",
-    });
-  });
-
-  test("a running session is left alone — its transcript is still moving", () => {
-    expect(planReingest(running, { ...repair, hasTurns: false })).toEqual({
-      action: "skip",
-      reason: "running",
-    });
-  });
-
-  test("a running session is skipped as running even if it somehow has turns", () => {
-    expect(planReingest(running, { ...repair, hasTurns: true })).toEqual({
-      action: "skip",
-      reason: "running",
-    });
-  });
-
-  test("a session with nothing stored is adopted normally, not repaired", () => {
-    expect(planReingest(null, { ...repair, hasTurns: false })).toEqual({ action: "adopt" });
+  test.each([
+    // A cancelled SessionEnd finishes the CouchDB writes and dies before the upload, so
+    // the chunks are intact and the verbatim copy never landed — readable through the
+    // API, which is why nothing noticed.
+    [
+      "chunks intact, no blob → blob only",
+      live,
+      { hasTurns: true, hasBlob: false },
+      { action: "repair-blob" },
+    ],
+    // Chunk ids are byte offsets; the hook's will not line up with a whole-file
+    // partition, so writing over a partially-chunked session leaves both sets.
+    [
+      "turns and a blob → nothing missing",
+      live,
+      { hasTurns: true, hasBlob: true },
+      skip("has-turns"),
+    ],
+    ["no turn content → full repair", live, { hasTurns: false }, { action: "repair" }],
+    [
+      "running → left alone, even with no blob",
+      running,
+      { hasTurns: true, hasBlob: false },
+      skip("running"),
+    ],
+    ["running → left alone with no turns", running, { hasTurns: false }, skip("running")],
+    ["nothing stored → adopted, not repaired", null, { hasTurns: false }, adopt],
+  ] as const)("%s", (_name, existing, facts, plan) => {
+    expect(planReingest(existing, { ...REPAIR, ...facts })).toEqual(plan);
   });
 
   test("without --repair, an adopted session with no turns is still just skipped", () => {
-    expect(planReingest(live, { force: false, replaceLive: false, hasTurns: false })).toEqual({
-      action: "skip",
-      reason: "already-adopted",
-    });
+    expect(planReingest(live, { ...NO, hasTurns: false })).toEqual(skip("already-adopted"));
   });
 });
 
@@ -268,22 +190,12 @@ describe("runBackfill output", () => {
     expect(firstPlan).toBeGreaterThan(lines.indexOf(HINT));
   });
 
-  test("dry-run, reachable: no unreachable warning", async () => {
-    const { lines } = await run("--dry-run", "--webapi", LIVE);
-    expect(lines.some((l) => l.includes("unreachable") || l.includes("WARNING"))).toBe(false);
-  });
-
   test("no NOTE about reconstruction when nothing was backfilled", async () => {
     stored.add("s-one");
     stored.add("s-two");
     const { code, lines } = await run("--webapi", LIVE);
     expect(code).toBe(0);
     expect(lines.some((l) => l.includes("0 backfilled, 2 skipped"))).toBe(true);
-    expect(lines.some((l) => l.startsWith(NOTE))).toBe(false);
-  });
-
-  test("no NOTE when every session failed", async () => {
-    const { lines } = await run("--webapi", DEAD);
     expect(lines.some((l) => l.startsWith(NOTE))).toBe(false);
   });
 

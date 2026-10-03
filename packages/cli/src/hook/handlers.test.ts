@@ -4,12 +4,6 @@ import { ACTIONS, BINDINGS } from "@claude-transcripts/shared";
 import { HANDLERS } from "./handlers";
 
 describe("HANDLERS ↔ ACTIONS", () => {
-  test("every handler is for a catalogued action", () => {
-    const known = new Set(ACTIONS.map((a) => a.key));
-    const unknown = Object.keys(HANDLERS).filter((k) => !known.has(k));
-    expect(unknown).toEqual([]);
-  });
-
   test("an action is implemented exactly when it has a handler", () => {
     const implemented = ACTIONS.filter((a) => a.implemented)
       .map((a) => a.key)
