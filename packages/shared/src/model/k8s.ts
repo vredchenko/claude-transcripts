@@ -167,6 +167,14 @@ function probeFor(s: ServiceDef): Record<string, unknown> | undefined {
       failureThreshold: 6,
     };
   }
+  if (s.tcpHealth) {
+    return {
+      tcpSocket: { port: s.tcpHealth.port },
+      initialDelaySeconds: 5,
+      periodSeconds: 10,
+      failureThreshold: 6,
+    };
+  }
   if (!s.healthcheck) return undefined;
   const cmd = s.healthcheck.test[0] === "CMD" ? s.healthcheck.test.slice(1) : s.healthcheck.test;
   // `curl -f http://localhost:PORT/path` is what compose can do; kubelet probes HTTP itself.

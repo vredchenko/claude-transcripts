@@ -51,6 +51,9 @@ EXPOSE 8080/tcp
 # file owned by a non-root user, it chroots into the repo's directory and drops to
 # that user (`chown` the repo to opt in). See https://fossil-scm.org/home/help/server.
 ENTRYPOINT ["fossil", "server"]
-# One repository, created on first start with an `admin` user whose initial password
-# is printed once to the container log. --jsmode bundled: one JS file, fewer requests.
-CMD ["--create", "--jsmode", "bundled", "--user", "admin", "/museum/repo.fossil"]
+# Serve the directory, not a file: every `<name>.fossil` in /museum is served at
+# /<name>/, and "/" lists them. Nothing is created — upstream's `--create` would make a
+# repository with a generated admin login, and ours is seeded by the app instead
+# (named by `fossil.repositories` in config/). Until then the list is empty.
+# --jsmode bundled: one JS file, fewer requests.
+CMD ["--repolist", "--jsmode", "bundled", "/museum"]

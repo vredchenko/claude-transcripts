@@ -37,6 +37,7 @@ The committed template:
       "turns":    "claude-transcripts-turns"
     }
   },
+  "fossil": { "repositories": { "sessions": "claude-transcripts-sessions" } },
   "features": {
     "s3Blobs": true,
     "midFlightChunking": true,
@@ -67,7 +68,7 @@ The committed template:
 | `system.logging.chunk` | Mid-session chunk flush: after this many transcript entries or this many ms, whichever first ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). |
 | `system.sessions.liveWindowMs` | A session with no `SessionEnd` counts as `running` for this long after its last event (24 h), then `incomplete`. A recency heuristic; there is no heartbeat. |
 | `system.sessions.idleThresholdMs` | Gaps between events longer than this (5 min) don't count towards a session's active time. |
-| `couchdb.databases`, `s3.buckets`, `meilisearch.indexes` | Keyed maps: code refers to a store by logical key (`sessions`, `appLogs`, `turns`), never by its deployed name. The `claude-transcripts-` prefix keeps them from colliding with anything else on a shared server. |
+| `couchdb.databases`, `s3.buckets`, `meilisearch.indexes`, `fossil.repositories` | Keyed maps: code refers to a store by logical key (`sessions`, `appLogs`, `turns`), never by its deployed name. The `claude-transcripts-` prefix keeps them from colliding with anything else on a shared server. |
 | `features.s3Blobs` | Upload the transcript and a `summary.json` copy to S3. Off: no byte-exact transcript is kept anywhere; CouchDB still has the pruned per-turn content if full-content chunks are on. |
 | `features.midFlightChunking` | Tail the transcript into CouchDB `chunk` docs during the session. |
 | `features.couchFullContentChunks` | Put the parsed turns in those chunks ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)). Off: a live session's transcript can't be read until it ends, the speaker-split views are empty, and conversation content isn't searchable. |

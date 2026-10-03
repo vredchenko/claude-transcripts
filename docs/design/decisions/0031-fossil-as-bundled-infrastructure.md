@@ -46,12 +46,18 @@ solve deployment. Two facts shape how:
    - the upstream override builds it locally, from a build context that needs nothing
      outside `deploy/fossil/` — which `install` ships — so the no-registry paths still
      need no registry.
-4. **One repository, root in the container.** The image serves
-   `/museum/repo.fossil`, created on first start with an `admin` user whose initial
-   password goes to the container log once. Unlike upstream's image it runs as root,
+4. **One repository, named in config, created by the app — not the container.** The
+   name comes from `fossil.repositories` in `config/` (default
+   `claude-transcripts-sessions`), a keyed map like `couchdb.databases` and
+   `s3.buckets`, and lands in the model's `stores`. The container serves its data
+   directory (`fossil server --repolist /museum`) and creates nothing: upstream's
+   `--create` would make a repository with a generated admin password, and the app's
+   repository is seeded by the app. How that seed authenticates is still open.
+5. **Root in the container**, for now. Unlike upstream's image it runs as root,
    because the state directory is a bind mount or volume owned by whoever started the
-   stack; Fossil's own jail drops privileges to the repository file's owner whenever
-   that owner isn't root.
+   stack; Fossil's own jail drops each request's privileges to the owner of the
+   directory it serves whenever that owner isn't root. Most of the other bundled
+   services also start as root.
 
 **No Fossil CLI on the client side.** Clients that ever need to reach a repository do
 it over HTTP, through the web UI or a future gateway route; nothing installs `fossil`
@@ -65,5 +71,4 @@ on the user's machine.
   model's tag, not a moving `latest`.
 - The first `--upstream` start compiles Fossil (about a minute); later starts reuse the
   local image.
-- Fossil's web UI is reachable with anonymous read access, consistent with
-  [ADR 0020](0020-bundled-services-default-no-auth.md); writes need the admin login.
+- Until the seed exists, the web UI lists no repositories.

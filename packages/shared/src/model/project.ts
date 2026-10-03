@@ -34,6 +34,7 @@ export function toManifest(model: AppModel) {
     stores: {
       databases: Object.keys(model.stores.databases),
       buckets: Object.keys(model.stores.buckets),
+      repositories: Object.keys(model.stores.repositories),
     },
     features: model.features,
     servicesMenu: model.servicesMenu,

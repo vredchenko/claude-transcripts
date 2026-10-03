@@ -62,7 +62,7 @@ by the `publish-image` workflow (no upstream; tags in
 | 7655 | Garage web UI |
 | 7656 | Meilisearch (API + built-in UI) |
 | 7657 | Meilisearch UI |
-| 7658 | Fossil web UI + sync (`fossil clone http://127.0.0.1:7658/`) |
+| 7658 | Fossil web UI + sync, one repo per path (`http://127.0.0.1:7658/<name>/`) |
 
 ## State
 
@@ -79,15 +79,10 @@ it yet ([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructur
   official release source (pinned tarball, sha256-checked, static binary on
   `scratch`). To upgrade, bump the three `ARG`s there and `defaultTag` in
   `packages/shared/src/model/services.ts`; a test fails if they disagree.
-- **Repository** — one, `data/fossil/repo.fossil`, created on first start. Anonymous
-  visitors can read it (ADR 0020). The `admin` user's initial password is printed
-  once to the log:
-
-  ```bash
-  docker logs claude-transcripts-fossil 2>&1 | grep admin-user
-  # lost it? set a new one:
-  docker exec claude-transcripts-fossil fossil user password admin 'NEW' -R /museum/repo.fossil
-  ```
+- **Repository** — the container serves every `*.fossil` file in `data/fossil/` at
+  `/<name>/` and lists them at `/`. It creates none: the app's repository is named by
+  `fossil.repositories` in `config/` (default `claude-transcripts-sessions`, like the
+  database and bucket) and will be seeded by the app. Until then the list is empty.
 
 ## No credentials to supply (localhost only) — ADR 0020
 

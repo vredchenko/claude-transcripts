@@ -50,6 +50,12 @@ export interface AppConfigFile {
    * one — or have its indexes cleared by someone else's rebuild (ADR 0028).
    */
   meilisearch?: { indexes: Record<string, string> };
+  /**
+   * logical key → Fossil repository name (the file is `<name>.fossil` in the Fossil
+   * service's data directory). Named like the databases and buckets, and optional so
+   * configs written before Fossil existed get the default (ADR 0031).
+   */
+  fossil?: { repositories: Record<string, string> };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
   /** Reader-facing tunables (page sizes). Partial — {@link resolveUserSettings} fills the rest. */
@@ -152,6 +158,12 @@ export interface ServiceDef {
    * inside the image, and the app image ships no curl to exec.
    */
   httpHealth?: { path: string; port: number };
+  /**
+   * TCP readiness, for a service with no HTTP path that answers 2xx/3xx in every state
+   * (Fossil serving an empty directory 404s every path). Kubernetes-only, like
+   * `httpHealth`, which wins when both are set.
+   */
+  tcpHealth?: { port: number };
   restart?: string;
   /** compose profiles, e.g. ["app"] */
   profiles?: string[];
@@ -163,6 +175,8 @@ export interface StoreModel {
   databases: Record<string, string>;
   /** logical key → S3 bucket name */
   buckets: Record<string, string>;
+  /** logical key → Fossil repository name */
+  repositories: Record<string, string>;
 }
 
 /**

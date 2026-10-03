@@ -127,10 +127,11 @@ export const SERVICES: ServiceDef[] = [
     adminUiServiceKey: "fossil",
     volumes: [{ host: "./data/fossil", container: "/museum" }],
     // A scratch image: nothing to exec a healthcheck with but fossil itself, which can't
-    // probe its own server. Kubernetes probes the web UI directly.
-    httpHealth: { path: "/", port: 8080 },
+    // probe its own server. Kubernetes checks the port: over HTTP every path 404s until
+    // a repository exists, so an httpGet probe would never pass on a fresh stack.
+    tcpHealth: { port: 8080 },
     notes:
-      "Version control (repos + web UI) from one static binary. Infrastructure only: nothing reads or writes it yet. Repo /museum/repo.fossil is created on first start; the admin password is printed once to the log.",
+      "Version control (repos + web UI) from one static binary. Infrastructure only: nothing reads or writes it yet. Serves every <name>.fossil under /museum; creates none.",
   },
   {
     key: "meilisearch",

@@ -11,7 +11,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildAppModel } from "./build";
-import { k8sImageRef } from "./k8s";
+import { k8sImageRef, toKubernetesObjects } from "./k8s";
 import { toComposeOverrideObject, toImageBuildPlan, toMirrorPlan } from "./project";
 import { SERVICES } from "./services";
 import type { AppConfigFile } from "./types";
@@ -70,5 +70,31 @@ describe("projections", () => {
     const fossil = model.services.find((s) => s.key === "fossil");
     if (!fossil) throw new Error("no fossil service");
     expect(k8sImageRef(fossil, "9.9.9")).toBe("ghcr.io/vredchenko/claude-transcripts-fossil:2.28");
+  });
+});
+
+describe("fossil repository name", () => {
+  test("named like the database and bucket by default", () => {
+    expect(model.stores.repositories.sessions).toBe("claude-transcripts-sessions");
+  });
+
+  test("config wins, and a config that predates the key keeps the default", () => {
+    const named = buildAppModel({ ...CONFIG, fossil: { repositories: { sessions: "mine" } } }, {});
+    expect(named.stores.repositories.sessions).toBe("mine");
+    expect(CONFIG.fossil).toBeUndefined();
+  });
+});
+
+describe("fossil readiness", () => {
+  test("Kubernetes probes the port, since an empty Fossil 404s every path", () => {
+    const objects = toKubernetesObjects(model, {
+      files: { "./garage.toml": "" },
+      releaseVersion: "1.2.3",
+    });
+    const dep = objects.find((o) => o.kind === "Deployment" && o.metadata.name === "fossil");
+    if (!dep) throw new Error("no fossil Deployment");
+    const c = (dep.spec as { template: { spec: { containers: Array<Record<string, unknown>> } } })
+      .template.spec.containers[0];
+    expect(c?.readinessProbe).toMatchObject({ tcpSocket: { port: 8080 } });
   });
 });

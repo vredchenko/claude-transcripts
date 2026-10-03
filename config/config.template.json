@@ -25,6 +25,11 @@
       "turns": "claude-transcripts-turns"
     }
   },
+  "fossil": {
+    "repositories": {
+      "sessions": "claude-transcripts-sessions"
+    }
+  },
   "features": {
     "s3Blobs": true,
     "midFlightChunking": true,
