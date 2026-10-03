@@ -83,8 +83,24 @@ webui offers a **download link** for it as a convenience
 The authoritative list is the app model's `CLI_SPEC` (`packages/shared/src/model/cli.ts`).
 Four things project from it: the help screen (`claude-transcripts <command> --help`),
 argument validation before dispatch, this reference (generated below by
-`bun run gen:cli-docs`; CI fails if it is stale), and — not built yet — shell
-completions. Edit the spec, not this section.
+`bun run gen:cli-docs`; CI fails if it is stale), and the shell completions
+(`claude-transcripts completions <shell>`). Edit the spec, not this section.
+
+### Shell completions
+
+`completions` prints a script for bash, zsh or fish; source it from your shell's rc:
+
+```bash
+eval "$(claude-transcripts completions bash)"   # ~/.bashrc
+eval "$(claude-transcripts completions zsh)"    # ~/.zshrc, after compinit
+claude-transcripts completions fish | source    # ~/.config/fish/config.fish
+```
+
+It completes command names, each command's flags (plus the global ones), and the
+values of anything the spec lists `choices` for (`stack <action>`, `turns --role`).
+After a flag that takes a free-form value it offers nothing, since the next word is
+that flag's. Nothing edits an rc file for you, `install` included; where the script
+is sourced from is your call.
 
 ### Exit codes
 
@@ -134,6 +150,7 @@ can tell a typo from a failure.
 | `doctor [options]` | Smoke-test the write/read/search path end-to-end |
 | `hook [action] [options]` | The Claude Code hook, and its registration |
 | `statusline [action] [options]` | The Claude Code statusline indicator (recording / off), and its registration |
+| `completions <shell>` | Print a shell completion script to eval or source from your shell's rc |
 
 **Global options** (every command)
 
@@ -422,6 +439,19 @@ The Claude Code statusline indicator (recording / off), and its registration
 ```bash
 claude-transcripts statusline install
 claude-transcripts statusline status
+```
+
+### `completions <shell>`
+
+Print a shell completion script to eval or source from your shell's rc
+
+| Argument | |
+|---|---|
+| `shell` | required. the shell to complete for (bash \| zsh \| fish) |
+
+```bash
+claude-transcripts completions bash
+claude-transcripts completions fish | source
 ```
 <!-- gen:cli-docs:end -->
 

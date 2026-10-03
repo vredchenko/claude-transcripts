@@ -1,3 +1,4 @@
+import { COMPLETION_SHELLS } from "./cli-project";
 import type { CliArgDef, CliSpec } from "./types";
 
 /**
@@ -7,7 +8,7 @@ import type { CliArgDef, CliSpec } from "./types";
  *   - the Ink help screen (packages/cli/src/app.tsx);
  *   - argument validation before dispatch (`validateCliArgs`, cli.tsx);
  *   - the generated command reference (`toCliDocs` → scripts/gen-cli-docs.ts);
- *   - shell completions (not built yet — the spec already carries `choices` for it).
+ *   - shell completions (`toCompletions` → `claude-transcripts completions <shell>`).
  *
  * `choices` / `default` / `type` are for help + validation; the runners still apply
  * defaults themselves, so a value here must match what the runner does.
@@ -345,6 +346,20 @@ export const CLI_SPEC: CliSpec = {
         { name: "--dry-run", description: "with `install`: show the change without writing" },
       ],
       examples: ["statusline install", "statusline status"],
+    },
+    {
+      name: "completions",
+      group: "admin",
+      summary: "Print a shell completion script to eval or source from your shell's rc",
+      args: [
+        {
+          name: "shell",
+          required: true,
+          choices: COMPLETION_SHELLS,
+          description: "the shell to complete for",
+        },
+      ],
+      examples: ["completions bash", "completions fish | source"],
     },
   ],
 };
