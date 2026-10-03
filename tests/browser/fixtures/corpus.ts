@@ -185,11 +185,25 @@ export const SESSIONS: Session[] = [
     source: "backfill",
     hostname: HOSTS[1],
   }),
+  // Opened and closed without a prompt: a transcript exists, but it holds only the
+  // records Claude Code writes on its own. Every one of them folds away, which left
+  // the timeline with "0 turns" and nothing else to say.
+  session({
+    sessionId: "99999999-9999-4999-8999-999999999999",
+    startTimestamp: iso(-6 * DAY - 3 * HOUR),
+    durationMs: 2 * MINUTE,
+    cwd: "/srv/projects/atlas",
+    tokenUsage: undefined,
+    toolCounts: {},
+    eventCount: 3,
+    promptCount: 0,
+  }),
 ];
 
 export const RUNNING_SESSION = SESSIONS[0]!;
 export const MULTI_DAY_SESSION = SESSIONS[1]!;
 export const BARE_SESSION = SESSIONS[3]!;
+export const NO_TURNS_SESSION = SESSIONS[SESSIONS.length - 1]!;
 
 /**
  * The line that has repeatedly broken the transcript rows: no whitespace to wrap at
@@ -347,3 +361,14 @@ export const APP_MODEL = {
   // defaults; the views fall back to the same numbers if the field is absent.
   userSettings: { sessionListPageSize: 100, transcriptPageSize: 100, transcriptAutoLoadMax: 2000 },
 };
+
+/** The transcript of {@link NO_TURNS_SESSION}: bookkeeping only, no dialogue. */
+export const NO_TURNS_TRANSCRIPT: TranscriptEntry[] = [
+  { role: "other", kind: "file-history-snapshot", timestamp: iso(-6 * DAY - 3 * HOUR) },
+  { role: "other", kind: "file-history-snapshot", timestamp: iso(-6 * DAY - 3 * HOUR) },
+];
+
+/** The transcript served for a session: its own if it has one, else {@link TRANSCRIPT}. */
+export function transcriptFor(sessionId: string): TranscriptEntry[] {
+  return sessionId === NO_TURNS_SESSION.sessionId ? NO_TURNS_TRANSCRIPT : TRANSCRIPT;
+}

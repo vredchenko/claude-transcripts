@@ -24,7 +24,7 @@ import {
   SEARCH_TURN_HITS,
   SESSIONS,
   type Session,
-  TRANSCRIPT,
+  transcriptFor,
 } from "../fixtures/corpus";
 
 /** Total bytes the fake transcript "covers" — only its presence matters to the UI. */
@@ -153,11 +153,12 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
         }
         const limit = intParam(url, "limit", 100);
         const offset = intParam(url, "offset", 0);
-        const page_ = TRANSCRIPT.slice(offset, offset + limit);
+        const entries = transcriptFor(found.sessionId);
+        const page_ = entries.slice(offset, offset + limit);
         return json(route, {
           entries: page_,
-          totalCount: TRANSCRIPT.length,
-          hasMore: offset + page_.length < TRANSCRIPT.length,
+          totalCount: entries.length,
+          hasMore: offset + page_.length < entries.length,
           source: found.status === "running" ? "chunks" : "s3",
           byteCoverage: BYTE_COVERAGE,
         });
@@ -168,7 +169,9 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
         const found = findSession(decodeURIComponent(turns[1]!));
         if (!found) return json(route, { error: "Session not found" }, 404);
         const role = url.searchParams.get("role");
-        const matching = TRANSCRIPT.filter((e) => e.text && (!role || e.role === role));
+        const matching = transcriptFor(found.sessionId).filter(
+          (e) => e.text && (!role || e.role === role),
+        );
         return json(route, {
           turns: matching.map((e) => ({
             role: e.role,

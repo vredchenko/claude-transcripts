@@ -165,6 +165,16 @@ export function TranscriptView({ sessionId, query }: { sessionId: string; query?
         </ToggleButtonGroup>
       </Stack>
 
+      {/* Every line folded away and none left to load: a session that was opened
+          and closed without a prompt. Say so, rather than show a lone fold. */}
+      {mode === "timeline" && turns === 0 && !hasNextPage && (
+        <EmptyState title="No conversation recorded">
+          This session stored {formatCount(folded)} system record{folded === 1 ? "" : "s"} but no
+          prompts or replies — usually one that was opened and closed without a prompt. They are
+          folded below, or listed under Raw.
+        </EmptyState>
+      )}
+
       {mode === "timeline" ? (
         <TranscriptTimeline nodes={nodes} query={query} firstMatch={firstMatch} />
       ) : (

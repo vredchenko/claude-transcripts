@@ -7,7 +7,13 @@
  * belongs in the spec for the feature that owns it.
  */
 import { expect, test } from "@playwright/test";
-import { BARE_SESSION, MULTI_DAY_SESSION, SEARCH_QUERY, SESSIONS } from "../fixtures/corpus";
+import {
+  BARE_SESSION,
+  MULTI_DAY_SESSION,
+  NO_TURNS_SESSION,
+  SEARCH_QUERY,
+  SESSIONS,
+} from "../fixtures/corpus";
 import {
   LIVE,
   SearchResultsPage,
@@ -128,6 +134,25 @@ test.describe("session detail", () => {
     await setupPage(page);
     await page.goto(`/app/sessions/${BARE_SESSION.sessionId}`);
     await expect(page.getByText(/No transcript/i)).toBeVisible();
+  });
+
+  test("says so when a session recorded no conversation", async ({ page }) => {
+    test.skip(LIVE, "fixture-specific session");
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(NO_TURNS_SESSION.sessionId);
+    await expect(page.getByText("No conversation recorded")).toBeVisible();
+    await expect(page.getByText(/2 system records/)).toBeVisible();
+    // The records themselves stay reachable.
+    await expect(detail.folds).toHaveCount(1);
+  });
+
+  test("a session with dialogue gets no empty-conversation notice", async ({ page }) => {
+    await setupPage(page);
+    const detail = new SessionDetailPage(page);
+    await detail.goto(MULTI_DAY_SESSION.sessionId);
+    await expect(detail.turnCards.first()).toBeVisible();
+    await expect(page.getByText("No conversation recorded")).toHaveCount(0);
   });
 
   test("the speaker filter switches to the split view", async ({ page }) => {
