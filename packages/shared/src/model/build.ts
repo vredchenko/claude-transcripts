@@ -74,6 +74,11 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
     stores: {
       databases: { ...config.couchdb.databases },
       buckets: { ...config.s3.buckets },
+      // Defaulted, like the Meilisearch indexes, for configs that predate the key.
+      repositories: {
+        sessions: "claude-transcripts-sessions",
+        ...(config.fossil?.repositories ?? {}),
+      },
     },
     hooks: HOOK_TYPES,
     actions: ACTIONS,

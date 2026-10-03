@@ -48,10 +48,9 @@ spec:
             - name: web-ui-sync
               containerPort: 8080
           readinessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: 8080
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 6
           volumeMounts:
