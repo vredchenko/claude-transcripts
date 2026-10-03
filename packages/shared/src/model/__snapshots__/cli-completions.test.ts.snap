@@ -1,0 +1,446 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`toCompletions bash script matches its snapshot 1`] = `
+"# bash completion for claude-transcripts — generated from CLI_SPEC; do not edit.
+# Load it with:  eval "$(claude-transcripts completions bash)"   (e.g. in ~/.bashrc)
+
+# Does flag $2 take a value under command $1 (empty before the command)?
+_claude_transcripts_valued() {
+  case "$1:$2" in
+    *:--webapi|install:--port-base|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|export:--since|export:--session|migrate:--to|migrate:--steps) return 0 ;;
+  esac
+  return 1
+}
+
+# Values to offer for key $1 — \`cmd:--flag\` or \`cmd:<positional index>\`.
+_claude_transcripts_choices() {
+  local choices=""
+  case "$1" in
+    stack:1) choices="up down restart logs ps" ;;
+    turns:--role) choices="user assistant tool_result system other" ;;
+    migrate:1) choices="up down status" ;;
+    hook:1) choices="run install uninstall status" ;;
+    statusline:1) choices="render install uninstall status" ;;
+    completions:1) choices="bash zsh fish" ;;
+  esac
+  printf '%s' "$choices"
+}
+
+_claude_transcripts() {
+  local cur="\${COMP_WORDS[COMP_CWORD]}" cmd="" npos=0 i w flag="" flags=""
+  COMPREPLY=()
+  # Walk the words before the cursor: find the command, count its positionals, and
+  # note whether the word being completed is the value of a valued flag. Bash splits
+  # \`--flag=value\` into \`--flag\`, \`=\`, \`value\`, hence the "=" handling.
+  for ((i = 1; i < COMP_CWORD; i++)); do
+    w="\${COMP_WORDS[i]}"
+    if [[ -n $flag ]]; then
+      [[ $w == "=" ]] && continue
+      flag=""
+      continue
+    fi
+    case "$w" in
+      -*) _claude_transcripts_valued "$cmd" "$w" && flag="$w" ;;
+      "=") ;;
+      *) if [[ -z $cmd ]]; then cmd="$w"; else npos=$((npos + 1)); fi ;;
+    esac
+  done
+  [[ $cur == "=" ]] && cur=""
+
+  if [[ -n $flag ]]; then
+    local key="$cmd:$flag"
+    [[ -z $cmd ]] && key="*:$flag"
+    local choices
+    choices="$(_claude_transcripts_choices "$key")"
+    [[ -z $choices ]] && choices="$(_claude_transcripts_choices "*:$flag")"
+    [[ -n $choices ]] && mapfile -t COMPREPLY < <(compgen -W "$choices" -- "$cur")
+    return 0
+  fi
+
+  if [[ -z $cmd ]]; then
+    if [[ $cur == -* ]]; then
+      mapfile -t COMPREPLY < <(compgen -W "--webapi --help --version" -- "$cur")
+    else
+      mapfile -t COMPREPLY < <(compgen -W "install uninstall setup provision stack sessions search turns backfill export import migrate reindex doctor hook statusline completions" -- "$cur")
+    fi
+    return 0
+  fi
+
+  if [[ $cur == -* ]]; then
+    case "$cmd" in
+    install) flags="--port-base --meili-key --no-hook --no-statusline --no-app --no-prune --skip-preflight --yes" ;;
+    uninstall) flags="--purge --yes" ;;
+    setup) flags="--check --no-hook --project" ;;
+    provision) flags="" ;;
+    stack) flags="--app --volumes" ;;
+    sessions) flags="--limit --cwd --model --hostname --source --from --to --json" ;;
+    search) flags="--limit --offset --cwd --model --hostname --source --json" ;;
+    turns) flags="--role --from --to --limit --skip --json" ;;
+    backfill) flags="--dir --host --actor --chunk-size --no-content --force --replace-live --repair --session --dry-run" ;;
+    export) flags="--since --session --no-blobs" ;;
+    import) flags="--dry-run --no-blobs" ;;
+    migrate) flags="--to --steps --dry-run" ;;
+    reindex) flags="" ;;
+    doctor) flags="--keep" ;;
+    hook) flags="--dry-run --force" ;;
+    statusline) flags="--dry-run" ;;
+    completions) flags="" ;;
+    esac
+    mapfile -t COMPREPLY < <(compgen -W "$flags --webapi --help --version" -- "$cur")
+    return 0
+  fi
+
+  local choices
+  choices="$(_claude_transcripts_choices "$cmd:$((npos + 1))")"
+  [[ -n $choices ]] && mapfile -t COMPREPLY < <(compgen -W "$choices" -- "$cur")
+  return 0
+}
+
+complete -F _claude_transcripts claude-transcripts
+"
+`;
+
+exports[`toCompletions zsh script matches its snapshot 1`] = `
+"#compdef claude-transcripts
+# zsh completion for claude-transcripts — generated from CLI_SPEC; do not edit.
+# Load it with:  eval "$(claude-transcripts completions zsh)"   (after compinit, e.g. in ~/.zshrc)
+# or save it as \`_claude_transcripts\` in a directory on $fpath.
+
+_claude_transcripts() {
+  local curcontext="$curcontext" state line
+  local -a globals commands
+  globals=(
+    '--webapi=[webapi base URL (default\\: $CT_WEBAPI_URL)]:value: '
+    '--help[show help for a command (alias\\: -h)]'
+    '--version[print the CLI version (alias\\: -V)]'
+  )
+  commands=(
+    'install:Set up everything\\: stores, app, and the Claude Code hook'
+    'uninstall:Remove the instance (history is kept unless --purge)'
+    'setup:Install/register the hook + generate runtime config'
+    'provision:Create the CouchDB databases and the Garage bucket + key'
+    'stack:Control the container stack'
+    'sessions:List / inspect sessions (via the webapi)'
+    'search:Search the corpus'
+    'turns:Speaker-split turns\\: one session, or one speaker across all sessions'
+    'backfill:Adopt on-disk ~/.claude transcripts as first-class history'
+    'export:Export session data to a portable bundle'
+    'import:Restore session data from a portable bundle'
+    'migrate:Run CouchDB migrations'
+    'reindex:Rebuild the search indexes from CouchDB'
+    'doctor:Smoke-test the write/read/search path end-to-end'
+    'hook:The Claude Code hook, and its registration'
+    'statusline:The Claude Code statusline indicator (recording / off), and its registration'
+    'completions:Print a shell completion script to eval or source from your shell'\\''s rc'
+  )
+
+  _arguments -C -S $globals '1: :->command' '*:: :->args' && return 0
+
+  case $state in
+    (command)
+      _describe -t commands 'claude-transcripts command' commands
+      ;;
+    (args)
+      case $words[1] in
+        (install)
+          _arguments -S $globals \\
+            '--port-base=[first port of the block]:n: ' \\
+            '--meili-key[generate a Meilisearch master key]' \\
+            '--no-hook[skip Claude Code registration]' \\
+            '--no-statusline[register the hook but not the statusline]' \\
+            '--no-app[skip the app container (run the webapi yourself)]' \\
+            '--no-prune[keep superseded app images]' \\
+            '--skip-preflight[continue past failed preflight checks]' \\
+            '--yes[no prompts; take documented defaults]' \\
+            '*: : '
+          ;;
+        (uninstall)
+          _arguments -S $globals \\
+            '--purge[also delete recorded history (destructive)]' \\
+            '--yes[skip the confirmation prompt]' \\
+            '*: : '
+          ;;
+        (setup)
+          _arguments -S $globals \\
+            '--check[verify an existing install (read-only)]' \\
+            '--no-hook[config + provision stores only (no registration)]' \\
+            '--project[per-repo registration (placeholder — not built)]' \\
+            '*: : '
+          ;;
+        (provision)
+          _arguments -S $globals \\
+            '*: : '
+          ;;
+        (stack)
+          _arguments -S $globals \\
+            '1:action:(up down restart logs ps)' \\
+            '--app[include the app container]' \\
+            '--volumes[with \`down\`\\: delete the data volumes too]' \\
+            '*: : '
+          ;;
+        (sessions)
+          _arguments -S $globals \\
+            '1:id: ' \\
+            '--limit=[rows to list (default 50) / transcript entries to preview (default 30)]:n: ' \\
+            '--cwd=[only this project directory]:value: ' \\
+            '--model=[only this model]:value: ' \\
+            '--hostname=[only this host]:value: ' \\
+            '--source=[only this provenance (live | backfill | …)]:value: ' \\
+            '--from=[only sessions overlapping at/after this ISO instant]:value: ' \\
+            '--to=[only sessions overlapping at/before this ISO instant]:value: ' \\
+            '--json[print the webapi response as JSON instead of a table]' \\
+            '*: : '
+          ;;
+        (search)
+          _arguments -S $globals \\
+            '1:query: ' \\
+            '--limit=[results per section (default\\: the webapi'\\''s)]:n: ' \\
+            '--offset=[skip this many results (paging)]:n: ' \\
+            '--cwd=[only this project directory]:value: ' \\
+            '--model=[only this model]:value: ' \\
+            '--hostname=[only this host]:value: ' \\
+            '--source=[only this provenance (live | backfill | …)]:value: ' \\
+            '--json[print the webapi response as JSON instead of a table]' \\
+            '*: : '
+          ;;
+        (turns)
+          _arguments -S $globals \\
+            '1:session: ' \\
+            '--role=[only this speaker]:value:(user assistant tool_result system other)' \\
+            '--from=[all sessions\\: only turns at/after this ISO instant]:value: ' \\
+            '--to=[all sessions\\: only turns at/before this ISO instant]:value: ' \\
+            '--limit=[turns to show]:n: ' \\
+            '--skip=[skip this many (paging)]:n: ' \\
+            '--json[print the webapi response as JSON instead of a table]' \\
+            '*: : '
+          ;;
+        (backfill)
+          _arguments -S $globals \\
+            '--dir=[transcripts dir (default ~/.claude/projects)]:value: ' \\
+            '--host=[hostname to attribute (default\\: this host)]:value: ' \\
+            '--actor=[actor to attribute the history to]:value: ' \\
+            '--chunk-size=[entries per chunk doc]:n: ' \\
+            '--no-content[byte-range chunks only (no turn content)]' \\
+            '--force[re-process adopted sessions (deletes their derived docs, then rebuilds)]' \\
+            '--replace-live[with --force\\: also replace live-recorded sessions (loses hook provenance)]' \\
+            '--repair[add what an interrupted write left out of an adopted session\\: missing chunk docs, or a transcript that never reached S3; leaves summary + events alone]' \\
+            '--session=[with --force\\: re-process only this session]:value: ' \\
+            '--dry-run[preview without writing (reads the store, so skips are shown)]' \\
+            '*: : '
+          ;;
+        (export)
+          _arguments -S $globals \\
+            '1:dir: ' \\
+            '--since=[only docs at/after this ISO timestamp]:value: ' \\
+            '--session=[only this session id]:value: ' \\
+            '--no-blobs[skip S3 transcripts (~1/10th the size)]' \\
+            '*: : '
+          ;;
+        (import)
+          _arguments -S $globals \\
+            '1:dir: ' \\
+            '--dry-run[verify the bundle without writing]' \\
+            '--no-blobs[skip transcripts; restore docs only]' \\
+            '*: : '
+          ;;
+        (migrate)
+          _arguments -S $globals \\
+            '1:direction:(up down status)' \\
+            '--to=[with \`up\`\\: stop at this schema version]:n: ' \\
+            '--steps=[with \`down\`\\: how many to undo]:n: ' \\
+            '--dry-run[report what would run without writing]' \\
+            '*: : '
+          ;;
+        (reindex)
+          _arguments -S $globals \\
+            '*: : '
+          ;;
+        (doctor)
+          _arguments -S $globals \\
+            '--keep[leave the synthetic session behind for inspection]' \\
+            '*: : '
+          ;;
+        (hook)
+          _arguments -S $globals \\
+            '1:action:(run install uninstall status)' \\
+            '--dry-run[with \`install\`\\: show the change without writing]' \\
+            '--force[with \`install\`\\: register even if the plugin already does]' \\
+            '*: : '
+          ;;
+        (statusline)
+          _arguments -S $globals \\
+            '1:action:(render install uninstall status)' \\
+            '--dry-run[with \`install\`\\: show the change without writing]' \\
+            '*: : '
+          ;;
+        (completions)
+          _arguments -S $globals \\
+            '1:shell:(bash zsh fish)' \\
+            '*: : '
+          ;;
+      esac
+      ;;
+  esac
+}
+
+if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
+  _claude_transcripts "$@"
+else
+  compdef _claude_transcripts claude-transcripts
+fi
+"
+`;
+
+exports[`toCompletions fish script matches its snapshot 1`] = `
+"# fish completion for claude-transcripts — generated from CLI_SPEC; do not edit.
+# Load it with:  claude-transcripts completions fish | source   (e.g. in ~/.config/fish/config.fish)
+# or save it as ~/.config/fish/completions/claude-transcripts.fish
+
+# Does flag $argv[2] take a value under command $argv[1] (empty before the command)?
+function _claude_transcripts_valued
+    switch "$argv[1]:$argv[2]"
+        case '*:--webapi' 'install:--port-base' 'sessions:--limit' 'sessions:--cwd' 'sessions:--model' 'sessions:--hostname' 'sessions:--source' 'sessions:--from' 'sessions:--to' 'search:--limit' 'search:--offset' 'search:--cwd' 'search:--model' 'search:--hostname' 'search:--source' 'turns:--role' 'turns:--from' 'turns:--to' 'turns:--limit' 'turns:--skip' 'backfill:--dir' 'backfill:--host' 'backfill:--actor' 'backfill:--chunk-size' 'backfill:--session' 'export:--since' 'export:--session' 'migrate:--to' 'migrate:--steps'
+            return 0
+    end
+    return 1
+end
+
+# The non-option words before the cursor (command first), skipping valued flags' values.
+function _claude_transcripts_words
+    set -l tokens (commandline -opc)
+    set -e tokens[1]
+    set -l out
+    set -l skip 0
+    for t in $tokens
+        if test $skip = 1
+            set skip 0
+            continue
+        end
+        switch $t
+            case '--*=*'
+            case '-*'
+                _claude_transcripts_valued "$out[1]" $t; and set skip 1
+            case '*'
+                set -a out $t
+        end
+    end
+    # A bare \`printf\` with no words still prints one empty line, which would count.
+    test (count $out) -gt 0; and printf '%s\\n' $out
+end
+
+function _claude_transcripts_at_command
+    test (count (_claude_transcripts_words)) -eq 0
+end
+
+function _claude_transcripts_in
+    set -l w (_claude_transcripts_words)
+    test "$w[1]" = "$argv[1]"
+end
+
+function _claude_transcripts_at_positional
+    set -l w (_claude_transcripts_words)
+    test "$w[1]" = "$argv[1]"; and test (count $w) -eq $argv[2]
+end
+
+complete -c claude-transcripts -f
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a install -d 'Set up everything: stores, app, and the Claude Code hook'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a uninstall -d 'Remove the instance (history is kept unless --purge)'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a setup -d 'Install/register the hook + generate runtime config'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a provision -d 'Create the CouchDB databases and the Garage bucket + key'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a stack -d 'Control the container stack'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a sessions -d 'List / inspect sessions (via the webapi)'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a search -d 'Search the corpus'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a turns -d 'Speaker-split turns: one session, or one speaker across all sessions'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a backfill -d 'Adopt on-disk ~/.claude transcripts as first-class history'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a export -d 'Export session data to a portable bundle'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a import -d 'Restore session data from a portable bundle'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a migrate -d 'Run CouchDB migrations'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a reindex -d 'Rebuild the search indexes from CouchDB'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a doctor -d 'Smoke-test the write/read/search path end-to-end'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a hook -d 'The Claude Code hook, and its registration'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a statusline -d 'The Claude Code statusline indicator (recording / off), and its registration'
+complete -c claude-transcripts -n '_claude_transcripts_at_command' -a completions -d 'Print a shell completion script to eval or source from your shell\\'s rc'
+
+complete -c claude-transcripts -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
+complete -c claude-transcripts -l help -d 'show help for a command (alias: -h)'
+complete -c claude-transcripts -l version -d 'print the CLI version (alias: -V)'
+
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l port-base -x -d 'first port of the block'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l meili-key -d 'generate a Meilisearch master key'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l no-hook -d 'skip Claude Code registration'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l no-statusline -d 'register the hook but not the statusline'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l no-app -d 'skip the app container (run the webapi yourself)'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l no-prune -d 'keep superseded app images'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l skip-preflight -d 'continue past failed preflight checks'
+complete -c claude-transcripts -n '_claude_transcripts_in install' -l yes -d 'no prompts; take documented defaults'
+
+complete -c claude-transcripts -n '_claude_transcripts_in uninstall' -l purge -d 'also delete recorded history (destructive)'
+complete -c claude-transcripts -n '_claude_transcripts_in uninstall' -l yes -d 'skip the confirmation prompt'
+
+complete -c claude-transcripts -n '_claude_transcripts_in setup' -l check -d 'verify an existing install (read-only)'
+complete -c claude-transcripts -n '_claude_transcripts_in setup' -l no-hook -d 'config + provision stores only (no registration)'
+complete -c claude-transcripts -n '_claude_transcripts_in setup' -l project -d 'per-repo registration (placeholder — not built)'
+
+complete -c claude-transcripts -n '_claude_transcripts_at_positional stack 1' -a 'up down restart logs ps'
+complete -c claude-transcripts -n '_claude_transcripts_in stack' -l app -d 'include the app container'
+complete -c claude-transcripts -n '_claude_transcripts_in stack' -l volumes -d 'with \`down\`: delete the data volumes too'
+
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l limit -x -d 'rows to list (default 50) / transcript entries to preview (default 30)'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l cwd -x -d 'only this project directory'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l model -x -d 'only this model'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l hostname -x -d 'only this host'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l source -x -d 'only this provenance (live | backfill | …)'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l from -x -d 'only sessions overlapping at/after this ISO instant'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l to -x -d 'only sessions overlapping at/before this ISO instant'
+complete -c claude-transcripts -n '_claude_transcripts_in sessions' -l json -d 'print the webapi response as JSON instead of a table'
+
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l limit -x -d 'results per section (default: the webapi\\'s)'
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l offset -x -d 'skip this many results (paging)'
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l cwd -x -d 'only this project directory'
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l model -x -d 'only this model'
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l hostname -x -d 'only this host'
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l source -x -d 'only this provenance (live | backfill | …)'
+complete -c claude-transcripts -n '_claude_transcripts_in search' -l json -d 'print the webapi response as JSON instead of a table'
+
+complete -c claude-transcripts -n '_claude_transcripts_in turns' -l role -xa 'user assistant tool_result system other' -d 'only this speaker'
+complete -c claude-transcripts -n '_claude_transcripts_in turns' -l from -x -d 'all sessions: only turns at/after this ISO instant'
+complete -c claude-transcripts -n '_claude_transcripts_in turns' -l to -x -d 'all sessions: only turns at/before this ISO instant'
+complete -c claude-transcripts -n '_claude_transcripts_in turns' -l limit -x -d 'turns to show'
+complete -c claude-transcripts -n '_claude_transcripts_in turns' -l skip -x -d 'skip this many (paging)'
+complete -c claude-transcripts -n '_claude_transcripts_in turns' -l json -d 'print the webapi response as JSON instead of a table'
+
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l dir -x -d 'transcripts dir (default ~/.claude/projects)'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l host -x -d 'hostname to attribute (default: this host)'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l actor -x -d 'actor to attribute the history to'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l chunk-size -x -d 'entries per chunk doc'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l no-content -d 'byte-range chunks only (no turn content)'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l force -d 're-process adopted sessions (deletes their derived docs, then rebuilds)'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l replace-live -d 'with --force: also replace live-recorded sessions (loses hook provenance)'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l repair -d 'add what an interrupted write left out of an adopted session: missing chunk docs, or a transcript that never reached S3; leaves summary + events alone'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l session -x -d 'with --force: re-process only this session'
+complete -c claude-transcripts -n '_claude_transcripts_in backfill' -l dry-run -d 'preview without writing (reads the store, so skips are shown)'
+
+complete -c claude-transcripts -n '_claude_transcripts_in export' -l since -x -d 'only docs at/after this ISO timestamp'
+complete -c claude-transcripts -n '_claude_transcripts_in export' -l session -x -d 'only this session id'
+complete -c claude-transcripts -n '_claude_transcripts_in export' -l no-blobs -d 'skip S3 transcripts (~1/10th the size)'
+
+complete -c claude-transcripts -n '_claude_transcripts_in import' -l dry-run -d 'verify the bundle without writing'
+complete -c claude-transcripts -n '_claude_transcripts_in import' -l no-blobs -d 'skip transcripts; restore docs only'
+
+complete -c claude-transcripts -n '_claude_transcripts_at_positional migrate 1' -a 'up down status'
+complete -c claude-transcripts -n '_claude_transcripts_in migrate' -l to -x -d 'with \`up\`: stop at this schema version'
+complete -c claude-transcripts -n '_claude_transcripts_in migrate' -l steps -x -d 'with \`down\`: how many to undo'
+complete -c claude-transcripts -n '_claude_transcripts_in migrate' -l dry-run -d 'report what would run without writing'
+
+complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l keep -d 'leave the synthetic session behind for inspection'
+
+complete -c claude-transcripts -n '_claude_transcripts_at_positional hook 1' -a 'run install uninstall status'
+complete -c claude-transcripts -n '_claude_transcripts_in hook' -l dry-run -d 'with \`install\`: show the change without writing'
+complete -c claude-transcripts -n '_claude_transcripts_in hook' -l force -d 'with \`install\`: register even if the plugin already does'
+
+complete -c claude-transcripts -n '_claude_transcripts_at_positional statusline 1' -a 'render install uninstall status'
+complete -c claude-transcripts -n '_claude_transcripts_in statusline' -l dry-run -d 'with \`install\`: show the change without writing'
+
+complete -c claude-transcripts -n '_claude_transcripts_at_positional completions 1' -a 'bash zsh fish'
+"
+`;

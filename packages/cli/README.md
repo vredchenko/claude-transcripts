@@ -109,6 +109,7 @@ upgrades in place: it's idempotent and keeps your history.
 | `doctor [options]` | Smoke-test the write/read/search path end-to-end |
 | `hook [action] [options]` | The Claude Code hook, and its registration |
 | `statusline [action] [options]` | The Claude Code statusline indicator (recording / off), and its registration |
+| `completions <shell>` | Print a shell completion script to eval or source from your shell's rc |
 
 **Global options** (every command)
 

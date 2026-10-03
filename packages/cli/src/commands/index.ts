@@ -8,6 +8,7 @@
  * register them here.
  */
 import { runBackfill } from "./backfill";
+import { runCompletions } from "./completions";
 import { runDoctor } from "./doctor";
 import { runExport } from "./export";
 import { runHook } from "./hook";
@@ -43,4 +44,5 @@ export const COMMANDS: Record<string, CommandRunner> = {
   sessions: runSessions,
   search: runSearch,
   turns: runTurns,
+  completions: runCompletions,
 };
