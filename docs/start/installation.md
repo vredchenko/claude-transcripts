@@ -44,7 +44,9 @@ resumes from there:
    (`claude-transcripts stack up`), waiting on each service's health check.
 4. **Provisioning** — CouchDB databases and migrations, Garage layout, bucket and app
    key (`claude-transcripts provision`). The S3 key is written back to
-   `instance.env`, which is why the app starts after this.
+   `instance.env`, which is why the app starts after this. A key is minted only when
+   `instance.env` has none; earlier app keys, which nothing holds any more, are then
+   deleted from Garage.
 5. **Application** — the combined app image, pinned to the CLI's own version (or
    `:main` for a non-release CLI). Waits for `/health` to answer (liveness only; it
    doesn't check the body's store status), warns on a version mismatch, then removes app images this upgrade superseded (never the one it just replaced;
@@ -111,12 +113,16 @@ containers): it would stand up a stack the machine was never meant to have.
 ## Uninstalling
 
 ```sh
-claude-transcripts uninstall            # deregister the hook, stop the stack
+claude-transcripts uninstall            # deregister hook + statusline, stop the stack
 claude-transcripts uninstall --purge    # also delete recorded history (asks first)
 ```
 
-`uninstall` is meant to keep history unless `--purge` is given. Take an
-[`export`](../operate/migrations.md#export-and-import) first if the history matters.
+A plain `uninstall` keeps `deploy/data/` (the recorded history), `config.json` (mirrors,
+a hand-set webapi URL) and `app.json`, and removes the rest: compose files,
+`instance.env`, the version stamp. A later `install` picks the kept history back up
+with freshly generated secrets. `--purge` deletes all of it; if the containers left
+files you can't remove, it exits non-zero and names the directory to delete by hand.
+The binary stays in `~/.local/bin` either way.
 
 ## Registering the hook: binary or plugin
 
