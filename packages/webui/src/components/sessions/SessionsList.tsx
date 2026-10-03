@@ -102,6 +102,11 @@ function SessionRow({ s }: { s: SessionSummary }) {
         gridTemplateColumns: { md: GRID_TEMPLATE },
         gap: { xs: 0.5, md: 1 },
         alignItems: "center",
+        // Below `md` the row is a centred column, and a centred column item sizes to
+        // its content rather than the row — so a long cwd made its cell, and the
+        // page, as wide as the path, and the ellipsis never engaged. Capping each
+        // cell at the row's width lets the `nowrap` lines truncate as intended.
+        "& > *": { maxWidth: "100%" },
         px: 1.5,
         py: 1,
         cursor: "pointer",
