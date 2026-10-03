@@ -53,7 +53,8 @@ resumes from there:
    statusline, unless `--no-statusline`) into `~/.claude/settings.json`
    (`claude-transcripts hook install`). Other tools' entries are left alone.
 7. **Search** — creates and fills the Meilisearch indexes.
-8. **Verify** — runs `doctor`. If it fails, install reports failure.
+8. **Verify** — prints the `doctor` command to run (with `--webapi` for this
+   instance's port) and the UI and API URLs. It does not run `doctor` itself.
 
 ### Where things live
 
