@@ -51,6 +51,30 @@ function buildServicesMenu(
   return { ...derived, ...Object.fromEntries(configured) };
 }
 
+/**
+ * The names `fossil server` will serve from a repository directory — and so the only
+ * ones the seed creates. Checked here so a bad name in config fails loudly at load,
+ * instead of being skipped by the seed and 404ing at `/api/fossil` with no clue why.
+ */
+export const FOSSIL_REPOSITORY_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]*$/;
+
+function resolveRepositories(config: AppConfigFile): Record<string, string> {
+  // Defaulted, like the Meilisearch indexes, for configs that predate the key. The
+  // default is merged, not replaced: a config naming other repositories keeps `sessions`.
+  const repositories = {
+    sessions: "claude-transcripts-sessions",
+    ...(config.fossil?.repositories ?? {}),
+  };
+  for (const [key, name] of Object.entries(repositories)) {
+    if (!FOSSIL_REPOSITORY_NAME.test(name)) {
+      throw new Error(
+        `config: fossil.repositories.${key} = ${JSON.stringify(name)} — use letters, digits, '-' and '_' (not starting with '-')`,
+      );
+    }
+  }
+  return repositories;
+}
+
 export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppModel {
   const version = env.CT_VERSION ?? "0.0.0-dev";
 
@@ -74,11 +98,7 @@ export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppMode
     stores: {
       databases: { ...config.couchdb.databases },
       buckets: { ...config.s3.buckets },
-      // Defaulted, like the Meilisearch indexes, for configs that predate the key.
-      repositories: {
-        sessions: "claude-transcripts-sessions",
-        ...(config.fossil?.repositories ?? {}),
-      },
+      repositories: resolveRepositories(config),
     },
     hooks: HOOK_TYPES,
     actions: ACTIONS,

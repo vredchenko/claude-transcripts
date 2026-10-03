@@ -24,7 +24,10 @@ import {
   DEFAULT_PORT_BASE,
   type EnvMap,
   loadOrCreateInstanceEnv,
+  PORT_KEYS,
+  parseEnv,
   portBlock,
+  updateInstanceEnv,
 } from "../lib/instance-env";
 import { installPaths } from "../lib/paths";
 import { hasFailures, isPortFree, preflight, renderChecks } from "../lib/preflight";
@@ -58,6 +61,38 @@ async function resolvePortBase(base: number, span: number): Promise<number | nul
     if (free.every(Boolean)) return candidate;
   }
   return null;
+}
+
+/**
+ * A port this upgrade added (absent from the instance env before) sits right after the
+ * instance's block — which, with the old 8-port block, is exactly where a second
+ * instance's block starts. If it's taken, move it to the next free port that isn't one
+ * of this instance's own. Existing ports are never moved: they're in the stack, the
+ * hook config and printed URLs.
+ */
+async function relocateAddedPorts(
+  path: string,
+  env: EnvMap,
+  priorKeys: Set<string>,
+): Promise<EnvMap> {
+  const added = PORT_KEYS.filter((k) => !priorKeys.has(k));
+  if (added.length === 0) return env;
+  const own = new Set(PORT_KEYS.map((k) => Number(env[k])));
+  const patch: EnvMap = {};
+  for (const key of added) {
+    let port = Number(env[key]);
+    const isOwnDuplicate = PORT_KEYS.some((k) => k !== key && Number(env[k]) === port);
+    if (!isOwnDuplicate && (await isPortFree(port))) continue;
+    do port += 1;
+    while (own.has(port) || !(await isPortFree(port)));
+    own.add(port);
+    patch[key] = String(port);
+    console.log(`  → ${key} ${env[key]} is taken; using ${port}`);
+  }
+  if (patch.FOSSIL_PORT && !priorKeys.has("FOSSIL_URL")) {
+    patch.FOSSIL_URL = `http://127.0.0.1:${patch.FOSSIL_PORT}`;
+  }
+  return Object.keys(patch).length ? updateInstanceEnv(path, patch) : env;
 }
 
 /**
@@ -164,6 +199,9 @@ export async function runInstall(argv: string[]): Promise<number> {
   // ── 2. Configure ──────────────────────────────────────────────────────────
   step(2, TOTAL, "Configuration");
   const firstRun = !existsSync(paths.instanceEnv);
+  const priorKeys = new Set(
+    firstRun ? [] : Object.keys(parseEnv(readFileSync(paths.instanceEnv, "utf8"))),
+  );
   let env: EnvMap = loadOrCreateInstanceEnv(paths.instanceEnv, {
     portBase,
     // Lockstep versioning (ADR 0023) means the CLI and the app image have to move
@@ -175,6 +213,7 @@ export async function runInstall(argv: string[]): Promise<number> {
     meiliMasterKey: meiliKey,
   });
   console.log(`  ${firstRun ? "generated" : "reused"} ${paths.instanceEnv}`);
+  if (!firstRun) env = await relocateAddedPorts(paths.instanceEnv, env, priorKeys);
   if (!firstRun && priorAppTag && priorAppTag !== env.APP_TAG) {
     console.log(`  app image pin ${priorAppTag} → ${env.APP_TAG} (follows this CLI)`);
   }

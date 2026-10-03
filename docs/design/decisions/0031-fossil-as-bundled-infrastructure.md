@@ -33,8 +33,8 @@ solve deployment. Two facts shape how:
 1. **A `fossil` backing service in the app model**, beside CouchDB and Garage, so
    compose, the Kubernetes base, the env schema, the installer's port block
    (`FOSSIL_PORT`, default 7658), the services menu and the architecture diagram all
-   project from one entry. No feature flag and no diagram edges: it is not wired, and
-   an arrow would claim otherwise.
+   project from one entry. No feature flag. The diagram draws only what exists: the
+   webapi's read edge (decision 7), and no write edge, because nothing writes it yet.
 2. **Built from the official release source**, by `deploy/fossil/Dockerfile`: upstream's
    own recipe (a static musl binary on `scratch`), pinned to a release tarball and
    verified by sha256 instead of tracking trunk. The model's `defaultTag` and the
@@ -47,10 +47,11 @@ solve deployment. Two facts shape how:
    - the upstream override builds it locally, from a build context that needs nothing
      outside `deploy/fossil/` — which `install` ships — so the no-registry paths still
      need no registry.
-4. **One repository, named in config, seeded by the container on start.** The name
-   comes from `fossil.repositories` in `config/` (default `claude-transcripts-sessions`),
-   a keyed map like `couchdb.databases` and `s3.buckets`, and lands in the model's
-   `stores`. Fossil has no HTTP call that creates a repository, so the seed runs where
+4. **Repositories named in config, seeded by the container on start.** One today:
+   `fossil.repositories` in `config/` is a keyed map like `couchdb.databases` and
+   `s3.buckets` (default `sessions: claude-transcripts-sessions`, always merged in, as
+   the Meilisearch indexes are) and lands in the model's `stores`; a name Fossil can't
+   serve fails the model at load. Fossil has no HTTP call that creates a repository, so the seed runs where
    the binary and the volume are: the image's entrypoint creates each repository named
    in `FOSSIL_REPOSITORIES` that doesn't exist yet (`fossil new`, as an idempotent step
    like CouchDB creating its admin from env), then execs `fossil server --repolist
@@ -65,11 +66,19 @@ solve deployment. Two facts shape how:
    directory it serves whenever that owner isn't root. Most of the other bundled
    services also start as root. Running every service as the stack owner's UID
    (`PUID`/`PGID`) is tracked separately.
-6. **No auth**, like the rest of the bundled stack
-   ([ADR 0020](0020-bundled-services-default-no-auth.md)): the seed gives Fossil's
-   built-in `nobody` user every capability (`fossil user capabilities nobody s`). A
-   repository still needs one real user, `claude-transcripts`; its generated password
-   is discarded.
+6. **No login to read; no anonymous writes.** In the spirit of
+   [ADR 0020](0020-bundled-services-default-no-auth.md), the seed lets Fossil's built-in
+   `nobody` user browse, clone and download (`ghjorz`) with no login. It is *not* given
+   write capabilities, although that was the first plan: Fossil's JSON API takes its
+   parameters from the query string, so with write rights a plain GET changes the
+   repository, and any web page the user visits can send a GET to a localhost port —
+   an `<img>` tag is enough (CSRF, and DNS rebinding besides). CouchDB has an admin
+   password and Meilisearch writes need a JSON POST, so Fossil would have been the one
+   bundled service a drive-by page could write to. A repository still needs one real
+   user, `claude-transcripts`; its generated password is discarded, and
+   `fossil user password` sets one when an admin needs the UI. Who writes, and how it
+   authenticates, comes with the first writer
+   ([#210](https://github.com/vredchenko/claude-transcripts/issues/210)).
    Single sign-on with CouchDB and Garage comes later; Fossil supports it through
    `REMOTE_USER` when run as CGI/SCGI behind a proxy.
 7. **Read through the gateway** ([ADR 0016](0016-webapi-is-the-io-gateway.md)), like
@@ -88,8 +97,10 @@ on the user's machine.
 
 - Fossil's JSON API is documented upstream as unfinished; a release may change it, and
   the allowlist is reviewed on each Fossil bump.
-- One more container and one more port in every bundled deploy; existing installs
-  pick up `FOSSIL_PORT` as the next port after their block.
+- One more container and one more port in every bundled deploy. An existing install's
+  `FOSSIL_PORT` is the next port after its own block; if that's taken — the old 8-port
+  block put a second instance's block exactly there — `install` moves it to the next
+  free port.
 - A Fossil upgrade is a reviewed change to three values in one Dockerfile plus the
   model's tag, not a moving `latest`.
 - The first `--upstream` start compiles Fossil (about a minute); later starts reuse the

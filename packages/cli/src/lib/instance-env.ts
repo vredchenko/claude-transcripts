@@ -153,10 +153,32 @@ const HEADER = [
  */
 const INSTALLER_OWNED = ["APP_TAG"] as const;
 
+/**
+ * Ports an upgrade adds (FOSSIL_PORT, for one) belong to the instance's EXISTING block —
+ * the next slot after it — not to wherever this run's preflight would have put a fresh
+ * block. A running stack makes its own ports look busy, so preflight shifts the base,
+ * and back-filling from that shifted base strands the new port far from its siblings.
+ * Laid out from the existing WEBAPI_PORT instead; whether that port is actually free
+ * is the installer's to check (it can probe, this can't).
+ */
+export function backfillPorts(existing: EnvMap): EnvMap {
+  const base = Number(existing.WEBAPI_PORT);
+  if (!Number.isInteger(base) || base <= 0) return {};
+  const out: EnvMap = {};
+  PORT_KEYS.forEach((key, i) => {
+    if (existing[key] === undefined) out[key] = String(base + i);
+  });
+  // Endpoints derived from a back-filled port follow it.
+  if (out.FOSSIL_PORT && existing.FOSSIL_URL === undefined) {
+    out.FOSSIL_URL = `http://127.0.0.1:${out.FOSSIL_PORT}`;
+  }
+  return out;
+}
+
 export function loadOrCreateInstanceEnv(path: string, opts: InstanceEnvOptions = {}): EnvMap {
   const generated = buildInstanceEnv(opts);
   const existing = existsSync(path) ? parseEnv(readFileSync(path, "utf8")) : {};
-  const merged: EnvMap = { ...generated, ...existing };
+  const merged: EnvMap = { ...generated, ...backfillPorts(existing), ...existing };
   for (const key of INSTALLER_OWNED) {
     if (generated[key] !== undefined) merged[key] = generated[key];
   }

@@ -135,7 +135,7 @@ export const SERVICES: ServiceDef[] = [
     // a repository exists, so an httpGet probe would never pass on a fresh stack.
     tcpHealth: { port: 8080 },
     notes:
-      "Version control (repos + web UI) from one static binary. Read by the webapi (read-only JSON API proxy); nothing writes it yet. Seeds the repositories named in config on start (no auth); serves every <name>.fossil under /museum.",
+      "Version control (repos + web UI) from one static binary. Read by the webapi (read-only JSON API proxy); nothing writes it yet. Seeds the repositories named in config on start (anonymous read-only); serves every <name>.fossil under /museum.",
   },
   {
     key: "meilisearch",

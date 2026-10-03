@@ -124,3 +124,13 @@ describe("fossil seed", () => {
     );
   });
 });
+
+describe("fossil repository names", () => {
+  test("a name Fossil couldn't serve fails at load, naming the key", () => {
+    for (const bad of ["a.b", "a b", "-x", "a/b", ""]) {
+      expect(() =>
+        buildAppModel({ ...CONFIG, fossil: { repositories: { sessions: bad } } }, {}),
+      ).toThrow(/fossil\.repositories\.sessions/);
+    }
+  });
+});
