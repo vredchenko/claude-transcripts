@@ -6,7 +6,9 @@
  * Deregisters the hook, stops the stack, and removes the generated config and written
  * assets. **History survives** — it lives in bind mounts under `<deployDir>/data/`, and
  * losing it to a routine uninstall would be unforgivable, so that one directory is left
- * in place. `--purge` deletes it too, and only with an explicit confirmation.
+ * in place. So is the hook config: it carries the machine's own settings (mirrors, a
+ * hand-set webapi URL) that the next `install` merges forward. `--purge` deletes both,
+ * and only with an explicit confirmation.
  *
  * Every step tolerates already being done, so this works on a half-installed instance
  * (which is exactly when someone reaches for it).
@@ -18,6 +20,7 @@ import { composeDown } from "../lib/compose";
 import { loadOrCreateInstanceEnv } from "../lib/instance-env";
 import { installPaths } from "../lib/paths";
 import { runHook } from "./hook";
+import { runStatusline } from "./statusline";
 
 /** The compose stack bind-mounts its stores here (`./data/*` next to the compose file). */
 const DATA_SUBDIR = "data";
@@ -62,8 +65,11 @@ export async function runUninstall(argv: string[]): Promise<number> {
     return 1;
   }
 
-  console.log("uninstall: deregistering the hook");
+  console.log("uninstall: deregistering the hook and the statusline");
   await runHook(["uninstall"]);
+  // `install` registers it; left behind, it would keep rendering from the kept hook
+  // config. A statusLine that isn't ours is left alone (and reported) by the subcommand.
+  await runStatusline(["uninstall"]);
 
   if (existsSync(paths.instanceEnv)) {
     console.log("uninstall: stopping the stack");
@@ -77,7 +83,8 @@ export async function runUninstall(argv: string[]): Promise<number> {
     }
   }
 
-  for (const target of [paths.hookConfig, paths.instanceEnv, paths.versionFile]) {
+  const targets = [paths.instanceEnv, paths.versionFile, ...(purge ? [paths.hookConfig] : [])];
+  for (const target of targets) {
     try {
       rmSync(target, { recursive: true, force: true });
     } catch {
@@ -100,7 +107,8 @@ export async function runUninstall(argv: string[]): Promise<number> {
     rmSync(paths.appConfig, { force: true });
     console.log("uninstall: purged history and app config");
   } else {
-    console.log(`uninstall: history kept in ${dataDir}; ${paths.appConfig} left in place`);
+    console.log(`uninstall: history kept in ${dataDir}`);
+    console.log(`uninstall: ${paths.hookConfig} and ${paths.appConfig} left in place`);
     console.log("uninstall: re-run with --purge to delete the data too");
   }
   console.log(`uninstall: the binary itself is still at ${paths.binDir}/claude-transcripts`);
