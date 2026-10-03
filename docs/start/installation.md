@@ -46,8 +46,8 @@ resumes from there:
    key (`claude-transcripts provision`). The S3 key is written back to
    `instance.env`, which is why the app starts after this.
 5. **Application** — the combined app image, pinned to the CLI's own version (or
-   `:main` for a non-release CLI). Waits for `/health` to report the stores usable,
-   then removes app images this upgrade superseded (never the one it just replaced;
+   `:main` for a non-release CLI). Waits for `/health` to answer (liveness only; it
+   doesn't check the body's store status), warns on a version mismatch, then removes app images this upgrade superseded (never the one it just replaced;
    `--no-prune` opts out).
 6. **Claude Code hook** — writes the hook runtime config and merges the hook (and the
    statusline, unless `--no-statusline`) into `~/.claude/settings.json`
