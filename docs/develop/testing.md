@@ -8,6 +8,18 @@
 | API contract | `bun run check:contract` | `origin/main` fetched (`CONTRACT_BASE=<ref>` compares against another ref) |
 | Smoke test | `claude-transcripts doctor` | a running instance |
 
+## What earns a unit test
+
+A test has to catch a regression that nothing else would: not typecheck, not the
+`gen:all` diff CI runs on committed generated files, not the contract check, not another
+test. Good reasons: logic that is easy to get subtly wrong (offsets, token sums,
+migration up/down, comparison direction), a bug that actually shipped (name the issue
+or commit in the test), or two sources of truth that must stay equal. Bad reasons:
+restating a constant or a lookup table, exact copy of help text or log lines, library
+behaviour, a call that merely doesn't throw, or another literal down a branch already
+covered. If a test keeps changing whenever the wording does, it is pinning the wrong
+thing.
+
 ## End to end
 
 `tests/e2e/` fakes Claude Code sessions ([scenarios](../../tests/e2e/README.md)): it
