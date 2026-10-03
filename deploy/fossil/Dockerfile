@@ -27,7 +27,7 @@ ADD --checksum=sha256:${FOSSIL_SHA256} \
     https://fossil-scm.org/home/tarball/${FOSSIL_CHECKIN}/fossil-src-${FOSSIL_VERSION}.tar.gz \
     src.tar.gz
 RUN tar -xzf src.tar.gz --strip-components=1 \
-  && ./configure --static CFLAGS='-Os -s' \
+  && ./configure --static --json CFLAGS='-Os -s' \
   && make -j"$(nproc)" \
   && ./fossil version | grep -q "version ${FOSSIL_VERSION} "
 

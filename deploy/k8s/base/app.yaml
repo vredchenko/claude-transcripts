@@ -41,6 +41,8 @@ spec:
               value: http://garage:3900
             - name: MEILI_HOST
               value: http://meilisearch:7700
+            - name: FOSSIL_URL
+              value: http://fossil:8080
           ports:
             - name: http
               containerPort: 7650

@@ -91,6 +91,12 @@ export const ENV_VARS: EnvVarDef[] = [
     description: "Meilisearch endpoint URL",
   },
   {
+    name: "FOSSIL_URL",
+    scope: "endpoint",
+    default: "http://127.0.0.1:7658",
+    description: "Fossil server base URL (serves each repository at /<name>/)",
+  },
+  {
     name: "MEILI_API_KEY",
     scope: "secret",
     description: "Meilisearch master key (blank in bundled dev)",

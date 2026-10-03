@@ -132,6 +132,7 @@ services:
       - couchdb
       - garage
       - meilisearch
+      - fossil
     env_file: ../.env
     environment:
       - WEBAPI_HOST=0.0.0.0
@@ -139,6 +140,7 @@ services:
       - COUCHDB_URL=http://couchdb:5984
       - S3_ENDPOINT=http://garage:3900
       - MEILI_HOST=http://meilisearch:7700
+      - FOSSIL_URL=http://fossil:8080
     ports:
       - 127.0.0.1:${WEBAPI_PORT:-7650}:7650
     restart: unless-stopped

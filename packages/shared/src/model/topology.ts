@@ -137,9 +137,8 @@ export const TOPOLOGY_NODES: TopologyNodeDef[] = [
     rank: 3,
     lane: "store",
     level: "compact",
-    // No edges yet, deliberately: it is provisioned infrastructure that nothing reads
-    // or writes. Drawing an arrow would claim wiring that doesn't exist.
-    summary: "Repositories, wiki and tickets with a web UI, from one binary. Not wired in yet.",
+    summary:
+      "Repositories, wiki and tickets with a web UI, from one binary. Read through the gateway; nothing writes it yet.",
   },
 
   // ── rank 4: admin UIs. Declared now so the level filter is exercised and tested;
@@ -225,6 +224,14 @@ export const TOPOLOGY_EDGES: TopologyEdgeDef[] = [
     label: "reads · /api/s3",
     level: "compact",
     requiresFeature: "s3Blobs",
+  },
+  {
+    from: "webapi",
+    to: "fossil",
+    kind: "read-only-proxy",
+    label: "reads · /api/fossil",
+    level: "compact",
+    note: "Fossil's JSON API, allowlisted to read-only commands: over GET it would otherwise write.",
   },
   {
     from: "webapi",

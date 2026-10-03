@@ -35,4 +35,4 @@ Lightweight records of non-obvious decisions. See
 | [0028](0028-external-vs-bundled-meilisearch.md) | External vs bundled Meilisearch | Accepted (external and namespaced) |
 | [0029](0029-recall-policy-config-driven-session-start.md) | The recall policy is config-driven and injected at session start | Accepted |
 | [0030](0030-kubernetes-deploy-generated-from-the-model.md) | Kubernetes deploy, generated from the app model | Accepted |
-| [0031](0031-fossil-as-bundled-infrastructure.md) | Fossil as bundled infrastructure, built from source | Accepted (not yet wired) |
+| [0031](0031-fossil-as-bundled-infrastructure.md) | Fossil as bundled infrastructure, built from source | Accepted (read path only) |

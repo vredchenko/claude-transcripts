@@ -131,7 +131,7 @@ export const SERVICES: ServiceDef[] = [
     // a repository exists, so an httpGet probe would never pass on a fresh stack.
     tcpHealth: { port: 8080 },
     notes:
-      "Version control (repos + web UI) from one static binary. Infrastructure only: nothing reads or writes it yet. Serves every <name>.fossil under /museum; creates none.",
+      "Version control (repos + web UI) from one static binary. Read by the webapi (read-only JSON API proxy); nothing writes it yet. Serves every <name>.fossil under /museum; creates none.",
   },
   {
     key: "meilisearch",
@@ -172,7 +172,7 @@ export const SERVICES: ServiceDef[] = [
     image: { name: "app", tagEnv: "APP_TAG", defaultTag: "latest" },
     ports: [{ internal: 7650, hostEnv: "WEBAPI_PORT", defaultHost: 7650 }],
     profiles: ["app"],
-    dependsOn: ["couchdb", "garage", "meilisearch"],
+    dependsOn: ["couchdb", "garage", "meilisearch", "fossil"],
     envFile: "../.env",
     containerEnv: {
       // Inside the compose network backends resolve to service names, not the
@@ -196,6 +196,7 @@ export const SERVICES: ServiceDef[] = [
       // link meant for the host needs.
       S3_ENDPOINT: "http://garage:3900",
       MEILI_HOST: "http://meilisearch:7700",
+      FOSSIL_URL: "http://fossil:8080",
     },
     // /health reports store reachability, not just liveness — so a pod goes Ready
     // only once CouchDB answers. Kubernetes-only (see the field's doc).
