@@ -112,3 +112,52 @@ export function durationSplitLabel(durationMs?: number, activeMs?: number): stri
   const pct = split.activePct === undefined ? "" : ` (${Math.round(split.activePct)}%)`;
   return `${runtime} · ${formatDuration(split.activeMs)} active${pct} · ${formatDuration(split.idleMs)} idle`;
 }
+
+/**
+ * Exactly one leading "v" on the version.
+ *
+ * `identity.version` from `GET /api/model` already carries one ("v0.0.7"), so a
+ * hardcoded prefix rendered "vv0.0.7". Normalising instead of dropping the prefix,
+ * because the model is free to report either form and the header shouldn't care which.
+ */
+export function displayVersion(version: string): string {
+  return version.startsWith("v") ? version : `v${version}`;
+}
+
+/** When the status column's time refers to, and what to call it. */
+export interface StatusTime {
+  iso: string;
+  /** "ended" for a clean exit; "last write" while the session is (or was) still open. */
+  label: "ended" | "last write";
+}
+
+/**
+ * The moment a session's status is about: its SessionEnd time once it has ended, and
+ * otherwise the last event written — the freshest sign of life a live session has, and
+ * the moment an abandoned one went quiet.
+ */
+export function statusTime(s: {
+  status: string;
+  timestamp?: string;
+  lastActivity?: string;
+}): StatusTime | undefined {
+  const iso = s.status === "ended" ? s.timestamp : (s.lastActivity ?? s.timestamp);
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return undefined;
+  return { iso, label: s.status === "ended" ? "ended" : "last write" };
+}
+
+/**
+ * Local clock time ("14:05"), prefixed with the date ("4 Oct 14:05") when it falls on a
+ * different calendar day than `reference` — a session that ran past midnight shouldn't
+ * read as if it ended before it started.
+ */
+export function clockTime(iso: string | undefined, reference?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (x: number) => String(x).padStart(2, "0");
+  const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const ref = reference ? new Date(reference) : undefined;
+  if (!ref || Number.isNaN(ref.getTime()) || ref.toDateString() === d.toDateString()) return clock;
+  return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${clock}`;
+}

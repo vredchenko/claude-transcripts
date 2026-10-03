@@ -1,12 +1,11 @@
 /**
  * Sessions as an 8-column CSS grid with day grouping and infinite scroll.
  *
- * Columns: time | project+cwd | runtime+active bar | host+model | tool mix |
- * tokens+turns | status | copy
+ * Columns: time | project+host+cwd | runtime+active bar | model | tool mix |
+ * tokens+turns | status+when | id+copy+data links
  */
-import { Box, Chip, IconButton, Stack, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Chip, Stack, Tooltip, Typography, useTheme } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
 import type { SessionSummary } from "../../api/generated";
 import {
   durationSplit,
@@ -14,14 +13,25 @@ import {
   formatCount,
   formatDuration,
   projectName,
+  statusTime,
   totalTools,
 } from "../../format";
 import type { DayGroup } from "../../sessions-view";
 import { MONO } from "../../theme";
+import { SessionIdCopy, SessionLinksButton } from "../SessionIdentity";
 import { StatusChip } from "../StatusChip";
 
-/** Grid template for the 8 columns. */
-const GRID_TEMPLATE = "60px 1fr 150px 118px 128px 104px 84px 30px";
+/**
+ * Grid template for the 8 columns. The project column used to be a bare `1fr` and took
+ * every spare pixel for a name and a path that rarely need it, while the tool mix
+ * beside it was clipped to two chips. Now the two share the slack, and the host —
+ * which says *where* the project ran — sits in the project cell instead of its own.
+ */
+const GRID_TEMPLATE =
+  "52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 112px 128px";
+
+/** How many tools the mix names before collapsing the rest into "+N". */
+const TOOL_MIX_SHOWN = 3;
 
 /** Clock time only — the day is stated by the group header. */
 function timeOfDay(iso: string | undefined): string {
@@ -32,12 +42,12 @@ function timeOfDay(iso: string | undefined): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Top-2 tools from toolCounts + overflow pill. */
+/** The most-used tools from toolCounts + overflow pill. */
 function ToolMix({ toolCounts }: { toolCounts: Record<string, number> }) {
   const entries = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) return <Typography color="text.secondary">—</Typography>;
-  const top = entries.slice(0, 2);
-  const rest = entries.length - 2;
+  const top = entries.slice(0, TOOL_MIX_SHOWN);
+  const rest = entries.length - TOOL_MIX_SHOWN;
   return (
     <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", gap: 0.25 }}>
       {top.map(([name, count]) => (
@@ -79,19 +89,6 @@ function ActiveBar({ durationMs, activeMs }: { durationMs?: number; activeMs?: n
 function SessionRow({ s }: { s: SessionSummary }) {
   const theme = useTheme();
   const navigate = useNavigate();
-  const [copied, setCopied] = useState(false);
-
-  const copyId = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      navigator.clipboard.writeText(s.sessionId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    },
-    [s.sessionId],
-  );
-
   return (
     <Box
       data-testid="session-row"
@@ -100,7 +97,7 @@ function SessionRow({ s }: { s: SessionSummary }) {
         display: { xs: "flex", md: "grid" },
         flexDirection: { xs: "column", md: undefined },
         gridTemplateColumns: { md: GRID_TEMPLATE },
-        gap: { xs: 0.5, md: 1 },
+        gap: { xs: 0.5, md: 1.5 },
         alignItems: "center",
         // Below `md` the row is a centred column, and a centred column item sizes to
         // its content rather than the row — so a long cwd made its cell, and the
@@ -122,20 +119,29 @@ function SessionRow({ s }: { s: SessionSummary }) {
         {timeOfDay(s.startTimestamp ?? s.timestamp)}
       </Typography>
 
-      {/* Project + cwd */}
+      {/* Project + host + cwd */}
       <Box sx={{ minWidth: 0 }}>
-        <Typography
-          variant="body2"
-          sx={{
-            fontWeight: 600,
-            color: theme.palette.primary.main,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {projectName(s.cwd)}
-        </Typography>
+        <Stack direction="row" alignItems="baseline" spacing={1} sx={{ minWidth: 0 }}>
+          <Typography
+            variant="body2"
+            noWrap
+            sx={{
+              fontWeight: 600,
+              color: theme.palette.primary.main,
+              flexShrink: 0,
+              maxWidth: "70%",
+            }}
+          >
+            {projectName(s.cwd)}
+          </Typography>
+          {s.hostname && (
+            <Tooltip title={`Host: ${s.hostname}`}>
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                @ {s.hostname}
+              </Typography>
+            </Tooltip>
+          )}
+        </Stack>
         <Tooltip title={s.cwd}>
           <Typography
             variant="caption"
@@ -162,32 +168,15 @@ function SessionRow({ s }: { s: SessionSummary }) {
         <ActiveBar durationMs={s.durationMs} activeMs={s.activeMs} />
       </Box>
 
-      {/* Host + model */}
-      <Box sx={{ minWidth: 0, display: { xs: "none", sm: "block" } }}>
-        <Typography
-          variant="caption"
-          sx={{
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {s.hostname || "—"}
-        </Typography>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {s.model ?? "—"}
-        </Typography>
-      </Box>
+      {/* Model */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        noWrap
+        sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}
+      >
+        {s.model ?? "—"}
+      </Typography>
 
       {/* Tool mix — hidden below md */}
       <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
@@ -213,15 +202,14 @@ function SessionRow({ s }: { s: SessionSummary }) {
         )}
       </Box>
 
-      {/* Status */}
-      <StatusChip status={s.status} />
+      {/* Status + when */}
+      <StatusChip status={s.status} at={statusTime(s)} reference={s.startTimestamp} />
 
-      {/* Copy */}
-      <Tooltip title={copied ? "Copied!" : "Copy session ID"}>
-        <IconButton size="small" onClick={copyId} sx={{ fontSize: 14 }}>
-          {copied ? "✓" : "⎘"}
-        </IconButton>
-      </Tooltip>
+      {/* Session id + copy + data links */}
+      <Stack direction="row" alignItems="center" spacing={0.25} sx={{ justifySelf: "end" }}>
+        <SessionIdCopy sessionId={s.sessionId} />
+        <SessionLinksButton session={s} />
+      </Stack>
     </Box>
   );
 }
@@ -271,7 +259,7 @@ export function SessionsListHeader() {
       sx={{
         display: { xs: "none", md: "grid" },
         gridTemplateColumns: GRID_TEMPLATE,
-        gap: 1,
+        gap: 1.5,
         px: 1.5,
         py: 0.75,
         borderBottom: 2,
@@ -283,13 +271,13 @@ export function SessionsListHeader() {
       }}
     >
       <HeaderLabel>Time</HeaderLabel>
-      <HeaderLabel>Project</HeaderLabel>
+      <HeaderLabel>Project · Host</HeaderLabel>
       <HeaderLabel>Runtime</HeaderLabel>
-      <HeaderLabel>Host / Model</HeaderLabel>
+      <HeaderLabel>Model</HeaderLabel>
       <HeaderLabel>Tools</HeaderLabel>
       <HeaderLabel align="right">Tokens</HeaderLabel>
       <HeaderLabel>Status</HeaderLabel>
-      <Box />
+      <HeaderLabel align="right">Session</HeaderLabel>
     </Box>
   );
 }

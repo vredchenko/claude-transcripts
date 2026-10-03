@@ -26,7 +26,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSearchQueryKey, useSearch } from "../api/generated";
 import { useAppModel } from "../api/model";
-import { useColorMode } from "../color-mode";
 import { projectName } from "../format";
 import { COMMANDS, type CommandContext } from "../omnibox/commands";
 import { OPERATORS, parseOmniboxInput } from "../omnibox/parse";
@@ -43,7 +42,6 @@ export function Omnibox() {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
-  const { setPref } = useColorMode();
   const { data: model } = useAppModel();
 
   // Debounce.
@@ -124,14 +122,13 @@ export function Omnibox() {
   const runCommand = useCallback(
     (cmd: (typeof COMMANDS)[number]) => {
       const ctx: CommandContext = {
-        setColorMode: setPref,
         servicesMenu: model?.servicesMenu,
       };
       cmd.run(ctx);
       setQ("");
       setOpen(false);
     },
-    [setPref, model],
+    [model],
   );
 
   const handleKeyDown = useCallback(

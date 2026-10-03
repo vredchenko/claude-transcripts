@@ -8,7 +8,7 @@ describe("parseOmniboxInput", () => {
     ["hello world", "text"],
     ["", "text"],
     ["abc", "text"], // too short to be an id prefix
-    [">theme dark", "command"],
+    [">open fauxton", "command"],
     ["abcd1234", "id"],
     ["project:foo host:bar", "operator"],
     ["today", "date"],

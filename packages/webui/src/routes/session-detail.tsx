@@ -1,7 +1,7 @@
 /**
  * `/sessions/$id` — session detail page.
  *
- * Identity bar: back link, project name, 8-char id + copy, status chip, deep links.
+ * Identity bar: back link, project name, 8-char id + copy, status, links to the raw data.
  * Metadata strip: horizontal scroll row of fields.
  * Transcript section: speaker filter toggle (Both/You/Claude) + transcript viewer.
  */
@@ -9,19 +9,18 @@ import {
   Box,
   Button,
   Chip,
-  IconButton,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
-  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
 import { Link, useNavigate, useParams, useSearch as useRouterSearch } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useGetSession } from "../api/generated";
 import { ApiRequestError } from "../api/http";
-import { couchProxyUrl, fauxtonUrlFor, useAppModel } from "../api/model";
+import { useAppModel } from "../api/model";
+import { SessionIdCopy } from "../components/SessionIdentity";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
 import { EmptyState, ErrorState, Loading } from "../components/states";
@@ -33,8 +32,10 @@ import {
   formatDuration,
   formatTimestamp,
   projectName,
+  statusTime,
   totalTools,
 } from "../format";
+import { sessionLinks } from "../nav-menus";
 import { MONO } from "../theme";
 
 type SpeakerFilter = "all" | "user" | "assistant";
@@ -72,25 +73,11 @@ export function SessionDetailPage() {
   const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
   const navigate = useNavigate();
   const theme = useTheme();
-  const [copied, setCopied] = useState(false);
-
-  const copyId = useCallback(() => {
-    navigator.clipboard.writeText(id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [id]);
-
   const split = session ? durationSplit(session.durationMs, session.activeMs) : undefined;
 
-  // The summary doc via the read-only proxy (always reachable); Fauxton only when linked.
-  const sessionsDb = model?.stores?.databases?.sessions;
-  const fauxtonUrl = model?.servicesMenu?.couchdbFauxton;
-  const summaryId = encodeURIComponent(`summary:${id}`);
-  const couchDocUrl = sessionsDb ? couchProxyUrl(sessionsDb, summaryId) : undefined;
-  const fauxtonDocUrl =
-    sessionsDb && fauxtonUrl ? fauxtonUrlFor(fauxtonUrl, sessionsDb, summaryId) : undefined;
-  const garageUrl = model?.servicesMenu?.garageWebui;
-  const apiJsonUrl = `/api/sessions/${id}`;
+  // Where this session's data lives — the same links the list's row menu offers.
+  const links = session ? sessionLinks(model, session) : [];
+  const ended = session ? statusTime(session) : undefined;
   // A 404 is an answer about the id, not a failure to report: say which session
   // isn't here and offer the way back, rather than the request line that asked.
   const notFound = isError && error instanceof ApiRequestError && error.status === 404;
@@ -116,37 +103,22 @@ export function SessionDetailPage() {
             <Typography variant="h6" sx={{ fontWeight: 600, fontSize: 15, color: "primary.main" }}>
               {projectName(session.cwd)}
             </Typography>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <Typography sx={{ fontFamily: MONO, fontSize: 13 }}>
-                {session.sessionId.slice(0, 8)}
-              </Typography>
-              <Tooltip title={copied ? "Copied!" : "Copy full ID"}>
-                <IconButton size="small" onClick={copyId} sx={{ fontSize: 14 }}>
-                  {copied ? "✓" : "⎘"}
-                </IconButton>
-              </Tooltip>
-            </Stack>
+            <SessionIdCopy sessionId={session.sessionId} />
             <StatusChip status={session.status} />
             <Box sx={{ flex: 1 }} />
-            {/* Deep-link buttons */}
-            {couchDocUrl && (
-              <Button size="small" href={couchDocUrl} target="_blank" rel="noopener noreferrer">
-                CouchDB
+            {/* Links to the raw data */}
+            {links.map((link) => (
+              <Button
+                key={link.href}
+                size="small"
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ textTransform: "none" }}
+              >
+                {link.label} ↗
               </Button>
-            )}
-            {fauxtonDocUrl && (
-              <Button size="small" href={fauxtonDocUrl} target="_blank" rel="noopener noreferrer">
-                Fauxton
-              </Button>
-            )}
-            {garageUrl && (
-              <Button size="small" href={`${garageUrl}`} target="_blank" rel="noopener noreferrer">
-                Garage
-              </Button>
-            )}
-            <Button size="small" href={apiJsonUrl} target="_blank" rel="noopener noreferrer">
-              API JSON
-            </Button>
+            ))}
           </>
         )}
       </Stack>
@@ -187,6 +159,11 @@ export function SessionDetailPage() {
             <MetaField label="STARTED">
               {formatTimestamp(session.startTimestamp ?? session.timestamp)}
             </MetaField>
+            {ended && (
+              <MetaField label={ended.label === "ended" ? "ENDED" : "LAST WRITE"}>
+                {formatTimestamp(ended.iso)}
+              </MetaField>
+            )}
             {split && split.totalMs > 0 && (
               <MetaField label="RUNTIME">{formatDuration(split.totalMs)}</MetaField>
             )}

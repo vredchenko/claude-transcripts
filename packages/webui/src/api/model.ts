@@ -1,6 +1,11 @@
 import {
+  type AppIdentity,
   DEFAULT_USER_SETTINGS,
+  type RouteDef,
   resolveUserSettings,
+  type ServiceDef,
+  type StoreModel,
+  type TopologyModel,
   type UserSettings,
 } from "@claude-transcripts/shared";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
@@ -8,14 +13,20 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 /**
  * A thin, hand-written client for `GET /api/model` — the read-only app-model
  * introspection endpoint (a plain Hono route, not part of the OpenAPI contract, so
- * it isn't in the generated client). Used for the header's title + build version;
- * `servicesMenu` is carried so the header links can become config-driven (#14).
+ * it isn't in the generated client). Used for the header's title + build version, and
+ * the header menus project from `services`, `topology`, `stores`, `routes` and
+ * `servicesMenu` (see nav-menus.ts). Every facet is optional: an older webapi may not
+ * serve one, and the UI degrades to leaving that part out.
  */
 export interface AppModelInfo {
-  identity?: { title?: string; version?: string; slug?: string; codename?: string };
+  identity?: Partial<AppIdentity>;
   servicesMenu?: Record<string, string>;
-  /** Configured store names — the real CouchDB database behind each key. */
-  stores?: { databases?: Record<string, string> };
+  /** Configured store names — the real database / bucket / index behind each key. */
+  stores?: Partial<StoreModel>;
+  services?: ServiceDef[];
+  topology?: Partial<TopologyModel>;
+  routes?: RouteDef[];
+  features?: Record<string, boolean>;
   /** Reader tunables — page sizes for the list and the transcript. */
   userSettings?: Partial<UserSettings>;
 }

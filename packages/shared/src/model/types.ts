@@ -73,6 +73,8 @@ export interface AppIdentity {
   slug: string; // "claude-transcripts"
   title: string; // "Claude Transcripts"
   version: string; // lockstep semver (or "x.y.z+sha" for dispatch builds)
+  /** The project's public source repository — where the code, docs and issues live. */
+  repository: string;
 }
 
 export type ServiceRole = "gateway" | "webui" | "cli" | "backing" | "admin-ui" | "app";
@@ -143,6 +145,8 @@ export interface ServiceDef {
   adminUiServiceKey?: string;
   /** path under the service's host port for that admin UI (default "/") */
   adminUiPath?: string;
+  /** which store family (`StoreModel` key) lives in this service, if any */
+  holds?: keyof StoreModel;
   /** runs on the host in dev (webapi/webui/cli) vs only in the compose stack */
   runsOnHostInDev?: boolean;
   dependsOn?: string[];
@@ -175,6 +179,8 @@ export interface StoreModel {
   databases: Record<string, string>;
   /** logical key → S3 bucket name */
   buckets: Record<string, string>;
+  /** logical key → Meilisearch index uid */
+  indexes: Record<string, string>;
   /** logical key → Fossil repository name */
   repositories: Record<string, string>;
 }
@@ -225,6 +231,12 @@ export interface HookActionBinding {
 export interface RouteDef {
   path: string;
   serves: string;
+  /**
+   * Set when the route is a page a person would open from the webui's Dev menu (docs,
+   * the API reference, the raw spec). Absent for API families that only make sense to
+   * a client. `section` groups entries within the menu.
+   */
+  nav?: { label: string; section: "Reference" | "Install" };
 }
 
 export type EnvScope = "secret" | "endpoint" | "port" | "image" | "host" | "flag";

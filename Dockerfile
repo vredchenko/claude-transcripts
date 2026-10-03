@@ -29,6 +29,8 @@ RUN rm -rf node_modules \
 
 # ── build-webui: the React SPA → packages/webui/dist ────────────────────────
 FROM deps AS build-webui
+# The header menus import the vendored service marks from brand/icons/ directly.
+COPY brand ./brand
 RUN bun run build
 
 # ── build-docs: docs/*.md → self-contained static HTML (dependency-free) ────

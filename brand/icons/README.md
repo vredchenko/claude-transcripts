@@ -1,8 +1,8 @@
 # Third-party icons
 
 Marks for the software Claude Transcripts interoperates with, used in the generated
-architecture diagram (`bun run gen:diagram`). They are **not** our brand — for that,
-see [`../README.md`](../README.md).
+architecture diagram (`bun run gen:diagram`) and in the webui's header menus. They are
+**not** our brand — for that, see [`../README.md`](../README.md).
 
 ## Why they live here
 
@@ -10,6 +10,8 @@ Each file has exactly one declared consumer: a `TopologyNodeDef.icon` value in
 [`packages/shared/src/model/topology.ts`](../../packages/shared/src/model/topology.ts).
 The generator inlines them at build time — an SVG loaded through GitHub's image
 proxy cannot fetch anything external, so a referenced icon would simply not appear.
+The webui imports the same files (`packages/webui/src/components/nav/ServiceIcon.tsx`),
+keyed by the same `IconKey`, rather than keeping copies.
 `loadIcon` throws on a missing or malformed file, so a bad icon is a build failure
 rather than a silently broken picture.
 

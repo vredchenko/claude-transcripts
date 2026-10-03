@@ -1,10 +1,7 @@
 /**
  * Omnibox command definitions — `>` prefixed inputs.
  */
-import type { ColorModePref } from "../color-mode";
-
 export interface CommandContext {
-  setColorMode: (pref: ColorModePref) => void;
   servicesMenu?: Record<string, string>;
   sessionId?: string;
 }
@@ -17,24 +14,6 @@ export interface CommandDef {
 }
 
 export const COMMANDS: CommandDef[] = [
-  {
-    name: "theme dark",
-    description: "Switch to dark theme",
-    match: (input) => "theme dark".startsWith(input) || input === "theme dark",
-    run: (ctx) => ctx.setColorMode("dark"),
-  },
-  {
-    name: "theme light",
-    description: "Switch to light theme",
-    match: (input) => "theme light".startsWith(input) || input === "theme light",
-    run: (ctx) => ctx.setColorMode("light"),
-  },
-  {
-    name: "theme system",
-    description: "Follow system theme",
-    match: (input) => "theme system".startsWith(input) || input === "theme system",
-    run: (ctx) => ctx.setColorMode("system"),
-  },
   {
     name: "open fauxton",
     description: "Open CouchDB Fauxton",

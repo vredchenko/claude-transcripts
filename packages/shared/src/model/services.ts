@@ -50,6 +50,7 @@ export const SERVICES: ServiceDef[] = [
     ],
     adminUiServiceKey: "couchdbFauxton",
     adminUiPath: "/_utils/",
+    holds: "databases",
     volumes: [{ host: "./data/couchdb", container: "/opt/couchdb/data" }],
     // CouchDB 3 REMOVED "admin party": without an admin the container refuses to
     // start and crash-loops. So the bundled stack ships a fixed default admin
@@ -75,6 +76,7 @@ export const SERVICES: ServiceDef[] = [
       { internal: 3900, hostEnv: "GARAGE_S3_PORT", defaultHost: 7653, label: "S3 API" },
       { internal: 3903, hostEnv: "GARAGE_ADMIN_PORT", defaultHost: 7654, label: "admin API" },
     ],
+    holds: "buckets",
     volumes: [
       { host: "./data/garage/meta", container: "/var/lib/garage/meta" },
       { host: "./data/garage/data", container: "/var/lib/garage/data" },
@@ -125,6 +127,7 @@ export const SERVICES: ServiceDef[] = [
     // One binary is the server, the web UI and the sync endpoint (`fossil clone/sync`
     // over HTTP), so the "admin UI" is the service itself.
     adminUiServiceKey: "fossil",
+    holds: "repositories",
     volumes: [{ host: "./data/fossil", container: "/museum" }],
     // The repositories the container seeds on start (deploy/fossil/entrypoint.sh). The
     // runners pass the live value from config/ (`toComposeEnv`); the fallback is the
@@ -149,6 +152,7 @@ export const SERVICES: ServiceDef[] = [
     },
     ports: [{ internal: 7700, hostEnv: "MEILI_PORT", defaultHost: 7656 }],
     adminUiServiceKey: "meilisearch",
+    holds: "indexes",
     volumes: [{ host: "./data/meilisearch", container: "/meili_data" }],
     containerEnv: { MEILI_ENV: "development" },
     notes: "Derived search index (optional/removable). Built-in UI on /.",
