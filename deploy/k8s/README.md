@@ -33,6 +33,7 @@ Rationale: [ADR 0030](../../docs/design/decisions/0030-kubernetes-deploy-generat
 ```bash
 cd deploy/k8s/base
 cp .env.template .env            # then fill in the Garage secrets: openssl rand -hex 32
+                                 # (FOSSIL_REPOSITORIES: the names in fossil.repositories)
 kubectl apply -k .               # or, from the repo root: kubectl apply -k deploy/k8s/base
 kubectl -n claude-transcripts get pods -w
 ```

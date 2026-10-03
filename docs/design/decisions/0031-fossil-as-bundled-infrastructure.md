@@ -4,7 +4,8 @@ Date: 2026-10-03
 
 ## Status
 
-Accepted. The webapi reads Fossil through a read-only proxy; nothing writes it yet.
+Accepted. The repository is seeded on start and the webapi reads it through a read-only
+proxy; nothing writes it yet.
 
 ## Context
 
@@ -46,17 +47,29 @@ solve deployment. Two facts shape how:
    - the upstream override builds it locally, from a build context that needs nothing
      outside `deploy/fossil/` — which `install` ships — so the no-registry paths still
      need no registry.
-4. **One repository, named in config, created by the app — not the container.** The
-   name comes from `fossil.repositories` in `config/` (default
-   `claude-transcripts-sessions`), a keyed map like `couchdb.databases` and
-   `s3.buckets`, and lands in the model's `stores`. The container serves its data
-   directory (`fossil server --repolist /museum`) and creates nothing: upstream's
-   `--create` would make a repository with a generated admin password, and the app's
-   repository is seeded by the app.
+4. **One repository, named in config, seeded by the container on start.** The name
+   comes from `fossil.repositories` in `config/` (default `claude-transcripts-sessions`),
+   a keyed map like `couchdb.databases` and `s3.buckets`, and lands in the model's
+   `stores`. Fossil has no HTTP call that creates a repository, so the seed runs where
+   the binary and the volume are: the image's entrypoint creates each repository named
+   in `FOSSIL_REPOSITORIES` that doesn't exist yet (`fossil new`, as an idempotent step
+   like CouchDB creating its admin from env), then execs `fossil server --repolist
+   /museum`. The runners pass that variable from the live config at `up` time
+   (`toStoreEnv`), so renaming a repository needs no regeneration. Not upstream's
+   `--create`, which makes a generic repository with a printed admin password. The
+   image carries one static busybox for the entrypoint script, as upstream's container
+   docs suggest when a shell is needed.
+5. **Root in the container**, for now. Unlike upstream's image it runs as root,
+   because the state directory is a bind mount or volume owned by whoever started the
+   stack; Fossil's own jail drops each request's privileges to the owner of the
+   directory it serves whenever that owner isn't root. Most of the other bundled
+   services also start as root. Running every service as the stack owner's UID
+   (`PUID`/`PGID`) is tracked separately.
 6. **No auth**, like the rest of the bundled stack
    ([ADR 0020](0020-bundled-services-default-no-auth.md)): the seed gives Fossil's
    built-in `nobody` user every capability (`fossil user capabilities nobody s`). A
-   repository still has one real user (its creator), whose password nobody needs.
+   repository still needs one real user, `claude-transcripts`; its generated password
+   is discarded.
    Single sign-on with CouchDB and Garage comes later; Fossil supports it through
    `REMOTE_USER` when run as CGI/SCGI behind a proxy.
 7. **Read through the gateway** ([ADR 0016](0016-webapi-is-the-io-gateway.md)), like
@@ -66,12 +79,6 @@ solve deployment. Two facts shape how:
    of read-only commands, not a GET filter: the JSON API reads parameters from the
    query string, so a GET can write (`/json/user/save?…` grants setup rights), and a
    bare `/json?command=…` dispatches to any command.
-5. **Root in the container**, for now. Unlike upstream's image it runs as root,
-   because the state directory is a bind mount or volume owned by whoever started the
-   stack; Fossil's own jail drops each request's privileges to the owner of the
-   directory it serves whenever that owner isn't root. Most of the other bundled
-   services also start as root. Running every service as the stack owner's UID
-   (`PUID`/`PGID`) is tracked separately.
 
 **No Fossil CLI on the client side.** Clients that ever need to reach a repository do
 it over HTTP, through the web UI or a future gateway route; nothing installs `fossil`
@@ -87,4 +94,9 @@ on the user's machine.
   model's tag, not a moving `latest`.
 - The first `--upstream` start compiles Fossil (about a minute); later starts reuse the
   local image.
-- Until the seed exists, the web UI lists no repositories.
+- A seeded repository is not quite empty: `fossil new` always records an initial empty
+  check-in.
+- Renaming a repository in config seeds a new one; the old file stays in the data
+  directory, served, until someone removes it.
+- Kubernetes reads `FOSSIL_REPOSITORIES` from the instance Secret like every other
+  `${VAR:-default}` reference, so an existing `.env` needs the new key.

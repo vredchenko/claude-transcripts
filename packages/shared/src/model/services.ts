@@ -126,12 +126,16 @@ export const SERVICES: ServiceDef[] = [
     // over HTTP), so the "admin UI" is the service itself.
     adminUiServiceKey: "fossil",
     volumes: [{ host: "./data/fossil", container: "/museum" }],
+    // The repositories the container seeds on start (deploy/fossil/entrypoint.sh). The
+    // runners pass the live value from config/ (`toComposeEnv`); the fallback is the
+    // config template's default, which a test holds equal.
+    containerEnv: { FOSSIL_REPOSITORIES: "${FOSSIL_REPOSITORIES:-claude-transcripts-sessions}" },
     // A scratch image: nothing to exec a healthcheck with but fossil itself, which can't
     // probe its own server. Kubernetes checks the port: over HTTP every path 404s until
     // a repository exists, so an httpGet probe would never pass on a fresh stack.
     tcpHealth: { port: 8080 },
     notes:
-      "Version control (repos + web UI) from one static binary. Read by the webapi (read-only JSON API proxy); nothing writes it yet. Serves every <name>.fossil under /museum; creates none.",
+      "Version control (repos + web UI) from one static binary. Read by the webapi (read-only JSON API proxy); nothing writes it yet. Seeds the repositories named in config on start (no auth); serves every <name>.fossil under /museum.",
   },
   {
     key: "meilisearch",

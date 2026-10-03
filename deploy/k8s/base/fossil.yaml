@@ -44,6 +44,12 @@ spec:
         - name: fossil
           image: ghcr.io/vredchenko/claude-transcripts-fossil:2.28
           imagePullPolicy: IfNotPresent
+          env:
+            - name: FOSSIL_REPOSITORIES
+              valueFrom:
+                secretKeyRef:
+                  name: claude-transcripts-env
+                  key: FOSSIL_REPOSITORIES
           ports:
             - name: web-ui-sync
               containerPort: 8080

@@ -7,8 +7,9 @@
 # version must equal the `fossil` service's `defaultTag` in
 # packages/shared/src/model/services.ts — a test holds the two together.
 #
-# Build context is this directory and nothing is COPY'd from it, so the image builds
-# the same from a repo checkout, a user install (which ships this file), or CI.
+# Build context is this directory, and only entrypoint.sh is COPY'd from it, so the
+# image builds the same from a repo checkout, a user install (which ships both files),
+# or CI.
 #
 # To bump: take the release's tarball link from https://fossil-scm.org/home/uv/download.html,
 # set FOSSIL_VERSION / FOSSIL_CHECKIN / FOSSIL_SHA256, and the model's defaultTag.
@@ -32,7 +33,8 @@ RUN tar -xzf src.tar.gz --strip-components=1 \
   && ./fossil version | grep -q "version ${FOSSIL_VERSION} "
 
 ## ── os: the few files a scratch image still needs ─────────────────────────
-FROM busybox:1.37 AS os
+# The musl variant: a static busybox, so the one binary runs on `scratch`.
+FROM busybox:1.37-musl AS os
 RUN mkdir -p /e /museum \
   && echo "root:x:0:0:Admin:/:/false" > /e/passwd \
   && echo "root:x:0:root" > /e/group
@@ -43,6 +45,9 @@ COPY --from=build --chmod=755 /fsl/fossil /bin/fossil
 COPY --from=os /e/passwd /e/group /etc/
 COPY --from=os --chmod=1777 /tmp /tmp/
 COPY --from=os /museum /museum/
+# Only for the seed script (entrypoint.sh): one static binary, no applet links.
+COPY --from=os /bin/busybox /bin/busybox
+COPY --chmod=755 entrypoint.sh /bin/fossil-entrypoint
 ENV PATH=/bin
 EXPOSE 8080/tcp
 # Runs as root, unlike upstream's image (a fixed UID 499). The repo lives on a
@@ -50,10 +55,11 @@ EXPOSE 8080/tcp
 # to a directory it doesn't own. Fossil handles root itself: serving a repository
 # file owned by a non-root user, it chroots into the repo's directory and drops to
 # that user (`chown` the repo to opt in). See https://fossil-scm.org/home/help/server.
-ENTRYPOINT ["fossil", "server"]
+# Seeds the repositories named in FOSSIL_REPOSITORIES (from `fossil.repositories` in
+# config/), then execs `fossil server` with CMD — see entrypoint.sh.
+ENTRYPOINT ["/bin/busybox", "sh", "/bin/fossil-entrypoint"]
 # Serve the directory, not a file: every `<name>.fossil` in /museum is served at
-# /<name>/, and "/" lists them. Nothing is created — upstream's `--create` would make a
-# repository with a generated admin login, and ours is seeded by the app instead
-# (named by `fossil.repositories` in config/). Until then the list is empty.
+# /<name>/, and "/" lists them. Not upstream's `--create`, which makes a generic
+# repository with a generated admin login; ours are made by the seed.
 # --jsmode bundled: one JS file, fewer requests.
 CMD ["--repolist", "--jsmode", "bundled", "/museum"]
