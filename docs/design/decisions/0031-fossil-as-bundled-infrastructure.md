@@ -97,6 +97,10 @@ on the user's machine.
 - A seeded repository is not quite empty: `fossil new` always records an initial empty
   check-in.
 - Renaming a repository in config seeds a new one; the old file stays in the data
-  directory, served, until someone removes it.
+  directory, served, until someone removes it
+  ([#211](https://github.com/vredchenko/claude-transcripts/issues/211)).
+- The seed's contents beyond an empty, open repository — users and roles, wiki, ticket
+  schema, tags, settings — are a placeholder (`seed_content`) until
+  [#210](https://github.com/vredchenko/claude-transcripts/issues/210) defines them.
 - Kubernetes reads `FOSSIL_REPOSITORIES` from the instance Secret like every other
   `${VAR:-default}` reference, so an existing `.env` needs the new key.
