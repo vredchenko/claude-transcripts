@@ -6,6 +6,35 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Shell completions.** `claude-transcripts completions <bash|zsh|fish>` prints a
+  completion script projected from `CLI_SPEC`: commands, flags and the values of any
+  argument with `choices` ([#111]).
+
+### Fixed
+
+- **A plain `uninstall` no longer deletes recorded history.** The stores are
+  bind-mounted under `deploy/data/`, and `uninstall` removed the whole deploy directory
+  while printing "history kept in Docker volumes". It now keeps `deploy/data/` and the
+  hook config (mirrors, a hand-set webapi URL), deregisters the statusline as well as
+  the hook, and `--purge` reports a deletion it couldn't finish instead of claiming
+  success ([#201]).
+- **Reinstalling no longer leaves a valid orphaned Garage key.** A key is minted only
+  when `instance.env` has none, so earlier app keys are now deleted once the new one is
+  in place; `bootstrap:garage` does the same for the dev stack ([#202]).
+- **Paging defaults live in the OpenAPI spec.** `limit`/`skip`/`offset` defaults and
+  descriptions were applied in handlers only, so generated clients didn't know them
+  ([#182]).
+
+### Changed
+
+- **Tests and docs trimmed** ([#147]): unit tests that restated the implementation or
+  duplicated a branch are gone (627 → about 400), and `docs/` is condensed, merged where
+  pages overlapped, and corrected against the code ([#199], [#200]).
+
 ## [0.3.3] — 2026-10-01
 
 Fixes found by auditing the docs against the code, then working through the bugs that
@@ -1588,6 +1617,14 @@ of them had ever executed:
 [#165]: https://github.com/vredchenko/claude-transcripts/issues/165
 [#168]: https://github.com/vredchenko/claude-transcripts/issues/168
 [#171]: https://github.com/vredchenko/claude-transcripts/issues/171
+[#111]: https://github.com/vredchenko/claude-transcripts/issues/111
+[#147]: https://github.com/vredchenko/claude-transcripts/issues/147
+[#182]: https://github.com/vredchenko/claude-transcripts/issues/182
+[#199]: https://github.com/vredchenko/claude-transcripts/pull/199
+[#200]: https://github.com/vredchenko/claude-transcripts/pull/200
+[#201]: https://github.com/vredchenko/claude-transcripts/pull/201
+[#202]: https://github.com/vredchenko/claude-transcripts/pull/202
+[Unreleased]: https://github.com/vredchenko/claude-transcripts/compare/v0.3.3...HEAD
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
 [0.3.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.2
 [0.3.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.1
