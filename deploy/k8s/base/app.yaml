@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/vredchenko/claude-transcripts-app:v0.3.3
+          image: ghcr.io/vredchenko/claude-transcripts-app:v0.4.0
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
