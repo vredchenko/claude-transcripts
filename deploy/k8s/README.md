@@ -1,6 +1,6 @@
 # Deploy on Kubernetes (k3s and friends)
 
-The same stack `deploy/docker-compose.yml` runs — CouchDB, Garage (S3), Meilisearch,
+The same stack `deploy/docker-compose.yml` runs — CouchDB, Garage (S3), Fossil, Meilisearch,
 their three admin UIs, and the app — as a **kustomize base**, for a single-node k3s
 cluster or any Kubernetes with a default StorageClass.
 
@@ -13,6 +13,7 @@ deploy/k8s/
 │   ├── couchdb.yaml          PVC + Deployment + Service   (5984)
 │   ├── garage.yaml           2 PVCs + ConfigMap(garage.toml) + Deployment + Service (3900, 3903)
 │   ├── garage-ui.yaml        Deployment + Service         (3909)
+│   ├── fossil.yaml           PVC + Deployment + Service   (8080)
 │   ├── meilisearch.yaml      PVC + Deployment + Service   (7700)
 │   ├── meilisearch-ui.yaml   Deployment + Service         (24900)
 │   └── app.yaml              Deployment + Service         (7650)
@@ -41,7 +42,7 @@ What you get, and how it maps to the compose stack:
 | Compose | Kubernetes |
 |---|---|
 | repo-root `.env`, interpolated into `${VAR}` | Secret `claude-transcripts-env`, generated from `base/.env`; every `${VAR}` became a `secretKeyRef`, the app's `env_file` became `envFrom` |
-| `./data/*` bind mounts | one `PersistentVolumeClaim` per mount (`couchdb-data`, `garage-meta`, `garage-data`, `meilisearch-data`), 10Gi, default StorageClass (k3s: `local-path`) |
+| `./data/*` bind mounts | one `PersistentVolumeClaim` per mount (`couchdb-data`, `garage-meta`, `garage-data`, `fossil-data`, `meilisearch-data`), 10Gi, default StorageClass (k3s: `local-path`) |
 | `./garage.toml:ro` | ConfigMap `garage-config`, inlined from `deploy/garage.toml` at generation time |
 | service names on the compose network | ClusterIP Services of the same names — `couchdb:5984`, `garage:3900`, `meilisearch:7700` — so the app's in-cluster endpoints are literally the compose ones |
 | `127.0.0.1:765x` published ports | **nothing published.** See *Reaching it* |
@@ -64,6 +65,7 @@ exposure is your decision, not the base's. Two ways:
   kubectl -n claude-transcripts port-forward svc/garage-ui 7655:3909 &
   kubectl -n claude-transcripts port-forward svc/meilisearch 7656:7700 &
   kubectl -n claude-transcripts port-forward svc/meilisearch-ui 7657:24900 &
+  kubectl -n claude-transcripts port-forward svc/fossil 7658:8080 &
   ```
   With those up, the repo-root `.env` defaults (`COUCHDB_PORT=7652`, `S3_ENDPOINT=http://127.0.0.1:7653`, …)
   and the hook work unchanged.

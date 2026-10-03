@@ -72,7 +72,7 @@ function ensurePrereqs() {
     );
   }
   // Pre-create the bind-mount dirs so docker doesn't create them owned by root.
-  for (const d of ["couchdb", "garage/meta", "garage/data", "meilisearch"]) {
+  for (const d of ["couchdb", "garage/meta", "garage/data", "meilisearch", "fossil"]) {
     mkdirSync(join(ROOT, "deploy", "data", d), { recursive: true });
   }
 }

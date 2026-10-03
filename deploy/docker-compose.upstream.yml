@@ -20,6 +20,10 @@ services:
     image: dxflrs/garage:${GARAGE_TAG:-v2.3.0}
   garage-ui:
     image: khairul169/garage-webui:${GARAGE_UI_TAG:-1.1.0}
+  fossil:
+    image: claude-transcripts-fossil:${FOSSIL_TAG:-2.28}-local
+    build:
+      context: ./fossil
   meilisearch:
     image: getmeili/meilisearch:${MEILI_TAG:-v1.10}
   meilisearch-ui:

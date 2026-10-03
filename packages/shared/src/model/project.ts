@@ -95,16 +95,22 @@ export function toComposeObject(model: AppModel) {
  * Project the **upstream-image dev override** (as a plain object). For every
  * service we merely mirror (has `image.upstream`), emit just an `image:` that
  * points at the canonical upstream image, so `docker compose -f base -f override`
- * runs with no registry mirror. Our own images (the app) have no upstream
- * and are left to the base file. The gen-compose-override script serialises this.
+ * runs with no registry mirror. A service we build from source (has `image.build`)
+ * gets its `build:` instead, under a local image name compose never tries to pull.
+ * The app is left to the base file. The gen-compose-override script serialises this.
  */
 export function toComposeOverrideObject(model: AppModel) {
   const services: Record<string, unknown> = {};
   for (const s of model.services) {
-    if (!s.image?.upstream) continue;
-    services[s.key] = {
-      image: `${s.image.upstream}:\${${s.image.tagEnv}:-${s.image.defaultTag}}`,
-    };
+    const tag = `\${${s.image?.tagEnv}:-${s.image?.defaultTag}}`;
+    if (s.image?.upstream) {
+      services[s.key] = { image: `${s.image.upstream}:${tag}` };
+    } else if (s.image?.build) {
+      services[s.key] = {
+        image: `claude-transcripts-${s.image.name}:${tag}-local`,
+        build: { context: s.image.build.context },
+      };
+    }
   }
   return { name: "claude-transcripts", services };
 }
@@ -122,6 +128,25 @@ export function toMirrorPlan(model: AppModel): Array<{ upstream: string; dest: s
     if (!s.image?.upstream) continue;
     plan.push({
       upstream: `${s.image.upstream}:${s.image.defaultTag}`,
+      dest: `claude-transcripts-${s.image.name}:${s.image.defaultTag}`,
+    });
+  }
+  return plan;
+}
+
+/**
+ * Project the **image-build plan**: for every service we build from source (has
+ * `image.build`), the build context (relative to the compose dir) and the
+ * `claude-transcripts-*` name it is published under — the same naming the mirror plan
+ * uses, so the base compose file and the Kubernetes base pull it like any other
+ * backing image.
+ */
+export function toImageBuildPlan(model: AppModel): Array<{ context: string; dest: string }> {
+  const plan: Array<{ context: string; dest: string }> = [];
+  for (const s of model.services) {
+    if (!s.image?.build) continue;
+    plan.push({
+      context: s.image.build.context,
       dest: `claude-transcripts-${s.image.name}:${s.image.defaultTag}`,
     });
   }

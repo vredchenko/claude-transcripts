@@ -13,6 +13,7 @@ resources:
   - couchdb.yaml
   - garage.yaml
   - garage-ui.yaml
+  - fossil.yaml
   - meilisearch.yaml
   - meilisearch-ui.yaml
   - app.yaml

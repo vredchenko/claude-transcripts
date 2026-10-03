@@ -84,6 +84,15 @@ export interface ImageRef {
    * `up` with no mirror. Our own images (the app) leave this unset.
    */
   upstream?: string;
+  /**
+   * Built by this project from an in-repo Dockerfile, for software that publishes source
+   * but no image of its own (Fossil). The path is relative to the compose dir
+   * (`deploy/`), and the build must need nothing from the repo beyond that directory:
+   * user installs ship it, and the upstream override builds it there, so `--upstream`
+   * still needs no registry. The registry path publishes it under the same
+   * `claude-transcripts-<name>:<defaultTag>` name a mirrored image would get.
+   */
+  build?: { context: string };
 }
 
 export interface VolumeMount {
@@ -280,12 +289,12 @@ export type TopologyNodeRole =
   | "writer" // the hook — the second writer (ADR 0016 amendment)
   | "client" // webui / cli / agents — HTTP consumers of the gateway
   | "gateway" // webapi — the stability column
-  | "store" // CouchDB / Garage — durable
+  | "store" // CouchDB / Garage / Fossil — durable
   | "index" // Meilisearch — derived, rebuildable
   | "admin-ui"; // Fauxton / garage-ui / meilisearch-ui (expanded only)
 
 /** A vendored mark under `brand/icons/`, or `mark` for our own `brand/logo-mark.svg`. */
-export type IconKey = "claude" | "mark" | "couchdb" | "garage" | "meilisearch";
+export type IconKey = "claude" | "mark" | "couchdb" | "garage" | "meilisearch" | "fossil";
 
 /**
  * Which path through the system a node belongs to.

@@ -68,7 +68,7 @@ resumes from there:
     app.json                               app config, seeded once, yours to edit
 ~/.local/share/claude-transcripts/
     deploy/                                compose files written out of the binary
-    deploy/data/                           CouchDB, Garage and Meilisearch data
+    deploy/data/                           CouchDB, Garage, Fossil and Meilisearch data
     version                                version the assets belong to
 ~/.claude/settings.json                    hook + statusline registration
 ```
@@ -201,5 +201,6 @@ Defaults, all bound to `127.0.0.1` with no app-level auth. Each is an `.env` var
 | 7651 | webui dev server | 7655 | Garage web UI |
 | 7652 | CouchDB, Fauxton at `/_utils/` | 7656 | Meilisearch |
 | 7653 | Garage S3 API | 7657 | Meilisearch UI |
+| | | 7658 | Fossil web UI (`FOSSIL_PORT`) |
 
-7658–7661 are reserved.
+7659–7661 are reserved.

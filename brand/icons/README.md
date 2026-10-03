@@ -21,6 +21,7 @@ rather than a silently broken picture.
 | `couchdb.svg` | Apache CouchDB mark. **One edit**: `viewBox="0 0 64 64"` added and `width`/`height` dropped — the original declared only pixel dimensions, so it would not scale. The declared 64×64 makes the viewBox exactly recoverable. |
 | `garage.svg` | [Garage](https://garagehq.deuxfleurs.fr) (Deuxfleurs). **Adapted** — see the comment inside the file for exactly what was removed and why the viewBox changed. |
 | `meilisearch.svg` | [Meilisearch](https://www.meilisearch.com) brand mark, Simple Icons house style. As published. |
+| `fossil.svg` | [Fossil SCM](https://fossil-scm.org) mark from [Simple Icons](https://simpleicons.org) (`fossilscm`, CC0). Fossil publishes its logo only as a GIF. **One edit**: Simple Icons' brand colour `#548294` set as `fill`, matching `meilisearch.svg`. |
 
 Our own mark (`../logo-mark.svg`) stands in for the webapi and is referenced in
 place, not copied.
@@ -33,8 +34,8 @@ header.
 ## Trademarks
 
 This repository is MIT-licensed. **These marks are not.** Each is the trademark of
-its project — Anthropic, the Apache Software Foundation, Deuxfleurs, and Meili SAS
-respectively — reproduced here nominatively, to identify the software this project
+its project — Anthropic, the Apache Software Foundation, Deuxfleurs, Meili SAS and
+the Fossil project respectively — reproduced here nominatively, to identify the software this project
 talks to. Their inclusion implies no affiliation with or endorsement by those
 projects, and the repository's LICENSE does not extend to them. If you fork this
 project and rebrand it, review these separately.
