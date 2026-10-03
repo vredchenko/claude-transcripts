@@ -14,7 +14,7 @@ and prefer the command that reports over the one that rewrites.
 
 | You see | It means | Do |
 |---|---|---|
-| Banner: *not recording (no instance configured)* / statusline `○ ct@<version> off · no instance configured` | No hook runtime config on this machine | `claude-transcripts install` (full setup) — or `setup` if the stores already exist elsewhere |
+| Banner: *not recording — no instance configured* / statusline `○ ct@<version> off · no instance configured` | No hook runtime config on this machine | `claude-transcripts install` (full setup) — or `setup` if the stores already exist elsewhere |
 | Statusline `○ ct@<version> off · not recording this session` with an instance configured | The hook isn't firing for this session: not registered, or registered after the session started | `claude-transcripts hook status`; if not registered, `hook install`, then **restart Claude Code** (hook config is snapshotted at session start) |
 | Statusline `◌ ct@<version> ready · … · no write yet` for more than a minute | Hook runs but CouchDB hasn't accepted a write | `claude-transcripts doctor`; `stack ps` / `stack up`; check the CouchDB URL in the hook config (`hook status` prints its path) |
 | Statusline `◐ ct@<version> stalled · hook silent` | The session keeps going but the hook stopped being invoked (no write *or* failure for 5+ minutes while the transcript moved) | `claude-transcripts hook status` — registration removed or the binary it points at gone/broken; `hook install`, then **restart Claude Code** |

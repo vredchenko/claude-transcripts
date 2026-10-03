@@ -25,9 +25,10 @@ plugin's `scripts/dispatch.ts`.
 
 ## What you see
 
-- **At session start**, a line in the transcript:
-  `Claude Transcripts — recording to couchdb://…/claude-transcripts-sessions + s3://… · http://127.0.0.1:7650/app/sessions/<id>`
-  — or, with no instance configured, `Claude Transcripts — not recording …`. A silent
+- **At session start**, a note in the transcript:
+  `● Claude Transcripts recording → claude-transcripts-sessions@127.0.0.1:7652 (+ s3://…)`
+  with the session's webui link on the line below — or, with no instance configured,
+  `○ Claude Transcripts not recording — …`. A silent
   hook and a broken hook used to look identical; this is the fix.
 - **In the statusline**, continuously: `● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → …`
   while writes land (`● … rec (mirror) …` when only a mirror is taking them),
@@ -36,7 +37,9 @@ plugin's `scripts/dispatch.ts`.
   `◐ ct@v0.2.0 stalled · hook silent …` when the session's transcript keeps moving but
   the hook hasn't run in over five minutes, and
   `○ ct@v0.2.0 off · no instance configured` / `○ ct@v0.2.0 off · not recording this session`
-  when there is nothing to record to. The number is the recording binary's own version
+  when there is nothing to record to. The state is coloured (set `NO_COLOR` to turn that
+  off), the store name links to the session in the webui, and on a narrow terminal the
+  line drops detail rather than wrapping. The number is the recording binary's own version
   (`ct@dev` from a checkout), so a machine running a stale hook says so on every
   refresh instead of only under `hook status`. Rendered from the hook's own scratch files — no network.
   A plugin may set `subagentStatusLine` (done, in `settings.json`) but not the main

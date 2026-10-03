@@ -6,6 +6,19 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The statusline is coloured, linked and fits the terminal.** The state is coloured
+  (green `rec`, yellow `stalled`, cyan `ready`, dim `off`; `NO_COLOR` turns it off), the
+  store name is a clickable link to the session in the webui, and on a narrow terminal
+  the line drops detail — tool count, host, event count, age — instead of wrapping. The
+  text is otherwise unchanged.
+- **The session-start banner is shorter.** It names the store as the statusline does
+  (`db@host`, with the bucket and mirrors in brackets) and puts the session link on a
+  line of its own, where terminals pick it up as a link.
+
 ## [0.4.0] — 2026-10-03
 
 A minor release because it adds a command: `completions` prints shell completion
