@@ -1,88 +1,60 @@
-# packages/cli — operational CLI utilities
+# Backfill
 
-`packages/cli/` is the home for **standalone command-line utilities** that work with
-session data outside the live logging path: transcript parsing, history adoption
-(`backfill`), reconciliation, export/import bundles, and schema migrations. The hook
-writes sessions live; the app reads them; `packages/cli/` is the by-hand operational
-tier against the same CouchDB + S3 backend.
+`backfill` adopts the transcripts Claude Code already keeps on disk
+(`~/.claude/projects/**/<id>.jsonl`) as first-class history: sessions from before you
+installed, or from while the stack was down.
 
-> Note: dev-only repo build automation (orval client gen, image mirroring, release)
-> lives separately under `scripts/` ([dev-automation.md](../develop/dev-automation.md)) — these
-> user-useful operational commands live in `packages/cli/`.
+```bash
+claude-transcripts backfill --dry-run                   # preview: adopt / skip / repair per session
+claude-transcripts backfill                             # adopt everything not already stored
+claude-transcripts backfill --force --session <id>      # rebuild one adopted session
+claude-transcripts backfill --repair                    # finish sessions an interrupted write left short
+```
 
-See [`packages/cli/README.md`](../../packages/cli/README.md) for the directory's own quick index.
+All flags: [cli.md](../reference/cli.md#backfill-options).
 
-## Why a separate tier
+## What it writes
 
-Keeping these out of both the hook and the app is deliberate:
+For each session, the same shape a live recording has, delivered through the webapi's
+`/api/ingest/*` routes (so it is indexed for search immediately):
 
-- The **hook stays a thin writer** — no operational subcommands on the session
-  hot path. (This also aligns with the agent-first direction in
-  [#15](../design/roadmap.md), where the host hook shrinks further.)
-- The **app stays a gateway, not an admin console** — it exposes only validated
-  primitives (`/api/ingest/*`, `/api/migrate/*`, `/api/search/reindex`); deciding what
-  to adopt, re-process or migrate lives here.
-- Utilities here can be **deployment-agnostic and vendor-neutral** by construction:
-  CouchDB over HTTP, S3 via `S3_*` env, no host paths or rclone/MinIO assumptions.
+- the `summary:<id>` doc, with `source: "backfill"` and `backfilled_at`;
+- one `event` doc per reconstructed hook event;
+- full-content `chunk` docs (byte-range only with `--no-content`);
+- the transcript blob in S3.
 
-## Design rules
+Timestamps are the transcript's own, never the time of the backfill. `--host` and
+`--actor` set attribution. Token usage is computed with the same
+`sumTranscriptTokens` the hook uses, so counts match a live recording.
 
-- **Standalone + optional.** Nothing here is a dependency of live logging; an
-  absent or broken tool degrades a manual workflow, never a running session.
-- **Idempotent + `--dry-run`.** Anything that writes takes `--dry-run` and is
-  safe to re-run (skip work already done). A dry run is **read-only, not offline**: it
-  reads the store so the plan it prints is the plan a real run would follow, skips and
-  all. It previously answered those reads from nothing and so reported every session as
-  new — if it cannot reach the webapi it now says the preview is a guess rather than
-  quietly printing one.
-- **Schema parity with the hook.** Tools that write session docs reuse the hook's
-  document shapes and `sumTranscriptTokens` from `@claude-transcripts/shared`
-  (see [hook.md](../reference/hook.md) / [webapi.md](../reference/webapi.md)).
-- **Bun + TypeScript**, reading the same `.env` (`COUCHDB_*`, `S3_*`) as the rest
-  of the repo — see [configuration.md](../start/configuration.md).
+Not captured yet: subagent sub-transcripts. The run reports how many sessions have
+them.
 
-## Planned utilities
+## Re-running
 
-| Utility | Purpose | Status today | Tracking |
-|---------|---------|--------------|----------|
-| **transcript-parser** | Parse a `<id>.jsonl` transcript into typed entries (messages, tool uses, usage). Reused by `backfill` and as a **verification oracle** — diff CouchDB content against the fs transcript. Token math validated against `ccusage`. | partial — `@claude-transcripts/shared` (`sumTranscriptTokens`, `buildChunkEntries`) | #6 |
-| **backfill** | "Adopt this machine's history": read on-disk `~/.claude/projects/**/<id>.jsonl` transcripts and reconstruct each session at **parity with the live hook** — the `summary:<id>` doc (`source: "backfill"` + `backfilled_at`) **and** per-event marker docs (so `events/*`, `tools/*`, `activity/timeline` views populate) and full-content `chunk` docs — plus the S3 transcript blob. Preserves the transcript's real per-entry timestamps (never stamps backfill time into `timestamp`); attributes by `--host` / `--actor`; skips sessions already present unless `--force` re-processes them (live-recorded sessions only with `--replace-live` as well); `--repair` adds what an interrupted write left out. Flags: [cli.md → backfill](../reference/cli.md#backfill-options). | exists — `packages/cli/src/commands/backfill.ts` (subagent sub-transcripts still TODO) | #6, #7 |
-| **reconcile** | Finalize stale `running`/`incomplete` sessions (no `SessionEnd` fired) from their CouchDB chunks and/or the S3 transcript → write the missing `summary:<id>`. | planned | #4 |
-| **export / import** | Dump (`export`) and restore (`import`) an instance (or a session / date range) as a portable bundle — summary + event docs + chunks + S3 blobs, plus the schema version — for moving history between machines or replacing an instance. | exists — `packages/cli/src/commands/{export,import}.ts` ([bundles.md](../design/bundles.md)) | — |
-| **migrate** | Self-built CouchDB migrations: version the schema, migrate docs **up/down**, and create/update/remove design views. CouchDB has no modern migrations tool, so we build our own. | exists — `packages/cli/src/commands/migrate.ts` (view-only migrations so far) | [migrations.md](migrations.md), [ADR 0021](../design/decisions/0021-self-built-couchdb-migrations.md) |
+- **Default** — sessions that already have a summary doc are skipped, so repeat runs
+  are cheap.
+- **`--dry-run`** reads the store and writes nothing, so the preview shows exactly what
+  a real run would skip. If the webapi is unreachable it says the preview is a guess.
+- **`--force`** re-processes adopted sessions, for example ones adopted with
+  `--no-content` or by an older CLI that wrote byte-range-only chunks. It first deletes
+  the session's derived docs (`DELETE /api/ingest/{id}`): re-ingesting over the top
+  would duplicate event docs (their ids are assigned by CouchDB) and leave old chunks
+  beside new ones (chunk ids are byte offsets). The S3 transcript and the on-disk JSONL
+  are never deleted, so an interrupted `--force` is fixed by running it again.
+  Afterwards, run `claude-transcripts reindex` to drop search entries for chunks that
+  no longer exist.
+- **`--replace-live`** — `--force` refuses live-recorded sessions, whose `end_reason`,
+  model, token usage and per-event markers a transcript can't reproduce. Add this flag
+  to rebuild them anyway.
+- **`--repair`** — for an adopted session with no readable turns, or whose transcript
+  never reached S3 (a cancelled `SessionEnd`): adds the missing chunks or blob and
+  leaves the summary and events alone. It refuses running sessions and sessions that
+  already have turns.
 
-### One `backfill` command (#6)
+## Not built
 
-There is a **single** `backfill` command (an earlier design split it into a
-summary-only pass and a full-parity *intake* pass, since merged). It does the
-full-parity job in one pass: it writes the **summary doc + per-event marker docs +
-full-content `chunk` docs** so a backfilled session matches a live-recorded one,
-rather than a thin summary-only record. Provenance is explicit — backfilled
-summaries carry `source: "backfill"` + `backfilled_at`, distinct from the
-`source: "live"` the hook writes — and the transcript's real timestamps are
-preserved. Subagent sub-transcript capture is the remaining gap, tracked in issue #6
-(planning).
-
-#### Re-processing an adopted session (`--force`)
-
-By default `backfill` skips any session that already has a summary doc, which makes
-repeat runs cheap. It also used to make some sessions permanently un-fixable: one
-adopted with `--no-content`, or by a CLI old enough to write byte-range-only chunks,
-had no path back to full-content chunks except deleting its docs by hand.
-
-`--force` re-processes instead of skipping — optionally narrowed to one session with
-`--session <id>`. It **deletes the session's derived docs first** (`DELETE
-/api/ingest/{id}`), which is not an optimisation but a correctness requirement:
-re-ingesting over the top would leave the old data in place, because event docs get
-CouchDB-assigned ids and would duplicate, while chunk ids are keyed by byte offset — so
-a session re-chunked at different boundaries keeps its old chunks alongside the new and
-reads back doubled.
-
-What it never deletes is the S3 transcript (it is overwritten) or the on-disk JSONL. So
-a `--force` run interrupted between the delete and the rewrite leaves the session
-incomplete but never unrecoverable: run it again.
-
-Search is the one thing not fixed automatically. Re-ingest overwrites the entries it
-regenerates, but turns belonging to chunks that no longer exist stay indexed until a
-rebuild — so a forced run ends by telling you to run `claude-transcripts reindex`, the
-documented reconciliation step for deletes ([ADR 0009](../design/decisions/0009-meilisearch-search.md)).
+- `reconcile` — finalise a session that never fired `SessionEnd` by writing its
+  summary from the chunks or the S3 transcript. Until then such sessions show as
+  `incomplete`.
+- `couch` / `s3` power-user passthroughs and `meta post` enrichment.
