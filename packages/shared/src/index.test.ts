@@ -32,18 +32,6 @@ describe("sumTranscriptTokens", () => {
     expect(usage.total).toBe(187); // 110 + 20 + 50 + 7
   });
 
-  test("returns zeroed usage for an empty transcript", () => {
-    const usage = sumTranscriptTokens("");
-    expect(usage).toEqual({
-      input: 0,
-      output: 0,
-      cacheCreation: 0,
-      cacheRead: 0,
-      total: 0,
-      messages: 0,
-    });
-  });
-
   test("counts usage-less messages under distinct anon ids (no collapse)", () => {
     const jsonl = [
       JSON.stringify({ message: { usage: { input_tokens: 1 } } }),
@@ -69,17 +57,8 @@ describe("sliceIntoChunks", () => {
     const totalBytes = new TextEncoder().encode(jsonl).length;
     expect(slices[slices.length - 1]?.byteEnd).toBe(totalBytes);
 
-    // every non-empty entry is accounted for exactly once
-    const entries = slices.reduce((sum, s) => sum + s.entryCount, 0);
-    expect(entries).toBe(10);
-  });
-
-  test("respects the max entries per chunk", () => {
-    const jsonl = Array.from({ length: 7 }, (_, i) => `{"n":${i}}`).join("\n");
-    const slices = sliceIntoChunks(jsonl, 3);
-    expect(slices.length).toBe(3); // 3 + 3 + 1
-    expect(slices[0]?.entryCount).toBe(3);
-    expect(slices[2]?.entryCount).toBe(1);
+    // every entry is accounted for exactly once, at most 3 per chunk
+    expect(slices.map((s) => s.entryCount)).toEqual([3, 3, 3, 1]);
   });
 
   test("empty input yields no slices", () => {

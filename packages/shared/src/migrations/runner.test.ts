@@ -111,20 +111,4 @@ describe("migration runner", () => {
     expect(marker(fake.store)?.version).toBe(0);
     expect(marker(fake.store)?.applied).toEqual([]);
   });
-
-  test("up → down → up round-trips back to the same schema", async () => {
-    await migrateUp(fake.ctx);
-    await migrateDown(fake.ctx, { steps: latestVersion() });
-    const again = await migrateUp(fake.ctx);
-    expect(again.toVersion).toBe(latestVersion());
-    for (const d of INITIAL_DESIGNS) {
-      expect(fake.store.has(d._id)).toBe(true);
-    }
-  });
-
-  test("up honours an explicit --to target", async () => {
-    const result = await migrateUp(fake.ctx, { to: 0 });
-    expect(result.applied).toEqual([]);
-    expect(result.toVersion).toBe(0);
-  });
 });

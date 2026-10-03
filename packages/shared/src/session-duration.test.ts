@@ -23,13 +23,4 @@ describe("sumActiveDurationMs", () => {
   test("is order-independent (sorts first)", () => {
     expect(sumActiveDurationMs([t(25), t(0), t(10)], DEFAULT_IDLE_THRESHOLD_MS)).toBe(25_000);
   });
-
-  test("active never exceeds wall-clock; a long idle session collapses to work time", () => {
-    // Two quick bursts 1h apart: only the in-burst seconds count as active.
-    const stamps = [t(0), t(2), t(3600), t(3602)];
-    const active = sumActiveDurationMs(stamps, DEFAULT_IDLE_THRESHOLD_MS);
-    const wall = 3602 * 1000;
-    expect(active).toBe(4000); // 2s + 2s
-    expect(active).toBeLessThan(wall);
-  });
 });

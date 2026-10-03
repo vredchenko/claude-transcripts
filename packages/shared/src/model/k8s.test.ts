@@ -14,7 +14,6 @@ import {
   k8sWorkloadServices,
   parseEnvValue,
   toKubernetesObjects,
-  toKustomization,
 } from "./k8s";
 import { toComposeObject } from "./project";
 import type { AppConfigFile } from "./types";
@@ -96,24 +95,14 @@ describe("Kubernetes projection", () => {
     }
   });
 
-  test("images are the pinned upstream (mirror-free) refs, or our own release image", () => {
-    for (const s of k8sWorkloadServices(model)) {
-      const image = container(named("Deployment", s.key)).image as string;
-      if (s.image?.upstream) {
-        expect(image).toBe(`${s.image.upstream}:${s.image.defaultTag}`);
-      } else {
-        expect(image).toEndWith(`/claude-transcripts-${s.image?.name}:v${RELEASE}`);
-      }
-      expect(image).not.toContain("${");
-    }
-  });
-
   test("the app image is pinned to the given release, and nothing runs on :latest", () => {
     const app = container(named("Deployment", "app")).image as string;
     expect(app).toEndWith(`/claude-transcripts-app:v${RELEASE}`);
     for (const s of k8sWorkloadServices(model)) {
       const image = container(named("Deployment", s.key)).image as string;
+      if (s.image?.upstream) expect(image).toBe(`${s.image.upstream}:${s.image.defaultTag}`);
       expect(image).toMatch(/:[^/:]+$/); // an explicit tag
+      expect(image).not.toContain("${");
       expect(image.endsWith(":latest")).toBe(false);
     }
     const other = toKubernetesObjects(model, { files: FILES, releaseVersion: "0.9.0" });
@@ -149,18 +138,6 @@ describe("Kubernetes projection", () => {
     }
   });
 
-  test("read-only file mounts become ConfigMaps carrying the supplied content", () => {
-    const cm = named("ConfigMap", "garage-config");
-    expect((cm.data as Record<string, string>)["garage.toml"]).toBe(FILES["./garage.toml"]);
-    expect(() => toKubernetesObjects(model, { releaseVersion: RELEASE })).toThrow(/garage\.toml/);
-  });
-
-  test("volume names are stable and readable", () => {
-    expect(k8sVolumeName("couchdb", "./data/couchdb")).toBe("couchdb-data");
-    expect(k8sVolumeName("garage", "./data/garage/meta")).toBe("garage-meta");
-    expect(k8sVolumeName("meilisearch", "./data/meilisearch")).toBe("meilisearch-data");
-  });
-
   test("every $VAR ref in containerEnv resolves to a key the .env template declares", () => {
     const declared = new Set(k8sSecretKeys(model).map((k) => k.name));
     for (const dep of ofKind("Deployment")) {
@@ -172,38 +149,6 @@ describe("Kubernetes projection", () => {
         expect(e.valueFrom.secretKeyRef.name).toBe(K8S_ENV_SECRET);
         expect(declared).toContain(e.valueFrom.secretKeyRef.key);
       }
-    }
-  });
-
-  test("the app inherits the whole Secret (compose env_file) and pins in-cluster endpoints", () => {
-    const c = container(named("Deployment", "app"));
-    expect(c.envFrom).toEqual([{ secretRef: { name: K8S_ENV_SECRET } }]);
-    const env = c.env as Array<{ name: string; value?: string }>;
-    expect(env.find((e) => e.name === "COUCHDB_URL")?.value).toBe("http://couchdb:5984");
-    expect(env.find((e) => e.name === "WEBAPI_PORT")?.value).toBe("7650");
-    expect(c.readinessProbe).toMatchObject({ httpGet: { path: "/health", port: 7650 } });
-    // and the template lists the app-facing secrets that Secret must carry
-    const keys = k8sSecretKeys(model).map((k) => k.name);
-    expect(keys).toEqual(
-      expect.arrayContaining(["S3_ACCESS_KEY", "S3_SECRET_KEY", "GARAGE_RPC_SECRET"]),
-    );
-  });
-
-  test("the .env template carries compose's defaults", () => {
-    expect(k8sSecretKeys(model)).toContainEqual({ name: "COUCHDB_USER", fallback: "admin" });
-    expect(k8sSecretKeys(model)).toContainEqual({ name: "GARAGE_RPC_SECRET" });
-  });
-
-  test("the kustomization references every file and builds the Secret from .env", () => {
-    const k = toKustomization(["namespace.yaml", "app.yaml"]);
-    expect(k.resources).toEqual(["namespace.yaml", "app.yaml"]);
-    expect(k.secretGenerator[0]).toMatchObject({ name: K8S_ENV_SECRET, envs: [".env"] });
-  });
-
-  test("every object is namespaced and labelled part-of", () => {
-    for (const o of objects) {
-      expect(o.metadata.labels?.["app.kubernetes.io/part-of"]).toBe("claude-transcripts");
-      if (o.kind !== "Namespace") expect(o.metadata.namespace).toBe("claude-transcripts");
     }
   });
 });

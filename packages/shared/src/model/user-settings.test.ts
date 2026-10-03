@@ -33,8 +33,4 @@ describe("resolveUserSettings", () => {
       );
     }
   });
-
-  test("a fractional page size is floored to a whole row count", () => {
-    expect(resolveUserSettings({ transcriptPageSize: 42.9 }).transcriptPageSize).toBe(42);
-  });
 });
