@@ -1,137 +1,63 @@
 # Dev automation
 
-> **Status: built.** Every script below exists and runs; the generators are wired
-> into `bun run gen:all`, which CI re-runs before diffing the working tree, so a
-> committed generated file that nobody regenerated fails the build (`gen:compat`'s
-> placeholder output is gitignored, so it is exempt). This is
-> **developer tooling**, kept **separate from the [CLI](../reference/cli.md)** (the CLI
-> is a user/admin product; these are repo build/dev scripts). They live under
-> `scripts/` and are run locally via `bun run` **and** wrapped as CI/CD jobs
-> (`.github/workflows/`) so local and CI behaviour match.
+Repo build and dev scripts live in `scripts/`, run with `bun run scripts/<name>.ts` or
+the `package.json` alias. They are not shipped to users; anything a user needs belongs
+in the [CLI](../reference/cli.md).
 
-## Pattern
+## Generators
 
-Each automation is one script, runnable two ways:
+Generated files are committed. `bun run gen:all` runs every generator below except
+`gen:clients`, and CI fails if either leaves a diff. Regenerate; never hand-edit.
 
-```bash
-bun run scripts/<name>          # locally
-```
+| Alias | Script | Writes, from the app model unless noted |
+|-------|--------|-----------------------------------------|
+| `gen:clients` | `regenerate-api-clients.ts` | `openapi.json` + the orval clients in `packages/cli/src/api/` and `packages/webui/src/api/` |
+| `gen:hooks` | `sync-hooks.ts` | `hooks/hooks/hooks.json` (events, timeouts, `async`) from `BINDINGS` |
+| `gen:hook-events` | `gen-hook-events.ts` | [`docs/reference/hook-events.md`](../reference/hook-events.md) |
+| `gen:diagram` | `gen-diagram.ts` | `docs/assets/architecture{,-light,-dark}.svg` |
+| `gen:compose` | `gen-compose.ts` | `deploy/docker-compose.yml` |
+| `gen:compose-override` | `gen-compose-override.ts` | `deploy/docker-compose.upstream.yml` (public upstream images) |
+| `gen:k8s` | `gen-k8s.ts` | `deploy/k8s/base/` ([ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)) |
+| `gen:assets` | `gen-assets.ts` | `packages/cli/src/lib/assets.generated.ts`: compose files, `garage.toml` and the config template, embedded in the binary for `install` |
+| `gen:cli-docs` | `gen-cli-docs.ts` | the command sections of `packages/cli/README.md` and [`docs/reference/cli.md`](../reference/cli.md), from `CLI_SPEC` |
+| `gen:compat` | `regenerate-compatibility.ts` | `compatibility.json` (placeholder output, gitignored; [compatibility.md](../start/compatibility.md)) |
+| `gen:mock` | `regenerate-mock-fixtures.ts` | synthetic content for the hook fixtures under `tests/mock/` (not in `gen:all`) |
 
-…and invoked by a thin CI workflow that calls the same script — one source of
-truth for the behaviour, no drift between local and CI.
+Output must not depend on your local `config.json` or `.env`, or CI fails for a reason
+it can't reproduce: `gen-diagram` reads `config.template.json` with an empty
+environment, and `gen-compose` emits `${VAR}` placeholders rather than resolved values.
 
-## Scripts
+### API clients
 
-| Script | Does | Notes |
-|--------|------|-------|
-| **regenerate-api-clients** | Generate the typed API clients from the **latest OpenAPI spec** into **both** the CLI and the webui SPA | **orval**; the first one we build. [ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md) |
-| **regenerate-compatibility** | Regenerate `compatibility.json` from the external Claude Code source of truth | **Placeholder**: writes version `0.0.0` with no hooks; the output is gitignored. [compatibility.md](../start/compatibility.md) |
-| **mirror-images** | Pull the pinned third-party backing-service images and push them to the **GitHub Container Registry (GHCR)** | [ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md), [containers.md](../operate/containers.md) |
-| **release** | Stamp one lockstep semver across every component manifest (`--check` verifies without writing); CI does the building on the tag | [ADR 0023](../design/decisions/0023-lockstep-versioning-and-combined-image.md), [releasing.md](../operate/releasing.md) |
-| **gen-diagram** | Render the architecture diagram from the app model's topology into committed SVGs | see below; consumed by the README and [architecture.md](../design/architecture.md) |
-| **build-docs** | Render `docs/**/*.md` (incl. `design/decisions/`) into a self-contained static HTML site | see below; feeds GitHub Pages `/docs` and the combined image |
-| **migrate** *(via cli, not here)* | Schema/view migrations | lives in [`packages/cli/`](../operate/tools.md), not `scripts/` |
+`gen:clients` emits the spec offline (`packages/webapi/src/write-openapi.ts` registers
+the routes without connecting to any store), runs [orval](https://orval.dev) over it
+(`orval.config.ts`) and formats the output with Biome. Route `operationId`s name the
+generated functions. Three settings make the output usable as is:
 
-## Client generation (orval)
+- Response schemas are registered with `.openapi("Name")`, so types are called
+  `SessionStatus` rather than `ListSessions200SessionsItemStatus`.
+- `includeHttpResponseReturnType: false`, because each client's mutator
+  (`src/api/http.ts`) already unwraps the response body.
+- Each mutator exports `ErrorType`, so callers' error types match what the mutator
+  throws.
 
-The OpenAPI spec emitted by the webapi ([webapi.md](../reference/webapi.md)) is the contract
-source of truth. `bun run gen:clients` (`regenerate-api-clients`) runs in two steps:
+### Architecture diagram
 
-1. **Emit the spec offline** — `packages/webapi/src/write-openapi.ts` builds the
-   OpenAPI document from the registered routes with **no server and no Couch/S3
-   connections** (route registration doesn't touch the backends), writing the
-   committed `openapi.json` (`check:contract`'s baseline). Deterministic, runnable
-   anywhere — no live port.
-2. **Run [orval](https://orval.dev)** over that spec (`orval.config.ts`) to emit:
-   - the **CLI**'s client → `packages/cli/src/api/generated.ts` (fetch client; a
-     hand-written **mutator**, `src/api/http.ts`, injects the off-origin base URL),
-   - the **webui** SPA's client → `packages/webui/src/api/generated.ts` (react-query
-     over `fetch`; its own **mutator**, `src/api/http.ts`, unwraps responses and
-     throws on non-2xx so react-query sees failures).
-3. **Format the emitted files with Biome**, so generated code passes `lint` without
-   anyone hand-editing it. Deterministic — regeneration is byte-identical.
+The nodes and edges are declared in `packages/shared/src/model/topology.ts`;
+`gen-diagram.ts` only does layout. `architecture.svg` follows `prefers-color-scheme`
+and is used by the docs; the README uses the light/dark pair inside `<picture>`,
+because GitHub's image proxy needs that to switch themes. Third-party marks are inlined
+from `brand/icons/`, since an SVG served this way can't fetch anything.
 
-Both clients are now **faithful orval output**: `bun run gen:clients` overwrites them
-and nothing is hand-maintained. Getting there needed three things, worth knowing before
-touching the config:
+## Other scripts
 
-- **Named component schemas.** Response schemas are registered with
-  `.openapi("Name")` in the route modules. Without a name the spec inlines a schema at
-  each use site, and orval can only name the resulting type after the route it appeared
-  in — `ListSessions200SessionsItemStatus` instead of `SessionStatus`. Naming is what
-  makes generated output readable enough to consume directly.
-- **`includeHttpResponseReturnType: false`.** Both mutators return the response body,
-  so without this the generated types describe a `{data, status, headers}` envelope
-  that has already been unwrapped, and every call site reads `.data.data`.
-- **An `ErrorType` export from each mutator.** Orval otherwise types errors from the
-  route's *error response schema* (`ApiError`), but callers catch what the mutator
-  **throws**. Exporting `ErrorType` makes react-query's `error` an actual `Error`.
-
-Both consumers share one typed boundary against the same OpenAPI contract
-([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)).
-Route `operationId`s name the generated functions (e.g. `ingestSummary`). The
-generated clients are **committed** (regenerated in CI and checked) so a contract
-change fails fast at the consumer. The CLI's `WebapiSink` (used by `backfill`) calls
-these functions; the raw transcript upload stays a direct mutator call (no JSON
-schema for a binary body).
-
-## Architecture diagram (gen-diagram)
-
-`bun run gen:diagram` (`scripts/gen-diagram.ts`) renders the architecture picture
-from the app model, writing three committed SVGs under `docs/assets/`. It replaced
-hand-typed ASCII that existed in five places, had drifted (`cli` in four of them,
-`CLI` in the fifth), and — more importantly — was **wrong**: every copy routed the
-hook *through* the webapi, when [ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)'s
-amendment is precisely that the hook writes to CouchDB and S3 **directly**.
-
-**The scene lives in the model**, not in the script:
-[`packages/shared/src/model/topology.ts`](../../packages/shared/src/model/topology.ts)
-declares the nodes and edges, and `toArchitectureDiagram()` in `model/project.ts`
-projects them — filtered by detail level, with feature-gated nodes (and every edge
-touching them) dropped. The generator owns only geometry. Node labels and ports are
-read *through* `serviceKey`, so renaming a service in `services.ts` moves the diagram
-too; `topology.test.ts` enforces that, along with `compact ⊆ expanded`.
-
-Three outputs from one scene, because the two consumers cannot share a file:
-
-| File | Consumer | Theming |
-|------|----------|---------|
-| `architecture-light.svg` / `architecture-dark.svg` | the README, behind `<picture>` | baked per file |
-| `architecture.svg` | [architecture.md](../design/architecture.md), and so the docs site | `prefers-color-scheme` |
-
-GitHub serves README SVGs through an image proxy in secure static mode, so
-`<picture>` is the reliable way to switch themes there; a docs page can't use it at
-all, because `build-docs` escapes raw HTML — hence the single theme-aware file. They
-live under `docs/` because that is the only tree the Pages build copies: a link
-escaping it is rewritten to a GitHub *blob HTML* URL and renders broken.
-
-**Determinism matters more here than elsewhere.** CI regenerates and diffs, so the
-generator reads `config.template.json` via `loadConfigTemplate` — never the gitignored
-`config.json` — and passes an empty env to `buildAppModel`. Otherwise a contributor's
-local port override or feature toggle would change the bytes and fail the drift gate
-on their PR for a reason CI can't reproduce. (The other generators are immune by
-accident: `gen-compose` emits `${VAR}` placeholders rather than resolved values.)
-
-Third-party marks are inlined from [`brand/icons/`](../../brand/icons/README.md) —
-an SVG in secure static mode cannot fetch anything external, so referencing them
-would simply render nothing.
-
-## Docs static build (build-docs)
-
-`bun run build:docs` (`scripts/build-docs.ts`) renders the Markdown in `docs/`
-(including `docs/design/decisions/`) into a self-contained, theme-aware HTML site with a
-sidebar, writing to `build/docs/` by default (`--out <dir>` to override). It is
-**dependency-free** — Bun + Node built-ins only, with a small GFM-subset Markdown
-renderer — so it needs no install (CI stays `--frozen-lockfile`) and its output is
-fully offline. The same output is consumed twice: the [Pages workflow](../../.github/workflows/pages.yml)
-renders it into the published `/docs`, and the combined app image bakes it in to be
-served by the webapi ([containers.md](../operate/containers.md)). The renderer is intentionally
-minimal and swappable for a full SSG later.
-
-## CI/CD wrapping
-
-`ci.yml` runs the generators, `check:contract` and `build:docs`; `pages.yml`,
-`mirror-images.yml` and `release-cli.yml` run `build-docs`, `mirror-images` and
-`build-cli-npm`. `stack`, `seed`, `bootstrap-garage`, `regenerate-mock-fixtures` and
-`release` are local-only. Release jobs build the components and the combined image
-([containers.md](../operate/containers.md)).
+| Alias | Script | Does | Where it runs |
+|-------|--------|------|---------------|
+| `build:docs` | `build-docs.ts` | Renders `docs/` into a static site (`build/docs/`, `--out <dir>`). Dependency-free, small GFM subset. Fails on a broken relative link. The section list lives in the script; pages within a section are picked up automatically. | CI, `pages.yml`, the app image (`/docs`) |
+| `check:contract` | `check-contract.ts` | Fails on a breaking OpenAPI change ([testing.md](testing.md#contract)) | CI |
+| — | `mirror-images.ts` | Copies the pinned backing-service images to GHCR ([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md)) | `mirror-images.yml` |
+| — | `build-cli-npm.ts` | Bundles the CLI for npm | `release-cli.yml` |
+| — | `release.ts` | Stamps one version into every manifest ([releasing.md](../operate/releasing.md)) | local |
+| `stack:*` | `stack.ts` | `up`/`down`/`restart`/`logs`/`ps` for the dev stack; `--upstream`, `--build`, `--app` | local |
+| `bootstrap:garage` | `bootstrap-garage.ts` | Garage layout, bucket and app key; writes the key into `.env` | local |
+| `seed` | `seed.ts` | Creates missing CouchDB databases and reports buckets (`--dry-run`) | local |

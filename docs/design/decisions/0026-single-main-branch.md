@@ -22,7 +22,7 @@ immediately.
 - **Releases are cut from `main`** by pushing a `vX.Y.Z` tag
   ([ADR 0012](0012-github-actions-and-ghcr-for-releases.md)).
 
-See [branching.md](../../develop/branching.md).
+See [getting-started.md](../../develop/getting-started.md#branches-and-prs).
 
 ## Consequences
 

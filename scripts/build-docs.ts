@@ -63,7 +63,7 @@ const SECTIONS: Section[] = [
     dir: "develop",
     title: "Development",
     blurb: "Working on Claude Transcripts itself: setup, conventions, tests, automation.",
-    lead: ["getting-started.md", "development.md"],
+    lead: ["getting-started.md"],
   },
   {
     dir: "operate",
