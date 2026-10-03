@@ -3,6 +3,7 @@
  * has been refusing writes must not get a confident green dot (plugin.md invariant 2).
  */
 import { describe, expect, test } from "bun:test";
+import { stripVTControlCharacters } from "node:util";
 import type { StoreHealth, Targets } from "../hook/runtime";
 import {
   HOOK_SILENT_AFTER_MS,
@@ -271,5 +272,55 @@ describe("transcriptMtimeMs", () => {
     expect(transcriptMtimeMs(undefined)).toBeNull();
     expect(transcriptMtimeMs("")).toBeNull();
     expect(transcriptMtimeMs(42)).toBeNull();
+  });
+});
+
+/** The line with every escape sequence removed: what the terminal actually shows. */
+const visible = stripVTControlCharacters;
+
+describe("renderStatusline, drawing", () => {
+  const rec = state({ targets: targets({ lastWriteMs: NOW - 2000 }), counts });
+  const plain = renderStatusline(rec, NOW);
+
+  test("colour changes the look, never the text", () => {
+    const line = renderStatusline(rec, NOW, { color: true });
+    expect(line).toContain("\x1b[32m●");
+    expect(visible(line)).toBe(plain);
+  });
+
+  test("each state gets its own colour", () => {
+    const stalled = targets({ lastWriteMs: NOW - 10 * 60_000, lastFailureMs: NOW - 1000 });
+    expect(renderStatusline(state({ targets: stalled, counts }), NOW, { color: true })).toContain(
+      "\x1b[33m◐",
+    );
+    expect(renderStatusline(state({ targets: targets(), counts }), NOW, { color: true })).toContain(
+      "\x1b[36m◌",
+    );
+  });
+
+  test("a link wraps the store label, and only that", () => {
+    const url = "http://127.0.0.1:7650/app/sessions/abc";
+    const line = renderStatusline(rec, NOW, { link: url });
+    expect(line).toContain(
+      `\x1b]8;;${url}\x1b\\claude-transcripts-sessions@127.0.0.1:7652\x1b]8;;\x1b\\`,
+    );
+    expect(visible(line)).toBe(plain);
+  });
+
+  test("a narrow terminal drops detail, least useful first, never the state or version", () => {
+    const at = (columns: number) => renderStatusline(rec, NOW, { columns });
+    expect(at(200)).toBe(plain);
+    expect(at(80)).toBe(
+      `● ${CT} rec · 128 ev · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
+    );
+    expect(at(70)).toBe(`● ${CT} rec · 128 ev · 2s ago → claude-transcripts-sessions`);
+    expect(at(60)).toBe(`● ${CT} rec · 2s ago → claude-transcripts-sessions`);
+    expect(at(50)).toBe(`● ${CT} rec → claude-transcripts-sessions`);
+    expect(at(10)).toBe(`● ${CT} rec`);
+  });
+
+  test("width is measured on what shows, not on the escapes", () => {
+    const line = renderStatusline(rec, NOW, { color: true, link: "http://x/y", columns: 80 });
+    expect(visible(line)).toBe(renderStatusline(rec, NOW, { columns: 80 }));
   });
 });

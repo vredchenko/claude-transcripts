@@ -25,6 +25,7 @@ import { installPaths } from "../lib/paths";
 import {
   renderStatusline,
   type StatuslineInput,
+  sessionLink,
   transcriptMtimeMs,
   versionLabel,
 } from "../lib/statusline";
@@ -67,12 +68,22 @@ async function render(): Promise<number> {
     const configured = existsSync(installPaths().hookConfig);
     const id = input.session_id;
     const targets = id ? makeTargets(id).read() : null;
-    const line = renderStatusline({
-      configured,
-      targets,
-      counts: id ? makeCounts(id).read() : null,
-      transcriptMtimeMs: targets ? transcriptMtimeMs(input.transcript_path) : null,
-    });
+    const line = renderStatusline(
+      {
+        configured,
+        targets,
+        counts: id ? makeCounts(id).read() : null,
+        transcriptMtimeMs: targets ? transcriptMtimeMs(input.transcript_path) : null,
+      },
+      Date.now(),
+      {
+        // https://no-color.org: present and non-empty means no colour.
+        color: !process.env.NO_COLOR,
+        link: targets && id ? sessionLink(targets.webapiUrl, id) : null,
+        // Claude Code sets COLUMNS for the statusline command; there is no tty to ask.
+        columns: Number(process.env.COLUMNS) || undefined,
+      },
+    );
     process.stdout.write(`${line}\n`);
   } catch {
     // Even here the version is knowable — it is baked in, not read from anywhere
