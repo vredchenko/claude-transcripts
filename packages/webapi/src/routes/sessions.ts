@@ -363,8 +363,18 @@ const listRoute = createRoute({
   operationId: "listSessions",
   request: {
     query: z.object({
-      limit: z.coerce.number().int().nonnegative().optional(),
-      skip: z.coerce.number().int().nonnegative().optional(),
+      limit: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(50)
+        .openapi({ description: "Page size (sessions)." }),
+      skip: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(0)
+        .openapi({ description: "Sessions to skip before the page starts." }),
       /**
        * Narrow to sessions **overlapping** an ISO instant range — what a calendar or
        * timeline needs to draw one month without pulling the whole corpus.
@@ -373,8 +383,13 @@ const listRoute = createRoute({
        * belongs in it, and asking for a month must not drop the four-day session that
        * began the previous week. Either bound may be given alone.
        */
-      from: z.string().optional(),
-      to: z.string().optional(),
+      from: z.string().optional().openapi({
+        description:
+          "ISO instant. Keep sessions that end at or after it (overlap, not containment).",
+      }),
+      to: z.string().optional().openapi({
+        description: "ISO instant. Keep sessions that started at or before it (overlap).",
+      }),
       /**
        * Narrow to one project directory / host / model / provenance — exact match.
        * The same four attributes `GET /api/search` filters on, so a filter means the
@@ -386,10 +401,14 @@ const listRoute = createRoute({
        * literal. A session with no recorded `model` matches no `model` filter —
        * asking for a value is asking for the sessions that have it.
        */
-      cwd: z.string().optional(),
-      hostname: z.string().optional(),
-      model: z.string().optional(),
-      source: z.string().optional(),
+      cwd: z.string().optional().openapi({
+        description: "Exact project directory; a trailing slash is ignored.",
+      }),
+      hostname: z.string().optional().openapi({ description: "Exact hostname." }),
+      model: z.string().optional().openapi({
+        description: "Exact model id. Sessions with no recorded model never match.",
+      }),
+      source: z.string().optional().openapi({ description: "Exact provenance (`source`)." }),
     }),
   },
   responses: {
@@ -430,8 +449,18 @@ const transcriptRoute = createRoute({
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
-      limit: z.coerce.number().int().nonnegative().optional(),
-      offset: z.coerce.number().int().nonnegative().optional(),
+      limit: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(100)
+        .openapi({ description: "Page size (transcript entries)." }),
+      offset: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(0)
+        .openapi({ description: "Entries to skip, in transcript order." }),
     }),
   },
   responses: {
@@ -458,9 +487,21 @@ const turnsRoute = createRoute({
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
-      role: SpeakerRoleSchema.optional(),
-      limit: z.coerce.number().int().nonnegative().optional(),
-      offset: z.coerce.number().int().nonnegative().optional(),
+      role: SpeakerRoleSchema.optional().openapi({
+        description: "One side of the conversation; omit for all turns.",
+      }),
+      limit: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(500)
+        .openapi({ description: "Page size (turns)." }),
+      offset: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(0)
+        .openapi({ description: "Turns to skip, in role-then-transcript order." }),
     }),
   },
   responses: {
@@ -482,11 +523,23 @@ const crossTurnsRoute = createRoute({
   operationId: "getTurns",
   request: {
     query: z.object({
-      role: SpeakerRoleSchema.optional(),
-      from: z.string().optional(),
-      to: z.string().optional(),
-      limit: z.coerce.number().int().nonnegative().optional(),
-      skip: z.coerce.number().int().nonnegative().optional(),
+      role: SpeakerRoleSchema.optional().openapi({
+        description: "Speaker to collect. `from`/`to` only apply when it is set.",
+      }),
+      from: z.string().optional().openapi({ description: "ISO timestamp lower bound." }),
+      to: z.string().optional().openapi({ description: "ISO timestamp upper bound." }),
+      limit: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(200)
+        .openapi({ description: "Page size (turns)." }),
+      skip: z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .default(0)
+        .openapi({ description: "Turns to skip, in time order." }),
     }),
   },
   responses: {
@@ -538,14 +591,7 @@ export function sessionRoutes(ctx: AppContext) {
   };
 
   route.openapi(listRoute, async (c: any) => {
-    const limit = Number(c.req.query("limit") ?? 50);
-    const skip = Number(c.req.query("skip") ?? 0);
-    const from = c.req.query("from");
-    const to = c.req.query("to");
-    const cwd = c.req.query("cwd");
-    const hostname = c.req.query("hostname");
-    const model = c.req.query("model");
-    const source = c.req.query("source");
+    const { limit, skip, from, to, cwd, hostname, model, source } = c.req.valid("query");
     const db = ctx.couch.db("sessions");
     // One aggregate row per session (ended + running + incomplete), grouped by
     // session_id, then sorted + paginated in memory.
@@ -631,8 +677,7 @@ export function sessionRoutes(ctx: AppContext) {
    */
   route.openapi(transcriptRoute, async (c: any) => {
     const id = c.req.param("id");
-    const limit = Number(c.req.query("limit") ?? 100);
-    const offset = Number(c.req.query("offset") ?? 0);
+    const { limit, offset } = c.req.valid("query");
     const db = ctx.couch.db("sessions");
 
     const chunks = await chunkCoverage(db, id);
@@ -693,9 +738,7 @@ export function sessionRoutes(ctx: AppContext) {
   // sessions logged with `couchFullContentChunks` on; empty otherwise.
   route.openapi(turnsRoute, async (c: any) => {
     const id = c.req.param("id");
-    const role: string | undefined = c.req.query("role");
-    const limit = Number(c.req.query("limit") ?? 500);
-    const offset = Number(c.req.query("offset") ?? 0);
+    const { role, limit, offset } = c.req.valid("query");
     const db = ctx.couch.db("sessions");
     // Key prefix: [id] for all turns, [id, role] for one speaker. `{}` is CouchDB's
     // high-key sentinel, so endkey collects everything under the prefix.
@@ -722,11 +765,7 @@ export function sessionRoutes(ctx: AppContext) {
   // what does Claude repeatedly say" analysis. Paginated at the view (limit/skip)
   // since it spans the whole store; optional from/to ISO-timestamp bounds.
   route.openapi(crossTurnsRoute, async (c: any) => {
-    const role: string | undefined = c.req.query("role");
-    const from: string | undefined = c.req.query("from");
-    const to: string | undefined = c.req.query("to");
-    const limit = Number(c.req.query("limit") ?? 200);
-    const skip = Number(c.req.query("skip") ?? 0);
+    const { role, from, to, limit, skip } = c.req.valid("query");
     const db = ctx.couch.db("sessions");
     // Fetch limit+1 to detect a further page without a separate count query.
     const opts: Record<string, unknown> = { reduce: false, limit: limit + 1, skip };

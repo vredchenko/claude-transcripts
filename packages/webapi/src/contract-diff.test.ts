@@ -139,6 +139,17 @@ describe("requests — the consumer writes, so demanding more breaks", () => {
     ]);
   });
 
+  it("does NOT flag a parameter gaining a default or a description", () => {
+    const param = (extra: Record<string, unknown>) => ({
+      parameters: [
+        { name: "limit", in: "query", required: false, schema: { type: "integer", ...extra } },
+      ],
+      ...responds({ type: "object" }),
+    });
+    const after = param({ default: 50, description: "Page size." });
+    expect(diffContract(doc(param({})), doc(after))).toEqual([]);
+  });
+
   it("flags a removed parameter", () => {
     const before = doc({
       parameters: [{ name: "limit", in: "query", required: false, schema: { type: "integer" } }],

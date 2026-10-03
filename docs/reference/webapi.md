@@ -61,28 +61,17 @@ var.
 
 ## HTTP API
 
-Typed routes use `createRoute` + zod, so the spec is generated, not hand-written.
-`/health`, `/`, `/api/model*`, the proxies and the static mounts are plain Hono routes
-and not in the spec.
+Typed routes use `createRoute` + zod, so the spec is generated, not hand-written:
+`/api/sessions*`, `/api/turns`, `/api/search*`, `/api/ingest/*` and `/api/migrate/*`.
+Their parameters, defaults, descriptions and response shapes live in the spec only —
+browse them at **`/api/docs`** (Scalar) or read `/api/openapi.json` (committed at the
+repo root as `openapi.json`). Don't copy them here; a hand-kept table drifts.
+
+The routes below are plain Hono routes and **not** in the spec:
 
 | Method | Path | Query | Returns |
 |--------|------|-------|---------|
 | `GET` | `/health` | — | `{ ok, status, version, startedAt, stores, sessionIndex }` — see below |
-| `GET` | `/api/sessions` | `limit=50`, `skip=0`, `from`, `to`, `cwd`, `hostname`, `model`, `source` | `SessionsResponse` |
-| `GET` | `/api/sessions/{id}` | — | `SessionSummary` (404 if absent) |
-| `GET` | `/api/sessions/{id}/transcript` | `limit=100`, `offset=0` | `TranscriptResponse` |
-| `GET` | `/api/sessions/{id}/turns` | `role`, `limit=500`, `offset=0` | `SessionTurnsResponse` |
-| `GET` | `/api/turns` | `role`, `from`, `to`, `limit=200`, `skip=0` | `CrossSessionTurnsResponse` |
-| `GET` | `/api/search` | `q`, `limit=20`, `offset=0`, `cwd`, `model`, `hostname`, `source` | `SearchResponse` |
-| `POST` | `/api/search/reindex` | — | `ReindexResult` |
-| `POST` | `/api/ingest/summary` | — | Upsert a `summary:<id>` doc (idempotent) |
-| `POST` | `/api/ingest/events` | — | Bulk-insert append-only event docs |
-| `POST` | `/api/ingest/chunks` | — | Bulk-insert chunk docs (stable ids; idempotent) |
-| `PUT` | `/api/ingest/{id}/transcript` | — | Store the raw JSONL body (`application/x-ndjson`) as the session's S3 transcript |
-| `DELETE` | `/api/ingest/{id}` | `blobs=true\|false` | `SessionResetResult` |
-| `GET` | `/api/migrate/status` | — | `MigrationStatus` |
-| `POST` | `/api/migrate/up` | body `{ to?, dryRun? }` | `MigrationRunResult` |
-| `POST` | `/api/migrate/down` | body `{ steps?, dryRun? }` | `MigrationRunResult` |
 | `GET` | `/api/model` | — | The app model, minus `apiSpec` |
 | `GET` | `/api/model/{services,hooks,actions,env}` | — | One facet of the model (`actions` returns `{ actions, bindings }`) |
 | `GET`/`HEAD` | `/api/couch/*` | passed through | CouchDB's HTTP API, read-only |
