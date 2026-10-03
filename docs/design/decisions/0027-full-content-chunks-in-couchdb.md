@@ -4,31 +4,18 @@ Date: 2026-07-22
 
 ## Status
 
-Accepted — implemented on both the write and read paths.
+Accepted, implemented on the write and read paths. The hook and `backfill` write
+`entries[]` by default, validated at the webapi when ingested. Consumers:
+`speaker_split/by_role` (v4, `GET /api/sessions/{id}/turns`),
+`speaker_split/by_role_time` (v5, `GET /api/turns`), `chunks/entries_by_session` (v6,
+which makes chunks the default source for `GET /api/sessions/{id}/transcript` and
+narrows [ADR 0014](0014-transcripts-live-in-s3-only.md)), and Meilisearch's `turns`
+index ([ADR 0009](0009-meilisearch-search.md)).
 
-The hook + `backfill` embed `entries[]` when `couchFullContentChunks` is on, validated
-at the webapi. Every consuming view has landed:
-
-- `speaker_split/by_role` (v4) → `GET /api/sessions/{id}/turns`, with the webui's
-  per-speaker toggle on the session detail;
-- `speaker_split/by_role_time` (v5) → `GET /api/turns`, cross-session in time order;
-- `chunks/entries_by_session` (v6) → the transcript in reading order across speakers,
-  which makes chunks the **default source** for
-  `GET /api/sessions/{id}/transcript` (S3 is the fallback) — so a live or crashed
-  session is readable. This narrows [ADR 0014](0014-transcripts-live-in-s3-only.md).
-
-Per-turn search over `entries[]` is live in Meilisearch's `turns` index
-([ADR 0009](0009-meilisearch-search.md)).
-
-Content chunks are the default for both writers (the hook and `backfill`), so history
-adopted from here on needs nothing extra.
-
-Remaining, and only where history was adopted **before** this landed or with
-`--no-content`: those sessions carry byte-range-only chunks, fall back to S3 on read,
-and contribute nothing to content search. `backfill` can't redo them — it skips any
-session that already has a summary doc — so closing this needs either a re-process flag
-on `backfill` or a migration that rebuilds chunks from the S3 transcript. Not built,
-because no known deployment is in that state.
+Sessions adopted before this, or with `--no-content`, have byte-range-only chunks; they
+fall back to S3 on read and are absent from content search. `backfill --force` rebuilds
+them (`--replace-live` for live-recorded ones). The migration proposed below to
+re-derive chunks from S3 was not built.
 
 ## Context
 

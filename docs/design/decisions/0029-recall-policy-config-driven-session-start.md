@@ -4,7 +4,7 @@ Date: 2026-08-28
 
 ## Status
 
-Accepted — built in the P2 pass of [plugin.md](../plugin.md).
+Accepted — built; see [plugin.md](../plugin.md#part-3--recall-policy).
 
 ## Context
 
@@ -69,7 +69,7 @@ loader lands.
 - The primer costs one cheap cwd-scoped `GET /api/sessions?cwd=…&limit=1` per session
   start (the route gained `cwd` and `hostname` filters). If that proves noticeable,
   the count can be cached in the per-session scratch state and refreshed daily
-  (plugin.md, open question 4).
+  (not done: it is uncached, with a 2 s timeout).
 - Rejected for now: per-prompt nudging (option 1). Revisit only with evidence that the
   session-start primer is being ignored.
 - An optional MCP server (`search_sessions` / `get_session`) remains a later option; it

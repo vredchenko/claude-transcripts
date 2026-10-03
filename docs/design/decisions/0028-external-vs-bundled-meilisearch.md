@@ -10,19 +10,12 @@ we test; pointing at an external one is now safe rather than merely likely to wo
 
 ## Context
 
-The backing services differ in how *portable* they are, and that difference is not
-obvious until you try to move one.
+**CouchDB and Garage are addressable stores.** Point `COUCHDB_URL` / `S3_ENDPOINT`
+elsewhere and the app works; the bundled stack is a convenience, not an assumption
+([ADR 0020](0020-bundled-services-default-no-auth.md)).
 
-**CouchDB and Garage are addressable stores.** Point `COUCHDB_URL` / `S3_ENDPOINT` at
-somewhere else — a NAS, a managed CouchDB, another host's Garage — and the app works.
-They hold state we send and give back what we ask for; the app doesn't care where they
-run. Running them externally is already supported: the bundled stack is a convenience,
-not an assumption ([ADR 0020](0020-bundled-services-default-no-auth.md)).
-
-**Meilisearch is not a store — it's a derived index**, and that makes it different in
-kind. Nothing in it is authoritative: everything is a projection of CouchDB
-([ADR 0009](0009-meilisearch-search.md)). Making it external means exporting more than
-a URL:
+**Meilisearch is a derived index**: everything in it is a projection of CouchDB
+([ADR 0009](0009-meilisearch-search.md)). Making it external means more than a URL:
 
 - **It has to be configured, not just connected.** Indexes must exist with the right
   `primaryKey`, `searchableAttributes`, `filterableAttributes` and `sortableAttributes`
@@ -41,13 +34,8 @@ a URL:
   other indexes, and other clients — the opposite of the bundled no-auth localhost
   assumption we currently build on.
 
-So the awkwardness is real and worth naming: for the stores, "external" is a URL; for
-the index, "external" is a shared, stateful, configured dependency with a lifecycle we
-partly drive.
-
-There's a further wrinkle: [ADR 0009](0009-meilisearch-search.md) anticipates indexing
-sources *beyond* this stack (GitHub, git history, external docs). That future argues
-*for* a shared external instance — which is exactly the case that's hardest to isolate.
+[ADR 0009](0009-meilisearch-search.md) also anticipates indexing sources beyond this
+stack, which argues for a shared external instance: the case hardest to isolate.
 
 ## Options
 
@@ -71,21 +59,15 @@ sources *beyond* this stack (GitHub, git history, external docs). That future ar
 
 **Adopt option 2: external, namespaced.**
 
-What settled it wasn't the multi-tenancy question in the abstract — it was noticing an
-inconsistency the codebase already contained. CouchDB databases and S3 buckets are named
-in `config/` as keyed maps (`claude-transcripts-sessions`), deliberately, because "the
-app supports multiple databases and buckets". Meilisearch's indexes were bare
-hard-coded constants: `"sessions"` and `"turns"`.
+CouchDB databases and S3 buckets were already named in `config/` as namespaced keyed
+maps, while Meilisearch's indexes were hard-coded as `"sessions"` and `"turns"`. Since
+`reindex` clears an index before rebuilding, anyone pointing `MEILI_HOST` at an
+existing Meilisearch (which config always allowed) could destroy someone else's
+`sessions` index with a supported command. The status quo was the dangerous option.
 
-Those are the most collidable names imaginable, and `reindex` **clears the index before
-rebuilding**. Anyone who set `MEILI_HOST` to an existing Meilisearch — which the config
-has always allowed — could destroy someone else's `sessions` index by running a
-supported command. The dangerous option wasn't "go external"; it was the status quo,
-which permitted going external while quietly assuming nobody would.
-
-So the index names move into `config/` as `meilisearch.indexes`, exactly like the
-databases and buckets, defaulting to `claude-transcripts-sessions` and
-`claude-transcripts-turns`. That is the whole of option 2 that Tier 1 needs:
+So the index names move into `config/` as `meilisearch.indexes`, defaulting to
+`claude-transcripts-sessions` and `claude-transcripts-turns`. That is all of option 2
+that Tier 1 needs:
 
 - **Collisions become impossible by default** — the names are as namespaced as every
   other store's, and an operator who wants different ones edits config.
