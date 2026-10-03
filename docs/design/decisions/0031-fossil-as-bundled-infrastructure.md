@@ -4,7 +4,7 @@ Date: 2026-10-03
 
 ## Status
 
-Accepted. Infrastructure only: nothing in the app reads or writes Fossil yet.
+Accepted. The webapi reads Fossil through a read-only proxy; nothing writes it yet.
 
 ## Context
 
@@ -52,12 +52,26 @@ solve deployment. Two facts shape how:
    `s3.buckets`, and lands in the model's `stores`. The container serves its data
    directory (`fossil server --repolist /museum`) and creates nothing: upstream's
    `--create` would make a repository with a generated admin password, and the app's
-   repository is seeded by the app. How that seed authenticates is still open.
+   repository is seeded by the app.
+6. **No auth**, like the rest of the bundled stack
+   ([ADR 0020](0020-bundled-services-default-no-auth.md)): the seed gives Fossil's
+   built-in `nobody` user every capability (`fossil user capabilities nobody s`). A
+   repository still has one real user (its creator), whose password nobody needs.
+   Single sign-on with CouchDB and Garage comes later; Fossil supports it through
+   `REMOTE_USER` when run as CGI/SCGI behind a proxy.
+7. **Read through the gateway** ([ADR 0016](0016-webapi-is-the-io-gateway.md)), like
+   CouchDB and S3: `/api/fossil/<repoKey>/json/...` proxies Fossil's JSON API, which the
+   image is built with (`--json`). Fossil's own port stays published on the host
+   (7658), as CouchDB's, Garage's and Meilisearch's are. The proxy is an **allowlist**
+   of read-only commands, not a GET filter: the JSON API reads parameters from the
+   query string, so a GET can write (`/json/user/save?…` grants setup rights), and a
+   bare `/json?command=…` dispatches to any command.
 5. **Root in the container**, for now. Unlike upstream's image it runs as root,
    because the state directory is a bind mount or volume owned by whoever started the
    stack; Fossil's own jail drops each request's privileges to the owner of the
    directory it serves whenever that owner isn't root. Most of the other bundled
-   services also start as root.
+   services also start as root. Running every service as the stack owner's UID
+   (`PUID`/`PGID`) is tracked separately.
 
 **No Fossil CLI on the client side.** Clients that ever need to reach a repository do
 it over HTTP, through the web UI or a future gateway route; nothing installs `fossil`
@@ -65,6 +79,8 @@ on the user's machine.
 
 ## Consequences
 
+- Fossil's JSON API is documented upstream as unfinished; a release may change it, and
+  the allowlist is reviewed on each Fossil bump.
 - One more container and one more port in every bundled deploy; existing installs
   pick up `FOSSIL_PORT` as the next port after their block.
 - A Fossil upgrade is a reviewed change to three values in one Dockerfile plus the

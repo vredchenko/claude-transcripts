@@ -54,7 +54,7 @@ schema, the CLI spec. It is built from `config/` and the environment, served at 
 | **CouchDB** (core) | `event`, `summary` and `chunk` docs; full-content chunks carry the parsed, pruned turns ([couchdb.md](../reference/couchdb.md)) | Not allowed: it is the source of truth |
 | **S3**, bundled as [Garage](https://garagehq.deuxfleurs.fr) (`features.s3Blobs`) | `<bucket>/<sessionId>/transcript.jsonl` (byte-exact, its only home, [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)) and `summary.json` | No byte-exact transcript; CouchDB keeps the pruned turns |
 | **Meilisearch** (`features.meilisearch`) | Derived search indexes over session metadata and turns, rebuildable with `reindex` | No search, nothing else changes |
-| **[Fossil](https://fossil-scm.org)** | Version-controlled repositories with a web UI. Provisioned, not yet wired ([ADR 0031](decisions/0031-fossil-as-bundled-infrastructure.md)) | Nothing today |
+| **[Fossil](https://fossil-scm.org)** | Version-controlled repositories with a web UI; read through `/api/fossil`, not yet written ([ADR 0031](decisions/0031-fossil-as-bundled-infrastructure.md)) | Nothing today |
 
 The webapi and CouchDB are the only required parts. The webui, CLI, S3 and Meilisearch
 are optional, and losing one loses only its feature. S3 is reached through

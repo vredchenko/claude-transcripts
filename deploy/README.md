@@ -82,7 +82,16 @@ it yet ([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructur
 - **Repository** — the container serves every `*.fossil` file in `data/fossil/` at
   `/<name>/` and lists them at `/`. It creates none: the app's repository is named by
   `fossil.repositories` in `config/` (default `claude-transcripts-sessions`, like the
-  database and bucket) and will be seeded by the app. Until then the list is empty.
+  database and bucket) and will be seeded by the app. Until then the list is empty;
+  to create one by hand (no auth, like the rest of the stack — ADR 0020):
+
+  ```bash
+  F="docker exec claude-transcripts-fossil fossil"
+  $F new --admin-user admin /museum/claude-transcripts-sessions.fossil
+  $F user capabilities nobody s -R /museum/claude-transcripts-sessions.fossil
+  ```
+- **API** — built with Fossil's JSON API. The webapi reads it read-only at
+  `/api/fossil/<repoKey>/json/...` (see [webapi.md](../docs/reference/webapi.md)).
 
 ## No credentials to supply (localhost only) — ADR 0020
 

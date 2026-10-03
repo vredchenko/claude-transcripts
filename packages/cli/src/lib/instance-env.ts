@@ -120,6 +120,7 @@ export function buildInstanceEnv(opts: InstanceEnvOptions = {}): EnvMap {
     GARAGE_METRICS_TOKEN: secret(32),
 
     MEILI_HOST: `http://127.0.0.1:${ports.MEILI_PORT}`,
+    FOSSIL_URL: `http://127.0.0.1:${ports.FOSSIL_PORT}`,
     // Keyless by default (ADR 0020: bundled services, localhost, no auth). Set this
     // and the whole path — compose, webapi, CLI — picks the key up.
     MEILI_MASTER_KEY: opts.meiliMasterKey ? secret(24) : "",

@@ -21,6 +21,7 @@ export const ROUTES: RouteDef[] = [
   { path: "/api/openapi.json", serves: "OpenAPI spec (contract source of truth)" },
   { path: "/api/couch/*", serves: "read-only CouchDB proxy" },
   { path: "/api/s3/*", serves: "read-only S3 proxy" },
+  { path: "/api/fossil/*", serves: "read-only Fossil JSON API proxy" },
   { path: "/api/sessions", serves: "session list / detail / transcript / turns" },
   { path: "/api/turns", serves: "turns across all sessions, time-ordered by speaker" },
   { path: "/api/search", serves: "full-text search over sessions + conversation content" },

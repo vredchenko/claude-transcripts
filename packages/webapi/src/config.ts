@@ -67,6 +67,12 @@ export interface Config {
     /** logical key → Meilisearch index name */
     indexes: Record<string, string>;
   };
+  fossil: {
+    /** Base URL of the Fossil server — it serves every repository at `/<name>/`. */
+    url: string;
+    /** logical key → repository name */
+    repositories: Record<string, string>;
+  };
   features: Record<string, boolean>;
   servicesMenu: Record<string, string>;
 }
@@ -116,6 +122,14 @@ export function loadConfig(): Config {
         ...(appConfig.meilisearch?.indexes ?? {}),
       },
     },
+    fossil: {
+      url: (env.FOSSIL_URL ?? "http://127.0.0.1:7658").replace(/\/+$/, ""),
+      // Defaulted like the Meilisearch indexes, for configs that predate the key.
+      repositories: {
+        sessions: "claude-transcripts-sessions",
+        ...(appConfig.fossil?.repositories ?? {}),
+      },
+    },
     features: appConfig.features,
     servicesMenu: appConfig.servicesMenu,
   };
@@ -144,6 +158,13 @@ export function dbName(config: Config, key: string): string {
 export function indexName(config: Config, key: string): string {
   const name = config.meili.indexes[key];
   if (!name) throw new Error(`Unknown Meilisearch index key: ${key}`);
+  return name;
+}
+
+/** Resolve a Fossil repository name from its logical key. */
+export function repositoryName(config: Config, key: string): string {
+  const name = config.fossil.repositories[key];
+  if (!name) throw new Error(`Unknown Fossil repository key: ${key}`);
   return name;
 }
 
