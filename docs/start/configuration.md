@@ -1,253 +1,135 @@
 # Configuration
 
-There are two layers of configuration, split by sensitivity:
+Two layers:
 
-| Layer | File | Holds | Committed? |
-|-------|------|-------|-----------|
-| **Top-level settings** | `config/config.template.json` → `config/config.json` | Non-secret, deployment-wide defaults: database/bucket names, feature flags, tunables, service-menu URLs | **Template yes**; the live `config/config.json` is `.gitignore`d |
-| **Secrets & endpoints** | `.env` (per machine) | Hosts, ports, credentials, S3 keys | **No** (`.gitignore`d) |
+| Layer | File | Holds |
+|-------|------|-------|
+| Settings | `config/config.json` in a checkout (falls back to the committed `config/config.template.json`); `~/.config/claude-transcripts/app.json` on an installed instance | Non-secret: store names, feature flags, tunables, service-menu URLs, recall policy |
+| Secrets and endpoints | `.env` in a checkout ([`.env.template`](../../.env.template)); `~/.config/claude-transcripts/instance.env` on an installed instance | Hosts, ports, credentials, S3 keys, image tags |
 
-Copy the template to `config/config.json` to customise an instance; the loader falls
-back to the template, so zero-config development works out of the box. `.env` values
-**override** the matching defaults. Anything secret or per-deployment belongs in
-`.env`; anything stable and shareable belongs in `config/`, which is designed to grow
-into **multiple files**.
+Both live files are gitignored. New knobs go into `config/`, not a third source.
 
-## `config/config.json`
+**After changing settings, re-run `install` (or `setup` in a checkout).** The hook
+does not read `config/` or `app.json`; it reads a runtime config at
+`~/.config/claude-transcripts/config.json` that `install`/`setup` generate from them.
 
-The committed template, in full — this is the current shape, not a target:
+## Settings
+
+The committed template:
 
 ```jsonc
 {
   "app": { "name": "claude-transcripts" },
-
-  // CORE / system — dev-level settings & constants (not user-facing)
   "system": {
     "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } },
-    // session-lifecycle tunables. liveWindowMs: how long after its last activity a
-    // still-open (no SessionEnd) session is treated as running/live before it reads
-    // as incomplete/abandoned. Default 86_400_000 (24h). No live heartbeat exists,
-    // so this is a recency heuristic; an abandoned session that gets new events
-    // (within the window again) flips back to live automatically.
-    // idleThresholdMs: gap between consecutive events above which the session counts
-    // as idle when deriving *active* duration (vs total wall-clock runtime) on the
-    // session detail. Default 300_000 (5 min) — a session left open in tmux stops
-    // accruing active time past this gap.
     "sessions": { "liveWindowMs": 86400000, "idleThresholdMs": 300000 }
-    // other tunables/constants live here
   },
-
-  // NAMES — designed for MORE THAN ONE database, bucket and index from the start.
-  // All three are namespaced so a deployment pointed at a store it doesn't
-  // exclusively own can't collide with anything else there.
   "couchdb": {
     "databases": {
-      "sessions": "claude-transcripts-sessions",   // the session corpus
-      "appLogs":  "claude-transcripts-app-logs"    // operational logs (app-logging.md)
+      "sessions": "claude-transcripts-sessions",
+      "appLogs":  "claude-transcripts-app-logs"
     }
   },
-  "s3": {
-    "buckets": {
-      "sessions": "claude-transcripts-sessions"    // room for more buckets later
-    }
-  },
+  "s3": { "buckets": { "sessions": "claude-transcripts-sessions" } },
   "meilisearch": {
     "indexes": {
-      "sessions": "claude-transcripts-sessions",   // session metadata
-      "turns":    "claude-transcripts-turns"       // conversation content
+      "sessions": "claude-transcripts-sessions",
+      "turns":    "claude-transcripts-turns"
     }
   },
-
   "features": {
-    "s3Blobs": true,                 // upload transcript/summary blobs to S3
-    "midFlightChunking": true,       // tail the transcript into CouchDB chunk docs during the session
-    "couchFullContentChunks": true,  // embed parsed per-turn content in those chunks (ADR 0027)
-    "meilisearch": true,             // full-text search over sessions + conversation content
-    "secretsMasking": false          // mask secrets on write/read (future scope)
+    "s3Blobs": true,
+    "midFlightChunking": true,
+    "couchFullContentChunks": true,
+    "meilisearch": true,
+    "secretsMasking": false
   },
-
-  "servicesMenu": {},                // admin-UI links; empty = derive from the stack's ports
-
-  "userSettings": {                  // reader tunables, served to the webui via /api/model
-    "sessionListPageSize": 100,      // sessions fetched per page as the list scrolls
-    "transcriptPageSize": 100,       // transcript entries fetched per page
-    "transcriptAutoLoadMax": 2000    // entries the viewer loads on its own before it asks
+  "servicesMenu": {},
+  "userSettings": {
+    "sessionListPageSize": 100,
+    "transcriptPageSize": 100,
+    "transcriptAutoLoadMax": 2000
   },
-
-  "recall": {                        // when a live session consults its own history (ADR 0029)
-    "mode": "auto",                  // off | suggest | auto
-    "scope": "project",              // project | host | all — keep `project` while secretsMasking is off
+  "recall": {
+    "mode": "auto",
+    "scope": "project",
     "maxResults": 5,
     "maxSnippetChars": 400,
-    "triggers": {
-      "priorWorkQuestion": true,     // "did we…", "why is this…", "what did we decide…"
-      "repeatedError": true,         // an error that appears in past sessions
-      "beforeRederiving": true       // about to redo something that looks like prior work
-    },
-    "excludeCwdGlobs": [],           // directories never recalled from, nor primed in
+    "triggers": { "priorWorkQuestion": true, "repeatedError": true, "beforeRederiving": true },
+    "excludeCwdGlobs": [],
     "primer": { "onSessionStart": true, "maxTokens": 200 }
   }
 }
 ```
 
-> **Feature flags.** `midFlightChunking` + `couchFullContentChunks` +
-> `system.logging.chunk.*` drive mid-flight transcript chunking
-> ([mid-flight-chunking.md](../design/mid-flight-chunking.md),
-> [ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)). They now
-> default **on**, and quite a lot depends on that: content chunks are what make a live
-> session's transcript readable before it ends, what the speaker-split views map over,
-> and what content search indexes. Turn `couchFullContentChunks` off and chunks carry
-> byte ranges only — transcripts then read from S3 (so only after the session ends)
-> and contribute nothing to search. `meilisearch` gates search entirely
-> ([ADR 0009](../design/decisions/0009-meilisearch-search.md)); `secretsMasking`
-> remains a placeholder. Re-run the CLI's `setup` after changing flags so the hook's
-> runtime config is rebaked.
+| Key | Meaning |
+|-----|---------|
+| `system.logging.chunk` | Mid-session chunk flush: after this many transcript entries or this many ms, whichever first ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). |
+| `system.sessions.liveWindowMs` | A session with no `SessionEnd` counts as `running` for this long after its last event (24 h), then `incomplete`. A recency heuristic; there is no heartbeat. |
+| `system.sessions.idleThresholdMs` | Gaps between events longer than this (5 min) don't count towards a session's active time. |
+| `couchdb.databases`, `s3.buckets`, `meilisearch.indexes` | Keyed maps: code refers to a store by logical key (`sessions`, `appLogs`, `turns`), never by its deployed name. The `claude-transcripts-` prefix keeps them from colliding with anything else on a shared server. |
+| `features.s3Blobs` | Upload the transcript and a `summary.json` copy to S3. Off: no byte-exact transcript is kept anywhere; CouchDB still has the pruned per-turn content if full-content chunks are on. |
+| `features.midFlightChunking` | Tail the transcript into CouchDB `chunk` docs during the session. |
+| `features.couchFullContentChunks` | Put the parsed turns in those chunks ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)). Off: a live session's transcript can't be read until it ends, the speaker-split views are empty, and conversation content isn't searchable. |
+| `features.meilisearch` | Full-text search. Off: no search, nothing else changes. |
+| `features.secretsMasking` | Placeholder; nothing is masked yet. |
+| `servicesMenu` | Admin-UI links in the webui (keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`; any other key is an extra link). Unset keys are derived as `http://127.0.0.1:<host port>`; set one when the dashboards live elsewhere, e.g. `{ "couchdbFauxton": "https://couch.example.org/_utils/" }`. |
+| `userSettings` | How much the webui fetches: page sizes per request, and how many transcript entries load before the viewer offers a "load the rest" button (the list isn't virtualised). Out-of-range values fall back to the defaults. |
+| `recall` | When a live session consults its own history ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)). `mode`: `off`/`suggest`/`auto`; `scope`: `project`/`host`/`all`. Keep `scope: project` while `secretsMasking` is off. The plugin's `recall_mode`, `recall_scope` and `max_results` options override it per user. |
 
-- **`system`** — core/dev-level constants and tunables (e.g. chunk buffer size).
-- **`couchdb.databases` / `s3.buckets`** — **keyed maps**, not single names, so the
-  app supports **multiple databases and buckets** (the app-logs DB is the first
-  second database). Code refers to a store **by logical key** (`sessions`,
-  `appLogs`), never a hard-coded name.
-- **`userSettings`** — how much the webui pulls at a time. The two page sizes are the
-  `limit` on one request to the gateway; `transcriptAutoLoadMax` is where the transcript
-  viewer stops scrolling and prefetching on its own and offers a "Load the remaining N
-  entries" button instead (nothing in the reader is virtualised yet, so the ceiling is
-  what keeps a 40 000-entry session out of the DOM). Raise the page sizes on a fast host
-  with a large corpus; lower them on a small one. Values are clamped
-  (`resolveUserSettings`), and anything absent or nonsensical falls back to the default
-  above rather than failing the build of the app model. Omit the section entirely for
-  the defaults shown.
-- **`recall`** — the recall policy, resolved by the app model (`model.recall`) and
-  baked into the hook's runtime config; the plugin's `userConfig` (`recall_mode`,
-  `recall_scope`, `max_results`) overrides it per user. Omit the section for the
-  defaults shown. Re-run `setup` after changing it.
-- **Secrets/endpoints** stay in `.env` (below): the bundled defaults are non-secret
-  or empty ([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)), but
-  `.env` always carries the **full endpoint paths** to CouchDB and S3.
+Omit a section to get its defaults.
 
 ## Who reads what
 
-- **webapi** loads `config/` directly (`packages/webapi/src/config.ts`) for the DB and
-  bucket names, feature flags, and service URLs, then overlays `.env`. The config is
-  copied into the runtime image by the `Dockerfile`.
-- **hook** can't resolve the workspace at install time, so the CLI's `setup` reads
-  `config/` and **bakes** the names + `features` + `system.logging` into the generated
-  runtime config at `~/.config/claude-transcripts/config.json` (alongside the secrets
-  from `.env`). Re-run `setup` after editing `config/config.json` — the hook reads the
-  baked copy, not the repo. Settings that are the *machine's* own rather than a
-  projection of `config/` are carried across that rewrite instead of being regenerated:
-  [`mirrors`](../operate/mirrors.md), and `webapi` when the env doesn't name one.
+- **webapi** reads `config/` (`CT_CONFIG_DIR` overrides the directory) and overlays
+  the environment. The app image bakes in the template; mount a file at
+  `/app/config/config.json` to change it. An installed instance's `app.json` is read
+  by the CLI and hook, not by the app container.
+- **hook** reads only its runtime config (`CT_HOOK_CONFIG` overrides the path).
+  `install`/`setup` regenerate it from settings + secrets, but keep two keys that are
+  the machine's own: `mirrors` ([mirrors.md](../operate/mirrors.md)) and `webapi.url`.
 - **CLI** finds the webapi from `--webapi`, then `CT_WEBAPI_URL`, then `WEBAPI_PORT`,
-  then `webapi.url` in that same hook config (which `install` writes), then the
-  installed instance's port, then `127.0.0.1:7650`. On a machine that records to a
-  **remote** deployment, set `webapi.url` in the hook config (or `CT_WEBAPI_URL`) so
-  commands read from where the hook writes.
-- **docker-compose** uses `.env` only; its defaults mirror the committed template.
+  then `webapi.url` in the hook runtime config, then the installed instance's port,
+  then `127.0.0.1:7650`. On a machine that records to a remote deployment, set
+  `webapi.url` (or `CT_WEBAPI_URL`) so reads go where the hook writes.
+- **Docker Compose** reads `.env` / `instance.env` only.
 
-## Environment variables (`.env`)
-
-See [`.env.template`](../../.env.template) — one file for the host-run
-webapi/webui/CLI and the Compose stack: CouchDB, S3, Meilisearch and Garage-cluster
-secrets/endpoints, image refs (`IMAGE_NS`, `*_TAG`) and ports/hosts. Store **names**
-come from `config/`, not env.
-
-Overrides: `CT_WEBAPI_URL` (= `--webapi`), `CT_HOME` (relocate a whole install),
-`CT_HOOK_CONFIG`, `CT_CONFIG_DIR`; the app image sets `CT_STATIC_DIR`, `CT_DOCS_DIR`,
-`CT_CLI_BIN`, `CT_VERSION`.
+Other variables: `CT_HOME` relocates a whole install (see
+[installation.md](installation.md#where-things-live)); the app image sets
+`CT_STATIC_DIR`, `CT_DOCS_DIR`, `CT_CLI_BIN` and `CT_VERSION`.
 
 ## Backend topology — bundled or external
 
-The app container is told **where** its backends live purely through env, so the
-same image runs in two topologies ([containers.md](../operate/containers.md)):
+The app finds its backends purely through the environment, so the same image runs
+either way.
 
-- **Bundled** — the `deploy/` Docker Compose stack brings up CouchDB + Garage (S3)
-  + Meilisearch locally; the env points at those localhost services (Tier 1
-  default). The bundled services ask the operator to supply **no credentials of
-  their own** — Meilisearch runs with no master key, Garage's app key is minted on
-  first setup (`install`, or `bun run bootstrap:garage` from source) and written to
-  the env file, and CouchDB gets a fixed default admin (`admin`/`admin`), because
-  CouchDB 3 refuses to start without one. The stack binds to localhost only, and the
-  search key may stay empty; `COUCHDB_USER`/`COUCHDB_PASSWORD` must match the CouchDB
-  container's. See [ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md).
-- **External** — run the app container alone with env pointing at remote services
-  (e.g. managed CouchDB + **Cloudflare R2** + a hosted Meilisearch). Nothing in
-  the image assumes localhost: each backend is addressed by a full URL —
-  `COUCHDB_URL` (with `COUCHDB_USER`/`COUCHDB_PASSWORD`), `S3_ENDPOINT` +
-  `S3_*` keys, `MEILI_HOST` + `MEILI_API_KEY` — so HTTPS and a path prefix
-  (`https://couch.example.com/couchdb`) work for each. `COUCHDB_HOST`/`PORT`
-  remain as the bundled-stack shorthand and are ignored when `COUCHDB_URL` is set.
-  Resolution lives in one place (`resolveCouchUrl` in
-  `@claude-transcripts/shared`) so the webapi, CLI, and seed script agree.
+**Bundled** (default, the tested path): the `deploy/` Compose stack runs CouchDB,
+Garage and Meilisearch on localhost. Meilisearch has no master key unless you ask for
+one; Garage's app key is minted by `install` (or `bun run bootstrap:garage`) and
+written to the env file; CouchDB gets a fixed `admin`/`admin` because CouchDB 3 will
+not start without an admin ([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)).
 
-  **Not yet verified end to end** — the plumbing is in place, but no external
-  deployment has been exercised; expect rough edges (bucket + key creation is
-  manual, `bootstrap:garage` only targets the bundled Garage, and a CouchDB
-  **path prefix** depends on how the nano client joins the database name onto
-  the base URL — untested).
+**External**: point the app at your own services.
 
-## Toggling optional components
+| Backend | Variables |
+|---------|-----------|
+| CouchDB | `COUCHDB_URL` (full base URL, https and a path prefix allowed; wins over `COUCHDB_HOST`/`COUCHDB_PORT`), `COUCHDB_USER`, `COUCHDB_PASSWORD` |
+| S3 | `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` (Garage, MinIO, R2, AWS) |
+| Meilisearch | `MEILI_HOST`, `MEILI_API_KEY` |
 
-Per [tiers.md](../design/tiers.md), several components are optional and switch off via
-config, losing only their feature:
+Not verified end to end. Create the bucket and key yourself (`bootstrap:garage` only
+targets the bundled Garage; the app never creates buckets), and a CouchDB path prefix
+is untested.
 
-- **Meilisearch** — `features.meilisearch` (off ⇒ no search; or swap the backend,
-  see [database-choice.md](../design/database-choice.md)).
-- **S3 / Garage** — `features.s3Blobs` (off ⇒ no blob backups/escrow; CouchDB
-  still persists data).
-- **webui** — can be disabled without affecting the API/CLI.
-- **Mid-flight chunking** — `features.midFlightChunking` / `couchFullContentChunks`.
+### An external Meilisearch
 
-## Services menu
+Read [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md) first.
+The `turns` index holds conversation text, so an external Meilisearch is the one
+configuration where recorded content leaves the machine. And Meilisearch is a derived
+index the app owns: `reindex` clears an index before refilling it, which is safe only
+because the index names are ours. If you rename them, keep them distinct from anything
+else on that engine.
 
-`servicesMenu` sets the backing-service admin dashboards linked from the webui
-(keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`; any other key is
-shown as an extra link). A key you set **overrides** the derived link; a key you leave
-unset falls back to `http://127.0.0.1:<host port>` from the stack's resolved ports,
-which suits the bundled stack on the same machine. With external backends or a remote
-browser, point the keys wherever the dashboards live:
-
-```jsonc
-"servicesMenu": { "couchdbFauxton": "https://couch.example.org/_utils/" }
-```
-
-The template ships this empty. Older templates shipped the default-port links; an entry
-still equal to one of those is ignored, so a copied config follows your ports. CouchDB document and design-view links don't depend on any of this:
-they go through the webapi's read-only `/api/couch` proxy.
-
-## Design goal: everything configurable
-
-The intent is that **as much as possible is configurable** — names, feature
-toggles, tunables, service URLs, and (per
-[ADR 0017](../design/decisions/0017-hooks-and-actions-decoupled.md)) the hook→action
-bindings — all flow from `config/` (non-secret) + `.env` (secret), with no second
-config source. New knobs extend `config/` rather than introducing another source.
-
-## Search
-
-Optional, on by default (`features.meilisearch`), and **local-only** in the bundled
-stack: Meilisearch is published on `127.0.0.1:7656`, the same posture as the webapi.
-Indexing happens **on your machine** — the webapi follows CouchDB's change feed and
-writes to Meilisearch, both of them local; the hook never touches it. Turning the
-feature off costs you the search box and nothing else, since every index is derived
-from CouchDB and rebuildable with `claude-transcripts reindex`.
-
-`install` creates and fills the indexes for you, and `doctor` checks that a session it
-just wrote is findable — so a broken index shows up at setup rather than the first time
-you search.
-
-### Pointing at an external Meilisearch
-
-`MEILI_HOST` (and `MEILI_API_KEY`, for an instance with a master key) can point anywhere
-— but read [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md)
-first, because Meilisearch is unlike the other backing services.
-
-⚠️ **The `turns` index holds conversation text.** An external Meilisearch is the one
-configuration where this project's data leaves the machine it was recorded on.
-
-CouchDB and Garage are **stores**: point at another one and the app works. Meilisearch
-is a **derived index** this app configures, feeds, and rebuilds — and `reindex` clears
-an index before repopulating it. That's safe only because the index names are
-namespaced (`claude-transcripts-*`) and therefore ours. If you change them, keep them
-distinct from anything else on that engine.
-
-The bundled instance stays the default and the configuration we test.
+Search is otherwise local: the webapi follows CouchDB's change feed and writes to
+Meilisearch; the hook never touches it. Every index can be rebuilt from CouchDB with
+`claude-transcripts reindex`.

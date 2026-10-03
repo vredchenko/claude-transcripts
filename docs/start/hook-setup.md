@@ -1,155 +1,106 @@
 # Hook setup
 
-The hook (`hooks/`) is the writer half of the project: a Claude Code plugin that
-logs every session's events, an end-of-session summary, and the full transcript
-to CouchDB + an S3-compatible blob store (Garage). The webapi/webui then read
-that data back.
+`claude-transcripts install` configures and registers the hook for you. This page is
+for wiring the hook by hand: against stores you already run, from a checkout, or on a
+machine that records to an instance elsewhere.
 
-## Prerequisites
+## 1. Write the runtime config
 
-- [Bun](https://bun.sh) on the machine running Claude Code (the hook scripts are
-  Bun TypeScript).
-- A reachable CouchDB and an S3 bucket — either the bundled `deploy/` stack or
-  your own. The bucket must already exist (the hook does not create it).
-
-## 1. Configure
-
-`claude-transcripts install` does all of this for you — it generates the instance's
-secrets and ports, starts the backing services, provisions the stores, and writes the
-hook config. Reach for the steps below only when wiring the hook against stores you
-already run.
-
-From a source checkout, fill a `.env` (copy `.env.template`) with your CouchDB
-credentials and S3 (Garage) key, then write the hook's runtime config:
+The hook reads one file, `~/.config/claude-transcripts/config.json` (mode 600,
+`CT_HOOK_CONFIG` overrides the path). From a checkout, fill `.env` with your CouchDB
+credentials and S3 key, then:
 
 ```bash
-bun run cli setup            # verify later with: bun run cli setup --check
+bun run cli setup --no-hook   # write the config, create the CouchDB databases, probe the bucket
+bun run cli setup --check     # verify later, read-only
 ```
 
-That writes `~/.config/claude-transcripts/config.json` (mode 600) and ensures the
-CouchDB databases exist. The store names and the `features`/`system` blocks are
-projected from [`config/config.json`](configuration.md) (falling back to the committed
-`config.template.json`); the URLs and credentials come from `.env`:
+Store names, `features`, `system` and `recall` come from
+[`config/`](configuration.md); URLs and credentials from `.env`:
 
-```json
+```jsonc
 {
   "couch": {
     "url": "http://127.0.0.1:7652",
-    "databases": {
-      "sessions": "claude-transcripts-sessions",
-      "appLogs": "claude-transcripts-app-logs"
-    },
+    "databases": { "sessions": "claude-transcripts-sessions", "appLogs": "claude-transcripts-app-logs" },
     "auth": "user:pass"
   },
   "blob": {
     "endpoint": "http://127.0.0.1:7653",
     "region": "garage",
-    "accessKey": "...",
-    "secretKey": "...",
+    "accessKey": "…",
+    "secretKey": "…",
     "buckets": { "sessions": "claude-transcripts-sessions" }
   },
-  "webapi": { "url": "http://127.0.0.1:7650" },
+  "webapi": { "url": "http://127.0.0.1:7650" },   // used by the CLI, ignored by the hook
   "features": { … },
-  "system": { … }   // copied whole from config/
+  "system": { … },
+  "recall": { … }
 }
 ```
 
-`databases` and `buckets` are **keyed maps**, not single names — the system is
-designed for more than one of each, and consumers address them by logical key
-(`sessions`, `appLogs`) rather than by the deployed name.
+- The bucket must already exist; the hook never creates it.
+- Without `blob` (or with an empty `accessKey`), only CouchDB docs are written and no
+  byte-exact transcript is kept ([ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md)).
+- `webapi.url` is written only when `CT_WEBAPI_URL` or `WEBAPI_PORT` is set. On a
+  machine that records to a remote deployment, set it by hand.
+- Add `mirrors` to also write every session to a second instance
+  ([mirrors.md](../operate/mirrors.md)).
+- A rewrite by `setup` or `install` keeps `mirrors` and `webapi`; everything else is
+  regenerated.
+- No config means the hook does nothing, silently.
 
-Add a `mirrors` array to write every session to a second instance as well as this
-one — see [mirrors.md](../operate/mirrors.md). A rewrite preserves it, since nothing
-else on the machine records it.
-
-`webapi.url` is where the CLI reaches this instance; the hook ignores it. `setup`
-writes it only when `CT_WEBAPI_URL` or `WEBAPI_PORT` is set, and a rewrite that
-doesn't know it keeps the existing value — so on a machine that records to a remote
-deployment, set it by hand to that deployment's webapi.
-
-Omit `blob` (or leave `accessKey` empty) to log event/summary docs to CouchDB
-only. Note S3 is the transcript's sole home (ADR 0014): without a `blob` backend,
-transcript content is not persisted anywhere — only the summary doc's
-`transcript_bytes` is recorded.
-
-## 2. Verify
+## 2. Register the hook
 
 ```bash
-claude-transcripts doctor
+claude-transcripts hook install     # merge into ~/.claude/settings.json
+claude-transcripts hook status      # what is registered, where, and any mirrors
 ```
 
-Drives one synthetic session through the whole path — CouchDB doc, S3 blob
-round-trip, view queries, search — and prints what passed. It cleans up after
-itself.
+Re-running is a no-op, other tools' hooks are untouched, and an older registration is
+updated in place. From a checkout, `bun run cli setup` (without `--no-hook`) registers
+`bun run <clone>/packages/cli/src/cli.tsx hook run` instead. Use `--no-hook` on a
+development machine that already records through an installed binary, or it gets a
+second logger.
 
-## 3. Register the hook with Claude Code
+Per-project registration (`setup --project`) is not built; registration is global.
 
-The normal route needs neither a plugin nor a checkout — the installed binary
-registers itself:
-
-```bash
-claude-transcripts hook install
-```
-
-It merges into `~/.claude/settings.json`, so other tools' hooks are untouched and
-re-running is a no-op. `claude-transcripts hook status` shows what's registered.
-
-If you'd rather use Claude Code's plugin mechanism, the repo is its own marketplace:
-
-```
-/plugin marketplace add vredchenko/claude-transcripts
-/plugin install claude-transcripts@claude-transcripts
-```
-
-From a checkout, point Claude Code at the `hooks/` directory instead (so
-`${CLAUDE_PLUGIN_ROOT}` resolves):
+The plugin is the alternative route
+([installation.md](installation.md#registering-the-hook-binary-or-plugin)). From a
+checkout it can be installed by path:
 
 ```bash
 claude plugin install /absolute/path/to/claude-transcripts/hooks
 ```
 
-Either form still requires the CLI to be installed: the plugin is a shim that pipes each
-payload to `claude-transcripts hook run`, and ships no binary of its own. Neither the
-plugin nor the CLI updates itself — the plugin stays on the version you installed until
-you update it, and the binary is replaced by hand ([Upgrading](installation.md#upgrading)).
+Use one route, not both: with both, every event is recorded twice.
 
-> **Pick one route, not both.** The plugin and `hook install` register the same eleven
-> events and both end at the same writer, so with both active every event is recorded
-> **twice** — permanently, and silently, because the hook swallows errors by design.
-> `hook install` and `setup` both detect an enabled plugin and decline to register
-> alongside it; `claude-transcripts hook status` tells you which route a machine is on.
-> To switch from the plugin to the binary, disable the plugin first, then re-run.
+## 3. Verify
 
-### Architecture
+```bash
+claude-transcripts doctor
+```
 
-Either route ends in the same place — `claude-transcripts hook run`
-([hook.md](../reference/hook.md)) — which reads one payload on stdin and runs the
-**actions** bound to that event by the app model. One event can drive several actions;
-they run concurrently and settled, and the process always exits 0.
+Drives one synthetic session through CouchDB, S3, the views and search, reports what
+passed, and deletes it again (`--keep` leaves it for inspection).
 
-Registered events (11, in lifecycle order): `SessionStart`, `UserPromptSubmit`,
-`PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `PreCompact`,
-`PostCompact`, `Stop`, `StopFailure`, `SessionEnd` — the full catalogue, including
-which events are deliberately *not* bound and why, is generated into
-[hook-events.md](../reference/hook-events.md). Live
-events write as they happen; `SessionEnd` writes the summary + transcript.
-
-To wire another supported event (`PreToolUse`, `Notification`, …), add
-the binding to the model's `BINDINGS` and re-run `bun run gen:hooks` — dispatch and
-registration are both projections of it, so neither is edited by hand.
-
-## 4. (Optional) Backfill existing history
-
-Adopting on-disk history is no longer a hook script — it's the CLI's `backfill`
-command ([cli.md](../reference/cli.md), [tools.md](../operate/tools.md)), which reconstructs each session
-at parity with a live recording (summary + per-event docs, and — planned — chunk
-docs) rather than a thin summary-only record:
+## 4. Adopt existing history (optional)
 
 ```bash
 claude-transcripts backfill --dry-run   # preview
-claude-transcripts backfill             # adopt ~/.claude/projects/**.jsonl
+claude-transcripts backfill             # adopt ~/.claude/projects/**/*.jsonl
 ```
 
-Backfilled summaries are tagged `source: "backfill"` (+ `backfilled_at`) to distinguish
-them from live (`source: "live"`) recordings, and the transcript's real timestamps
-are preserved. Existing sessions are skipped, so it's safe to re-run.
+Backfilled sessions are tagged `source: "backfill"` and keep the transcript's real
+timestamps. Sessions already present are skipped, so it is safe to re-run. Details in
+[tools.md](../operate/tools.md).
+
+## How the hook works
+
+Every route ends at `claude-transcripts hook run` ([hook.md](../reference/hook.md)): it
+reads one payload on stdin, runs the actions the app model binds to that event
+concurrently, and always exits 0. Eleven events are registered: `SessionStart`,
+`UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`,
+`SubagentStop`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`.
+[hook-events.md](../reference/hook-events.md) lists every Claude Code event and why the
+others are not bound.

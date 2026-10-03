@@ -1,50 +1,96 @@
 # Installation
 
-Standing up Claude Transcripts on one machine, end to end: backing services, the
-app, and the hook that records your sessions.
-
-> **Not tested as ready for use.** No installation has been walked end to end on a
-> clean machine yet. Expect rough edges, and treat anything you store as
-> disposable. See [the project status](../README.md).
+> **Not tested as ready for use.** No install has been walked end to end on a clean
+> machine. Expect rough edges and treat stored data as disposable.
 
 ## Quick install
+
+Needs **Docker** (with Compose v2) and **Claude Code**. Nothing else, not even Bun.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/install.sh | sh
 ```
 
-That fetches the release binary for your platform, verifies its checksum, and runs
-`claude-transcripts install`, which does everything below for you: generates this
-instance's secrets and ports, starts the backing services, provisions the stores,
-starts the app, and registers the hook with Claude Code. It needs **Docker** and
-**Claude Code** — nothing else, not even Bun.
+`install.sh` fetches the release binary for your platform (Linux or macOS, x64 or
+arm64), verifies its checksum, puts it in `~/.local/bin` and runs
+`claude-transcripts install`. `CT_VERSION=vX.Y.Z` pins a release, `CT_BIN_DIR` changes
+the target directory, `CT_NO_RUN=1` installs the binary only.
 
-Already have the binary? Just run:
-
-```sh
-claude-transcripts install      # idempotent — safe to re-run
-claude-transcripts doctor       # verify the whole write→read path
-```
-
-Useful flags: `--port-base N`, `--meili-key`, `--no-hook`, `--no-app` — all of them
-in [cli.md](../reference/cli.md#install-options). Removing it again:
+With the binary already on your `PATH`:
 
 ```sh
-claude-transcripts uninstall            # keeps your recorded history
-claude-transcripts uninstall --purge    # deletes it too (asks first)
+claude-transcripts install      # idempotent, safe to re-run
+claude-transcripts doctor       # write a synthetic session, read it back, search it
 ```
 
-Install is a composition, so any phase can be re-run on its own — `stack up`,
-`provision`, `hook install` — and a failure tells you which one resumes from there.
+Restart any open Claude Code sessions afterwards: Claude Code reads hook configuration
+when a session starts, so sessions already running are not recorded.
 
-### Upgrading
+Flags (`--port-base N`, `--meili-key`, `--no-hook`, `--no-statusline`, `--no-app`,
+`--no-prune`, `--yes`, ...) are listed in [cli.md](../reference/cli.md#install-options).
 
-There is no `upgrade` command yet. Replace the binary and verify it:
+## What `install` does
+
+Each phase is idempotent and is also its own command, so a failure says which command
+resumes from there:
+
+1. **Preflight** — platform, Docker daemon reachable and usable by you, Compose v2,
+   free ports, Claude Code's settings dir. All failures are reported at once; nothing
+   is written until they pass. A busy port block is not a failure: install shifts to
+   the next free block and says so.
+2. **Configuration** — generates `instance.env`: CouchDB admin password, Garage
+   secrets, the port block, and a Meilisearch master key only with `--meili-key`.
+3. **Backing services** — `docker compose up` with public upstream images
+   (`claude-transcripts stack up`), waiting on each service's health check.
+4. **Provisioning** — CouchDB databases and migrations, Garage layout, bucket and app
+   key (`claude-transcripts provision`). The S3 key is written back to
+   `instance.env`, which is why the app starts after this.
+5. **Application** — the combined app image, pinned to the CLI's own version (or
+   `:main` for a non-release CLI). Waits for `/health` to report the stores usable,
+   then removes app images this upgrade superseded (never the one it just replaced;
+   `--no-prune` opts out).
+6. **Claude Code hook** — writes the hook runtime config and merges the hook (and the
+   statusline, unless `--no-statusline`) into `~/.claude/settings.json`
+   (`claude-transcripts hook install`). Other tools' entries are left alone.
+7. **Search** — creates and fills the Meilisearch indexes.
+8. **Verify** — runs `doctor`. If it fails, install reports failure.
+
+### Where things live
+
+```
+~/.local/bin/claude-transcripts            the binary, and the hook command
+~/.config/claude-transcripts/
+    config.json                            hook runtime config (0600)
+    instance.env                           generated secrets + ports (0600)
+    app.json                               app config, seeded once, yours to edit
+~/.local/share/claude-transcripts/
+    deploy/                                compose files written out of the binary
+    deploy/data/                           CouchDB, Garage and Meilisearch data
+    version                                version the assets belong to
+~/.claude/settings.json                    hook + statusline registration
+```
+
+`CT_HOME=<dir>` relocates all of it (including the Claude settings file), which is
+useful for a sandboxed trial.
+
+### Behaviour worth knowing
+
+- **One instance per machine.** Container names and the data dir are not namespaced.
+  A contributor's dev stack (`bun run stack:up`) collides with an install; take one
+  down before starting the other.
+- **`--port-base` only applies to a new instance.** An existing `instance.env` is
+  back-filled, never regenerated. To move ports, edit `instance.env` with the stack
+  down, or uninstall first.
+- **Stack down later** — the hook never blocks a session; events are dropped, and
+  `backfill` can adopt the session afterwards from `~/.claude`.
+
+## Upgrading
+
+There is no `upgrade` command yet. Replace the binary:
 
 ```sh
 P=linux-x64                # or linux-arm64, darwin-x64, darwin-arm64
 B=https://github.com/vredchenko/claude-transcripts/releases/latest/download
-cd ~/Downloads
 curl -fLO "$B/claude-transcripts-$P"
 curl -fLO "$B/claude-transcripts-$P.sha256"
 sha256sum -c "claude-transcripts-$P.sha256"
@@ -52,114 +98,62 @@ install -m 755 "claude-transcripts-$P" ~/.local/bin/claude-transcripts
 claude-transcripts --version
 ```
 
-`/releases/latest/download/` is resolved by GitHub, so this block has no version in it
-to go stale — it named `v0.1.0` for two releases. To pin one instead, swap `latest/download`
-for `download/vX.Y.Z`. Re-running the quick-install script does the same thing and picks
-the platform for you.
+Swap `latest/download` for `download/vX.Y.Z` to pin a release. Re-running
+`install.sh` does the same and picks the platform for you.
 
-If you also run the app, its image tag moves separately — **the binary and the server
-version drift independently**, and a schema mismatch makes ingest reject documents
-quietly. Upgrade both.
+Then re-run `claude-transcripts install` to move the app image to the new version: the
+binary and the app container are versioned together, and a schema mismatch makes
+ingest reject documents without saying so. Do **not** run `install` on a
+**client-only** machine (the hook writes to stores hosted elsewhere, no local
+containers): it would stand up a stack the machine was never meant to have.
 
-Do **not** re-run `install` to upgrade a **client-only** setup — one where the hook writes
-to stores hosted elsewhere and there are no local containers. `install` provisions an
-instance, so it would try to stand up a stack the machine was never meant to have.
-The design, including the edge cases it handles, is in
-[installation.md (design)](../design/installation.md).
+## Uninstalling
 
-**Open Claude Code sessions won't be recorded until you restart them**: Claude Code
-reads its hook configuration when a session starts.
+```sh
+claude-transcripts uninstall            # deregister the hook, stop the stack
+claude-transcripts uninstall --purge    # also delete recorded history (asks first)
+```
 
-### Registering the hook: binary or plugin
+`uninstall` is meant to keep history unless `--purge` is given. Take an
+[`export`](../operate/migrations.md#export-and-import) first if the history matters.
 
-`install` registers the hook itself, and that is the whole requirement. The repo is also
-its own Claude Code **plugin marketplace**, which is a second route to the same writer:
+## Registering the hook: binary or plugin
+
+`install` registers the hook itself. The repo is also a Claude Code plugin marketplace,
+a second route to the same writer:
 
 ```
 /plugin marketplace add vredchenko/claude-transcripts
 /plugin install claude-transcripts@claude-transcripts
 ```
 
-The plugin does **not** contain or fetch the CLI — it is a Bun shim (so this route needs
-**Bun** on `PATH`; the binary route does not) that finds the installed binary and pipes
-each payload to `claude-transcripts hook run`; without the CLI it prints one line and
-exits 0. What it
-adds over plain registration is the skills, `/claude-transcripts:status`, and the
-subagent statusline.
+The plugin contains no writer: it is a Bun shim (so this route needs **Bun** on
+`PATH`) that pipes each payload to `claude-transcripts hook run`, so the CLI must
+still be installed. It adds the skills, `/claude-transcripts:status` and the subagent
+statusline ([plugin.md](../design/plugin.md)).
 
-> **Pick one route, not both** — they register the same eleven events, so running both
-> records every event **twice**, silently. Details and the switch-over in
-> [hook-setup.md](hook-setup.md#3-register-the-hook-with-claude-code).
+**Pick one route.** Both register the same eleven events, so with both active every
+event is recorded twice. `hook install` and `setup` detect an enabled plugin and
+decline to register alongside it; `claude-transcripts hook status` shows which route a
+machine is on. Neither route auto-updates.
 
-Neither route auto-updates. The plugin is pinned to the version you installed, and the
-binary is a file on disk — upgrading is the two steps above and `/plugin` respectively.
+## From source
 
-The rest of this page covers doing it by hand — useful for a custom topology, for
-contributing, or for understanding what the one command actually did.
-
-## What you are installing
-
-| Piece | Required? | What it does |
-|-------|-----------|--------------|
-| **CouchDB** | yes | The source of truth — events, summaries, chunked content |
-| **S3-compatible storage** | recommended | Transcript blobs (bundled: [Garage](https://garagehq.deuxfleurs.fr)) |
-| **Meilisearch** | optional | Search index; off ⇒ no search, nothing else changes |
-| **webapi** | yes | The only process that talks to the stores |
-| **webui** / **cli** | optional | Ways to read it back |
-| **the hook** | yes, to record | Registered with Claude Code; writes each session |
-| **the plugin** | optional | Registers the hook, and adds the skills, `/claude-transcripts:status` and the subagent statusline |
-
-## Prerequisites
-
-For the quick install: [Docker](https://docs.docker.com/get-docker/) with Compose v2,
-and [Claude Code](https://claude.com/claude-code). The binary carries everything else.
-
-For the manual path below, additionally: [Bun](https://bun.sh) ≥ 1.4 and `git` — the
-floor `engines.bun` declares, which CI installs and runs the suite against. Below it
-the install is unsupported, not merely untested.
-
-## Choose a topology
-
-- **Bundled** — Docker Compose runs CouchDB + Garage + Meilisearch locally from
-  public images. This is the supported path and the rest of this page assumes it.
-- **External** — you already run these services; only the app runs locally. The
-  plumbing exists (each backend takes a URL) but has **not** been verified. See
-  [configuration.md](configuration.md#backend-topology--bundled-or-external).
-
-## Ports
-
-Defaults are `7650–7661`, bound to `127.0.0.1`, no auth. Every one is an `.env`
-variable, and `.env` feeds both Compose and the host-run app — so if something
-already listens on a port, change the number there and everything follows.
-
-| Port | Service | | Port | Service |
-|------|---------|-|------|---------|
-| 7650 | webapi | | 7654 | Garage admin API |
-| 7651 | webui (dev server) | | 7655 | Garage web UI |
-| 7652 | CouchDB (+ Fauxton at `/_utils/`) | | 7656 | Meilisearch |
-| 7653 | Garage S3 API | | 7657 | Meilisearch UI |
-
-## 1. Clone and install
+For a custom topology, or to see what `install` does by hand. Needs
+[Bun](https://bun.sh) 1.4 or later and `git` as well as Docker.
 
 ```bash
-git clone git@github.com:vredchenko/claude-transcripts.git
+git clone https://github.com/vredchenko/claude-transcripts.git
 cd claude-transcripts
 bun install
-```
-
-## 2. Secrets
-
-```bash
 cp .env.template .env
 ```
 
-Leave `IMAGE_NS` blank (public images). `COUCHDB_USER` / `COUCHDB_PASSWORD`
-default to `admin` / `admin`: CouchDB 3 refuses to start without an admin, so the
-bundled stack ships one rather than nothing — change both if this box is not
-your own ([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)).
-The same credentials log you into Fauxton at `:7652/_utils/`.
-
-Generate Garage's internal cluster secrets:
+In `.env`: leave `IMAGE_NS` blank (public images). `COUCHDB_USER` / `COUCHDB_PASSWORD`
+default to `admin` / `admin`, because CouchDB 3 will not start without an admin; change
+both if the machine is shared
+([ADR 0020](../design/decisions/0020-bundled-services-default-no-auth.md)). Generate
+Garage's cluster secrets and paste them in:
 
 ```bash
 for k in GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN GARAGE_METRICS_TOKEN; do
@@ -167,83 +161,38 @@ for k in GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN GARAGE_METRICS_TOKEN; do
 done
 ```
 
-`S3_ACCESS_KEY` / `S3_SECRET_KEY` stay empty — step 4 writes them for you.
-Non-secret settings (database and bucket names, feature flags) come from
-`config/` and need no copying; see [configuration.md](configuration.md).
-
-## 3. Start the backing services
+Then:
 
 ```bash
-bun run stack:up:upstream            # public images, no registry needed
-bun run scripts/stack.ts ps --upstream
+bun run stack:up:upstream     # CouchDB + Garage + Meilisearch from public images
+bun run bootstrap:garage      # layout, bucket, app key; writes S3_* keys into .env
+bun run dev:webapi            # :7650; creates databases + views on boot
+bun run cli doctor            # end-to-end check
+bun run cli setup             # hook config + register the hook (bun run cli setup --check to verify)
+bun run cli backfill --dry-run && bun run cli backfill   # adopt existing ~/.claude history
 ```
 
-State lives under `deploy/data/` — delete it to reset the world.
+With `WEBAPI_PORT` unset the CLI prefers an installed instance's port over 7650; set
+`WEBAPI_PORT=7650` in `.env` to point it at the checkout's webapi.
+`stack:up:local` builds the app image from the checkout and runs it in the stack
+instead of `dev:webapi`. Data lives under `deploy/data/`; delete it to reset. Restart
+the webapi after `bootstrap:garage` if it was already running, since S3 credentials
+are read at startup.
 
-## 4. Bootstrap Garage
+A hook registered by `setup` from a checkout runs `bun run <clone>/packages/cli/src/cli.tsx
+hook run`, so keep the clone in place and `bun` on `PATH`. More in
+[hook-setup.md](hook-setup.md).
 
-S3 signs every request, so a bucket and key must exist before the app can store
-anything. One idempotent command assigns the cluster layout, creates the bucket
-and an app key, grants access, and writes the keys into `.env`:
+## Ports
 
-```bash
-bun run bootstrap:garage
-```
+Defaults, all bound to `127.0.0.1` with no app-level auth. Each is an `.env` variable
+(`install` picks a free block from `--port-base`).
 
-If your Garage's admin API differs, the script prints the endpoint and response;
-the CLI equivalents are in the [repository README](../../README.md).
+| Port | Service | Port | Service |
+|------|---------|------|---------|
+| 7650 | webapi (`WEBAPI_PORT`) | 7654 | Garage admin API |
+| 7651 | webui dev server | 7655 | Garage web UI |
+| 7652 | CouchDB, Fauxton at `/_utils/` | 7656 | Meilisearch |
+| 7653 | Garage S3 API | 7657 | Meilisearch UI |
 
-## 5. Run the app
-
-On the host, for fast iteration:
-
-```bash
-bun run dev:webapi                   # http://127.0.0.1:7650 — creates DBs + views on boot
-bun run dev:webui                    # http://127.0.0.1:7651/app/
-```
-
-Or as a container — the combined image serves the API and the SPA together:
-
-```bash
-bun run stack:up:local               # builds + runs the app container
-```
-
-Restart the webapi after step 4 if it was already running: S3 credentials are
-read at startup.
-
-## 6. Verify
-
-```bash
-bun run cli doctor
-```
-
-This writes one synthetic session through the webapi and reads it back, proving
-CouchDB and S3 are wired. Then `bun run cli sessions` should list it.
-
-## 7. Record real sessions
-
-```bash
-bun run cli setup                    # verify later with: bun run cli setup --check
-```
-
-Writes `~/.config/claude-transcripts/config.json`, ensures the databases, probes
-the bucket, and registers the hook in `~/.claude/settings.json`. Details and
-per-project scope: [hook-setup.md](hook-setup.md).
-
-The hook runs from this clone, so keep it in place and keep `bun` on your `PATH`.
-It never blocks a session — if the stack is down, events are dropped.
-
-## 8. Adopt existing history
-
-```bash
-bun run cli backfill --dry-run       # preview
-bun run cli backfill                 # adopt on-disk ~/.claude transcripts
-```
-
-## Where to go next
-
-- [configuration.md](configuration.md) — everything you can change
-- [hook-setup.md](hook-setup.md) — hook installation in depth
-- [compatibility.md](compatibility.md) — which Claude Code versions are covered
-- [../develop/getting-started.md](../develop/getting-started.md) — if you mean to
-  work on the project itself
+7658–7661 are reserved.
