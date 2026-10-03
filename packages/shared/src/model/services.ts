@@ -109,6 +109,31 @@ export const SERVICES: ServiceDef[] = [
     },
   },
   {
+    key: "fossil",
+    name: "Fossil",
+    role: "backing",
+    image: {
+      name: "fossil",
+      tagEnv: "FOSSIL_TAG",
+      // Must equal FOSSIL_VERSION in deploy/fossil/Dockerfile (a test holds them together).
+      defaultTag: "2.28",
+      // No upstream image exists — Fossil ships a Dockerfile, not an image — so we build
+      // it from the release source.
+      build: { context: "./fossil" },
+    },
+    ports: [{ internal: 8080, hostEnv: "FOSSIL_PORT", defaultHost: 7658, label: "web UI + sync" }],
+    // One binary is the server, the web UI and the sync endpoint (`fossil clone/sync`
+    // over HTTP), so the "admin UI" is the service itself.
+    adminUiServiceKey: "fossil",
+    volumes: [{ host: "./data/fossil", container: "/museum" }],
+    // A scratch image: nothing to exec a healthcheck with but fossil itself, which can't
+    // probe its own server. Kubernetes checks the port: over HTTP every path 404s until
+    // a repository exists, so an httpGet probe would never pass on a fresh stack.
+    tcpHealth: { port: 8080 },
+    notes:
+      "Version control (repos + web UI) from one static binary. Infrastructure only: nothing reads or writes it yet. Serves every <name>.fossil under /museum; creates none.",
+  },
+  {
     key: "meilisearch",
     name: "Meilisearch",
     role: "backing",

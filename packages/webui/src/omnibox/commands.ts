@@ -62,4 +62,13 @@ export const COMMANDS: CommandDef[] = [
       if (url) window.open(url, "_blank");
     },
   },
+  {
+    name: "open fossil",
+    description: "Open Fossil web UI",
+    match: (input) => "open fossil".startsWith(input),
+    run: (ctx) => {
+      const url = ctx.servicesMenu?.fossil;
+      if (url) window.open(url, "_blank");
+    },
+  },
 ];

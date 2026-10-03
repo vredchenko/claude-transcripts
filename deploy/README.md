@@ -3,7 +3,7 @@
 > Running on **Kubernetes** (e.g. single-node k3s)? The same stack is generated as a
 > kustomize base under [`k8s/`](k8s/README.md).
 
-Backing services (CouchDB + Garage + Meilisearch + their admin UIs) and,
+Backing services (CouchDB + Garage + Fossil + Meilisearch + their admin UIs) and,
 optionally, the app — one `docker-compose.yml`, driven by the **stack runner** so
 it shares the repo-root `.env` with the host-run app.
 
@@ -34,12 +34,15 @@ Two ways to source the backing-service images:
 
 1. **Mirror (default / deploy)** — pulled from the GitHub Container Registry
    (GHCR) namespace `${IMAGE_NS}` (e.g. `ghcr.io/OWNER`), pinned:
-   `claude-transcripts-{couchdb,garage,garage-ui,meilisearch,meilisearch-ui}`.
-   Mirror them once: `IMAGE_NS=ghcr.io/OWNER bun run scripts/mirror-images.ts`.
+   `claude-transcripts-{couchdb,garage,garage-ui,fossil,meilisearch,meilisearch-ui}`.
+   Mirror them once: `IMAGE_NS=ghcr.io/OWNER bun run scripts/mirror-images.ts` —
+   it also builds and pushes `claude-transcripts-fossil` (see [Fossil](#fossil)).
 2. **Upstream (`--upstream`, zero-setup dev)** — pulls the canonical **public**
    images directly (`couchdb`, `dxflrs/garage`, `getmeili/meilisearch`, + community
    admin UIs), so a fresh clone runs with **no mirror and no `IMAGE_NS`**. This is
    the `deploy/docker-compose.upstream.yml` override, layered over the base file.
+   Fossil has no public image, so this override **builds** it from
+   `deploy/fossil/Dockerfile` instead (about a minute, first start only).
 
 Both compose files are **generated from the app model** (`bun run gen:compose` +
 `gen:compose-override`); the upstream image for each service is the `image.upstream`
@@ -59,10 +62,27 @@ by the `publish-image` workflow (no upstream; tags in
 | 7655 | Garage web UI |
 | 7656 | Meilisearch (API + built-in UI) |
 | 7657 | Meilisearch UI |
+| 7658 | Fossil web UI + sync, one repo per path (`http://127.0.0.1:7658/<name>/`) |
 
 ## State
 
 Bind-mounted under `deploy/data/` (gitignored) — wipe it to reset the stack.
+
+## Fossil
+
+[Fossil](https://fossil-scm.org) is version control whose single binary is also its
+server: the web UI (timeline, files, wiki, tickets) and the HTTP endpoint `fossil
+clone`/`sync` talk to. It is provisioned infrastructure only — nothing in the app uses
+it yet ([ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructure.md)).
+
+- **Image** — Fossil publishes none, so `fossil/Dockerfile` builds one from the
+  official release source (pinned tarball, sha256-checked, static binary on
+  `scratch`). To upgrade, bump the three `ARG`s there and `defaultTag` in
+  `packages/shared/src/model/services.ts`; a test fails if they disagree.
+- **Repository** — the container serves every `*.fossil` file in `data/fossil/` at
+  `/<name>/` and lists them at `/`. It creates none: the app's repository is named by
+  `fossil.repositories` in `config/` (default `claude-transcripts-sessions`, like the
+  database and bucket) and will be seeded by the app. Until then the list is empty.
 
 ## No credentials to supply (localhost only) — ADR 0020
 

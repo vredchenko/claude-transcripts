@@ -10,8 +10,13 @@
  * SERVICES is the one place image names and tags are declared, so this script can't
  * drift from what the compose stack actually pulls. Add a backing service there.
  *
+ * Backing software that publishes source but no image (Fossil) can't be mirrored, so
+ * it is built here from its in-repo Dockerfile (toImageBuildPlan) and pushed under the
+ * same naming — to a consumer of the registry, a built image and a mirrored one look
+ * alike.
+ *
  * (The app image — claude-transcripts-app — is built + published by the
- * publish-image workflow, not here: it has no `upstream`, so it isn't in the plan.)
+ * publish-image workflow, not here: it is in neither plan.)
  */
 import { join } from "node:path";
 import { $ } from "bun";
@@ -20,13 +25,15 @@ import { $ } from "bun";
 // doesn't resolve from scripts/ in a bare CI checkout. Unlike its siblings here, this
 // script runs in CI (mirror-images.yml), so it can't rely on a dev's node_modules.
 // shared/ is dependency-free, so importing the source directly costs nothing.
-import { buildAppModel, toMirrorPlan } from "../packages/shared/src/index";
+import { buildAppModel, toImageBuildPlan, toMirrorPlan } from "../packages/shared/src/index";
 import { loadConfigFile } from "./lib/config-file";
 
 const NS = process.env.IMAGE_NS; // e.g. ghcr.io/OWNER
 
 const ROOT = join(import.meta.dir, "..");
-const IMAGES = toMirrorPlan(buildAppModel(loadConfigFile(ROOT), process.env));
+const MODEL = buildAppModel(loadConfigFile(ROOT), process.env);
+const IMAGES = toMirrorPlan(MODEL);
+const BUILDS = toImageBuildPlan(MODEL);
 
 async function main() {
   if (!NS) throw new Error("IMAGE_NS is required (e.g. ghcr.io/OWNER)");
@@ -37,7 +44,14 @@ async function main() {
     await $`docker tag ${upstream} ${target}`;
     await $`docker push ${target}`;
   }
-  console.log(`[mirror] done — ${IMAGES.length} image(s)`);
+  for (const { context, dest } of BUILDS) {
+    const target = `${NS}/${dest}`;
+    const dir = join(ROOT, "deploy", context);
+    console.log(`[mirror] build ${dir} → ${target}`);
+    await $`docker build -t ${target} ${dir}`;
+    await $`docker push ${target}`;
+  }
+  console.log(`[mirror] done — ${IMAGES.length} mirrored, ${BUILDS.length} built`);
 }
 
 await main();

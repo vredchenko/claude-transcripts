@@ -91,7 +91,7 @@ Two kinds of components:
 Plus:
 - `scripts/` — **dev-only** automation (orval client gen, image mirroring,
   release). Run via `bun run scripts/<name>`; most are wrapped in CI.
-- `deploy/` — Docker Compose: CouchDB + Garage + Meilisearch + admin UIs; `deploy/k8s/`
+- `deploy/` — Docker Compose: CouchDB + Garage + Fossil + Meilisearch + admin UIs; `deploy/k8s/`
   the same stack as a generated kustomize base (ADR 0030).
 - `docs/` — design docs + ADRs. `tests/` — e2e, Playwright, mock Claude Code. Also:
   `site/` (landing page), `brand/`, `.claude-plugin/` (marketplace), `install.sh`.
