@@ -13,7 +13,7 @@
  *
  * Everything is idempotent: databases that exist are left alone, a node that already
  * has a layout role isn't reassigned, an existing bucket is reused, and keys are only
- * created when the instance env has none.
+ * created when the instance env has none (and earlier app keys are then deleted).
  */
 import { resolveCouchUrl } from "@claude-transcripts/shared";
 import type { EnvMap } from "./instance-env";
@@ -187,5 +187,39 @@ export async function provisionGarage(
     S3_SECRET_KEY: secretKey,
   });
   steps.push({ name: "garage:key", ok: true, detail: `created ${accessKey}` });
+
+  const stale = await removeStaleKeys(api, accessKey);
+  if (stale) steps.push(stale);
   return { steps, env: next };
+}
+
+/**
+ * Delete earlier app keys, now that a new one is minted and granted.
+ *
+ * We only mint when the instance env holds no key, and Garage never hands a secret back,
+ * so any other key under {@link KEY_NAME} belongs to an instance env that no longer
+ * exists — typically one removed by `uninstall` while the data was kept. Left in place it
+ * would stay a valid read/write credential that nothing on the machine knows about.
+ * Best-effort: a failure here is reported, never fatal, because the new key already works.
+ */
+async function removeStaleKeys(
+  api: ReturnType<typeof garageApi>,
+  keep: string,
+): Promise<ProvisionStep | null> {
+  const list = await api("GET", "/v2/ListKeys");
+  if (!list.ok || !Array.isArray(list.json)) {
+    return { name: "garage:stale-keys", ok: false, detail: `list failed (HTTP ${list.status})` };
+  }
+  const stale: string[] = list.json
+    .filter((k: any) => k?.name === KEY_NAME && typeof k.id === "string" && k.id !== keep)
+    .map((k: any) => k.id);
+  if (stale.length === 0) return null;
+  const failed: string[] = [];
+  for (const id of stale) {
+    const del = await api("POST", `/v2/DeleteKey?id=${encodeURIComponent(id)}`);
+    if (!del.ok) failed.push(`${id} (HTTP ${del.status})`);
+  }
+  return failed.length
+    ? { name: "garage:stale-keys", ok: false, detail: `could not delete ${failed.join(", ")}` }
+    : { name: "garage:stale-keys", ok: true, detail: `deleted ${stale.join(", ")}` };
 }
