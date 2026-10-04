@@ -65,7 +65,7 @@ from the app model (`src/nav-menus.ts`):
 - **Services** — one section per backing store (CouchDB, Garage, Meilisearch, Fossil),
   with its mark, its admin UIs from `servicesMenu`, and the databases, buckets, indexes
   and repositories it holds. Each CouchDB database lists its design views, read live
-  from the database through the proxy; each Fossil repository links its timeline through
+  from the database through the proxy; each Fossil repository links its check-in timeline through
   the read-only `/api/fossil` proxy and its page in Fossil's own web UI. `servicesMenu`
   links no service claims appear under **Other**.
 - **Dev** — the gateway routes the model marks for the menu (`RouteDef.nav`): API
