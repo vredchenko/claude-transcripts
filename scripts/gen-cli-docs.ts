@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Generate the CLI command reference from the app model — a PROJECTION of CLI_SPEC
+ * Generate the CLI command reference from the blueprint — a PROJECTION of CLI_SPEC
  * (`toCliDocs`), spliced into the hand-written pages between markers:
  *
  *   packages/cli/README.md     summary tables (the npm landing page)

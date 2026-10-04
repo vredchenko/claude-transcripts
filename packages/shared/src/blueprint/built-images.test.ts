@@ -1,7 +1,7 @@
 /**
  * Images we build from source (`image.build`) rather than mirror — today, Fossil.
  *
- * The version lives in two places that can't share code: the model's `defaultTag`
+ * The version lives in two places that can't share code: the blueprint's `defaultTag`
  * (what compose, Kubernetes and the registry call the image) and the Dockerfile's
  * `FOSSIL_VERSION` (what actually gets compiled). These checks hold them together, so
  * bumping one without the other fails here rather than shipping an image whose tag

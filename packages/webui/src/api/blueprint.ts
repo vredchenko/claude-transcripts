@@ -11,7 +11,7 @@ import {
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 
 /**
- * A thin, hand-written client for `GET /api/model` — the read-only app-model
+ * A thin, hand-written client for `GET /api/blueprint` — the read-only app-blueprint
  * introspection endpoint (a plain Hono route, not part of the OpenAPI contract, so
  * it isn't in the generated client). Used for the header's title + build version, and
  * the header menus project from `services`, `topology`, `stores`, `routes` and
@@ -32,8 +32,8 @@ export interface AppBlueprintInfo {
 }
 
 async function fetchAppBlueprint(): Promise<AppBlueprintInfo> {
-  const res = await fetch("/api/model");
-  if (!res.ok) throw new Error(`GET /api/model → ${res.status} ${res.statusText}`);
+  const res = await fetch("/api/blueprint");
+  if (!res.ok) throw new Error(`GET /api/blueprint → ${res.status} ${res.statusText}`);
   return (await res.json()) as AppBlueprintInfo;
 }
 
@@ -50,10 +50,10 @@ export function fauxtonUrlFor(fauxtonUrl: string, db: string, path: string): str
   return `${fauxtonUrl.replace(/\/+$/, "")}/#/database/${encodeURIComponent(db)}/${path}`;
 }
 
-/** The app model rarely changes within a session, so cache it for the whole run. */
+/** The blueprint rarely changes within a session, so cache it for the whole run. */
 export function useAppBlueprint(): UseQueryResult<AppBlueprintInfo, Error> {
   return useQuery({
-    queryKey: ["app-model"],
+    queryKey: ["app-blueprint"],
     queryFn: fetchAppBlueprint,
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
@@ -63,7 +63,7 @@ export function useAppBlueprint(): UseQueryResult<AppBlueprintInfo, Error> {
 /**
  * The resolved reader tunables — always a complete object.
  *
- * The views ask for a page size on their very first render, before `/api/model` has
+ * The views ask for a page size on their very first render, before `/api/blueprint` has
  * answered (and possibly after it has failed). Returning the defaults in that window,
  * rather than `undefined`, is what lets the list and the transcript start fetching
  * immediately instead of waiting on an introspection endpoint they don't otherwise

@@ -65,7 +65,7 @@ resolves everything itself. The copies were retired along with the
 
 - `.claude-plugin/plugin.json` — plugin manifest.
 - `hooks/hooks/hooks.json` — the Claude Code events to register (**generated** by
-  `scripts/sync-hooks.ts`, `bun run gen:hooks`; re-run after changing the model's
+  `scripts/sync-hooks.ts`, `bun run gen:hooks`; re-run after changing the blueprint's
   `BINDINGS`).
 - `scripts/dispatch.ts` — the shim. Finds the CLI (`$CT_HOME/bin`, then the
   installer's `~/.local/bin`, then PATH), forwards the payload, and **always exits 0** —

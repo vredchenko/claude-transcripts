@@ -1,12 +1,12 @@
 /**
  * The header menus (Services, Dev, About) and a session's resource links, projected
- * from the app model served at `GET /api/model`.
+ * from the blueprint served at `GET /api/blueprint`.
  *
  * Pure functions over {@link AppBlueprintInfo} so the shape of each menu is testable
- * without rendering, and so nothing here restates a fact the model already holds: a
+ * without rendering, and so nothing here restates a fact the blueprint already holds: a
  * service's name, icon, admin UI and stores all come from `services` + `topology` +
  * `stores`, the Dev entries from `routes`, the About links from `identity.repository`.
- * Add a service, a store or a route to the model and the menus follow.
+ * Add a service, a store or a route to the blueprint and the menus follow.
  */
 import type { IconKey, StoreModel } from "@claude-transcripts/shared";
 import { type AppBlueprintInfo, couchProxyUrl, fauxtonUrlFor } from "./api/blueprint";
@@ -16,7 +16,7 @@ export interface NavLink {
   href: string;
   /** Second line under the label — a path, a URL, a store name. */
   subline?: string;
-  /** Tooltip text — the model's one-line summary, where it has one. */
+  /** Tooltip text — the blueprint's one-line summary, where it has one. */
   title?: string;
   /** Opens in a new tab: anything off this origin, and raw JSON/blobs. */
   external?: boolean;
@@ -25,7 +25,7 @@ export interface NavLink {
 /** One store (database, bucket, index or repository) inside a service, with where to look at it. */
 export interface StoreEntry {
   kind: keyof StoreModel;
-  /** Logical key in the model, e.g. "sessions". */
+  /** Logical key in the blueprint, e.g. "sessions". */
   key: string;
   /** The real name behind the key. */
   name: string;
@@ -149,7 +149,7 @@ export interface NavSection {
   links: NavLink[];
 }
 
-/** The Dev menu: the gateway's browsable routes (those the model marks `nav`), by section. */
+/** The Dev menu: the gateway's browsable routes (those the blueprint marks `nav`), by section. */
 export function devMenuSections(model: AppBlueprintInfo | undefined): NavSection[] {
   const sections = new Map<string, NavLink[]>();
   for (const route of model?.routes ?? []) {

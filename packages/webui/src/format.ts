@@ -116,9 +116,9 @@ export function durationSplitLabel(durationMs?: number, activeMs?: number): stri
 /**
  * Exactly one leading "v" on the version.
  *
- * `identity.version` from `GET /api/model` already carries one ("v0.0.7"), so a
+ * `identity.version` from `GET /api/blueprint` already carries one ("v0.0.7"), so a
  * hardcoded prefix rendered "vv0.0.7". Normalising instead of dropping the prefix,
- * because the model is free to report either form and the header shouldn't care which.
+ * because the blueprint is free to report either form and the header shouldn't care which.
  */
 export function displayVersion(version: string): string {
   return version.startsWith("v") ? version : `v${version}`;

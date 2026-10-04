@@ -1,10 +1,10 @@
 /**
  * Hook dispatch: read one Claude Code hook payload on stdin and run the bound actions.
  *
- * Event → action bindings come straight from the app model, so this can't drift from
+ * Event → action bindings come straight from the blueprint, so this can't drift from
  * the registration written into Claude Code's settings (both are projections of the
  * same source). The standalone plugin codegens the same bindings into a JSON file
- * because it can't resolve the workspace; the CLI simply reads the model.
+ * because it can't resolve the workspace; the CLI simply reads the blueprint.
  *
  * Nothing here is allowed to fail loudly. Actions run concurrently and settled, errors
  * are logged to stderr and swallowed, and the caller always exits 0 — Claude Code
@@ -16,7 +16,7 @@ import { emitSessionStart, NOT_RECORDING_BANNER } from "./announce";
 import { HANDLERS } from "./handlers";
 import { buildContext, type HookConfig, loadHookConfig } from "./runtime";
 
-/** Event → action keys, projected from the app model. */
+/** Event → action keys, projected from the blueprint. */
 export function hookBindings(): Record<string, string[]> {
   const model = buildAppBlueprint(loadAppConfig(), process.env);
   const out: Record<string, string[]> = {};

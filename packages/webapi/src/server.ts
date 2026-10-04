@@ -101,7 +101,7 @@ export function buildServer(ctx: AppContext) {
   app.route("/api", migrateRoutes(ctx));
 
   // OpenAPI spec (contract source of truth) + Scalar reference UI. Info is taken
-  // from the model identity so it can't drift.
+  // from the blueprint identity so it can't drift.
   const openapiConfig = {
     openapi: "3.0.0",
     info: { title: ctx.blueprint.identity.title, version: ctx.blueprint.identity.version },
@@ -180,7 +180,7 @@ export function buildServer(ctx: AppContext) {
     });
   }
 
-  // Attach the generated OpenAPI document back onto the model (central state), so
+  // Attach the generated OpenAPI document back onto the blueprint (central state), so
   // the manifest + any consumer can see the live API contract in-memory.
   ctx.blueprint.apiSpec = app.getOpenAPIDocument(openapiConfig);
 

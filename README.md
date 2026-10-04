@@ -252,7 +252,7 @@ Everything below is for working **on** Claude Transcripts, not just running it.
 | **webapi** | `packages/webapi/` | Bun + Hono gateway: the single I/O surface; serves the SPA in prod. |
 | **webui** | `packages/webui/` | React + MUI SPA (optional). |
 | **cli** | `packages/cli/` | Bun + Ink user-facing tool + admin utility, and the writer (`hook run` records sessions). |
-| **shared** | `packages/shared/` | The app model (central state, incl. the CLI spec) + migrations framework + cross-cutting types + token accounting. |
+| **shared** | `packages/shared/` | The blueprint (central state, incl. the CLI spec) + migrations framework + cross-cutting types + token accounting. |
 | **scripts** | `scripts/` | Dev-only automation (client gen, image mirroring, release). |
 | **deploy** | `deploy/` | Docker Compose: CouchDB + Garage + Fossil + Meilisearch + admin UIs; `deploy/k8s/` kustomize base. |
 | **tests** | `tests/` | End-to-end + Playwright browser suites, and a mock Claude Code. |

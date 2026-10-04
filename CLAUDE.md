@@ -77,7 +77,7 @@ fails on a diff.
 Two kinds of components:
 
 1. **Custom components** (`packages/*`) — the code we write:
-   - `@claude-transcripts/shared` — the **app model** (central state, `src/blueprint/`) +
+   - `@claude-transcripts/shared` — the **app blueprint** (central state, `src/blueprint/`) +
      migrations (`src/migrations/`) + cross-cutting types + `sumTranscriptTokens`.
    - `@claude-transcripts/webapi` — Bun + Hono + zod-openapi (+ Scalar at `/api/docs`). The
      **I/O gateway** (exceptions under Key invariants);
@@ -108,13 +108,13 @@ There is no `tools/` dir.
   maps (`couchdb.databases`, `s3.buckets`, `meilisearch.indexes`) built for **more than
   one** each. Config will grow to **multiple files** under `config/`. `.env` holds only
   secrets/endpoints.
-- **The app model (`@claude-transcripts/shared` `src/blueprint/`) is the central state** — an
+- **The blueprint (`@claude-transcripts/shared` `src/blueprint/`) is the central state** — an
   abstract, isomorphic TS description of the whole app (identity, services/ports,
   stores, hooks, actions, routes, env schema, versions, the CLI spec; an API spec grows in).
-  Built once from config + env (`buildAppModel`), held in-memory, served at `/`.
+  Built once from config + env (`buildAppBlueprint`), held in-memory, served at `/`.
   Consumers **project** from it (`toManifest` → `/`, `toComposeEnv` → stack,
   `toSeedPlan` → seed) — don't re-derive these facts elsewhere; **extend the
-  model**. Pure TS, so Bun server and React client both use it.
+  blueprint**. Pure TS, so Bun server and React client both use it.
 - **The webapi is the I/O gateway** (stability column): consumers never touch
   CouchDB/S3 directly for **reads**, and writes are never proxied. Two exceptions, both
   deliberate: host-side metadata ingestion (local files the container can't see, still

@@ -1,5 +1,5 @@
 /**
- * Shared package entry. Re-exports the app model (the isomorphic central state)
+ * Shared package entry. Re-exports the blueprint (the isomorphic central state)
  * plus the cross-cutting types + token accounting below.
  */
 

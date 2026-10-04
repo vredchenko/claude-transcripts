@@ -32,7 +32,7 @@ import {
 } from "./lib/svg";
 
 /**
- * Render the architecture diagram from the app model.
+ * Render the architecture diagram from the blueprint.
  *
  *   bun run scripts/gen-diagram.ts   (or: bun run gen:diagram)
  *
@@ -438,8 +438,8 @@ function drawEdge(
 
 // ── Document ─────────────────────────────────────────────────────────────────
 
-const BANNER = `<!-- GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-diagram.ts.
-     Do NOT edit by hand — run \`bun run gen:diagram\`. Edit the model:
+const BANNER = `<!-- GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-diagram.ts.
+     Do NOT edit by hand — run \`bun run gen:diagram\`. Edit the blueprint:
      packages/shared/src/blueprint/topology.ts (nodes/edges) and services.ts (names/ports). -->`;
 
 function render(

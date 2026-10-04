@@ -10,7 +10,7 @@ import type {
 } from "./types";
 
 /**
- * Projections — derive concrete artifacts from the model. Add new projectors here
+ * Projections — derive concrete artifacts from the blueprint. Add new projectors here
  * (rather than re-deriving the same facts in each consumer): manifest, compose
  * env, compose file, seed plan, …
  */
@@ -129,7 +129,7 @@ export function toComposeOverrideObject(model: AppBlueprint) {
  * Project the **image-mirror plan**: for every service we merely mirror (has
  * `image.upstream`), the pinned upstream reference and the `claude-transcripts-*`
  * name it is republished under (ADR 0024). The mirror script iterates this instead
- * of keeping its own copy of the image list — the model is the one place image
+ * of keeping its own copy of the image list — the blueprint is the one place image
  * names and tags are declared, so the two can't drift.
  */
 export function toMirrorPlan(model: AppBlueprint): Array<{ upstream: string; dest: string }> {
@@ -181,7 +181,7 @@ export function eventFixtureDir(event: string): string {
 export interface HookEventRow {
   event: string;
   category: HookCategory;
-  /** one-line "fires when" (the model's hook summary, used verbatim) */
+  /** one-line "fires when" (the blueprint's hook summary, used verbatim) */
   firesWhen: string;
   wired: boolean;
   docsUrl: string;
@@ -244,13 +244,13 @@ function composeService(s: ServiceDef): Record<string, unknown> {
 
 // ── Architecture diagram projection ──────────────────────────────────────────
 //
-// The model owns the *scene* (which nodes and edges exist at this level, what they
+// The blueprint owns the *scene* (which nodes and edges exist at this level, what they
 // are called, what they mean); a renderer owns the *geometry* (pixels, colours,
 // fonts). `rank` lives here because "the gateway is downstream of the clients" is a
 // fact about the system; `x = 470` is a fact about a picture. That split is what
 // lets the SVG generator, and any later renderer, consume one description.
 //
-// Isomorphic like the rest of the model — no fs, no measurement — so the webui can
+// Isomorphic like the rest of the blueprint — no fs, no measurement — so the webui can
 // import this too.
 
 export interface DiagramNode {

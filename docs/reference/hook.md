@@ -12,7 +12,7 @@ Setup: [hook-setup.md](../start/hook-setup.md). Events: [hook-events.md](hook-ev
 In the CLI, at `packages/cli/src/hook/`:
 
 ```
-index.ts       dispatch: payload → the actions bound to that event in the app model
+index.ts       dispatch: payload → the actions bound to that event in the blueprint
 handlers.ts    one handler per action
 runtime.ts     runtime config, CouchDB + S3 clients, per-session state in /tmp
 ```
@@ -28,7 +28,7 @@ CLI became the hook ([ADR 0004](../design/decisions/0004-bun-monorepo-hook-as-st
 
 ## Dispatch
 
-Event → action bindings come from the app model (`BINDINGS`), the same source the
+Event → action bindings come from the blueprint (`BINDINGS`), the same source the
 registration is generated from, so dispatch and registration can't drift. An event's
 actions run concurrently and settled: one failing doesn't stop the others.
 

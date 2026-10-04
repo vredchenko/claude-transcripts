@@ -4,7 +4,8 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-10-04 — see
+[Amendment](#amendment-apimodel-becomes-apiblueprint).
 
 ## Context
 
@@ -40,3 +41,17 @@ surface, `/app` the human UI.
 - `/` is served by the webapi (the gateway) and must stay non-secret and stable —
   it's part of the public contract surface.
 - Exact schema of the manifest is TBD; see [routes.md](../../reference/routes.md).
+
+## Amendment: `/api/model` becomes `/api/blueprint`
+
+*2026-10-04.*
+
+- The app meta-model `/` projects from is renamed the **blueprint**
+  (`packages/shared/src/blueprint/`, `AppBlueprint`, `buildAppBlueprint`). "Model" also
+  meant the LLM (`SessionSummary.model`, a list column, a search facet), so an agent
+  reading this manifest could fairly take `/api/model` to be about that.
+- The full-facet companion to `/` moves with it, outright and with no alias:
+  `/api/model` (and `/services`, `/hooks`, `/actions`, `/env`) →
+  `/api/blueprint/...`. It is not in the OpenAPI contract, so `check:contract` does not
+  guard it; the `ROUTES` facet the manifest serves advertises the new path.
+- `/` itself is unchanged.

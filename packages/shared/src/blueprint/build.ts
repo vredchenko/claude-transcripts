@@ -10,10 +10,10 @@ import type { AppBlueprint, AppConfigFile, EnvLike, ServiceDef } from "./types";
 import { resolveUserSettings } from "./user-settings";
 
 /**
- * Assemble the app model from config + env. Pure + isomorphic — the Bun server
+ * Assemble the blueprint from config + env. Pure + isomorphic — the Bun server
  * and the React client both call this. Static facets (services/hooks/actions/
  * routes/env) come from code; dynamic facets (names/ports/version/features) come
- * from config + env, so the model reflects the current build source or deploy.
+ * from config + env, so the blueprint reflects the current build source or deploy.
  */
 /**
  * Admin-UI links: config wins where it speaks, derivation fills the rest.
@@ -22,7 +22,7 @@ import { resolveUserSettings } from "./user-settings";
  * external backend, a reverse proxy, another host), so it overrides the derived link —
  * the same config-first rule as `resolveUserSettings`. Keys the config leaves unset fall
  * back to `http://127.0.0.1:<resolved host port>`, right for the bundled stack on this
- * machine and following a per-instance port block. Config keys the model doesn't know
+ * machine and following a per-instance port block. Config keys the blueprint doesn't know
  * are carried through, so an operator can add links of their own.
  *
  * Templates before 0.3.3 shipped these links literally, so configs copied from them carry

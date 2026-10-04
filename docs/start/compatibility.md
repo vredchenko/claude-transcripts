@@ -25,7 +25,7 @@ events each supports:
 }
 ```
 
-A drift check would then diff the generated hook list against the app model's
+A drift check would then diff the generated hook list against the blueprint's
 `HOOK_TYPES`. Today `bun run gen:compat` (part of `gen:all`) writes a placeholder
 (version `0.0.0`, no hooks), and `compatibility.json` is gitignored until it produces
 real data.

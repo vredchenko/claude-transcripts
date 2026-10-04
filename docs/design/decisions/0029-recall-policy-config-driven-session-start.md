@@ -28,7 +28,7 @@ Where should the rules live, and how should they reach a session?
    first". Zero cost, but one user's preference becomes everyone's, and there is no
    per-deployment or per-machine way to turn it down.
 3. **Config + one session-start primer** — the policy is a `recall` section of the
-   deployment config, projected through the app model like everything else;
+   deployment config, projected through the blueprint like everything else;
    a `SessionStart` action resolves it, asks the webapi how much history this cwd
    has, and injects a short `additionalContext` block combining the two. Per-user
    overrides come from the plugin's `userConfig`.
@@ -37,9 +37,9 @@ Where should the rules live, and how should they reach a session?
 
 Option 3.
 
-- **The policy lives in config, resolved by the model.** `config.recall` (mode, scope,
+- **The policy lives in config, resolved by the blueprint.** `config.recall` (mode, scope,
   limits, triggers, exclusions, primer budget) is defaulted and resolved by
-  `resolveRecall` in `@claude-transcripts/shared`; the model carries `model.recall`
+  `resolveRecall` in `@claude-transcripts/shared`; the blueprint carries `blueprint.recall`
   and the manifest exposes it. Consumers read the resolved policy — the hook, the
   webui — and never re-derive it. It is baked into the hook's runtime config at
   install time so the hook needs no checkout.

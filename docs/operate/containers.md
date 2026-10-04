@@ -18,7 +18,7 @@ reference at `/api/docs`, these docs at `/docs`, and the CLI binary at `/cli/dow
 
 ## One Compose stack, two uses
 
-`deploy/docker-compose.yml` is generated from the app model (`bun run gen:compose`).
+`deploy/docker-compose.yml` is generated from the blueprint (`bun run gen:compose`).
 It holds CouchDB, Garage, Fossil, Meilisearch and their admin UIs (Fauxton, Garage web
 UI, Meilisearch UI; Fossil is its own web UI), plus the app under the `app` profile. Everything binds to
 `127.0.0.1`.

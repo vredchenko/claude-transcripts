@@ -6,7 +6,7 @@
  *
  *   IMAGE_NS=<registry>/<org> bun run scripts/mirror-images.ts
  *
- * The image list is a PROJECTION of the app model (toMirrorPlan) — the model's
+ * The image list is a PROJECTION of the blueprint (toMirrorPlan) — the blueprint's
  * SERVICES is the one place image names and tags are declared, so this script can't
  * drift from what the compose stack actually pulls. Add a backing service there.
  *

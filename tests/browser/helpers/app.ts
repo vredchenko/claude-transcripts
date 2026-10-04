@@ -46,7 +46,7 @@ export async function setupPage(page: Page, options: MockApiOptions = {}): Promi
 async function go(page: Page, path: string): Promise<void> {
   await page.goto(`${APP_BASE}${path}`);
   // The shell renders immediately; the header title is the first thing that proves
-  // React mounted and `/api/model` resolved.
+  // React mounted and `/api/blueprint` resolved.
   await expect(page.getByRole("banner")).toBeVisible();
 }
 

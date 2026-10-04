@@ -15,7 +15,7 @@ import type { AppBlueprint, ServiceDef } from "./types";
  * the kustomization. Compose's `env_file:` becomes `envFrom:` on the same Secret. That
  * keeps the two deploy shapes fed by the same variable names.
  *
- * Isomorphic and pure like the rest of the model: no fs, no YAML. The generator
+ * Isomorphic and pure like the rest of the blueprint: no fs, no YAML. The generator
  * hands in read-only file mounts (e.g. garage.toml) via `files` and the release via
  * `releaseVersion`.
  */
@@ -74,7 +74,7 @@ export function k8sWorkloadServices(model: AppBlueprint): ServiceDef[] {
 /**
  * Parse one compose-style env value. `${VAR}` and `${VAR:-default}` both become a
  * reference to `VAR`; anything else is a literal. Mixed strings (`http://${HOST}/x`)
- * are not used by the model and are rejected rather than half-translated.
+ * are not used by the blueprint and are rejected rather than half-translated.
  */
 export function parseEnvValue(
   value: string,

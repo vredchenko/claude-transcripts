@@ -11,7 +11,7 @@ import { SettingsMenu } from "./SettingsMenu";
 /**
  * The thin top header: app title + build version (left), a search box (center,
  * placeholder), and the Services / Dev / About menus + settings (right). Title/version come from
- * `GET /api/model`, falling back to sensible defaults while it loads.
+ * `GET /api/blueprint`, falling back to sensible defaults while it loads.
  */
 export function Header() {
   const { data } = useAppBlueprint();

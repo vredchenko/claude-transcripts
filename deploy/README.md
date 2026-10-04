@@ -44,7 +44,7 @@ Two ways to source the backing-service images:
    Fossil has no public image, so this override **builds** it from
    `deploy/fossil/Dockerfile` instead (about a minute, first start only).
 
-Both compose files are **generated from the app model** (`bun run gen:compose` +
+Both compose files are **generated from the blueprint** (`bun run gen:compose` +
 `gen:compose-override`); the upstream image for each service is the `image.upstream`
 field in `packages/shared/src/blueprint/services.ts`. The app image is built + published
 by the `publish-image` workflow (no upstream; tags in

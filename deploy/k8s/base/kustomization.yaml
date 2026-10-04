@@ -1,5 +1,5 @@
-# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
-# Do NOT edit by hand — run `bun run gen:k8s` to regenerate, and change the model
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-k8s.ts.
+# Do NOT edit by hand — run `bun run gen:k8s` to regenerate, and change the blueprint
 # (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.
 # Overrides belong in a kustomize overlay — see deploy/k8s/README.md.
 #

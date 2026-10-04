@@ -9,7 +9,7 @@ in the [CLI](../reference/cli.md).
 Generated files are committed. `bun run gen:all` runs every generator below except
 `gen:clients`, and CI fails if either leaves a diff. Regenerate; never hand-edit.
 
-| Alias | Script | Writes, from the app model unless noted |
+| Alias | Script | Writes, from the blueprint unless noted |
 |-------|--------|-----------------------------------------|
 | `gen:clients` | `regenerate-api-clients.ts` | `openapi.json` + the orval clients in `packages/cli/src/api/` and `packages/webui/src/api/` |
 | `gen:hooks` | `sync-hooks.ts` | `hooks/hooks/hooks.json` (events, timeouts, `async`) from `BINDINGS` |

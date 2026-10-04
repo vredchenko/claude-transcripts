@@ -3,7 +3,7 @@
  *
  * Dependency-free on purpose, like `build-docs.ts` — the diagram is generated in CI
  * on a `--frozen-lockfile` install, and a layout engine would fight us anyway: the
- * scene is a handful of boxes whose arrangement is already stated by the model's
+ * scene is a handful of boxes whose arrangement is already stated by the blueprint's
  * `rank`. What is *not* optional is determinism. CI regenerates every committed
  * artifact and fails on `git diff --exit-code`, so every helper here is written to
  * emit the same bytes for the same input: attributes come out in object-literal

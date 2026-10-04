@@ -19,7 +19,7 @@ import { join } from "node:path";
  * path for the full containerised stack. It implies --app, and `up` passes --build.
  * Pair with --upstream so the backing images are public too.
  *
- * The MODEL drives compose: ports + image tags are projected from the app model
+ * The MODEL drives compose: ports + image tags are projected from the blueprint
  * (toComposeEnv) and injected into the compose process, so the topology defined
  * once in @claude-transcripts/shared is authoritative. The repo-root .env still supplies
  * IMAGE_NS + secrets (and is the same file Bun auto-loads for the host-run app),
@@ -50,7 +50,7 @@ const fileArgs = [
   ...(useBuild ? ["-f", COMPOSE_BUILD] : []),
 ];
 
-// Project ports + image tags from the model (resolved against the loaded env).
+// Project ports + image tags from the blueprint (resolved against the loaded env).
 const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 const composeEnv = toComposeEnv(model);
 

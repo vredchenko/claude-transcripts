@@ -69,7 +69,7 @@ describe("servicesMenu — config wins where it speaks", () => {
 });
 
 /**
- * The menu is rendered by a browser on the **host**, but the model that builds it runs
+ * The menu is rendered by a browser on the **host**, but the blueprint that builds it runs
  * inside the app container. Any service whose host-port env var the app container
  * overrides therefore yields a link to a container-internal port — which is exactly
  * what happened to CouchDB: compose pinned `COUCHDB_PORT=5984`, and the menu offered

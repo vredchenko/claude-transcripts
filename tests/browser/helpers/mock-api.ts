@@ -101,7 +101,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       const url = new URL(route.request().url());
       const path = url.pathname;
 
-      if (path === "/api/model") return json(route, APP_BLUEPRINT);
+      if (path === "/api/blueprint") return json(route, APP_BLUEPRINT);
 
       // The Services menu lists each database's design views, read through the CouchDB
       // proxy. The shipped designs stand in for whatever the migrations installed.

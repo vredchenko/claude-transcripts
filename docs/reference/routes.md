@@ -17,7 +17,7 @@ response shapes for the typed `/api` routes are in the OpenAPI spec, browsable a
 | `POST /api/search/reindex` | Clear and rebuild both search indexes from CouchDB. |
 | `/api/ingest/*` | The write surface: `POST summary`, `POST events`, `POST chunks`, `PUT {id}/transcript`, `DELETE {id}` (`?blobs=true` also deletes the transcript). Used by `backfill`, `import`, `doctor` and mirrors; the hook bypasses it. |
 | `/api/migrate/*` | `GET status`, `POST up`, `POST down` ([migrations.md](../operate/migrations.md)). |
-| `/api/model`, `/api/model/{services,hooks,actions,env}` | The app model, or one facet of it. |
+| `/api/blueprint`, `/api/blueprint/{services,hooks,actions,env}` | The blueprint, or one facet of it. |
 | `/api/couch/*` | Read-only passthrough to CouchDB's HTTP API (docs, views). |
 | `/api/s3/{bucketKey}/*` | Read-only object reads by logical bucket key, e.g. `/api/s3/sessions/<id>/transcript.jsonl`. |
 | `/api/docs`, `/api/openapi.json` | Scalar API reference and the OpenAPI spec. |

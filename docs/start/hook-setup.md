@@ -98,7 +98,7 @@ timestamps. Sessions already present are skipped, so it is safe to re-run. Detai
 ## How the hook works
 
 Every route ends at `claude-transcripts hook run` ([hook.md](../reference/hook.md)): it
-reads one payload on stdin, runs the actions the app model binds to that event
+reads one payload on stdin, runs the actions the blueprint binds to that event
 concurrently, and always exits 0. Eleven events are registered: `SessionStart`,
 `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`,
 `SubagentStop`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`.

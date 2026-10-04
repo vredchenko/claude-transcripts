@@ -6,7 +6,7 @@
  * serving it, and a self-hoster with 20 000 sessions on a Pi should not have to fork
  * the webui to make the list stop fetching a hundred rows at a time.
  *
- * Resolved once in `buildAppBlueprint` and carried on the model, so the views read the
+ * Resolved once in `buildAppBlueprint` and carried on the blueprint, so the views read the
  * settled numbers rather than re-deriving them from config (the same contract
  * `recall` has). Every value is clamped here, because the numbers are handed
  * straight to the gateway as `limit` — an unbounded typo in `config.json` would ask
@@ -50,7 +50,7 @@ const LIMITS = {
  * Config over defaults, with every value clamped to a usable range.
  *
  * A nonsensical value falls back to the default rather than throwing: these are read
- * on the path that builds the app model, and a stray `0` in one field should not stop
+ * on the path that builds the blueprint, and a stray `0` in one field should not stop
  * the whole instance from starting.
  */
 export function resolveUserSettings(fromConfig?: Partial<UserSettings>): UserSettings {
