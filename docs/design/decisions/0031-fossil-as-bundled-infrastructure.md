@@ -30,14 +30,14 @@ solve deployment. Two facts shape how:
 
 ## Decision
 
-1. **A `fossil` backing service in the blueprint**, beside CouchDB and Garage, so
+1. **A `fossil` backing service in the app model**, beside CouchDB and Garage, so
    compose, the Kubernetes base, the env schema, the installer's port block
    (`FOSSIL_PORT`, default 7658), the services menu and the architecture diagram all
    project from one entry. No feature flag. The diagram draws only what exists: the
    webapi's read edge (decision 7), and no write edge, because nothing writes it yet.
 2. **Built from the official release source**, by `deploy/fossil/Dockerfile`: upstream's
    own recipe (a static musl binary on `scratch`), pinned to a release tarball and
-   verified by sha256 instead of tracking trunk. The blueprint's `defaultTag` and the
+   verified by sha256 instead of tracking trunk. The model's `defaultTag` and the
    Dockerfile's `FOSSIL_VERSION` are held equal by a test.
 3. **A new `image.build` field** marks "we build this, there is no upstream image".
    The projections treat it as a third kind of image alongside mirrored and our own:
@@ -50,8 +50,8 @@ solve deployment. Two facts shape how:
 4. **Repositories named in config, seeded by the container on start.** One today:
    `fossil.repositories` in `config/` is a keyed map like `couchdb.databases` and
    `s3.buckets` (default `sessions: claude-transcripts-sessions`, always merged in, as
-   the Meilisearch indexes are) and lands in the blueprint's `stores`; a name Fossil can't
-   serve fails the blueprint at load. Fossil has no HTTP call that creates a repository, so the seed runs where
+   the Meilisearch indexes are) and lands in the model's `stores`; a name Fossil can't
+   serve fails the model at load. Fossil has no HTTP call that creates a repository, so the seed runs where
    the binary and the volume are: the image's entrypoint creates each repository named
    in `FOSSIL_REPOSITORIES` that doesn't exist yet (`fossil new`, as an idempotent step
    like CouchDB creating its admin from env), then execs `fossil server --repolist
@@ -102,7 +102,7 @@ on the user's machine.
   block put a second instance's block exactly there — `install` moves it to the next
   free port.
 - A Fossil upgrade is a reviewed change to three values in one Dockerfile plus the
-  blueprint's tag, not a moving `latest`.
+  model's tag, not a moving `latest`.
 - The first `--upstream` start compiles Fossil (about a minute); later starts reuse the
   local image.
 - A seeded repository is not quite empty: `fossil new` always records an initial empty
