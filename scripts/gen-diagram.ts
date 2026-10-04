@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import {
   type ArchitectureDiagram,
-  buildAppModel,
+  buildAppBlueprint,
   type DiagramEdge,
   type DiagramNode,
   toArchitectureDiagram,
@@ -56,7 +56,7 @@ import {
  * DETERMINISM. CI runs `gen:all` then `git diff --exit-code`, so the bytes must be a
  * pure function of committed files:
  *   - the config comes from `loadConfigTemplate` (never the gitignored config.json)
- *     and the env passed to `buildAppModel` is empty — otherwise a contributor's
+ *     and the env passed to `buildAppBlueprint` is empty — otherwise a contributor's
  *     `WEBAPI_PORT` or a local `features` toggle silently changes the output and
  *     fails the gate on their PR for reasons CI cannot reproduce;
  *   - no version string is emitted (with no env, `identity.version` is the
@@ -440,7 +440,7 @@ function drawEdge(
 
 const BANNER = `<!-- GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-diagram.ts.
      Do NOT edit by hand — run \`bun run gen:diagram\`. Edit the model:
-     packages/shared/src/model/topology.ts (nodes/edges) and services.ts (names/ports). -->`;
+     packages/shared/src/blueprint/topology.ts (nodes/edges) and services.ts (names/ports). -->`;
 
 function render(
   diagram: ArchitectureDiagram,
@@ -519,7 +519,7 @@ function render(
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-const model = buildAppModel(loadConfigTemplate(ROOT), {});
+const model = buildAppBlueprint(loadConfigTemplate(ROOT), {});
 const diagram = toArchitectureDiagram(model, { level: "compact" });
 
 /** IconKey → file. `mark` is our own logo, referenced in place rather than copied. */

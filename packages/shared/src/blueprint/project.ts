@@ -1,5 +1,5 @@
 import type {
-  AppModel,
+  AppBlueprint,
   DiagramLevel,
   HookCategory,
   IconKey,
@@ -16,7 +16,7 @@ import type {
  */
 
 /** The `/` manifest: what an agent/tool needs to bootstrap. Non-secret only. */
-export function toManifest(model: AppModel) {
+export function toManifest(model: AppBlueprint) {
   return {
     app: model.identity.slug,
     codename: model.identity.codename,
@@ -47,7 +47,7 @@ export function toManifest(model: AppModel) {
   };
 }
 
-function apiSummary(model: AppModel): { spec: string; paths: number } | undefined {
+function apiSummary(model: AppBlueprint): { spec: string; paths: number } | undefined {
   const spec = model.apiSpec as { paths?: Record<string, unknown> } | undefined;
   if (!spec) return undefined;
   return { spec: "/api/openapi.json", paths: Object.keys(spec.paths ?? {}).length };
@@ -58,12 +58,12 @@ function apiSummary(model: AppModel): { spec: string; paths: number } | undefine
  * start because Fossil can't create a repository over HTTP. Comes from config/, so the
  * runners pass it at `up` time rather than baking the template's names into compose.
  */
-export function toStoreEnv(model: AppModel): Record<string, string> {
+export function toStoreEnv(model: AppBlueprint): Record<string, string> {
   return { FOSSIL_REPOSITORIES: Object.values(model.stores.repositories).join(",") };
 }
 
 /** The env vars (host ports, image tags, store names) docker compose consumes. */
-export function toComposeEnv(model: AppModel): Record<string, string> {
+export function toComposeEnv(model: AppBlueprint): Record<string, string> {
   const out: Record<string, string> = { ...toStoreEnv(model) };
   for (const s of model.services) {
     for (const p of s.ports ?? []) {
@@ -76,7 +76,7 @@ export function toComposeEnv(model: AppModel): Record<string, string> {
 }
 
 /** What the seed step must ensure exists (create new, check existing). */
-export function toSeedPlan(model: AppModel): { databases: string[]; buckets: string[] } {
+export function toSeedPlan(model: AppBlueprint): { databases: string[]; buckets: string[] } {
   return {
     databases: Object.values(model.stores.databases),
     buckets: Object.values(model.stores.buckets),
@@ -88,7 +88,7 @@ export function toSeedPlan(model: AppModel): { databases: string[]; buckets: str
  * services topology. The gen-compose script serialises this to YAML — the compose
  * file is generated, not hand-maintained.
  */
-export function toComposeObject(model: AppModel) {
+export function toComposeObject(model: AppBlueprint) {
   const services: Record<string, unknown> = {};
   for (const s of model.services) {
     if (s.role !== "backing" && s.role !== "admin-ui" && s.role !== "app") continue;
@@ -109,7 +109,7 @@ export function toComposeObject(model: AppModel) {
  * gets its `build:` instead, under a local image name compose never tries to pull.
  * The app is left to the base file. The gen-compose-override script serialises this.
  */
-export function toComposeOverrideObject(model: AppModel) {
+export function toComposeOverrideObject(model: AppBlueprint) {
   const services: Record<string, unknown> = {};
   for (const s of model.services) {
     const tag = `\${${s.image?.tagEnv}:-${s.image?.defaultTag}}`;
@@ -132,7 +132,7 @@ export function toComposeOverrideObject(model: AppModel) {
  * of keeping its own copy of the image list — the model is the one place image
  * names and tags are declared, so the two can't drift.
  */
-export function toMirrorPlan(model: AppModel): Array<{ upstream: string; dest: string }> {
+export function toMirrorPlan(model: AppBlueprint): Array<{ upstream: string; dest: string }> {
   const plan: Array<{ upstream: string; dest: string }> = [];
   for (const s of model.services) {
     if (!s.image?.upstream) continue;
@@ -151,7 +151,7 @@ export function toMirrorPlan(model: AppModel): Array<{ upstream: string; dest: s
  * uses, so the base compose file and the Kubernetes base pull it like any other
  * backing image.
  */
-export function toImageBuildPlan(model: AppModel): Array<{ context: string; dest: string }> {
+export function toImageBuildPlan(model: AppBlueprint): Array<{ context: string; dest: string }> {
   const plan: Array<{ context: string; dest: string }> = [];
   for (const s of model.services) {
     if (!s.image?.build) continue;
@@ -198,7 +198,7 @@ export interface HookEventRow {
  * with its docs link, fixture folder, and the actions bound to it (the "what we
  * do" column — edit BINDINGS to change it). Rendered by gen-hook-events.
  */
-export function toHookEventRows(model: AppModel): HookEventRow[] {
+export function toHookEventRows(model: AppBlueprint): HookEventRow[] {
   return model.hooks.map((h) => ({
     event: h.event,
     category: h.category,
@@ -309,7 +309,7 @@ export interface ArchitectureDiagramOptions {
  * nowhere, and the picture would claim a deployment shape the config denies.
  */
 export function toArchitectureDiagram(
-  model: AppModel,
+  model: AppBlueprint,
   opts: ArchitectureDiagramOptions = {},
 ): ArchitectureDiagram {
   const level = opts.level ?? "compact";

@@ -18,7 +18,7 @@
 import { HIGHLIGHT_POST, HIGHLIGHT_PRE, INITIAL_DESIGNS } from "@claude-transcripts/shared";
 import type { Page, Route } from "@playwright/test";
 import {
-  APP_MODEL,
+  APP_BLUEPRINT,
   SEARCH_FACETS,
   SEARCH_SESSION_HITS,
   SEARCH_TURN_HITS,
@@ -101,7 +101,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       const url = new URL(route.request().url());
       const path = url.pathname;
 
-      if (path === "/api/model") return json(route, APP_MODEL);
+      if (path === "/api/model") return json(route, APP_BLUEPRINT);
 
       // The Services menu lists each database's design views, read through the CouchDB
       // proxy. The shipped designs stand in for whatever the migrations installed.

@@ -10,7 +10,7 @@
  * are logged to stderr and swallowed, and the caller always exits 0 — Claude Code
  * treats a non-zero hook as a problem, and a logging tool must never become one.
  */
-import { buildAppModel } from "@claude-transcripts/shared";
+import { buildAppBlueprint } from "@claude-transcripts/shared";
 import { loadAppConfig } from "../lib/app-config";
 import { emitSessionStart, NOT_RECORDING_BANNER } from "./announce";
 import { HANDLERS } from "./handlers";
@@ -18,7 +18,7 @@ import { buildContext, type HookConfig, loadHookConfig } from "./runtime";
 
 /** Event → action keys, projected from the app model. */
 export function hookBindings(): Record<string, string[]> {
-  const model = buildAppModel(loadAppConfig(), process.env);
+  const model = buildAppBlueprint(loadAppConfig(), process.env);
   const out: Record<string, string[]> = {};
   for (const b of model.bindings) out[b.event] = b.actions;
   return out;

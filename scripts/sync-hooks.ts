@@ -11,11 +11,11 @@ import { join } from "node:path";
  * still needing projection is the event list itself.
  * Dev-only tooling. Re-run after changing the model's BINDINGS.
  */
-import { buildAppModel, PLUGIN_HOOK_COMMAND } from "@claude-transcripts/shared";
+import { buildAppBlueprint, PLUGIN_HOOK_COMMAND } from "@claude-transcripts/shared";
 import { loadConfigFile } from "./lib/config-file";
 
 const ROOT = join(import.meta.dir, "..");
-const model = buildAppModel(loadConfigFile(ROOT), process.env);
+const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 
 // event → action keys
 const bindings: Record<string, string[]> = {};

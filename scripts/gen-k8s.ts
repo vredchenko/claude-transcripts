@@ -14,7 +14,7 @@ import { join } from "node:path";
  * must carry, projected from the same `${VAR}` references compose reads from .env.
  */
 import {
-  buildAppModel,
+  buildAppBlueprint,
   k8sSecretKeys,
   toKubernetesObjects,
   toKustomization,
@@ -24,7 +24,7 @@ import { loadConfigFile } from "./lib/config-file";
 
 const ROOT = join(import.meta.dir, "..");
 const OUT = join(ROOT, "deploy", "k8s", "base");
-const model = buildAppModel(loadConfigFile(ROOT), process.env);
+const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 
 // Read-only file mounts come from the same files compose mounts (deploy/garage.toml),
 // inlined into ConfigMaps — kustomize refuses to read files above its own directory,
@@ -40,7 +40,7 @@ const header = (
   script: string,
 ) => `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
 # Do NOT edit by hand — run \`bun run gen:k8s\` to regenerate, and change the model
-# (packages/shared/src/model/services.ts) instead. Inline edits here are lost silently.
+# (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.
 # Overrides belong in a kustomize overlay — see deploy/k8s/README.md.
 ${script}
 `;

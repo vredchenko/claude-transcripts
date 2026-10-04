@@ -39,7 +39,7 @@ the spec lists `choices` for (`stack <action>`, `turns --role`). The command mus
 the first word, and bash completes flag values in the `--flag value` form only.
 
 The command reference below is generated from `CLI_SPEC`
-(`packages/shared/src/model/cli.ts`) by `bun run gen:cli-docs`; edit the spec, not
+(`packages/shared/src/blueprint/cli.ts`) by `bun run gen:cli-docs`; edit the spec, not
 this page. The same spec drives `--help`, argument validation and the completions.
 Not built: `couch` / `s3` passthroughs and `meta post` enrichment.
 

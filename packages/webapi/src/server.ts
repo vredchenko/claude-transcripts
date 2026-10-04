@@ -5,10 +5,10 @@ import { etag } from "hono/etag";
 import { cacheControlFor, compression, isSpaAssetPath } from "./caching";
 import { dbName } from "./config";
 import type { AppContext } from "./context";
+import { blueprintRoutes } from "./routes/blueprint";
 import { ingestRoutes } from "./routes/ingest";
 import { manifestRoutes } from "./routes/manifest";
 import { migrateRoutes } from "./routes/migrate";
-import { modelRoutes } from "./routes/model";
 import { proxyRoutes } from "./routes/proxy";
 import { searchRoutes } from "./routes/search";
 import { sessionRoutes } from "./routes/sessions";
@@ -81,7 +81,7 @@ export function buildServer(ctx: AppContext) {
     return c.json({
       ok: couch.ok,
       status: couch.ok ? "ok" : "degraded",
-      version: ctx.model.identity.version,
+      version: ctx.blueprint.identity.version,
       startedAt: ctx.boot.startedAt,
       stores: { couch },
       // Reported because a stale session index is otherwise invisible: the list keeps
@@ -97,14 +97,14 @@ export function buildServer(ctx: AppContext) {
   app.route("/api", ingestRoutes(ctx));
   app.route("/api", searchRoutes(ctx));
   app.route("/api", proxyRoutes(ctx));
-  app.route("/api", modelRoutes(ctx));
+  app.route("/api", blueprintRoutes(ctx));
   app.route("/api", migrateRoutes(ctx));
 
   // OpenAPI spec (contract source of truth) + Scalar reference UI. Info is taken
   // from the model identity so it can't drift.
   const openapiConfig = {
     openapi: "3.0.0",
-    info: { title: ctx.model.identity.title, version: ctx.model.identity.version },
+    info: { title: ctx.blueprint.identity.title, version: ctx.blueprint.identity.version },
   } as const;
   app.doc("/api/openapi.json", openapiConfig);
   app.get("/api/docs", apiReference({ spec: { url: "/api/openapi.json" } }));
@@ -182,7 +182,7 @@ export function buildServer(ctx: AppContext) {
 
   // Attach the generated OpenAPI document back onto the model (central state), so
   // the manifest + any consumer can see the live API contract in-memory.
-  ctx.model.apiSpec = app.getOpenAPIDocument(openapiConfig);
+  ctx.blueprint.apiSpec = app.getOpenAPIDocument(openapiConfig);
 
   return app;
 }

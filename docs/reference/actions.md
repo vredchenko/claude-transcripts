@@ -5,9 +5,9 @@ hook events and bound to them many-to-many
 ([ADR 0017](../design/decisions/0017-hooks-and-actions-decoupled.md)), all in the app
 model:
 
-- `HOOK_TYPES` (`packages/shared/src/model/hooks.ts`) — every Claude Code hook event;
+- `HOOK_TYPES` (`packages/shared/src/blueprint/hooks.ts`) — every Claude Code hook event;
   `wired` marks the bound ones and `ignoreReason` says why the rest aren't.
-- `ACTIONS` and `BINDINGS` (`packages/shared/src/model/actions.ts`) — the catalogue and
+- `ACTIONS` and `BINDINGS` (`packages/shared/src/blueprint/actions.ts`) — the catalogue and
   the `event → actions[]` table.
 - `HANDLERS` (`packages/cli/src/hook/handlers.ts`) — one implementation per action.
 

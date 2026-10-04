@@ -18,7 +18,7 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
  * `servicesMenu` (see nav-menus.ts). Every facet is optional: an older webapi may not
  * serve one, and the UI degrades to leaving that part out.
  */
-export interface AppModelInfo {
+export interface AppBlueprintInfo {
   identity?: Partial<AppIdentity>;
   servicesMenu?: Record<string, string>;
   /** Configured store names — the real database / bucket / index behind each key. */
@@ -31,10 +31,10 @@ export interface AppModelInfo {
   userSettings?: Partial<UserSettings>;
 }
 
-async function fetchAppModel(): Promise<AppModelInfo> {
+async function fetchAppBlueprint(): Promise<AppBlueprintInfo> {
   const res = await fetch("/api/model");
   if (!res.ok) throw new Error(`GET /api/model → ${res.status} ${res.statusText}`);
-  return (await res.json()) as AppModelInfo;
+  return (await res.json()) as AppBlueprintInfo;
 }
 
 /**
@@ -51,10 +51,10 @@ export function fauxtonUrlFor(fauxtonUrl: string, db: string, path: string): str
 }
 
 /** The app model rarely changes within a session, so cache it for the whole run. */
-export function useAppModel(): UseQueryResult<AppModelInfo, Error> {
+export function useAppBlueprint(): UseQueryResult<AppBlueprintInfo, Error> {
   return useQuery({
     queryKey: ["app-model"],
-    queryFn: fetchAppModel,
+    queryFn: fetchAppBlueprint,
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
   });
@@ -71,7 +71,7 @@ export function useAppModel(): UseQueryResult<AppModelInfo, Error> {
  * pre-answer window and an older webapi that doesn't serve the field yet.
  */
 export function useUserSettings(): UserSettings {
-  const { data } = useAppModel();
+  const { data } = useAppBlueprint();
   if (!data?.userSettings) return DEFAULT_USER_SETTINGS;
   return resolveUserSettings(data.userSettings);
 }

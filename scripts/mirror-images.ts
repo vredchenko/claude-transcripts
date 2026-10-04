@@ -25,13 +25,13 @@ import { $ } from "bun";
 // doesn't resolve from scripts/ in a bare CI checkout. Unlike its siblings here, this
 // script runs in CI (mirror-images.yml), so it can't rely on a dev's node_modules.
 // shared/ is dependency-free, so importing the source directly costs nothing.
-import { buildAppModel, toImageBuildPlan, toMirrorPlan } from "../packages/shared/src/index";
+import { buildAppBlueprint, toImageBuildPlan, toMirrorPlan } from "../packages/shared/src/index";
 import { loadConfigFile } from "./lib/config-file";
 
 const NS = process.env.IMAGE_NS; // e.g. ghcr.io/OWNER
 
 const ROOT = join(import.meta.dir, "..");
-const MODEL = buildAppModel(loadConfigFile(ROOT), process.env);
+const MODEL = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 const IMAGES = toMirrorPlan(MODEL);
 const BUILDS = toImageBuildPlan(MODEL);
 

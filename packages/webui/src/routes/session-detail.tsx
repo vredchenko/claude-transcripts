@@ -17,9 +17,9 @@ import {
 } from "@mui/material";
 import { Link, useNavigate, useParams, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
+import { useAppBlueprint } from "../api/blueprint";
 import { useGetSession } from "../api/generated";
 import { ApiRequestError } from "../api/http";
-import { useAppModel } from "../api/model";
 import { SessionIdCopy } from "../components/SessionIdentity";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
@@ -69,7 +69,7 @@ export function SessionDetailPage() {
   const { q } = useRouterSearch({ from: "/sessions/$id" }) as SessionDetailSearch;
   const query = q?.trim() || undefined;
   const { data: session, isPending, isError, error } = useGetSession(id);
-  const { data: model } = useAppModel();
+  const { data: model } = useAppBlueprint();
   const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
   const navigate = useNavigate();
   const theme = useTheme();

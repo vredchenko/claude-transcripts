@@ -4,7 +4,7 @@
  */
 import { Box, IconButton, Menu, MenuItem, SvgIcon, Tooltip, Typography } from "@mui/material";
 import { type MouseEvent, useState } from "react";
-import { useAppModel } from "../api/model";
+import { useAppBlueprint } from "../api/blueprint";
 import { type SessionRef, sessionLinks } from "../nav-menus";
 import { MONO } from "../theme";
 
@@ -79,7 +79,7 @@ export function SessionIdCopy({ sessionId }: { sessionId: string }) {
 
 /** A "⋯" button opening the session's resource links (API, CouchDB, Fauxton, S3). */
 export function SessionLinksButton({ session }: { session: SessionRef }) {
-  const { data: model } = useAppModel();
+  const { data: model } = useAppBlueprint();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const links = sessionLinks(model, session);
   return (

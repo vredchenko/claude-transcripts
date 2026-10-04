@@ -10,7 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildAppModel } from "./build";
+import { buildAppBlueprint } from "./build";
 import { k8sImageRef, toKubernetesObjects } from "./k8s";
 import {
   toComposeEnv,
@@ -29,7 +29,7 @@ const CONFIG: AppConfigFile = {
   features: {},
   servicesMenu: {},
 };
-const model = buildAppModel(CONFIG, {});
+const model = buildAppBlueprint(CONFIG, {});
 const DEPLOY = join(import.meta.dir, "..", "..", "..", "..", "deploy");
 const built = SERVICES.filter((s) => s.image?.build);
 
@@ -85,7 +85,10 @@ describe("fossil repository name", () => {
   });
 
   test("config wins, and a config that predates the key keeps the default", () => {
-    const named = buildAppModel({ ...CONFIG, fossil: { repositories: { sessions: "mine" } } }, {});
+    const named = buildAppBlueprint(
+      { ...CONFIG, fossil: { repositories: { sessions: "mine" } } },
+      {},
+    );
     expect(named.stores.repositories.sessions).toBe("mine");
     expect(CONFIG.fossil).toBeUndefined();
   });
@@ -107,7 +110,7 @@ describe("fossil readiness", () => {
 
 describe("fossil seed", () => {
   test("the runners pass the configured repository names", () => {
-    const named = buildAppModel(
+    const named = buildAppBlueprint(
       { ...CONFIG, fossil: { repositories: { a: "one", b: "two" } } },
       {},
     );
@@ -120,7 +123,7 @@ describe("fossil seed", () => {
     ) as AppConfigFile;
     const fossil = SERVICES.find((s) => s.key === "fossil");
     expect(fossil?.containerEnv?.FOSSIL_REPOSITORIES).toBe(
-      `\${FOSSIL_REPOSITORIES:-${toStoreEnv(buildAppModel(template, {})).FOSSIL_REPOSITORIES}}`,
+      `\${FOSSIL_REPOSITORIES:-${toStoreEnv(buildAppBlueprint(template, {})).FOSSIL_REPOSITORIES}}`,
     );
   });
 });
@@ -129,7 +132,7 @@ describe("fossil repository names", () => {
   test("a name Fossil couldn't serve fails at load, naming the key", () => {
     for (const bad of ["a.b", "a b", "-x", "a/b", ""]) {
       expect(() =>
-        buildAppModel({ ...CONFIG, fossil: { repositories: { sessions: bad } } }, {}),
+        buildAppBlueprint({ ...CONFIG, fossil: { repositories: { sessions: bad } } }, {}),
       ).toThrow(/fossil\.repositories\.sessions/);
     }
   });

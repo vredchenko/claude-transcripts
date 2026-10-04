@@ -31,7 +31,7 @@ Two ways to add Kubernetes support:
 
 ## Decision
 
-Option 2. `packages/shared/src/model/k8s.ts` projects the same `SERVICES` into plain
+Option 2. `packages/shared/src/blueprint/k8s.ts` projects the same `SERVICES` into plain
 manifests; `scripts/gen-k8s.ts` writes them to `deploy/k8s/base/` as a **kustomize
 base**, one file per service, plus a `kustomization.yaml` and a `.env.template`. It runs
 as part of `gen:all`, so CI fails on a stale base the same way it does for compose.

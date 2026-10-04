@@ -7,7 +7,7 @@ Vite serves it on `7651` and proxies `/api` → webapi on `7650`.
 - **Stack:** React 19 + Vite + MUI, TanStack Router + TanStack Query.
 - **API client:** **generated** from the webapi OpenAPI spec into
   `src/api/generated.ts` (orval, `bun run gen:clients`) — not hand-written. The
-  lone exception is `src/api/model.ts` (`GET /api/model`, a non-OpenAPI route).
+  lone exception is `src/api/blueprint.ts` (`GET /api/model`, a non-OpenAPI route).
 
 ## Layout
 

@@ -2,14 +2,14 @@
  * The header menus (Services, Dev, About) and a session's resource links, projected
  * from the app model served at `GET /api/model`.
  *
- * Pure functions over {@link AppModelInfo} so the shape of each menu is testable
+ * Pure functions over {@link AppBlueprintInfo} so the shape of each menu is testable
  * without rendering, and so nothing here restates a fact the model already holds: a
  * service's name, icon, admin UI and stores all come from `services` + `topology` +
  * `stores`, the Dev entries from `routes`, the About links from `identity.repository`.
  * Add a service, a store or a route to the model and the menus follow.
  */
 import type { IconKey, StoreModel } from "@claude-transcripts/shared";
-import { type AppModelInfo, couchProxyUrl, fauxtonUrlFor } from "./api/model";
+import { type AppBlueprintInfo, couchProxyUrl, fauxtonUrlFor } from "./api/blueprint";
 
 export interface NavLink {
   label: string;
@@ -57,7 +57,7 @@ export interface ServiceGroup {
  * service claims — links an operator added in config — land in a trailing "Other"
  * group rather than being dropped.
  */
-export function servicesMenuGroups(model: AppModelInfo | undefined): ServiceGroup[] {
+export function servicesMenuGroups(model: AppBlueprintInfo | undefined): ServiceGroup[] {
   const services = model?.services ?? [];
   const nodes = model?.topology?.nodes ?? [];
   const menu = model?.servicesMenu ?? {};
@@ -114,7 +114,7 @@ export function servicesMenuGroups(model: AppModelInfo | undefined): ServiceGrou
 }
 
 function storesOf(
-  model: AppModelInfo | undefined,
+  model: AppBlueprintInfo | undefined,
   kind: keyof StoreModel | undefined,
   serviceUrl: string | undefined,
 ): StoreEntry[] {
@@ -150,7 +150,7 @@ export interface NavSection {
 }
 
 /** The Dev menu: the gateway's browsable routes (those the model marks `nav`), by section. */
-export function devMenuSections(model: AppModelInfo | undefined): NavSection[] {
+export function devMenuSections(model: AppBlueprintInfo | undefined): NavSection[] {
   const sections = new Map<string, NavLink[]>();
   for (const route of model?.routes ?? []) {
     if (!route.nav) continue;
@@ -167,7 +167,7 @@ export function devMenuSections(model: AppModelInfo | undefined): NavSection[] {
 }
 
 /** The About menu's project links, all derived from the repository URL. */
-export function aboutLinks(model: AppModelInfo | undefined): NavLink[] {
+export function aboutLinks(model: AppBlueprintInfo | undefined): NavLink[] {
   const repo = model?.identity?.repository?.replace(/\/+$/, "");
   if (!repo) return [];
   const short = repo.replace(/^https?:\/\/(www\.)?github\.com\//, "");
@@ -195,7 +195,7 @@ export interface SessionRef {
  * its events instead — linking a summary that doesn't exist yet would be a 404. The
  * transcript link likewise waits for `hasTranscript`.
  */
-export function sessionLinks(model: AppModelInfo | undefined, s: SessionRef): NavLink[] {
+export function sessionLinks(model: AppBlueprintInfo | undefined, s: SessionRef): NavLink[] {
   const id = s.sessionId;
   const links: NavLink[] = [
     { label: "API JSON", href: `/api/sessions/${encodeURIComponent(id)}`, external: true },

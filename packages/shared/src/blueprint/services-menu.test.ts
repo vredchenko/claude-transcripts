@@ -4,7 +4,7 @@
  * follows a per-instance port block.
  */
 import { describe, expect, test } from "bun:test";
-import { buildAppModel } from "./build";
+import { buildAppBlueprint } from "./build";
 import { SERVICES } from "./services";
 import type { AppConfigFile } from "./types";
 
@@ -18,7 +18,7 @@ const CONFIG: AppConfigFile = {
 
 describe("servicesMenu — derived fallback", () => {
   test("unset keys follow the env's ports", () => {
-    const model = buildAppModel(CONFIG, {
+    const model = buildAppBlueprint(CONFIG, {
       COUCHDB_PORT: "7660",
       MEILI_PORT: "7664",
       MEILI_UI_PORT: "7665",
@@ -35,7 +35,7 @@ describe("servicesMenu — derived fallback", () => {
 
 describe("servicesMenu — config wins where it speaks", () => {
   test("a configured link overrides the derived one", () => {
-    const model = buildAppModel(
+    const model = buildAppBlueprint(
       { ...CONFIG, servicesMenu: { couchdbFauxton: "https://couch.example/_utils/" } },
       { COUCHDB_PORT: "7660" },
     );
@@ -43,7 +43,7 @@ describe("servicesMenu — config wins where it speaks", () => {
   });
 
   test("keys the config leaves unset still fall back to derived", () => {
-    const model = buildAppModel(
+    const model = buildAppBlueprint(
       { ...CONFIG, servicesMenu: { couchdbFauxton: "https://couch.example/_utils/" } },
       { GARAGE_WEBUI_PORT: "7663" },
     );
@@ -51,7 +51,7 @@ describe("servicesMenu — config wins where it speaks", () => {
   });
 
   test("a link copied from an old template doesn't override the instance's ports", () => {
-    const model = buildAppModel(
+    const model = buildAppBlueprint(
       {
         ...CONFIG,
         servicesMenu: {

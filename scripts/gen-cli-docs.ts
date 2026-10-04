@@ -6,7 +6,7 @@
  *   packages/cli/README.md     summary tables (the npm landing page)
  *   docs/reference/cli.md      tables + a section per command
  *
- * Edit the spec (packages/shared/src/model/cli.ts), not the generated region; CI runs
+ * Edit the spec (packages/shared/src/blueprint/cli.ts), not the generated region; CI runs
  * `gen:all` and fails on a diff, so the docs can't disagree with the binary.
  *
  *   bun run scripts/gen-cli-docs.ts   (or: bun run gen:cli-docs)

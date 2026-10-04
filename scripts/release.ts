@@ -12,7 +12,7 @@
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildAppModel, k8sImageRef, k8sWorkloadServices } from "@claude-transcripts/shared";
+import { buildAppBlueprint, k8sImageRef, k8sWorkloadServices } from "@claude-transcripts/shared";
 import { loadConfigTemplate } from "./lib/config-file";
 
 /** Every manifest carrying the lockstep version. Keep in sync with ADR 0023. */
@@ -72,7 +72,7 @@ const base = readdirSync(K8S_BASE)
   .filter((f) => f.endsWith(".yaml"))
   .map((f) => readFileSync(join(K8S_BASE, f), "utf8"))
   .join("\n");
-const ownImages = k8sWorkloadServices(buildAppModel(loadConfigTemplate(ROOT), {}))
+const ownImages = k8sWorkloadServices(buildAppBlueprint(loadConfigTemplate(ROOT), {}))
   .filter((s) => !s.image?.upstream)
   .map((s) => k8sImageRef(s, version));
 const unpinned = ownImages.filter((ref) => !base.includes(`image: ${ref}\n`));

@@ -16,7 +16,7 @@
  * when you fix a rendering bug, and the suite keeps it fixed.
  */
 
-import { buildAppModel } from "@claude-transcripts/shared";
+import { buildAppBlueprint } from "@claude-transcripts/shared";
 
 /** Anchor for every timestamp in the corpus. Fixed so the fixtures never drift. */
 export const NOW = Date.parse("2026-03-18T14:30:00.000Z");
@@ -354,7 +354,7 @@ export const SEARCH_FACETS = {
  * one it serves — so the Services/Dev/About menus show what a bundled stack would,
  * rather than a hand-kept copy that drifts from the real model.
  */
-const BUILT_MODEL = buildAppModel({
+const BUILT_BLUEPRINT = buildAppBlueprint({
   system: { logging: { chunk: { maxEntriesPerChunk: 200, flushIntervalMs: 15000 } } },
   couchdb: { databases: { sessions: "claude-transcripts-sessions" } },
   s3: { buckets: { sessions: "claude-transcripts-sessions" } },
@@ -364,19 +364,19 @@ const BUILT_MODEL = buildAppModel({
 });
 
 /** `GET /api/model` — only the fields the SPA actually reads. */
-export const APP_MODEL = {
+export const APP_BLUEPRINT = {
   identity: {
     codename: "claude-transcripts",
     slug: "claude-transcripts",
     title: "Claude Transcripts",
     version: "v0.0.0-test",
-    repository: BUILT_MODEL.identity.repository,
+    repository: BUILT_BLUEPRINT.identity.repository,
   },
-  servicesMenu: BUILT_MODEL.servicesMenu,
-  services: BUILT_MODEL.services,
-  topology: BUILT_MODEL.topology,
-  routes: BUILT_MODEL.routes,
-  stores: BUILT_MODEL.stores,
+  servicesMenu: BUILT_BLUEPRINT.servicesMenu,
+  services: BUILT_BLUEPRINT.services,
+  topology: BUILT_BLUEPRINT.topology,
+  routes: BUILT_BLUEPRINT.routes,
+  stores: BUILT_BLUEPRINT.stores,
   features: { meilisearch: true },
   // The reader tunables the webui asks this endpoint for. Mirrors the shipped
   // defaults; the views fall back to the same numbers if the field is absent.

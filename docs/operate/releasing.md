@@ -63,6 +63,6 @@ To run the stack from your mirrored images rather than upstream registries, set
 `stack:up:upstream`).
 
 Backing-image tags are pinned in two places that must agree: each service's
-`defaultTag` in `packages/shared/src/model/services.ts`, and the `*_TAG` lines in
+`defaultTag` in `packages/shared/src/blueprint/services.ts`, and the `*_TAG` lines in
 `.env.template`. `mirror-images.ts` takes its list from the model. Re-run
 `mirror-images` (or tag a release) after bumping one.

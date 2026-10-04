@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useUserSettings } from "../api/blueprint";
 import { listSessions, type SessionsResponse } from "../api/generated";
-import { useUserSettings } from "../api/model";
 import { groupByDay } from "../sessions-view";
 
 /**

@@ -25,7 +25,7 @@ import { join } from "node:path";
  * IMAGE_NS + secrets (and is the same file Bun auto-loads for the host-run app),
  * so host dev and the stack stay coherent.
  */
-import { buildAppModel, toComposeEnv } from "@claude-transcripts/shared";
+import { buildAppBlueprint, toComposeEnv } from "@claude-transcripts/shared";
 import { $ } from "bun";
 import { loadConfigFile } from "./lib/config-file";
 
@@ -51,7 +51,7 @@ const fileArgs = [
 ];
 
 // Project ports + image tags from the model (resolved against the loaded env).
-const model = buildAppModel(loadConfigFile(ROOT), process.env);
+const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 const composeEnv = toComposeEnv(model);
 
 function ensurePrereqs() {

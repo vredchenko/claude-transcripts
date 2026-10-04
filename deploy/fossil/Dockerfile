@@ -5,7 +5,7 @@
 # trunk and verified by checksum: a static, musl-linked binary on an empty base, so
 # the image holds Fossil and nothing else. Hand-maintained (NOT generated); its
 # version must equal the `fossil` service's `defaultTag` in
-# packages/shared/src/model/services.ts — a test holds the two together.
+# packages/shared/src/blueprint/services.ts — a test holds the two together.
 #
 # Build context is this directory, and only entrypoint.sh is COPY'd from it, so the
 # image builds the same from a repo checkout, a user install (which ships both files),

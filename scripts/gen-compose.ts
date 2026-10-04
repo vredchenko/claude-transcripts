@@ -7,12 +7,12 @@ import { join } from "node:path";
  *
  *   bun run scripts/gen-compose.ts   (or: bun run gen:compose)
  */
-import { buildAppModel, toComposeObject } from "@claude-transcripts/shared";
+import { buildAppBlueprint, toComposeObject } from "@claude-transcripts/shared";
 import { stringify } from "yaml";
 import { loadConfigFile } from "./lib/config-file";
 
 const ROOT = join(import.meta.dir, "..");
-const model = buildAppModel(loadConfigFile(ROOT), process.env);
+const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 
 // Everything a reader of the generated file needs, kept HERE rather than as inline
 // comments in deploy/docker-compose.yml — the generator can't reproduce those, so any
@@ -20,7 +20,7 @@ const model = buildAppModel(loadConfigFile(ROOT), process.env);
 // app's `WEBAPI_PORT` pin came to be a hand-edit the generator would have dropped.
 const header = `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-compose.ts.
 # Do NOT edit by hand — run \`bun run gen:compose\` to regenerate, and change the model
-# (packages/shared/src/model/services.ts) instead. Inline edits here are lost silently.
+# (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.
 # See docs/operate/containers.md.
 #
 # Claude Transcripts — backing services + app.

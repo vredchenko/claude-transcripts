@@ -9,7 +9,7 @@
  * Backing images come from their canonical public registries (the `upstream` overlay),
  * because a user has no reason to have a registry mirror configured.
  */
-import { buildAppModel, toStoreEnv } from "@claude-transcripts/shared";
+import { buildAppBlueprint, toStoreEnv } from "@claude-transcripts/shared";
 import { $ } from "bun";
 import { loadAppConfig } from "./app-config";
 import { composeFiles } from "./assets";
@@ -29,7 +29,7 @@ export interface ComposeOptions {
  * `app.json` takes effect on the next `up` without regenerating anything.
  */
 function storeEnv(): Record<string, string> {
-  return toStoreEnv(buildAppModel(loadAppConfig(), {}));
+  return toStoreEnv(buildAppBlueprint(loadAppConfig(), {}));
 }
 
 function fileArgs(paths: InstallPaths): string[] {
