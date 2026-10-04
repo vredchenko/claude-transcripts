@@ -6,6 +6,57 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-10-04
+
+A minor release because the stack grows a service and one route moves. Fossil SCM joins
+the bundled stack as infrastructure, read through a new read-only `/api/fossil` proxy
+([#208]); the webui header becomes three menus projected from the app's description of
+itself, with one dark theme and a denser session list ([#214]); and that description,
+the "app model", is renamed the **blueprint**, so `/api/model` is now `/api/blueprint`
+([#215]). Nothing about what is recorded or where changes.
+
+### Breaking
+
+- **`/api/model` is now `/api/blueprint`** (and `/services`, `/hooks`, `/actions`,
+  `/env` under it), with no alias. "Model" also meant the LLM, a session-list column
+  and a search facet, so an agent reading the `/` manifest could take the old route to
+  be about that. Anything that called `/api/model` directly must switch; the webui and
+  CLI ship in lockstep and already have ([#142], [#215]). The rename is recorded as an
+  amendment to [ADR 0022](docs/design/decisions/0022-root-route-is-a-machine-readable-manifest.md).
+
+### Added
+
+- **Fossil in the bundled stack** ([ADR 0031](docs/design/decisions/0031-fossil-as-bundled-infrastructure.md), [#208]).
+  One static binary serves version control, a wiki, tickets and a web UI on port
+  `7658`. The image is built from release source, since Fossil publishes none. The
+  repositories are named in `config/` under `fossil.repositories`, and the container
+  creates them on start with anonymous read-only access. Nothing writes to them yet.
+  Compose, the upstream override and the Kubernetes base all include it.
+- **`/api/fossil/{repoKey}/json/*`** reads a repository through Fossil's JSON API,
+  limited to an allowlist of read-only commands. Fossil takes parameters from the query
+  string, so a plain GET could otherwise write ([#208]).
+- **Services, Dev and About menus** replace the header's single Links popover, each
+  projected from the blueprint rather than hand-listed ([#214]):
+  - **Services** has one section per backing store (CouchDB, Garage, Meilisearch,
+    Fossil), with its mark and admin UIs and the databases, buckets, indexes and
+    repositories it holds. CouchDB design views are read live through the proxy, and
+    each Fossil repository links its check-in timeline and its page in Fossil's web UI.
+  - **Dev** lists the gateway's browsable routes.
+  - **About** shows the version and project links.
+- **Per-session data links.** In the session list and on the detail page, the short id
+  sits with a copy button and a menu of links to the session's raw data: API JSON,
+  CouchDB events and summary, Fauxton, and the S3 transcript ([#214]).
+
+### Changed
+
+- **A denser session list.** The host sits beside the project, the tool mix gets the
+  freed width, and each status has its own glyph and the time it applies: the end time
+  once ended, the last write while live or abandoned ([#214]).
+- **One theme, dark.** The light theme, the theme toggle and the `>theme` commands are
+  gone ([#214]).
+- **The app model is called the blueprint** throughout the code and docs:
+  `packages/shared/src/blueprint/`, `AppBlueprint`, `buildAppBlueprint` ([#215]).
+
 ## [0.5.0] — 2026-10-03
 
 A minor release because the plugin looks different: the statusline is coloured by
@@ -1670,6 +1721,11 @@ of them had ever executed:
 [#203]: https://github.com/vredchenko/claude-transcripts/pull/203
 [#167]: https://github.com/vredchenko/claude-transcripts/issues/167
 [#205]: https://github.com/vredchenko/claude-transcripts/pull/205
+[#142]: https://github.com/vredchenko/claude-transcripts/issues/142
+[#208]: https://github.com/vredchenko/claude-transcripts/pull/208
+[#214]: https://github.com/vredchenko/claude-transcripts/pull/214
+[#215]: https://github.com/vredchenko/claude-transcripts/pull/215
+[0.6.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.0
 [0.5.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.5.0
 [0.4.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.4.0
 [0.3.3]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.3.3
