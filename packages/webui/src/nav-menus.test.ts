@@ -60,7 +60,7 @@ describe("servicesMenuGroups", () => {
         kind: "repositories",
         key: "sessions",
         name: "ct-repo",
-        href: "/api/fossil/sessions/json/timeline",
+        href: "/api/fossil/sessions/json/timeline/checkin",
         adminHref: "http://127.0.0.1:7658/ct-repo/",
         adminLabel: "web ui",
       },

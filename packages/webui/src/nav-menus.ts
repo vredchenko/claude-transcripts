@@ -133,7 +133,7 @@ function storesOf(
     } else if (kind === "repositories") {
       // The JSON proxy is keyed by the logical key, like the S3 one; Fossil itself serves
       // each repository's web UI at /<name>/.
-      entry.href = `/api/fossil/${encodeURIComponent(key)}/json/timeline`;
+      entry.href = `/api/fossil/${encodeURIComponent(key)}/json/timeline/checkin`;
       if (serviceUrl) {
         entry.adminHref = `${serviceUrl.replace(/\/+$/, "")}/${encodeURIComponent(name)}/`;
         entry.adminLabel = "web ui";
