@@ -4,8 +4,8 @@
  * topology, stores or routes shows up here rather than as a silently emptier menu.
  */
 import { describe, expect, test } from "bun:test";
-import { type AppConfigFile, buildAppModel } from "@claude-transcripts/shared";
-import type { AppModelInfo } from "./api/model";
+import { type AppConfigFile, buildAppBlueprint } from "@claude-transcripts/shared";
+import type { AppBlueprintInfo } from "./api/blueprint";
 import { aboutLinks, devMenuSections, servicesMenuGroups, sessionLinks } from "./nav-menus";
 
 const CONFIG: AppConfigFile = {
@@ -19,8 +19,8 @@ const CONFIG: AppConfigFile = {
 };
 
 /** Round-tripped through JSON, as the webui receives it from `GET /api/model`. */
-function served(config: AppConfigFile = CONFIG): AppModelInfo {
-  return JSON.parse(JSON.stringify(buildAppModel(config))) as AppModelInfo;
+function served(config: AppConfigFile = CONFIG): AppBlueprintInfo {
+  return JSON.parse(JSON.stringify(buildAppBlueprint(config))) as AppBlueprintInfo;
 }
 
 describe("servicesMenuGroups", () => {

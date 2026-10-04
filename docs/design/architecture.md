@@ -41,7 +41,7 @@ Scope is Claude Code only, not agent sessions in general
 | shared | `packages/shared/` | The app model, migrations, cross-cutting types, `sumTranscriptTokens` | [webapi.md](../reference/webapi.md#packagesshared) |
 | plugin | `hooks/` | Skills, status command, statusline for Claude Code | [plugin.md](plugin.md) |
 
-**The app model** (`packages/shared/src/model/`) is the central description of the
+**The app model** (`packages/shared/src/blueprint/`) is the central description of the
 system: services and ports, stores, hook events, actions and bindings, routes, env
 schema, the CLI spec. It is built from `config/` and the environment, served at `/` and
 `/api/model`, and projected into Compose files, the k8s base, the plugin's

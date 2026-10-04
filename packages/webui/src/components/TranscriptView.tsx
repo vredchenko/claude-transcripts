@@ -1,8 +1,8 @@
 import { matchesQuery } from "@claude-transcripts/shared";
 import { Box, Button, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useUserSettings } from "../api/blueprint";
 import type { TranscriptEntry } from "../api/generated";
-import { useUserSettings } from "../api/model";
 import { formatCount } from "../format";
 import { useInfiniteTranscript } from "../hooks/useInfiniteTranscript";
 import { useIntersectionObserver } from "../hooks/useIntersectionObserver";

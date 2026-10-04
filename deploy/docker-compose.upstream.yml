@@ -9,7 +9,7 @@
 #   bun run scripts/stack.ts up --upstream        # the runner does this for you
 #
 # Tags still come from .env (COUCHDB_TAG, GARAGE_TAG, …). Override an image here by
-# changing its `upstream` in packages/shared/src/model/services.ts. The community
+# changing its `upstream` in packages/shared/src/blueprint/services.ts. The community
 # admin-UI images are best-effort; swap them if your registry differs.
 
 name: claude-transcripts

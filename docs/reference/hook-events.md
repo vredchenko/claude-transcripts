@@ -1,12 +1,12 @@
 <!-- GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-hook-events.ts.
      Do NOT edit by hand — run `bun run gen:hook-events`. Edit the model:
-     packages/shared/src/model/hooks.ts (events/order/summaries) and actions.ts
+     packages/shared/src/blueprint/hooks.ts (events/order/summaries) and actions.ts
      (the "What we do" bindings). -->
 
 # Claude Code hook events — when they fire, payloads & fixtures
 
 The authoritative catalogue of **every Claude Code hook event**, projected from the
-app model ([`@claude-transcripts/shared` HOOK_TYPES](../../packages/shared/src/model/hooks.ts)):
+app model ([`@claude-transcripts/shared` HOOK_TYPES](../../packages/shared/src/blueprint/hooks.ts)):
 the one-line trigger for each, a link to the official documentation, links to
 example **payload fixtures** under
 [`tests/mock/claude-code/hooks/`](../../tests/mock/claude-code/hooks/) (the inputs Claude Code sends a hook
@@ -34,8 +34,8 @@ authority when this table and a given CC version disagree.
 - **What we do** — for **wired** events, the action handlers bound to it (projected
   from the model's BINDINGS; [actions.md](actions.md) lists what each does). For
   **ignored** events, *why* we intentionally don't handle it. Both come from the
-  model ([`hooks.ts`](../../packages/shared/src/model/hooks.ts) +
-  [`actions.ts`](../../packages/shared/src/model/actions.ts)) — wire an ignored event
+  model ([`hooks.ts`](../../packages/shared/src/blueprint/hooks.ts) +
+  [`actions.ts`](../../packages/shared/src/blueprint/actions.ts)) — wire an ignored event
   by adding a binding and regenerating.
 
 Events are ordered by **session lifecycle**: a session begins at the top and ends

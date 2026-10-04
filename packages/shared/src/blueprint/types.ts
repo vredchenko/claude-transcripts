@@ -395,7 +395,7 @@ export interface TopologyModel {
 
 // ── The model ──────────────────────────────────────────────────────────────────
 
-export interface AppModel {
+export interface AppBlueprint {
   identity: AppIdentity;
   services: ServiceDef[];
   stores: StoreModel;

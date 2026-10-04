@@ -19,7 +19,7 @@ export function loadConfigFile(root: string): AppConfigFile {
  * `config/config.json`, so a contributor who has one — with, say, `meilisearch:
  * false` — would regenerate different bytes and fail the drift gate on their PR for
  * reasons invisible to them and unreproducible in CI. Pair this with an empty env
- * (`buildAppModel(loadConfigTemplate(root), {})`) so host ports resolve to the
+ * (`buildAppBlueprint(loadConfigTemplate(root), {})`) so host ports resolve to the
  * documented defaults rather than the contributor's shell.
  *
  * The other generators are immune by accident: `gen-compose` emits `${VAR}`

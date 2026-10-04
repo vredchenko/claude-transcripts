@@ -8,7 +8,7 @@
  * that such a claim becomes checkable, so these are the checks.
  */
 import { describe, expect, test } from "bun:test";
-import { buildAppModel } from "./build";
+import { buildAppBlueprint } from "./build";
 import { toArchitectureDiagram } from "./project";
 import { SERVICES } from "./services";
 import { TOPOLOGY } from "./topology";
@@ -22,7 +22,7 @@ const CONFIG: AppConfigFile = {
   servicesMenu: {},
 };
 
-const model = buildAppModel(CONFIG, {});
+const model = buildAppBlueprint(CONFIG, {});
 const nodeKeys = new Set(TOPOLOGY.nodes.map((n) => n.key));
 const serviceKeys = new Set(SERVICES.map((s) => s.key));
 
@@ -78,7 +78,10 @@ describe("toArchitectureDiagram", () => {
   });
 
   test("a disabled feature drops its node and every edge touching it", () => {
-    const off = buildAppModel({ ...CONFIG, features: { s3Blobs: false, meilisearch: true } }, {});
+    const off = buildAppBlueprint(
+      { ...CONFIG, features: { s3Blobs: false, meilisearch: true } },
+      {},
+    );
     const d = toArchitectureDiagram(off);
     expect(d.nodes.find((n) => n.key === "garage")).toBeUndefined();
     // The orphan prune: no arrow may point at a box that isn't drawn.

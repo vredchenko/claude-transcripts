@@ -5,7 +5,7 @@
 import { Box, Button, Chip, Popover, Stack, Tooltip, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { couchProxyUrl, useAppModel } from "../../api/model";
+import { couchProxyUrl, useAppBlueprint } from "../../api/blueprint";
 import { displayVersion } from "../../format";
 import {
   aboutLinks,
@@ -258,7 +258,7 @@ function ServiceSection({ group, onClose }: { group: ServiceGroup; onClose: () =
 }
 
 export function ServicesMenu() {
-  const { data: model } = useAppModel();
+  const { data: model } = useAppBlueprint();
   const groups = servicesMenuGroups(model);
   return (
     <HeaderMenu label="Services" width={460}>
@@ -276,7 +276,7 @@ export function ServicesMenu() {
 }
 
 export function DevMenu() {
-  const { data: model } = useAppModel();
+  const { data: model } = useAppBlueprint();
   const sections = devMenuSections(model);
   return (
     <HeaderMenu label="Dev" width={340}>
@@ -317,7 +317,7 @@ export function DevMenu() {
 }
 
 export function AboutMenu() {
-  const { data: model } = useAppModel();
+  const { data: model } = useAppBlueprint();
   const links = aboutLinks(model);
   const title = model?.identity?.title ?? "Claude Transcripts";
   const version = model?.identity?.version;

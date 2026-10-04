@@ -1,6 +1,6 @@
 import { ENV_VARS } from "./env";
 import { RELEASE_IMAGE_NS } from "./services";
-import type { AppModel, ServiceDef } from "./types";
+import type { AppBlueprint, ServiceDef } from "./types";
 
 /**
  * Kubernetes projection — the same services topology that becomes
@@ -67,7 +67,7 @@ export const K8S_PART_OF = "claude-transcripts";
 const WORKLOAD_ROLES = new Set(["backing", "admin-ui", "app"]);
 
 /** Services the projection emits workloads for, in model order. */
-export function k8sWorkloadServices(model: AppModel): ServiceDef[] {
+export function k8sWorkloadServices(model: AppBlueprint): ServiceDef[] {
   return model.services.filter((s) => WORKLOAD_ROLES.has(s.role) && s.image);
 }
 
@@ -96,7 +96,7 @@ export function parseEnvValue(
  * renders this as the `.env.template` beside the kustomization; a key without a
  * fallback is one the operator must fill in.
  */
-export function k8sSecretKeys(model: AppModel): Array<{ name: string; fallback?: string }> {
+export function k8sSecretKeys(model: AppBlueprint): Array<{ name: string; fallback?: string }> {
   const keys = new Map<string, string | undefined>();
   // A service with an env_file (the app) gets the whole Secret via envFrom — so
   // every secret-scoped variable of the env schema is a key the file may carry.
@@ -198,7 +198,7 @@ function probeFor(s: ServiceDef): Record<string, unknown> | undefined {
  * what the generator uses to split them into one file per service.
  */
 export function toKubernetesObjects(
-  model: AppModel,
+  model: AppBlueprint,
   opts: KubernetesObjectsOptions,
 ): KubernetesObject[] {
   const ns = opts.namespace ?? K8S_DEFAULT_NAMESPACE;

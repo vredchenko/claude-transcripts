@@ -55,7 +55,7 @@ running stack and webapi ([testing.md](testing.md)).
 
 | Path | What it is |
 |------|------------|
-| `packages/shared/` | The app model (`src/model/`, including `CLI_SPEC`), the migrations engine, cross-cutting types, `sumTranscriptTokens`. |
+| `packages/shared/` | The app model (`src/blueprint/`, including `CLI_SPEC`), the migrations engine, cross-cutting types, `sumTranscriptTokens`. |
 | `packages/webapi/` | Bun + Hono gateway. All reads of CouchDB and S3 go through it. Serves the SPA, docs and CLI binary in production. |
 | `packages/webui/` | React + Vite + MUI SPA. Optional. |
 | `packages/cli/` | Bun + Ink CLI: user commands, admin commands, and the hook itself (`src/hook/`). |
@@ -83,7 +83,7 @@ The full set is in [`CLAUDE.md`](../../CLAUDE.md).
   write-time validation.
 - **Extend the app model, don't re-derive it.** Compose files, the k8s base, the
   manifest at `/`, hook registration and the CLI reference are projections of
-  `packages/shared/src/model/`. Change the model and regenerate.
+  `packages/shared/src/blueprint/`. Change the model and regenerate.
 - **The OpenAPI spec is the contract.** The webui and CLI use generated clients
   (`bun run gen:clients`); don't hand-write request code
   ([ADR 0019](../design/decisions/0019-openapi-source-of-truth-generated-clients.md)).

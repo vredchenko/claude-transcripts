@@ -6,7 +6,7 @@ import { resolveRecall } from "./recall";
 import { ROUTES } from "./routes";
 import { SERVICES } from "./services";
 import { TOPOLOGY } from "./topology";
-import type { AppConfigFile, AppModel, EnvLike, ServiceDef } from "./types";
+import type { AppBlueprint, AppConfigFile, EnvLike, ServiceDef } from "./types";
 import { resolveUserSettings } from "./user-settings";
 
 /**
@@ -75,7 +75,7 @@ function resolveRepositories(config: AppConfigFile): Record<string, string> {
   return repositories;
 }
 
-export function buildAppModel(config: AppConfigFile, env: EnvLike = {}): AppModel {
+export function buildAppBlueprint(config: AppConfigFile, env: EnvLike = {}): AppBlueprint {
   const version = env.CT_VERSION ?? "0.0.0-dev";
 
   const services: ServiceDef[] = SERVICES.map((s) => ({

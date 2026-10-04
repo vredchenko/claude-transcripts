@@ -4,7 +4,7 @@
  * These checks are what make "generated from the model" a claim rather than a hope.
  */
 import { describe, expect, test } from "bun:test";
-import { buildAppModel } from "./build";
+import { buildAppBlueprint } from "./build";
 import {
   K8S_ENV_SECRET,
   type KubernetesObject,
@@ -26,7 +26,7 @@ const CONFIG: AppConfigFile = {
   servicesMenu: {},
 };
 
-const model = buildAppModel(CONFIG, {});
+const model = buildAppBlueprint(CONFIG, {});
 const FILES = { "./garage.toml": "replication_factor = 1\n" };
 const RELEASE = "1.2.3";
 const objects = toKubernetesObjects(model, { files: FILES, releaseVersion: RELEASE });

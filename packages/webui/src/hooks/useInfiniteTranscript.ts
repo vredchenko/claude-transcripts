@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useUserSettings } from "../api/blueprint";
 import { getSessionTranscript, type TranscriptResponse } from "../api/generated";
-import { useUserSettings } from "../api/model";
 
 /**
  * Wraps `useInfiniteQuery` over `GET /api/sessions/{id}/transcript`, accumulating

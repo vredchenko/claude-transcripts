@@ -6,7 +6,7 @@
  * serving it, and a self-hoster with 20 000 sessions on a Pi should not have to fork
  * the webui to make the list stop fetching a hundred rows at a time.
  *
- * Resolved once in `buildAppModel` and carried on the model, so the views read the
+ * Resolved once in `buildAppBlueprint` and carried on the model, so the views read the
  * settled numbers rather than re-deriving them from config (the same contract
  * `recall` has). Every value is clamped here, because the numbers are handed
  * straight to the gateway as `limit` — an unbounded typo in `config.json` would ask

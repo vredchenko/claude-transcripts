@@ -1,4 +1,4 @@
-import type { AppModel } from "@claude-transcripts/shared";
+import type { AppBlueprint } from "@claude-transcripts/shared";
 import type { Config } from "./config";
 import type { BlobStore } from "./storage/blob-store";
 import type { CouchHandles } from "./storage/couch";
@@ -27,8 +27,8 @@ export interface AppContext {
   blob: BlobStore;
   /** full-text search (optional; best-effort — no-ops when disabled/unreachable) */
   meili: Meili;
-  /** the isomorphic app model (central state) — served at `/`, used by routes */
-  model: AppModel;
+  /** the app blueprint (isomorphic central state) — served at `/`, used by routes */
+  blueprint: AppBlueprint;
   /**
    * Per-session aggregates held in memory and patched from the change feed, so the
    * session list doesn't re-reduce the whole corpus on every request (#107). A cache:

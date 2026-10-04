@@ -43,7 +43,7 @@ generated functions. Three settings make the output usable as is:
 
 ### Architecture diagram
 
-The nodes and edges are declared in `packages/shared/src/model/topology.ts`;
+The nodes and edges are declared in `packages/shared/src/blueprint/topology.ts`;
 `gen-diagram.ts` only does layout. `architecture.svg` follows `prefers-color-scheme`
 and is used by the docs; the README uses the light/dark pair inside `<picture>`,
 because GitHub's image proxy needs that to switch themes. Third-party marks are inlined

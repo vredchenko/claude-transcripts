@@ -77,7 +77,7 @@ fails on a diff.
 Two kinds of components:
 
 1. **Custom components** (`packages/*`) — the code we write:
-   - `@claude-transcripts/shared` — the **app model** (central state, `src/model/`) +
+   - `@claude-transcripts/shared` — the **app model** (central state, `src/blueprint/`) +
      migrations (`src/migrations/`) + cross-cutting types + `sumTranscriptTokens`.
    - `@claude-transcripts/webapi` — Bun + Hono + zod-openapi (+ Scalar at `/api/docs`). The
      **I/O gateway** (exceptions under Key invariants);
@@ -108,7 +108,7 @@ There is no `tools/` dir.
   maps (`couchdb.databases`, `s3.buckets`, `meilisearch.indexes`) built for **more than
   one** each. Config will grow to **multiple files** under `config/`. `.env` holds only
   secrets/endpoints.
-- **The app model (`@claude-transcripts/shared` `src/model/`) is the central state** — an
+- **The app model (`@claude-transcripts/shared` `src/blueprint/`) is the central state** — an
   abstract, isomorphic TS description of the whole app (identity, services/ports,
   stores, hooks, actions, routes, env schema, versions, the CLI spec; an API spec grows in).
   Built once from config + env (`buildAppModel`), held in-memory, served at `/`.
@@ -123,7 +123,7 @@ There is no `tools/` dir.
   ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
   That bypass is why the `_changes` follower exists, and why hook-written docs get no
   write-time validation.
-- **`CLI_SPEC` is the CLI's source of truth** (`packages/shared/src/model/cli.ts`):
+- **`CLI_SPEC` is the CLI's source of truth** (`packages/shared/src/blueprint/cli.ts`):
   help, pre-dispatch argument validation, and the generated command reference
   (`bun run gen:cli-docs` → `packages/cli/README.md` + `docs/reference/cli.md`) all
   project from it. Add a flag to the spec, not just to the runner — an undeclared

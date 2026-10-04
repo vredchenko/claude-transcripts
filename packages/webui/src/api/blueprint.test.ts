@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fauxtonUrlFor } from "./model";
+import { fauxtonUrlFor } from "./blueprint";
 
 describe("CouchDB link building", () => {
   test("Fauxton links use the real database name and tolerate a trailing slash", () => {

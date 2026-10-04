@@ -7,7 +7,7 @@ architecture diagram (`bun run gen:diagram`) and in the webui's header menus. Th
 ## Why they live here
 
 Each file has exactly one declared consumer: a `TopologyNodeDef.icon` value in
-[`packages/shared/src/model/topology.ts`](../../packages/shared/src/model/topology.ts).
+[`packages/shared/src/blueprint/topology.ts`](../../packages/shared/src/blueprint/topology.ts).
 The generator inlines them at build time — an SVG loaded through GitHub's image
 proxy cannot fetch anything external, so a referenced icon would simply not appear.
 The webui imports the same files (`packages/webui/src/components/nav/ServiceIcon.tsx`),

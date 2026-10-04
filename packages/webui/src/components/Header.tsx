@@ -1,6 +1,6 @@
 import { AppBar, Box, Toolbar, Typography } from "@mui/material";
 import { Link } from "@tanstack/react-router";
-import { useAppModel } from "../api/model";
+import { useAppBlueprint } from "../api/blueprint";
 import logoMark from "../assets/logo-mark.svg";
 import { displayVersion } from "../format";
 import { MONO } from "../theme";
@@ -14,7 +14,7 @@ import { SettingsMenu } from "./SettingsMenu";
  * `GET /api/model`, falling back to sensible defaults while it loads.
  */
 export function Header() {
-  const { data } = useAppModel();
+  const { data } = useAppBlueprint();
   const title = data?.identity?.title ?? "Claude Transcripts";
   const version = data?.identity?.version;
 

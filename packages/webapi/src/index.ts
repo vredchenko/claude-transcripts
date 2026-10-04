@@ -2,7 +2,7 @@
  * webapi entry point. Loads config, opens CouchDB + S3 handles, ensures the
  * schema, and serves the app. Bun serves the default export's `fetch`.
  */
-import { buildAppModel } from "@claude-transcripts/shared";
+import { buildAppBlueprint } from "@claude-transcripts/shared";
 import { indexName, loadAppConfigFile, loadConfig } from "./config";
 import type { AppContext, BootStatus } from "./context";
 import { buildServer } from "./server";
@@ -28,10 +28,10 @@ const blob = new S3BlobStore(config);
 const meili = new Meili(config.meili);
 // The app model (central state) — built once from the raw config + env, held
 // in-memory, and served at `/`. Projections derive from it.
-const model = buildAppModel(loadAppConfigFile(), process.env);
+const blueprint = buildAppBlueprint(loadAppConfigFile(), process.env);
 const boot = { startedAt: new Date().toISOString(), couchProvisioned: false } as BootStatus;
 const sessionIndex = createSessionIndex(couch.db("sessions"));
-const ctx: AppContext = { config, couch, blob, meili, model, boot, sessionIndex };
+const ctx: AppContext = { config, couch, blob, meili, blueprint, boot, sessionIndex };
 
 // Idempotent boot-time schema setup. Never block startup on it — but record the
 // outcome, so `/health` can say the stores are missing instead of reporting "ok"

@@ -67,9 +67,9 @@
         "// Code expands. Flagging them is noise, and the noise was hiding the",
         "// rest of the lint output. Same reasoning as the assets.generated.ts exclusion",
         "// above, scoped to one rule instead of the whole file.",
-        "packages/shared/src/model/services.ts",
-        "packages/shared/src/model/hooks.ts",
-        "packages/shared/src/model/hooks.test.ts",
+        "packages/shared/src/blueprint/services.ts",
+        "packages/shared/src/blueprint/hooks.ts",
+        "packages/shared/src/blueprint/hooks.test.ts",
         "scripts/sync-hooks.ts"
       ],
       "linter": {

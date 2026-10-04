@@ -46,7 +46,7 @@ Two ways to source the backing-service images:
 
 Both compose files are **generated from the app model** (`bun run gen:compose` +
 `gen:compose-override`); the upstream image for each service is the `image.upstream`
-field in `packages/shared/src/model/services.ts`. The app image is built + published
+field in `packages/shared/src/blueprint/services.ts`. The app image is built + published
 by the `publish-image` workflow (no upstream; tags in
 [releasing.md](../docs/operate/releasing.md#app-image-tags)).
 
@@ -78,7 +78,7 @@ clone`/`sync` talk to. The webapi reads it; nothing writes it yet
 - **Image** — Fossil publishes none, so `fossil/Dockerfile` builds one from the
   official release source (pinned tarball, sha256-checked, static binary on
   `scratch`). To upgrade, bump the three `ARG`s there and `defaultTag` in
-  `packages/shared/src/model/services.ts`; a test fails if they disagree.
+  `packages/shared/src/blueprint/services.ts`; a test fails if they disagree.
 - **Repository** — named by `fossil.repositories` in `config/` (default
   `claude-transcripts-sessions`, like the database and bucket). The container seeds it
   on start if it doesn't exist (`fossil/entrypoint.sh`; the runner passes the names as

@@ -24,8 +24,8 @@ import {
 } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAppBlueprint } from "../api/blueprint";
 import { getSearchQueryKey, useSearch } from "../api/generated";
-import { useAppModel } from "../api/model";
 import { projectName } from "../format";
 import { COMMANDS, type CommandContext } from "../omnibox/commands";
 import { OPERATORS, parseOmniboxInput } from "../omnibox/parse";
@@ -42,7 +42,7 @@ export function Omnibox() {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
-  const { data: model } = useAppModel();
+  const { data: model } = useAppBlueprint();
 
   // Debounce.
   useEffect(() => {

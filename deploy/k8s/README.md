@@ -22,9 +22,9 @@ deploy/k8s/
 ```
 
 The base is a **projection of the app model** (`toKubernetesObjects` in
-`packages/shared/src/model/k8s.ts`), the sibling of the compose projection — same
+`packages/shared/src/blueprint/k8s.ts`), the sibling of the compose projection — same
 images, ports, env names, healthchecks and state, so the two deploy shapes cannot
-drift. Change `packages/shared/src/model/services.ts`, run `bun run gen:k8s` (part of
+drift. Change `packages/shared/src/blueprint/services.ts`, run `bun run gen:k8s` (part of
 `gen:all`; CI fails on a stale diff). Overrides go in an overlay, never in `base/`.
 Rationale: [ADR 0030](../../docs/design/decisions/0030-kubernetes-deploy-generated-from-the-model.md).
 

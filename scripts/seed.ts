@@ -8,7 +8,7 @@ import { join } from "node:path";
  *
  *   bun run scripts/seed.ts [--dry-run]
  */
-import { buildAppModel, resolveCouchUrlWithAuth, toSeedPlan } from "@claude-transcripts/shared";
+import { buildAppBlueprint, resolveCouchUrlWithAuth, toSeedPlan } from "@claude-transcripts/shared";
 import { loadConfigFile } from "./lib/config-file";
 
 const ROOT = join(import.meta.dir, "..");
@@ -30,7 +30,7 @@ async function ensureDatabases(dbs: string[]) {
 
 async function main() {
   const dry = process.argv.includes("--dry-run");
-  const model = buildAppModel(loadConfigFile(ROOT), process.env);
+  const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
   const plan = toSeedPlan(model);
 
   console.log(`[seed] databases: ${plan.databases.join(", ")}`);
