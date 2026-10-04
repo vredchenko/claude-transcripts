@@ -11,7 +11,7 @@ import {
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 
 /**
- * A thin, hand-written client for `GET /api/blueprint` — the read-only app-blueprint
+ * A thin, hand-written client for `GET /api/blueprint` — the read-only blueprint
  * introspection endpoint (a plain Hono route, not part of the OpenAPI contract, so
  * it isn't in the generated client). Used for the header's title + build version, and
  * the header menus project from `services`, `topology`, `stores`, `routes` and
