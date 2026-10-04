@@ -2,10 +2,10 @@
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 /**
- * Generate deploy/k8s/base/ — a kustomize base — from the app model (services
+ * Generate deploy/k8s/base/ — a kustomize base — from the blueprint (services
  * topology). The Kubernetes manifests are a PROJECTION (toKubernetesObjects), the
  * sibling of deploy/docker-compose.yml: generated, not hand-maintained. Re-run after
- * changing the model's SERVICES (release.ts re-runs it, as the app image is pinned to
+ * changing the blueprint's SERVICES (release.ts re-runs it, as the app image is pinned to
  * the root package.json version).
  *
  *   bun run scripts/gen-k8s.ts   (or: bun run gen:k8s)
@@ -31,15 +31,15 @@ const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 // and a copy would be a second thing to keep in step.
 const files = { "./garage.toml": await Bun.file(join(ROOT, "deploy", "garage.toml")).text() };
 
-// The lockstep release (ADR 0023) the app image is pinned to; read here, the model stays pure.
+// The lockstep release (ADR 0023) the app image is pinned to; read here, the blueprint stays pure.
 const { version: releaseVersion } = (await Bun.file(join(ROOT, "package.json")).json()) as {
   version: string;
 };
 
 const header = (
   script: string,
-) => `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-k8s.ts.
-# Do NOT edit by hand — run \`bun run gen:k8s\` to regenerate, and change the model
+) => `# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-k8s.ts.
+# Do NOT edit by hand — run \`bun run gen:k8s\` to regenerate, and change the blueprint
 # (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.
 # Overrides belong in a kustomize overlay — see deploy/k8s/README.md.
 ${script}

@@ -1,4 +1,4 @@
-# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-compose-override.ts.
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose-override.ts.
 # Do NOT edit by hand — run `bun run gen:compose-override` to regenerate.
 #
 # Upstream-image dev override: pins each mirrored backing service to its canonical

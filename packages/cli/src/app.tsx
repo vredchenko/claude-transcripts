@@ -137,7 +137,7 @@ export interface AppProps {
   unknown?: string;
 }
 
-/** Help is rendered FROM the model's CLI_SPEC — one source of truth. */
+/** Help is rendered FROM the blueprint's CLI_SPEC — one source of truth. */
 export function App({ command, unknown }: AppProps) {
   return (
     <Box flexDirection="column">

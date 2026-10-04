@@ -1,7 +1,7 @@
 /**
  * The Kubernetes base must stay a faithful projection of the same topology that
  * becomes the compose file — same images, same ports, same env names, same state.
- * These checks are what make "generated from the model" a claim rather than a hope.
+ * These checks are what make "generated from the blueprint" a claim rather than a hope.
  */
 import { describe, expect, test } from "bun:test";
 import { buildAppBlueprint } from "./build";

@@ -12,7 +12,7 @@
 # or CI.
 #
 # To bump: take the release's tarball link from https://fossil-scm.org/home/uv/download.html,
-# set FOSSIL_VERSION / FOSSIL_CHECKIN / FOSSIL_SHA256, and the model's defaultTag.
+# set FOSSIL_VERSION / FOSSIL_CHECKIN / FOSSIL_SHA256, and the blueprint's defaultTag.
 
 ## ── build: a static Fossil binary ─────────────────────────────────────────
 FROM alpine:3.22 AS build

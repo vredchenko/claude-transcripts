@@ -47,9 +47,9 @@ export const ROUTES: RouteDef[] = [
   },
   { path: "/api/migrate", serves: "schema migration status / up / down" },
   {
-    path: "/api/model",
-    serves: "app model introspection (services/hooks/actions/env)",
-    nav: { label: "App model", section: "Reference" },
+    path: "/api/blueprint",
+    serves: "app blueprint introspection (services/hooks/actions/env)",
+    nav: { label: "App blueprint", section: "Reference" },
   },
   { path: "/app", serves: "webui SPA" },
   {

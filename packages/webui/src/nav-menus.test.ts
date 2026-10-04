@@ -1,5 +1,5 @@
 /**
- * The header menus are projections of the app model: these run them over a model
+ * The header menus are projections of the blueprint: these run them over a model
  * built the way the webapi builds the one it serves, so a change to services,
  * topology, stores or routes shows up here rather than as a silently emptier menu.
  */
@@ -18,7 +18,7 @@ const CONFIG: AppConfigFile = {
   servicesMenu: {},
 };
 
-/** Round-tripped through JSON, as the webui receives it from `GET /api/model`. */
+/** Round-tripped through JSON, as the webui receives it from `GET /api/blueprint`. */
 function served(config: AppConfigFile = CONFIG): AppBlueprintInfo {
   return JSON.parse(JSON.stringify(buildAppBlueprint(config))) as AppBlueprintInfo;
 }
@@ -95,7 +95,7 @@ describe("servicesMenuGroups", () => {
 });
 
 describe("devMenuSections", () => {
-  test("lists the routes the model marks for the menu, by section", () => {
+  test("lists the routes the blueprint marks for the menu, by section", () => {
     const sections = devMenuSections(served());
     expect(sections.map((s) => s.heading)).toEqual(["Reference", "Install"]);
     const reference = sections[0]?.links.map((l) => l.href) ?? [];
@@ -118,7 +118,7 @@ describe("aboutLinks", () => {
     ]);
   });
 
-  test("is empty when the model names no repository", () => {
+  test("is empty when the blueprint names no repository", () => {
     expect(aboutLinks({ identity: { title: "x" } })).toEqual([]);
   });
 });

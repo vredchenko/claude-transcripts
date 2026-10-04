@@ -131,8 +131,8 @@ The count comes from one `GET /api/sessions` with a 2 s timeout. The primer is c
 `excludeCwdGlobs`, it has no history, or the webapi doesn't answer in time.
 
 The policy is the `recall` section of the app config
-([configuration.md](../start/configuration.md#settings)), resolved through the app
-model and baked into the hook config. The plugin's `userConfig` options
+([configuration.md](../start/configuration.md#settings)), resolved through the
+blueprint and baked into the hook config. The plugin's `userConfig` options
 `recall_mode`, `recall_scope` and `max_results` override it per user. Precedence:
 `userConfig`, then the deployment config, then built-in defaults.
 

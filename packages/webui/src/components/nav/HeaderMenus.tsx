@@ -1,6 +1,6 @@
 /**
  * The header's Services, Dev and About menus. Everything listed is projected from the
- * app model (see `nav-menus.ts`); this file only lays it out.
+ * app blueprint (see `nav-menus.ts`); this file only lays it out.
  */
 import { Box, Button, Chip, Popover, Stack, Tooltip, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
@@ -267,7 +267,7 @@ export function ServicesMenu() {
           groups.map((g) => <ServiceSection key={g.key} group={g} onClose={close} />)
         ) : (
           <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1 }}>
-            No services described by the app model.
+            No services described by the blueprint.
           </Typography>
         )
       }

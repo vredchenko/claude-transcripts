@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
 /**
- * Generate deploy/docker-compose.upstream.yml from the app model — the
+ * Generate deploy/docker-compose.upstream.yml from the blueprint — the
  * UPSTREAM-IMAGE dev override (toComposeOverrideObject). For every backing/admin
  * service we mirror, it pins the canonical upstream image so a fresh clone can run
  * the stack with NO registry mirror:
@@ -20,7 +20,7 @@ import { loadConfigFile } from "./lib/config-file";
 const ROOT = join(import.meta.dir, "..");
 const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 
-const header = `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-compose-override.ts.
+const header = `# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose-override.ts.
 # Do NOT edit by hand — run \`bun run gen:compose-override\` to regenerate.
 #
 # Upstream-image dev override: pins each mirrored backing service to its canonical

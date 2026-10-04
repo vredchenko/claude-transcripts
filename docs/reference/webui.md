@@ -59,8 +59,8 @@ from search (`?q=`) opens at the matching entry with terms highlighted.
 
 ### Header
 
-Title and build version (from `/api/model`), the omnibox, and four menus, all projected
-from the app model (`src/nav-menus.ts`):
+Title and build version (from `/api/blueprint`), the omnibox, and four menus, all projected
+from the blueprint (`src/nav-menus.ts`):
 
 - **Services** — one section per backing store (CouchDB, Garage, Meilisearch, Fossil),
   with its mark, its admin UIs from `servicesMenu`, and the databases, buckets, indexes
@@ -68,8 +68,8 @@ from the app model (`src/nav-menus.ts`):
   from the database through the proxy; each Fossil repository links its check-in timeline through
   the read-only `/api/fossil` proxy and its page in Fossil's own web UI. `servicesMenu`
   links no service claims appear under **Other**.
-- **Dev** — the gateway routes the model marks for the menu (`RouteDef.nav`): API
-  reference, OpenAPI spec, app model, docs, the CLI download; plus a placeholder for the
+- **Dev** — the gateway routes the blueprint marks for the menu (`RouteDef.nav`): API
+  reference, OpenAPI spec, app blueprint, docs, the CLI download; plus a placeholder for the
   Claude Code plugin.
 - **About** — version, and the project links derived from `identity.repository`.
 - **Settings** — a placeholder for now.
@@ -87,10 +87,10 @@ filters, and shows a hint when search is off.
 |---------------|-------|
 | `main.tsx`, `router.tsx` | Root: Query client (30 s `staleTime`, no refetch on focus, `retry: 1`), the theme, code-based router with basepath `/app`. Each route validates its own query-string state and falls back to defaults. |
 | `theme.ts` | The one (dark) MUI theme; components use semantic palette tokens. |
-| `nav-menus.ts` | The header menus and a session's data links, projected from `/api/model`. |
+| `nav-menus.ts` | The header menus and a session's data links, projected from `/api/blueprint`. |
 | `api/generated.ts` | orval output: types, fetchers, query-key helpers, React Query hooks. Never edit; `bun run gen:clients`. |
 | `api/http.ts` | The orval mutator: same-origin requests, unwraps the body, throws `ApiRequestError` on non-2xx. |
-| `api/model.ts` | Hand-written `useAppModel` for `/api/model`, which is not in the OpenAPI spec. |
+| `api/blueprint.ts` | Hand-written `useAppBlueprint` for `/api/blueprint`, which is not in the OpenAPI spec. |
 | `routes/` | `root`, `sessions-list`, `session-detail`, `search-results`. |
 | `components/` | UI; `components/sessions/` holds the list and calendar. |
 | `omnibox/` | Input parsing, `>` commands, recent searches, saved filters. |

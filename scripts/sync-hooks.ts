@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
 /**
- * Project the app model → the plugin's Claude Code registration.
+ * Project the blueprint → the plugin's Claude Code registration.
  *
  *   bun run scripts/sync-hooks.ts
  *
  * Writes hooks/hooks/hooks.json: which events the plugin registers, and with what
  * timeout. The event → action bindings are NOT codegen'd any more — the plugin
- * delegates to the installed CLI, which reads the model directly, so the only thing
+ * delegates to the installed CLI, which reads the blueprint directly, so the only thing
  * still needing projection is the event list itself.
- * Dev-only tooling. Re-run after changing the model's BINDINGS.
+ * Dev-only tooling. Re-run after changing the blueprint's BINDINGS.
  */
 import { buildAppBlueprint, PLUGIN_HOOK_COMMAND } from "@claude-transcripts/shared";
 import { loadConfigFile } from "./lib/config-file";

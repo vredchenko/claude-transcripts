@@ -38,13 +38,13 @@ Scope is Claude Code only, not agent sessions in general
 | webapi | `packages/webapi/` | Gateway; applies migrations on boot; serves the SPA, docs and CLI binary in production | [webapi.md](../reference/webapi.md) |
 | webui | `packages/webui/` | Optional React SPA | [webui.md](../reference/webui.md) |
 | CLI | `packages/cli/` | Installer, admin tool, terminal client, and the hook | [cli.md](../reference/cli.md) |
-| shared | `packages/shared/` | The app model, migrations, cross-cutting types, `sumTranscriptTokens` | [webapi.md](../reference/webapi.md#packagesshared) |
+| shared | `packages/shared/` | The blueprint, migrations, cross-cutting types, `sumTranscriptTokens` | [webapi.md](../reference/webapi.md#packagesshared) |
 | plugin | `hooks/` | Skills, status command, statusline for Claude Code | [plugin.md](plugin.md) |
 
-**The app model** (`packages/shared/src/blueprint/`) is the central description of the
+**The blueprint** (`packages/shared/src/blueprint/`) is the central description of the
 system: services and ports, stores, hook events, actions and bindings, routes, env
 schema, the CLI spec. It is built from `config/` and the environment, served at `/` and
-`/api/model`, and projected into Compose files, the k8s base, the plugin's
+`/api/blueprint`, and projected into Compose files, the k8s base, the plugin's
 `hooks.json`, the architecture diagram and the CLI reference.
 
 ## Storage

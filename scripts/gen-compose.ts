@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
 /**
- * Generate deploy/docker-compose.yml from the app model (services topology).
+ * Generate deploy/docker-compose.yml from the blueprint (services topology).
  * The compose file is a PROJECTION (toComposeObject) — generated, not hand-
- * maintained. Re-run after changing the model's SERVICES.
+ * maintained. Re-run after changing the blueprint's SERVICES.
  *
  *   bun run scripts/gen-compose.ts   (or: bun run gen:compose)
  */
@@ -18,8 +18,8 @@ const model = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 // comments in deploy/docker-compose.yml — the generator can't reproduce those, so any
 // added by hand are silently destroyed on the next `gen:compose`. That is how the
 // app's `WEBAPI_PORT` pin came to be a hand-edit the generator would have dropped.
-const header = `# GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-compose.ts.
-# Do NOT edit by hand — run \`bun run gen:compose\` to regenerate, and change the model
+const header = `# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose.ts.
+# Do NOT edit by hand — run \`bun run gen:compose\` to regenerate, and change the blueprint
 # (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.
 # See docs/operate/containers.md.
 #

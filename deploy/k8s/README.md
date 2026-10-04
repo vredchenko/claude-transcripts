@@ -21,7 +21,7 @@ deploy/k8s/
     └── ingress/          hand-written EXAMPLE: one Ingress host per service + image overrides
 ```
 
-The base is a **projection of the app model** (`toKubernetesObjects` in
+The base is a **projection of the blueprint** (`toKubernetesObjects` in
 `packages/shared/src/blueprint/k8s.ts`), the sibling of the compose projection — same
 images, ports, env names, healthchecks and state, so the two deploy shapes cannot
 drift. Change `packages/shared/src/blueprint/services.ts`, run `bun run gen:k8s` (part of

@@ -1,5 +1,5 @@
 /**
- * The diagram scene must stay tied to the model it claims to project.
+ * The diagram scene must stay tied to the blueprint it claims to project.
  *
  * The five hand-drawn ASCII diagrams this replaces drifted from each other and from
  * the code: one said `CLI` where the others said `cli`, and every one of them routed

@@ -26,7 +26,7 @@ const config = loadConfig();
 const couch = makeCouch(config);
 const blob = new S3BlobStore(config);
 const meili = new Meili(config.meili);
-// The app model (central state) — built once from the raw config + env, held
+// The blueprint (central state) — built once from the raw config + env, held
 // in-memory, and served at `/`. Projections derive from it.
 const blueprint = buildAppBlueprint(loadAppConfigFile(), process.env);
 const boot = { startedAt: new Date().toISOString(), couchProvisioned: false } as BootStatus;

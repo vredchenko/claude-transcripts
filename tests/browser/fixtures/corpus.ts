@@ -350,7 +350,7 @@ export const SEARCH_FACETS = {
 };
 
 /**
- * The model facets the header menus project from, built the way the webapi builds the
+ * The blueprint facets the header menus project from, built the way the webapi builds the
  * one it serves — so the Services/Dev/About menus show what a bundled stack would,
  * rather than a hand-kept copy that drifts from the real model.
  */
@@ -363,7 +363,7 @@ const BUILT_BLUEPRINT = buildAppBlueprint({
   servicesMenu: {},
 });
 
-/** `GET /api/model` — only the fields the SPA actually reads. */
+/** `GET /api/blueprint` — only the fields the SPA actually reads. */
 export const APP_BLUEPRINT = {
   identity: {
     codename: "claude-transcripts",

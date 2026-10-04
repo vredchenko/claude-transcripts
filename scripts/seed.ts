@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
 /**
- * Seed / check the stores named by the app model: create missing CouchDB
- * databases and report the S3 buckets. The plan is **projected from the model**
+ * Seed / check the stores named by the blueprint: create missing CouchDB
+ * databases and report the S3 buckets. The plan is **projected from the blueprint**
  * (toSeedPlan) — one source of truth for db/bucket names, shared with the webapi
  * and the manifest. Idempotent.
  *

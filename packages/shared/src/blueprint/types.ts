@@ -1,5 +1,5 @@
 /**
- * The app model — an abstract, isomorphic (pure-TS) data structure describing the
+ * The blueprint — an abstract, isomorphic (pure-TS) data structure describing the
  * whole application: identity, services/ports, stores, hooks, actions, routes,
  * env schema, versions, and the api/cli specs. It aggregates config + metadata
  * about the current build source OR running deploy.
@@ -393,7 +393,7 @@ export interface TopologyModel {
   groups: TopologyGroupDef[];
 }
 
-// ── The model ──────────────────────────────────────────────────────────────────
+// ── The blueprint ──────────────────────────────────────────────────────────────
 
 export interface AppBlueprint {
   identity: AppIdentity;

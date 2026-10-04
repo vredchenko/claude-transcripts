@@ -1,5 +1,5 @@
 /**
- * The hook actions, keyed the same way the app model binds them to events.
+ * The hook actions, keyed the same way the blueprint binds them to events.
  *
  * These are the only implementation. The plugin under `hooks/` used to mirror them —
  * same doc shapes, same ids, same `/tmp` state — but it now pipes its payload to
@@ -285,7 +285,7 @@ const uploadBlobs: Handler = async (ctx) => {
   );
 };
 
-/** Action key → implementation. Keys match the app model's `ActionDef`s. */
+/** Action key → implementation. Keys match the blueprint's `ActionDef`s. */
 export const HANDLERS: Record<string, Handler> = {
   "seed-session-start": seedSessionStart,
   "announce-recording": announceRecording,

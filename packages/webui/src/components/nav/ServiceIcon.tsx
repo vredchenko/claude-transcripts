@@ -3,7 +3,7 @@
  *
  * Imported straight from `brand/icons/` rather than copied: those files are the
  * vendored masters (see their README), and a second copy here would be one more to
- * keep in step. Keyed by the model's `IconKey`, so a topology node's `icon` is all a
+ * keep in step. Keyed by the blueprint's `IconKey`, so a topology node's `icon` is all a
  * menu needs to show it.
  */
 import type { IconKey } from "@claude-transcripts/shared";

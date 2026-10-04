@@ -1,4 +1,4 @@
-/** `implemented` in the app model ⇔ a `HANDLERS` entry. Lives here: shared can't import cli. */
+/** `implemented` in the blueprint ⇔ a `HANDLERS` entry. Lives here: shared can't import cli. */
 import { describe, expect, test } from "bun:test";
 import { ACTIONS, BINDINGS } from "@claude-transcripts/shared";
 import { HANDLERS } from "./handlers";

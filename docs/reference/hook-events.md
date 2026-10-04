@@ -1,12 +1,12 @@
-<!-- GENERATED from the app model (@claude-transcripts/shared) by scripts/gen-hook-events.ts.
-     Do NOT edit by hand — run `bun run gen:hook-events`. Edit the model:
+<!-- GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-hook-events.ts.
+     Do NOT edit by hand — run `bun run gen:hook-events`. Edit the blueprint:
      packages/shared/src/blueprint/hooks.ts (events/order/summaries) and actions.ts
      (the "What we do" bindings). -->
 
 # Claude Code hook events — when they fire, payloads & fixtures
 
 The authoritative catalogue of **every Claude Code hook event**, projected from the
-app model ([`@claude-transcripts/shared` HOOK_TYPES](../../packages/shared/src/blueprint/hooks.ts)):
+app blueprint ([`@claude-transcripts/shared` HOOK_TYPES](../../packages/shared/src/blueprint/hooks.ts)):
 the one-line trigger for each, a link to the official documentation, links to
 example **payload fixtures** under
 [`tests/mock/claude-code/hooks/`](../../tests/mock/claude-code/hooks/) (the inputs Claude Code sends a hook
@@ -32,9 +32,9 @@ authority when this table and a given CC version disagree.
   naming/variety convention). Many are **placeholders today** — synthetic but
   shape-faithful — to be supplemented with real captures over time.
 - **What we do** — for **wired** events, the action handlers bound to it (projected
-  from the model's BINDINGS; [actions.md](actions.md) lists what each does). For
+  from the blueprint's BINDINGS; [actions.md](actions.md) lists what each does). For
   **ignored** events, *why* we intentionally don't handle it. Both come from the
-  model ([`hooks.ts`](../../packages/shared/src/blueprint/hooks.ts) +
+  blueprint ([`hooks.ts`](../../packages/shared/src/blueprint/hooks.ts) +
   [`actions.ts`](../../packages/shared/src/blueprint/actions.ts)) — wire an ignored event
   by adding a binding and regenerating.
 
@@ -154,7 +154,7 @@ We currently bind actions to **11** of the 30 events —
 the reason per event: a passive, observe-only writer gains nothing from
 blocking / UX / orchestration hooks, and every hook invocation costs a Bun startup,
 so we wire only the events that carry the session record ([actions.md](actions.md)).
-Wiring an ignored event = add the [action](actions.md) + binding in the model, then
+Wiring an ignored event = add the [action](actions.md) + binding in the blueprint, then
 regenerate `hooks.json` (`bun run gen:hooks`).
 
 > **Field-shape caveat.** Payload field names/casing follow the official reference
