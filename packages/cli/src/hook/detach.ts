@@ -31,12 +31,7 @@ export function spawnDetached(argv: string[]): boolean {
   try {
     // `cd /` for the same reason the hook command has it: a session directory that was
     // deleted mid-session is not a cwd a process can start in (#171).
-    const child = spawn(cmd, args, {
-      detached: true,
-      stdio: "ignore",
-      cwd: "/",
-      windowsHide: true,
-    });
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore", cwd: "/" });
     // A missing binary is reported asynchronously; without a listener it would throw.
     child.on("error", () => {});
     child.unref();
