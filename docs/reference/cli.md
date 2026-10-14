@@ -341,12 +341,14 @@ The Claude Code hook, and its registration
 
 | Argument | |
 |---|---|
-| `action` | `run` reads one event payload from stdin (Claude Code calls this) (run \| install \| uninstall \| status; default status) |
+| `action` | `run` reads one event payload from stdin (Claude Code calls this); `upload` ships one transcript to S3 (SessionEnd starts it detached) (run \| upload \| install \| uninstall \| status; default status) |
 
 | Option | |
 |---|---|
 | `--dry-run` | with `install`: show the change without writing |
 | `--force` | with `install`: register even if the plugin already does |
+| `--session <value>` | with `upload`: the session id |
+| `--transcript <value>` | with `upload`: the transcript file to ship |
 
 ```bash
 claude-transcripts hook status

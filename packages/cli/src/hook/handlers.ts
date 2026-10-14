@@ -19,7 +19,13 @@ import {
 import { resolveWebapiUrl } from "../api/http";
 import { recordingBanner } from "./announce";
 import { buildPrimer } from "./recall";
-import { commonFields, type HookContext, makeChunkState, resolveTargets } from "./runtime";
+import {
+  type BlobClient,
+  commonFields,
+  type HookContext,
+  makeChunkState,
+  resolveTargets,
+} from "./runtime";
 
 export type Handler = (ctx: HookContext) => Promise<void>;
 
@@ -268,21 +274,34 @@ const writeSummary: Handler = async (ctx) => {
   ctx.targets.clear();
 };
 
-/** At SessionEnd, upload the byte-faithful transcript — S3 is its durable home. */
-const uploadBlobs: Handler = async (ctx) => {
-  if (!ctx.blob.enabled || !ctx.sessionsBucket || !ctx.transcriptPath) return;
+/** Upload one session's byte-faithful transcript — S3 is its durable home. */
+export async function uploadTranscript(
+  blob: BlobClient,
+  bucket: string,
+  sessionId: string,
+  transcriptPath: string,
+): Promise<void> {
   let data: string;
   try {
-    data = readFileSync(ctx.transcriptPath, "utf8");
+    data = readFileSync(transcriptPath, "utf8");
   } catch {
     return;
   }
-  await ctx.blob.put(
-    ctx.sessionsBucket,
-    `${ctx.sessionId}/transcript.jsonl`,
-    data,
-    "application/x-ndjson",
-  );
+  await blob.put(bucket, `${sessionId}/transcript.jsonl`, data, "application/x-ndjson");
+}
+
+/**
+ * At SessionEnd, hand the transcript upload to a detached `hook upload` and return.
+ *
+ * Claude Code cancels SessionEnd when its exit budget runs out, whatever timeout is
+ * registered, and a long session's transcript is megabytes (#217, see `detach.ts`).
+ * The summary and the final chunk are small and stay in-line. Only if the child
+ * cannot start does the upload run here, which is the old behaviour.
+ */
+const uploadBlobs: Handler = async (ctx) => {
+  if (!ctx.blob.enabled || !ctx.sessionsBucket || !ctx.transcriptPath) return;
+  if (ctx.detachUpload(ctx.sessionId, ctx.transcriptPath)) return;
+  await uploadTranscript(ctx.blob, ctx.sessionsBucket, ctx.sessionId, ctx.transcriptPath);
 };
 
 /** Action key → implementation. Keys match the blueprint's `ActionDef`s. */

@@ -27,15 +27,19 @@ export function hookBindings(): Record<string, string[]> {
 /**
  * Per-event command timeout (seconds) for the registration.
  *
- * Session start and end do real work — seeding state, and writing the summary plus
- * uploading the transcript — so they get a long budget. Everything else is a small
+ * `SessionStart` seeds state and may query CouchDB for a resume, so it gets a long
+ * budget. `SessionEnd` asks for 60s because that is all Claude Code grants at exit:
+ * the teardown budget is the largest declared SessionEnd timeout capped at 60s (with a
+ * 1.5s floor), unless the user sets `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS`.
+ * Declaring more only advertised a budget that never existed (#217) — which is why the
+ * transcript upload no longer runs inside it (`detach.ts`). Everything else is a small
  * append that should never hold up a turn. Mirrors `scripts/sync-hooks.ts`, which
  * writes the same numbers into the standalone plugin's registration.
  */
-const LONG_TIMEOUT_EVENTS = new Set(["SessionStart", "SessionEnd"]);
+const TIMEOUTS: Record<string, number> = { SessionStart: 180, SessionEnd: 60 };
 
 export function hookTimeout(event: string): number {
-  return LONG_TIMEOUT_EVENTS.has(event) ? 180 : 5;
+  return TIMEOUTS[event] ?? 5;
 }
 
 /**
@@ -49,8 +53,9 @@ export function hookTimeout(event: string): number {
  *  - `SessionStart` runs `announce-recording` + `inject-recall-policy`, both of which
  *    write into the session. Claude Code discards an async hook's output, so this would
  *    silently drop the banner and the recall primer.
- *  - `SessionEnd` writes the summary and uploads the transcript. Fire-and-forget at
- *    teardown risks being reaped mid-upload, which loses data.
+ *  - `SessionEnd` writes the summary and the final chunk, which must land before the
+ *    process goes away. Fire-and-forget at teardown risks being reaped mid-write. (The
+ *    transcript upload is detached instead — it is too big for the exit budget.)
  *  - `UserPromptSubmit` is decision-shaped; Claude Code ignores `async` there, so
  *    claiming it would be a lie in the registration.
  *

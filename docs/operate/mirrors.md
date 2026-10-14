@@ -60,7 +60,8 @@ and webui keep reading the local instance.
 
 The timeouts are sized to Claude Code's hook limits: `PostToolUse` runs on every tool
 call within a 5-second budget, so a dead mirror must give up well inside it, while the
-transcript upload happens in `SessionEnd`'s 180-second budget.
+transcript upload runs in a detached process after `SessionEnd` returns, with a
+minute (`blobTimeoutMs`) of its own.
 
 ## Failure behaviour
 

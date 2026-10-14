@@ -124,7 +124,7 @@
           {
             "type": "command",
             "command": "cd / && bun run \"${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts\"",
-            "timeout": 180
+            "timeout": 60
           }
         ]
       }

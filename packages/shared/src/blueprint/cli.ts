@@ -319,14 +319,22 @@ export const CLI_SPEC: CliSpec = {
       args: [
         {
           name: "action",
-          choices: ["run", "install", "uninstall", "status"],
+          choices: ["run", "upload", "install", "uninstall", "status"],
           default: "status",
-          description: "`run` reads one event payload from stdin (Claude Code calls this)",
+          description:
+            "`run` reads one event payload from stdin (Claude Code calls this); `upload` " +
+            "ships one transcript to S3 (SessionEnd starts it detached)",
         },
         { name: "--dry-run", description: "with `install`: show the change without writing" },
         {
           name: "--force",
           description: "with `install`: register even if the plugin already does",
+        },
+        { name: "--session", type: "string", description: "with `upload`: the session id" },
+        {
+          name: "--transcript",
+          type: "string",
+          description: "with `upload`: the transcript file to ship",
         },
       ],
       examples: ["hook status", "hook install --dry-run"],

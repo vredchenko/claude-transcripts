@@ -8,7 +8,7 @@ exports[`toCompletions bash script matches its snapshot 1`] = `
 # Does flag \`cmd:--flag\` ($1) take a value?
 _claude_transcripts_valued() {
   case "$1" in
-    install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
+    install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
   esac
   return 1
 }
@@ -19,7 +19,7 @@ _claude_transcripts_choices() {
     stack:1) printf '%s' "up down restart logs ps" ;;
     turns:--role) printf '%s' "user assistant tool_result system other" ;;
     migrate:1) printf '%s' "up down status" ;;
-    hook:1) printf '%s' "run install uninstall status" ;;
+    hook:1) printf '%s' "run upload install uninstall status" ;;
     statusline:1) printf '%s' "render install uninstall status" ;;
     completions:1) printf '%s' "bash zsh fish" ;;
   esac
@@ -42,7 +42,7 @@ _claude_transcripts_flags() {
     migrate) printf '%s' "--to --steps --dry-run --webapi --help --version" ;;
     reindex) printf '%s' "--webapi --help --version" ;;
     doctor) printf '%s' "--keep --webapi --help --version" ;;
-    hook) printf '%s' "--dry-run --force --webapi --help --version" ;;
+    hook) printf '%s' "--dry-run --force --session --transcript --webapi --help --version" ;;
     statusline) printf '%s' "--dry-run --webapi --help --version" ;;
     completions) printf '%s' "--webapi --help --version" ;;
   esac
@@ -112,7 +112,7 @@ exports[`toCompletions zsh script matches its snapshot 1`] = `
 
 _claude_transcripts_valued() {
   case $1 in
-    (install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
+    (install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
   esac
   return 1
 }
@@ -123,7 +123,7 @@ _claude_transcripts_choices() {
     (stack:1) reply=(up down restart logs ps) ;;
     (turns:--role) reply=(user assistant tool_result system other) ;;
     (migrate:1) reply=(up down status) ;;
-    (hook:1) reply=(run install uninstall status) ;;
+    (hook:1) reply=(run upload install uninstall status) ;;
     (statusline:1) reply=(render install uninstall status) ;;
     (completions:1) reply=(bash zsh fish) ;;
   esac
@@ -146,7 +146,7 @@ _claude_transcripts_flags() {
     (migrate) reply=('--to:with \`up\`: stop at this schema version' '--steps:with \`down\`: how many to undo' '--dry-run:report what would run without writing' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (reindex) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (doctor) reply=('--keep:leave the synthetic session behind for inspection' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
-    (hook) reply=('--dry-run:with \`install\`: show the change without writing' '--force:with \`install\`: register even if the plugin already does' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
+    (hook) reply=('--dry-run:with \`install\`: show the change without writing' '--force:with \`install\`: register even if the plugin already does' '--session:with \`upload\`: the session id' '--transcript:with \`upload\`: the transcript file to ship' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (statusline) reply=('--dry-run:with \`install\`: show the change without writing' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (completions) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
   esac
@@ -405,9 +405,11 @@ complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l webapi -x -
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l help -d 'show help for a command (alias: -h)'
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l version -d 'print the CLI version (alias: -V)'
 
-complete -c claude-transcripts -n '_claude_transcripts_at_positional hook 1' -a 'run install uninstall status'
+complete -c claude-transcripts -n '_claude_transcripts_at_positional hook 1' -a 'run upload install uninstall status'
 complete -c claude-transcripts -n '_claude_transcripts_in hook' -l dry-run -d 'with \`install\`: show the change without writing'
 complete -c claude-transcripts -n '_claude_transcripts_in hook' -l force -d 'with \`install\`: register even if the plugin already does'
+complete -c claude-transcripts -n '_claude_transcripts_in hook' -l session -x -d 'with \`upload\`: the session id'
+complete -c claude-transcripts -n '_claude_transcripts_in hook' -l transcript -x -d 'with \`upload\`: the transcript file to ship'
 complete -c claude-transcripts -n '_claude_transcripts_in hook' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
 complete -c claude-transcripts -n '_claude_transcripts_in hook' -l help -d 'show help for a command (alias: -h)'
 complete -c claude-transcripts -n '_claude_transcripts_in hook' -l version -d 'print the CLI version (alias: -V)'
