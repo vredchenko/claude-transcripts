@@ -6,6 +6,20 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] — 2026-10-14
+
+A dependency-only release. v0.6.1's app image was never published: its vulnerability
+scan failed on two transitive dependencies whose advisories appeared after 0.6.0. The
+v0.6.1 binaries and npm package were unaffected and carry the same code.
+
+### Fixed
+
+- **The app image publishes again.** `shell-quote` 1.10.0 → 1.12.0
+  (GHSA-pqg4-j6r4-53mv, via Ink's `react-devtools-core`) and `seroval` 1.5.6 → 1.6.9
+  (GHSA-p6vx-979v-rg4c, GHSA-jp82-f5mq-hwhp, via `@tanstack/react-router`). Lockfile
+  only. A Kubernetes deploy pinned to 0.6.1 references an app image that does not
+  exist; move it to 0.6.2 ([#221]).
+
 ## [0.6.1] — 2026-10-14
 
 A patch release for one bug: on a long session, the transcript often never reached S3,
@@ -1747,6 +1761,8 @@ of them had ever executed:
 [#215]: https://github.com/vredchenko/claude-transcripts/pull/215
 [#217]: https://github.com/vredchenko/claude-transcripts/issues/217
 [#218]: https://github.com/vredchenko/claude-transcripts/pull/218
+[#221]: https://github.com/vredchenko/claude-transcripts/pull/221
+[0.6.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.2
 [0.6.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.1
 [0.6.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.0
 [0.5.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.5.0
