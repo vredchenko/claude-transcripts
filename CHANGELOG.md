@@ -6,6 +6,26 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-10-14
+
+A patch release for one bug: on a long session, the transcript often never reached S3,
+because Claude Code cancelled the SessionEnd hook before the upload finished ([#217]).
+
+### Fixed
+
+- **The transcript upload at session end is no longer cancelled.** Claude Code caps
+  the SessionEnd exit budget at 60 s (1.5 s at worst), whatever timeout is registered,
+  and cancels the hook when it runs out ("Hook cancelled"). On a long session the
+  in-line upload of a multi-megabyte transcript lost that race: CouchDB got the summary
+  and chunks, S3 never got the transcript. SessionEnd now writes the final chunk and the
+  summary in-line, then hands the upload to a detached `claude-transcripts hook upload`
+  that outlives both the hook and Claude Code ([#218]). Sessions already affected can
+  be finished with `claude-transcripts backfill --repair`.
+- **SessionEnd is registered at 60 s, not 180 s** — the most Claude Code grants at exit.
+  The plugin picks this up on update; a hook registered with the binary is corrected by
+  re-running `claude-transcripts hook install`. `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS`
+  raises the budget if the in-line part ever needs it ([#218]).
+
 ## [0.6.0] — 2026-10-04
 
 A minor release because the stack grows a service and one route moves. Fossil SCM joins
@@ -1725,6 +1745,9 @@ of them had ever executed:
 [#208]: https://github.com/vredchenko/claude-transcripts/pull/208
 [#214]: https://github.com/vredchenko/claude-transcripts/pull/214
 [#215]: https://github.com/vredchenko/claude-transcripts/pull/215
+[#217]: https://github.com/vredchenko/claude-transcripts/issues/217
+[#218]: https://github.com/vredchenko/claude-transcripts/pull/218
+[0.6.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.1
 [0.6.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.0
 [0.5.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.5.0
 [0.4.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.4.0
