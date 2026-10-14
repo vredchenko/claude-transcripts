@@ -15,7 +15,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { hookLaunch } from "@claude-transcripts/shared";
 import { dispatch, hookAsync, hookBindings, hookTimeout } from "../hook";
-import { parseFlags } from "../lib/args";
+import { cliArgv } from "../hook/detach";
+import { uploadTranscript } from "../hook/handlers";
+import { loadHookConfig, makeBlob } from "../hook/runtime";
+import { parseFlags, strOpt } from "../lib/args";
 import { installPaths } from "../lib/paths";
 import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
 
@@ -54,11 +57,10 @@ export function hookCommand(): string {
 
 /** How to invoke *this* CLI from a Claude Code setting — see {@link hookCommand}. */
 export function cliInvocation(): string {
-  const exec = process.execPath;
-  const isCompiled = !/\/bun$/.test(exec);
   // Quoted, like the plugin and setup commands: an install path may contain spaces.
-  if (isCompiled) return `"${exec}"`;
-  return `"${exec}" run "${Bun.main}"`;
+  // `run` stays bare: `install` matches an existing registration by exact string.
+  const [exec, , entry] = cliArgv();
+  return entry ? `"${exec}" run "${entry}"` : `"${exec}"`;
 }
 
 /**
@@ -300,11 +302,44 @@ async function run(): Promise<number> {
   return 0;
 }
 
+/**
+ * A detached upload that never finishes must not live forever. Generous: nothing is
+ * waiting on it, and the mirror's own blob timeout is a minute.
+ */
+const UPLOAD_DEADLINE_MS = 10 * 60_000;
+
+/**
+ * Upload one session's transcript. Started detached by SessionEnd's `upload-blobs`
+ * (#217) so Claude Code's exit budget can't cancel it; nothing waits on the result,
+ * so like `run` it swallows everything and exits 0.
+ */
+async function upload(argv: string[]): Promise<number> {
+  setTimeout(() => process.exit(0), UPLOAD_DEADLINE_MS).unref();
+  const { options } = parseFlags(argv);
+  const sessionId = strOpt(options, "session");
+  const transcriptPath = strOpt(options, "transcript");
+  if (!sessionId || !transcriptPath) {
+    console.error("hook: upload needs --session <id> --transcript <path>");
+    return 0;
+  }
+  try {
+    const config = loadHookConfig(installPaths().hookConfig);
+    const bucket = config?.blob?.buckets.sessions;
+    if (!config || !bucket) return 0;
+    await uploadTranscript(makeBlob(config), bucket, sessionId, transcriptPath);
+  } catch (err) {
+    console.error("[hook] upload failed (ignored):", err);
+  }
+  return 0;
+}
+
 export async function runHook(argv: string[]): Promise<number> {
   const [sub = "status", ...rest] = argv;
   switch (sub) {
     case "run":
       return run();
+    case "upload":
+      return upload(rest);
     case "install":
       return install(rest);
     case "uninstall":
@@ -312,7 +347,9 @@ export async function runHook(argv: string[]): Promise<number> {
     case "status":
       return status();
     default:
-      console.error(`hook: unknown subcommand "${sub}" (run | install | uninstall | status)`);
+      console.error(
+        `hook: unknown subcommand "${sub}" (run | upload | install | uninstall | status)`,
+      );
       return 2;
   }
 }

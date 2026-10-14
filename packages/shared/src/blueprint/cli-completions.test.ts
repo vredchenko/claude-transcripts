@@ -103,6 +103,8 @@ describe.skipIf(!has("bash"))("bash completion, run", () => {
     expect(complete("hook install --")).toEqual([
       "--dry-run",
       "--force",
+      "--session",
+      "--transcript",
       "--webapi",
       "--help",
       "--version",

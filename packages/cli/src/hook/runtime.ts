@@ -23,6 +23,7 @@ import {
 import { hostname } from "node:os";
 import type { RecallConfigFile } from "@claude-transcripts/shared";
 import { S3Client } from "bun";
+import { spawnDetached, uploadArgv } from "./detach";
 import {
   fanOutBlob,
   fanOutCouch,
@@ -667,6 +668,11 @@ export interface HookContext {
   chunkHighWater(): Promise<number | null>;
   sessionsDb: string;
   sessionsBucket?: string;
+  /**
+   * Start this session's transcript upload in a detached process; false if it could
+   * not start. A seam so tests don't spawn — the real one is `spawnDetached`.
+   */
+  detachUpload(sessionId: string, transcriptPath: string): boolean;
 }
 
 const DEFAULT_SESSIONS_DB = "claude-transcripts-sessions";
@@ -694,6 +700,7 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
     targets,
     sessionsDb,
     sessionsBucket: config.blob?.buckets.sessions,
+    detachUpload: (sid, path) => spawnDetached(uploadArgv(sid, path)),
   };
 }
 

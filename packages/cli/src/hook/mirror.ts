@@ -39,8 +39,9 @@ export interface MirrorTarget {
    */
   timeoutMs?: number;
   /**
-   * Cap for the end-of-session transcript upload. Generous, because it runs only at
-   * `SessionEnd` (a 180s hook) and a long session's transcript is megabytes.
+   * Cap for the end-of-session transcript upload. Generous, because a long session's
+   * transcript is megabytes and the upload runs in a detached process that nothing
+   * waits on, outside Claude Code's SessionEnd budget (#217).
    */
   blobTimeoutMs?: number;
   /** `user:password` for an instance that sits behind basic auth. Omit for none. */

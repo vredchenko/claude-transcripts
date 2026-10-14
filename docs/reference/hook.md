@@ -32,8 +32,21 @@ Event → action bindings come from the blueprint (`BINDINGS`), the same source 
 registration is generated from, so dispatch and registration can't drift. An event's
 actions run concurrently and settled: one failing doesn't stop the others.
 
-`SessionStart` and `SessionEnd` get a 180 s timeout because they do real work (seeding
-state; writing the summary and uploading the transcript); every other event gets 5 s.
+`SessionStart` gets a 180 s timeout because it does real work (seeding state, and on a
+resume asking CouchDB where the chunks end). `SessionEnd` gets 60 s, because that is
+the most Claude Code grants at exit: it takes the largest declared SessionEnd timeout,
+caps it at 60 s (with a 1.5 s floor), and cancels the hook when the budget runs out
+("Hook cancelled"). Every other event gets 5 s.
+
+So `SessionEnd` only does the small, ordering-sensitive work in-line: the final chunk
+and the summary. The transcript upload, megabytes on a long session, is handed to a
+detached `claude-transcripts hook upload` and the hook returns. The child runs in its
+own session, so it outlives both the hook and Claude Code.
+
+To give the in-line part more headroom (a slow or remote CouchDB), set
+`CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` in the environment Claude Code runs in; it
+replaces the exit budget. A session that ended without its transcript reaching S3 can
+be finished with `claude-transcripts backfill --repair`.
 
 Eight of the eleven events are registered `async: true`, so Claude Code doesn't wait
 for the writer (a synchronous `PostToolUse` costs roughly 130–160 ms per tool call).
@@ -42,7 +55,7 @@ Three stay synchronous:
 | Event | Why |
 |---|---|
 | `SessionStart` | Its actions print the banner and the recall primer, and Claude Code discards an async hook's output. |
-| `SessionEnd` | A fire-and-forget upload at teardown could be killed half way. |
+| `SessionEnd` | Its summary and final chunk must land before the process goes away, and a fire-and-forget write at teardown could be killed half way. |
 | `UserPromptSubmit` | Claude Code ignores `async` on it. |
 
 The split lives in `hookAsync()` (`packages/cli/src/hook/index.ts`); `sync-hooks.ts`
