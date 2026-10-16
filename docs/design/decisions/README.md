@@ -36,3 +36,4 @@ Lightweight records of non-obvious decisions. See
 | [0029](0029-recall-policy-config-driven-session-start.md) | The recall policy is config-driven and injected at session start | Accepted |
 | [0030](0030-kubernetes-deploy-generated-from-the-model.md) | Kubernetes deploy, generated from the app model | Accepted |
 | [0031](0031-fossil-as-bundled-infrastructure.md) | Fossil as bundled infrastructure, built from source | Accepted (read path only) |
+| [0032](0032-embedded-mode-single-binary-tier-1.md) | Embedded mode: Tier 1 as one binary and one data directory | Proposed |
