@@ -10,6 +10,8 @@ export * from "./couch-url";
 // constant in one package that the other retypes is a contract waiting to drift.
 export * from "./highlight";
 export * from "./migrations";
+// Session → Markdown / printable HTML. Shared so a CLI export can reuse the webui's.
+export * from "./session-export";
 
 /**
  * Shared types + token accounting for claude-transcripts.
