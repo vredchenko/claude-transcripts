@@ -1,7 +1,8 @@
 /**
  * `/sessions/$id` — session detail page.
  *
- * Identity bar: back link, project name, 8-char id + copy, status, links to the raw data.
+ * Identity bar: back link, project name, 8-char id + copy, status, export, links to the
+ * raw data.
  * Metadata strip: horizontal scroll row of fields.
  * Transcript section: speaker filter toggle (Both/You/Claude) + transcript viewer.
  */
@@ -20,6 +21,7 @@ import { type ReactNode, useState } from "react";
 import { useAppBlueprint } from "../api/blueprint";
 import { useGetSession } from "../api/generated";
 import { ApiRequestError } from "../api/http";
+import { ExportMenu } from "../components/ExportMenu";
 import { SessionIdCopy } from "../components/SessionIdentity";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
@@ -106,6 +108,7 @@ export function SessionDetailPage() {
             <SessionIdCopy sessionId={session.sessionId} />
             <StatusChip status={session.status} />
             <Box sx={{ flex: 1 }} />
+            <ExportMenu session={session} />
             {/* Links to the raw data */}
             {links.map((link) => (
               <Button
