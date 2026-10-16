@@ -19,6 +19,7 @@ Tier 1 (capture, browse, search, export/import, one-command install) is built. O
   `toolUses: null`, the S3 path omits the field, so consumers handle both. Converging
   them needs a view migration.
 - **Subagent sub-transcripts** are not captured by `backfill` (#6).
+- **Session export to Markdown and PDF** from the webui's session view (#226).
 - **`upgrade` command** — upgrading is a manual binary swap
   ([installation.md](../start/installation.md#upgrading)).
 - **Claude Code compatibility generator** — still a placeholder
@@ -78,5 +79,4 @@ weak point and may need an added analytical store.
 - CouchDB replication between instances, and auth (#15).
 - CI that diffs the wired hook events against Claude Code's published list (#13).
 - A scheduled-task runner for stats, summaries and anomaly detection over the webapi.
-- Session export to Markdown, PDF or JSON.
 - Extension points (action plugins, webapi extension routes).
