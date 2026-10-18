@@ -158,6 +158,11 @@ const MAX_BUFFERED_ROWS = 2000;
  */
 export const DEFAULT_TASK_RETENTION_MS = 60 * 60 * 1000;
 
+/** A summary the hook wrote at session end — undefined `source` is live (see `toSessionSearchDoc`). */
+export function isLiveSessionEnd(doc: any): boolean {
+  return doc?.type === "summary" && (doc.source ?? "live") === "live";
+}
+
 /**
  * Buffer a batch of changed docs for search. Only called when search is on.
  *
@@ -236,10 +241,12 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
   /**
    * Index what is buffered, then checkpoint. The checkpoint waits for the flush on
    * purpose: advancing it per batch while the docs sat in memory would let a restart
-   * skip everything buffered at the time. Overlapping flushes share one run.
+   * skip everything buffered at the time. A flush asked for while one is running
+   * queues behind it rather than joining it: the running one took its batch before
+   * the caller's docs arrived, so joining would leave them for the next interval.
    */
   const flush = (): Promise<void> => {
-    if (flushing) return flushing;
+    if (flushing) return flushing.then(flush);
     flushing = (async () => {
       const batch = buffer.take();
       try {
@@ -298,8 +305,11 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
         if (ctx.meili.enabled) {
           bufferForSearch(buffer, docs);
           if (last?.seq) buffer.advance(String(last.seq));
+          // A live session just ended: that's when someone goes looking for it, so it
+          // doesn't wait out the interval. Live only — a backfill writes a summary per
+          // session, and flushing on each would bring back one update per doc.
           // Awaited, so `wait` mode turns a burst into backpressure rather than memory.
-          if (buffer.size >= MAX_BUFFERED_ROWS) await flush();
+          if (buffer.size >= MAX_BUFFERED_ROWS || docs.some(isLiveSessionEnd)) await flush();
         } else if (last?.seq) {
           await writeCheckpoint(db, String(last.seq));
         }
