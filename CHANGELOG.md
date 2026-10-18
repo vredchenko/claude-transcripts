@@ -6,6 +6,33 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-10-18
+
+A minor release for one feature: a session can be exported from the webui, as Markdown
+or as PDF ([#228]). Nothing about what is recorded or where changes.
+
+### Added
+
+- **Export a session to Markdown or PDF** from the session detail page ([#226], [#228]).
+  - **Markdown** downloads `<project>-<id8>.md`, with a YAML front-matter header (session,
+    project, model, host, start/end, tokens) and one section per turn.
+  - **PDF** opens the browser's print dialog on a print-ready rendering of the whole
+    session; "Save as PDF" makes the file. No PDF engine, no new dependency.
+  - **Include tool calls** is a toggle, on by default. Tool results are fenced, collapsed
+    in Markdown, and truncated at 2000 characters.
+
+  The export fetches every entry rather than printing the page, which loads lazily and
+  shows previews. The formatters live in `@claude-transcripts/shared`, so a CLI export
+  can reuse them later. Thinking blocks and tool inputs aren't included: the transcript
+  projection doesn't store them ([ADR 0027](docs/design/decisions/0027-full-content-chunks-in-couchdb.md)).
+
+### Changed
+
+- **Proposals live in `rfcs/`**, dated and unpublished, so `docs/` holds only how the
+  project is. The embedded-mode proposal and the storage backend evaluation moved
+  there ([#225]).
+- **Session export is on the Tier 1 roadmap** ([#227]).
+
 ## [0.6.2] — 2026-10-14
 
 A dependency-only release. v0.6.1's app image was never published: its vulnerability
@@ -1762,6 +1789,11 @@ of them had ever executed:
 [#217]: https://github.com/vredchenko/claude-transcripts/issues/217
 [#218]: https://github.com/vredchenko/claude-transcripts/pull/218
 [#221]: https://github.com/vredchenko/claude-transcripts/pull/221
+[#225]: https://github.com/vredchenko/claude-transcripts/pull/225
+[#226]: https://github.com/vredchenko/claude-transcripts/issues/226
+[#227]: https://github.com/vredchenko/claude-transcripts/pull/227
+[#228]: https://github.com/vredchenko/claude-transcripts/pull/228
+[0.7.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.0
 [0.6.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.2
 [0.6.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.1
 [0.6.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.0
