@@ -16,6 +16,16 @@ git tag v0.4.0 && git push origin v0.4.0 # from main, once merged
 `hooks/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, and re-runs
 `gen:k8s` (the k8s base pins the app image to it). The tag is what CI acts on.
 
+## Choosing the version
+
+[Semver](https://semver.org/spec/v2.0.0.html), decided by the kind of change, not its size:
+
+- **Minor** (`0.7.0`): the release adds anything new, however small. If the changelog
+  entry has an `### Added` section, it's a minor release.
+- **Patch** (`0.7.1`): fixes only. Bug fixes, dependency and security bumps, docs.
+- **Breaking changes** bump the minor version while the project is below 1.0, and get a
+  `### Breaking` section in the changelog. From 1.0 on they bump the major version.
+
 ## What a tag publishes
 
 | Artifact | Where | Workflow |
