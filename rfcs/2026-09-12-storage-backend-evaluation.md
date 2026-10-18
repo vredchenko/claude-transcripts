@@ -1,16 +1,16 @@
 # Storage backend evaluation — CouchDB, Fossil, and the alternatives
 
-**Written:** 2026-09-12. **Status:** working notes, not an ADR. Nothing here has been
+**Written:** 2026-09-12. **Status:** Proposed — working notes, not an ADR. Nothing here has been
 committed to a decision; it exists to be argued with. If any of it survives review it should be promoted into
-[`database-choice.md`](database-choice.md) or an ADR amending it.
+[`database-choice.md`](../docs/design/database-choice.md) or an ADR amending it.
 
-**Since then:** [ADR 0031](decisions/0031-fossil-as-bundled-infrastructure.md) added
+**Since then:** [ADR 0031](../docs/design/decisions/0031-fossil-as-bundled-infrastructure.md) added
 Fossil to the bundled stack as infrastructure alongside CouchDB, not in place of it,
 which is the role [Part 2](#part-2--fossil-in-place-of-couchdb) leaves open. Sizes quoted
 below were measured on one single-user instance at the time of writing, and `file:line`
 references point at the code as it was then.
 
-**Constraint carried over from [`database-choice.md`](database-choice.md):** MongoDB,
+**Constraint carried over from [`database-choice.md`](../docs/design/database-choice.md):** MongoDB,
 Elasticsearch and PostgreSQL are out of scope as replacements for the document store.
 
 ## The questions
@@ -53,7 +53,7 @@ especially fast either: no columnar layout, no aggregation pushdown beyond map-r
 What CouchDB actually optimizes for is **replication and crash-safe document identity**.
 Nearly everything expensive about it — per-document `_rev` history, quorum writes across
 shard replicas, the `_changes` by-seq index — is rent paid for masterless multi-master
-sync. That is precisely why [`database-choice.md`](database-choice.md) keeps it:
+sync. That is precisely why [`database-choice.md`](../docs/design/database-choice.md) keeps it:
 replication *is* the Tier-3 multiplayer model, and nothing else in the allowed set offers
 it natively.
 
@@ -106,7 +106,7 @@ The write rate is nowhere near any of those ceilings:
 
 CouchDB absorbs that with roughly three orders of magnitude to spare. The ceiling this
 project will actually hit first is **analytical aggregation on read** — which
-[`database-choice.md`](database-choice.md) already names as the Tier-2 scale ceiling.
+[`database-choice.md`](../docs/design/database-choice.md) already names as the Tier-2 scale ceiling.
 
 But one measurement from a single-user instance (export/import round-trip, August 2026)
 is worth staring at:
@@ -119,8 +119,8 @@ performance work currently available.
 
 ### The write-optimized backend already exists, and it isn't CouchDB
 
-[ADR 0014](decisions/0014-transcripts-live-in-s3-only.md) and
-[ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md) already put the
+[ADR 0014](../docs/design/decisions/0014-transcripts-live-in-s3-only.md) and
+[ADR 0027](../docs/design/decisions/0027-full-content-chunks-in-couchdb.md) already put the
 byte-faithful transcript in a local JSONL file that Claude Code appends to, escrowed to
 S3 as a blob at `SessionEnd`. **That is the write-optimized path** — sequential append,
 no index, no parse, no network. CouchDB holds a *projection* of it: metadata documents
@@ -143,12 +143,12 @@ Ranked for this project:
 1. **DuckDB over Parquet in Garage** — best fit. Zero new services, reuses the object
    store already deployed. Detailed in [Part 5](#part-5--duckdb--parquet--garage-in-detail).
 2. **ClickHouse** — the observability industry's answer, and already named in
-   [`database-choice.md`](database-choice.md) as the escape hatch.
+   [`database-choice.md`](../docs/design/database-choice.md) as the escape hatch.
 3. **A log in front (NATS JetStream / Redpanda)** — the classic "optimize for write" move
    is not a different database at all. Over-engineering at Tier 1; the JSONL file already
    plays this role.
 4. **SQLite / libSQL in WAL mode** — genuinely faster than CouchDB at small writes.
-   Rejected in [`database-choice.md`](database-choice.md) on architecture, not
+   Rejected in [`database-choice.md`](../docs/design/database-choice.md) on architecture, not
    performance. That rejection stands.
 
 ### What to change now, in order of payoff
@@ -161,7 +161,7 @@ Ranked for this project:
    `couchjs` entirely — worth converting the views that are really just lookups. Move
    genuinely analytical projections to a derived store rather than adding a 9th design doc.
 4. **Schedule compaction.** See the 9.7 MB / 92.7 MB number above. Content chunks
-   ([ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md)) make the corpus grow
+   ([ADR 0027](../docs/design/decisions/0027-full-content-chunks-in-couchdb.md)) make the corpus grow
    considerably faster than metadata-only did.
 
 ---
@@ -181,15 +181,15 @@ rather than a reflex:
 - **Immutable, content-addressed artifacts** — matches the "append-only / immutable docs,
   never edit in place" invariant exactly, rather than approximately.
 - **Built-in HTTP sync between clones** — this is the single property keeping CouchDB per
-  [`database-choice.md`](database-choice.md), and Fossil has it natively.
+  [`database-choice.md`](../docs/design/database-choice.md), and Fossil has it natively.
 - **Single-file SQLite footprint** — one executable, one file. No Erlang runtime, no
   `q`/`n` shard configuration, no cluster concepts.
 - **Built-in web UI** — preserves the Fauxton property from
-  [ADR 0007](decisions/0007-couchdb-primary-store.md): the data is browsable and usable
+  [ADR 0007](../docs/design/decisions/0007-couchdb-primary-store.md): the data is browsable and usable
   with no custom webui at all.
 - **zlib + delta compression.** Not marginal. Fossil achieves **74:1** on SQLite's own
   repository (7.1 GB of artifacts → under 97 MB; median compressed blob 156 bytes against
-  45,312 bytes uncompressed). [`bundles.md`](bundles.md) measures **106.7 MB of
+  45,312 bytes uncompressed). [`bundles.md`](../docs/design/bundles.md) measures **106.7 MB of
   transcripts across 43 objects** — highly repetitive JSONL, exactly the shape delta
   compression eats.
 
@@ -204,7 +204,7 @@ that blocks readers and other writers; the Fossil forums carry recurring
 one repository file.
 
 The hook deliberately **spawns separate processes per event that race on the transcript
-offset**. [`mid-flight-chunking.md`](mid-flight-chunking.md) already needs an `O_EXCL`
+offset**. [`mid-flight-chunking.md`](../docs/design/mid-flight-chunking.md) already needs an `O_EXCL`
 lockfile in `/tmp` to serialize them, and when the lock is held it *skips* the flush.
 Layering Fossil's repository-wide write lock underneath turns a skipped flush into a
 blocked one — and the hook's hard rule (`CLAUDE.md`, and the reason every external call is
@@ -227,10 +227,10 @@ which point you are running Fossil *plus* a query store, having deleted the quer
 
 **3. It re-triggers the exact objection that killed SQLite.**
 
-[`database-choice.md`](database-choice.md) rejected SQLite/libSQL for losing the
+[`database-choice.md`](../docs/design/database-choice.md) rejected SQLite/libSQL for losing the
 HTTP-native proxy story and pushing logic into the webapi. Fossil's HTTP surface is a sync
 protocol, an HTML web UI, and a partial JSON API — not a REST document API. The
-`/api/couch` read-only proxy ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md))
+`/api/couch` read-only proxy ([ADR 0016](../docs/design/decisions/0016-webapi-is-the-io-gateway.md))
 stops being a thin honest passthrough and becomes re-implemented CRUD.
 
 Same objection as SQLite, and Fossil answers it *worse* — SQLite at least offers a clean
@@ -241,7 +241,7 @@ embedded query API.
 Fossil converges *whole repositories*: every clone holds every artifact. There is no
 filtered or selector-based replication (CouchDB has both), and conflicts resolve as VCS
 forks and branches, not per-document. For "a team shares its Claude Code usage history"
-([ADR 0007](decisions/0007-couchdb-primary-store.md)) you would want partial replication
+([ADR 0007](../docs/design/decisions/0007-couchdb-primary-store.md)) you would want partial replication
 almost immediately — per host, per project, per retention window.
 
 **Plus a public-project cost.** `CLAUDE.md` requires assuming the reader knows nothing
@@ -265,7 +265,7 @@ replication.** That combination exists, and it is not Fossil:
 
 ### And the use case may already be solved
 
-[`bundles.md`](bundles.md) reports a **verified round-trip**: 7,135 documents / 43 blobs /
+[`bundles.md`](../docs/design/bundles.md) reports a **verified round-trip**: 7,135 documents / 43 blobs /
 117 MB, a destroyed session restored with every detail field, token count and transcript
 entry identical, and zero duplicate documents on re-import.
 
@@ -276,7 +276,7 @@ is currently buying a Tier-3 capability that hasn't been built yet.
 
 As **bundle transport / archive format**. Its delta compression would compress that
 106.7 MB hard, and its sync protocol would give incremental bundle transfer for free —
-which would also fix the known inefficiency in [`bundles.md`](bundles.md) (import
+which would also fix the known inefficiency in [`bundles.md`](../docs/design/bundles.md) (import
 re-uploads every blob even when the bytes are identical; 16 s for 102 MB on a redundant
 restore).
 
@@ -302,9 +302,9 @@ features — **implemented on top of PostgreSQL**, which it uses for both storag
 execution. Gel 6.0 added full SQL support in both Postgres-protocol and native modes.
 
 **Verdict: rules itself out twice.** It is PostgreSQL wearing a nicer coat, and
-[`database-choice.md`](database-choice.md) explicitly excludes PostgreSQL. More
+[`database-choice.md`](../docs/design/database-choice.md) explicitly excludes PostgreSQL. More
 fundamentally, its entire value proposition is *strict schemas with typed links* — the
-opposite of what [ADR 0007](decisions/0007-couchdb-primary-store.md) chose CouchDB for
+opposite of what [ADR 0007](../docs/design/decisions/0007-couchdb-primary-store.md) chose CouchDB for
 ("event docs of differing shapes coexist with no migrations"). Gel is a very good database
 for an application with a modelled domain. This corpus is a heterogeneous append-only
 event stream, the one shape it is worst at.
@@ -366,7 +366,7 @@ Worth remembering for Tier 3.
 replicas, and extensions. In WAL mode, batched small writes run thousands per second —
 comfortably faster than CouchDB's single-document PUTs. FTS5 provides decent lexical
 search for free.
-**Verdict:** rejected in [`database-choice.md`](database-choice.md) on architecture, not
+**Verdict:** rejected in [`database-choice.md`](../docs/design/database-choice.md) on architecture, not
 performance, and that rejection holds. **But paired with cr-sqlite the replication
 objection weakens considerably** — that is the combination worth re-evaluating.
 
@@ -396,7 +396,7 @@ a delete sweep *plus* a compaction". Garage simply expires them. That settles th
 
 Everything else lines up:
 
-- **It is the architecture already in use.** [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md)
+- **It is the architecture already in use.** [ADR 0014](../docs/design/decisions/0014-transcripts-live-in-s3-only.md)
   does exactly this for transcripts: append locally, escrow to S3. This applies a proven
   pattern rather than inventing one.
 - **`s3.buckets` is already a keyed map** — `config/config.template.json` has only
@@ -415,7 +415,7 @@ assume our own topology".
 
 ### What has to be handled
 
-**Live tail is the real loss.** [ADR 0018](decisions/0018-app-logging-into-couchdb.md)'s
+**Live tail is the real loss.** [ADR 0018](../docs/design/decisions/0018-app-logging-into-couchdb.md)'s
 stated benefit was "one place to inspect cross-component failures". A rotated log is
 invisible until it rotates. Mitigations: keep stderr for live (that ADR already mandates
 the fallback), and add `claude-transcripts logs --tail` reading local files. At Tier 1 —
@@ -426,7 +426,7 @@ disqualifying at Tier 3.
 runs in a container. Different filesystems, so "write to FS" means two different
 filesystems. Cleanest resolution: **each writer rotates to Garage independently.** The hook
 already writes to S3 directly and already holds credentials —
-[ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)'s amendment explicitly blesses it as
+[ADR 0016](../docs/design/decisions/0016-webapi-is-the-io-gateway.md)'s amendment explicitly blesses it as
 a second writer for exactly this reason. Routing logs through the webapi would reintroduce
 the dependency this is trying to delete.
 
@@ -465,7 +465,7 @@ for operational logs.
 `claude-transcripts setup` puts the lifecycle rule on the bucket. Retention becomes
 declarative and Garage enforces it, with no sweeper to write.
 
-**Net effect: [ADR 0018](decisions/0018-app-logging-into-couchdb.md) gets superseded, not
+**Net effect: [ADR 0018](../docs/design/decisions/0018-app-logging-into-couchdb.md) gets superseded, not
 amended.** Its promise changes from "centralised live aggregation in CouchDB" to "durable
 archive in object storage, queryable after the fact, live via stderr" — a smaller system
 that does the actual job.
@@ -534,7 +534,7 @@ So: one file per day, compacted monthly, and no elaborate partitioning. More blu
 call when one of these trips:
 
 - The corpus grows 10–100× (content chunks under
-  [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md) will push this).
+  [ADR 0027](../docs/design/decisions/0027-full-content-chunks-in-couchdb.md) will push this).
 - A query worth having takes more than a couple of seconds through a view.
 - A 9th design doc is wanted — that is the signal to build the derived store instead.
 
@@ -547,7 +547,7 @@ of Node-API and napi-rs modules generally work, but **verify with a spike before
 committing** — this is the kind of thing that is fine until it isn't. DuckDB-Wasm is a
 fallback, and could even run in the webui, though querying Garage from the browser would
 need to go through the existing `/api/s3` proxy to stay inside
-[ADR 0016](decisions/0016-webapi-is-the-io-gateway.md).
+[ADR 0016](../docs/design/decisions/0016-webapi-is-the-io-gateway.md).
 
 ---
 
@@ -566,7 +566,7 @@ all three as "the vector slot" conflates two jobs:
 | **Human lexical search** | A person, in the webui | "that session about Garage" | Meilisearch, Typesense |
 | **Agent semantic retrieval** | Claude Code, Tier 2 | "prior work resembling this task" | Qdrant, LanceDB |
 
-[`database-choice.md`](database-choice.md) already reaches this conclusion — it keeps
+[`database-choice.md`](../docs/design/database-choice.md) already reaches this conclusion — it keeps
 Meilisearch for lexical and *adds* vectors for agent recall. Typesense is a lateral move
 within the first row; it does not compete in the second. As a near drop-in for Meilisearch
 with comparable hybrid search and faceting and slightly better high-cardinality filtering,
@@ -602,7 +602,7 @@ whose stated posture is minimal footprint.
 
 ### Verdict
 
-[`database-choice.md`](database-choice.md)'s call holds, and the DuckDB analysis
+[`database-choice.md`](../docs/design/database-choice.md)'s call holds, and the DuckDB analysis
 strengthens it: **LanceDB for Tier 2, Qdrant if a single process is outgrown** — where
 "outgrown" concretely means multi-user (Tier 3), concurrent writers, filtered search over
 millions of vectors, or wanting the index to survive independently of the app process.
@@ -637,7 +637,7 @@ thinking about first.
 **Bottom line:** keep CouchDB as the source of truth. Run compaction. Move the app-logs
 database to filesystem-plus-Garage — that is the swap actually worth making, it deletes a
 dependency rather than swapping one, and
-[ADR 0018](decisions/0018-app-logging-into-couchdb.md) already blessed the abstraction as
+[ADR 0018](../docs/design/decisions/0018-app-logging-into-couchdb.md) already blessed the abstraction as
 swappable. Add DuckDB-over-Parquet when analytics bite. Fossil is a beautiful piece of
 engineering aimed at a different problem.
 
@@ -652,18 +652,18 @@ Claims above are anchored to these, so they can be re-checked:
 | Single-document writes, no `_bulk_docs` | `packages/cli/src/hook/runtime.ts:78`, `:90` |
 | 8 design docs / 18 JS map views | `packages/shared/src/migrations/designs.ts`, `session-index.ts`, `speaker-split.ts` |
 | Chunk flush batching (200 entries / 15000 ms) | `config/config.template.json:7` |
-| Concurrent hook processes, `/tmp` lockfile, flush skipped on contention | [`mid-flight-chunking.md`](mid-flight-chunking.md) |
-| 9.7 MB live in a 92.7 MB file, 7,090 docs; 106.7 MB blobs / 43 objects | One instance's export/import round-trip (August 2026), once recorded in [`bundles.md`](bundles.md) |
+| Concurrent hook processes, `/tmp` lockfile, flush skipped on contention | [`mid-flight-chunking.md`](../docs/design/mid-flight-chunking.md) |
+| 9.7 MB live in a 92.7 MB file, 7,090 docs; 106.7 MB blobs / 43 objects | One instance's export/import round-trip (August 2026), once recorded in [`bundles.md`](../docs/design/bundles.md) |
 | Verified bundle round-trip, 7,135 docs / 117 MB | The same round-trip |
 | `_changes` follower pattern already in use | `packages/webapi/src/storage/search-follower.ts` |
 | Bun `S3Client`, path-style addressing for Garage | `packages/webapi/src/storage/s3-blob-store.ts` |
 | `s3.buckets` is a keyed map designed for more than one bucket | `config/config.template.json`, `CLAUDE.md` |
 | Hook must never block a session | `CLAUDE.md`, key invariants |
-| S3 is the transcript's sole home | [ADR 0014](decisions/0014-transcripts-live-in-s3-only.md) |
-| Content chunks are a projection, not a second authority | [ADR 0027](decisions/0027-full-content-chunks-in-couchdb.md) |
-| App-log store is swappable behind the webapi | [ADR 0018](decisions/0018-app-logging-into-couchdb.md) |
-| Hook is a blessed second writer, direct to CouchDB and S3 | [ADR 0016](decisions/0016-webapi-is-the-io-gateway.md) |
-| No MongoDB / Elasticsearch / PostgreSQL; ClickHouse named as scale ceiling | [`database-choice.md`](database-choice.md) |
+| S3 is the transcript's sole home | [ADR 0014](../docs/design/decisions/0014-transcripts-live-in-s3-only.md) |
+| Content chunks are a projection, not a second authority | [ADR 0027](../docs/design/decisions/0027-full-content-chunks-in-couchdb.md) |
+| App-log store is swappable behind the webapi | [ADR 0018](../docs/design/decisions/0018-app-logging-into-couchdb.md) |
+| Hook is a blessed second writer, direct to CouchDB and S3 | [ADR 0016](../docs/design/decisions/0016-webapi-is-the-io-gateway.md) |
+| No MongoDB / Elasticsearch / PostgreSQL; ClickHouse named as scale ceiling | [`database-choice.md`](../docs/design/database-choice.md) |
 
 ## External sources
 
