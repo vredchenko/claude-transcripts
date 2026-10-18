@@ -39,6 +39,13 @@ export interface AppConfigFile {
      * duration. Both optional — the webapi defaults them.
      */
     sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
+    /**
+     * Search-indexing tunables. `flushIntervalMs` is how long change-feed updates are
+     * buffered before going to Meilisearch as one update per index — the trade between
+     * search freshness and Meilisearch's disk writes. `taskRetentionMs` is how long
+     * finished Meilisearch tasks are kept before being pruned. Both optional.
+     */
+    search?: { flushIntervalMs?: number; taskRetentionMs?: number };
   };
   /** logical key → CouchDB database name (multi-database by design) */
   couchdb: { databases: Record<string, string> };
