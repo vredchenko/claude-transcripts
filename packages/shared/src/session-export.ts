@@ -16,8 +16,10 @@ export interface SessionExportMeta {
   cwd?: string;
   model?: string;
   hostname?: string;
+  /** `ended`, `running`, `incomplete` — decides whether `endTimestamp` is an end. */
+  status?: string;
   startTimestamp?: string;
-  /** When it ended — or, for a live session, its last write. */
+  /** When it ended — or, for a session that hasn't, its last write. */
   endTimestamp?: string;
   totalTokens?: number;
 }
@@ -30,7 +32,9 @@ export interface ExportEntry {
   role: ChunkEntry["role"];
   timestamp?: string;
   text?: string;
-  toolUses?: readonly { name: string }[] | null;
+  toolUses?: readonly { name: string; id?: string | null }[] | null;
+  /** For a tool result: the tool_use id it answers. */
+  toolUseId?: string | null;
   isError?: boolean;
   isSidechain?: boolean;
 }
@@ -49,6 +53,8 @@ export interface ExportSection {
   text: string;
   /** Tool calls made in this (assistant) section, in order. */
   tools: string[];
+  /** For a tool result: the name of the tool that produced it, when known. */
+  tool?: string;
   isError: boolean;
   /** Part of a subagent sub-transcript. */
   sidechain: boolean;
@@ -77,8 +83,11 @@ export function sessionExportSections(
   const includeTools = options.includeTools ?? true;
   const limit = options.toolResultLimit ?? DEFAULT_TOOL_RESULT_LIMIT;
   const out: ExportSection[] = [];
+  // tool_use id → tool name, so a result can say which call it answers.
+  const toolNames = new Map<string, string>();
 
   for (const entry of entries) {
+    for (const t of entry.toolUses ?? []) if (t.id) toolNames.set(t.id, t.name);
     const role = entry.role;
     if (role !== "user" && role !== "assistant" && role !== "tool_result") continue;
     if (role === "tool_result" && !includeTools) continue;
@@ -106,6 +115,7 @@ export function sessionExportSections(
       timestamp: entry.timestamp,
       text,
       tools,
+      tool: entry.toolUseId ? toolNames.get(entry.toolUseId) : undefined,
       isError: entry.isError === true,
       sidechain,
       truncated,
@@ -136,7 +146,7 @@ export function sessionExportBasename(meta: SessionExportMeta): string {
 }
 
 function sectionHeading(s: ExportSection): string {
-  let h = HEADINGS[s.role];
+  let h = s.role === "tool_result" && s.tool ? `${s.tool} result` : HEADINGS[s.role];
   if (s.role === "tool_result" && s.isError) h += " (error)";
   if (s.sidechain) h += " · subagent";
   return h;
@@ -148,9 +158,14 @@ function metaFields(meta: SessionExportMeta): [string, string][] {
     ["session", meta.sessionId],
     ["project", meta.cwd],
     ["model", meta.model],
+    ["status", meta.status],
     ["host", meta.hostname],
     ["started", exportTimestamp(meta.startTimestamp)],
-    ["ended", exportTimestamp(meta.endTimestamp)],
+    // Only an ended session has an end; for any other the time is its latest write.
+    [
+      !meta.status || meta.status === "ended" ? "ended" : "last_write",
+      exportTimestamp(meta.endTimestamp),
+    ],
     ["tokens", meta.totalTokens !== undefined ? String(meta.totalTokens) : undefined],
   ];
   return fields.filter((f): f is [string, string] => f[1] !== undefined && f[1] !== "");
@@ -170,7 +185,10 @@ export function sessionToMarkdown(
 ): string {
   const lines: string[] = ["---"];
   // JSON strings are valid YAML scalars, and survive any colon or quote in a path.
-  for (const [k, v] of metaFields(meta)) lines.push(`${k}: ${JSON.stringify(v)}`);
+  // The token count stays a bare number so front-matter readers type it as one.
+  for (const [k, v] of metaFields(meta)) {
+    lines.push(`${k}: ${k === "tokens" ? v : JSON.stringify(v)}`);
+  }
   lines.push("---", "", `# ${projectOf(meta.cwd) ?? "Session"} — ${meta.sessionId.slice(0, 8)}`);
 
   for (const s of sessionExportSections(entries, options)) {
@@ -233,7 +251,7 @@ export function sessionToHtml(
   const title = `${projectOf(meta.cwd) ?? "Session"} — ${meta.sessionId.slice(0, 8)}`;
   const body: string[] = [`<h1>${escapeHtml(title)}</h1>`, `<dl class="meta">`];
   for (const [k, v] of metaFields(meta)) {
-    body.push(`<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`);
+    body.push(`<dt>${escapeHtml(k.replace("_", " "))}</dt><dd>${escapeHtml(v)}</dd>`);
   }
   body.push("</dl>");
 

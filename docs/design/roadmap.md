@@ -19,7 +19,6 @@ Tier 1 (capture, browse, search, export/import, one-command install) is built. O
   `toolUses: null`, the S3 path omits the field, so consumers handle both. Converging
   them needs a view migration.
 - **Subagent sub-transcripts** are not captured by `backfill` (#6).
-- **Session export to Markdown and PDF** from the webui's session view (#226).
 - **`upgrade` command** — upgrading is a manual binary swap
   ([installation.md](../start/installation.md#upgrading)).
 - **Claude Code compatibility generator** — still a placeholder

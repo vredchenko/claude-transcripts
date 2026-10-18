@@ -46,6 +46,7 @@ export function exportMeta(session: SessionSummary): SessionExportMeta {
     cwd: session.cwd,
     model: session.model,
     hostname: session.hostname,
+    status: session.status,
     startTimestamp: session.startTimestamp ?? session.timestamp,
     endTimestamp: statusTime(session)?.iso,
     totalTokens: session.tokenUsage?.total,

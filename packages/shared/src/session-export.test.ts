@@ -64,6 +64,20 @@ describe("sessionExportSections", () => {
     expect(s[1]?.sidechain).toBe(true);
   });
 
+  test("names a tool result after the call it answers", () => {
+    const s = sessionExportSections([
+      { role: "assistant", toolUses: [{ name: "Grep", id: "toolu_1" }] },
+      { role: "tool_result", toolUseId: "toolu_1", text: "3 matches" },
+      { role: "tool_result", toolUseId: "toolu_unknown", text: "?" },
+    ]);
+    expect(s.map((x) => x.tool)).toEqual([undefined, "Grep", undefined]);
+    const md = sessionToMarkdown(meta, [
+      { role: "assistant", toolUses: [{ name: "Grep", id: "toolu_1" }] },
+      { role: "tool_result", toolUseId: "toolu_1", text: "3 matches", isError: true },
+    ]);
+    expect(md).toContain("## Grep result (error)");
+  });
+
   test("an empty session has no sections", () => {
     expect(sessionExportSections([])).toEqual([]);
   });
@@ -74,7 +88,8 @@ describe("sessionToMarkdown", () => {
     const md = sessionToMarkdown(meta, plain);
     expect(md).toStartWith('---\nsession: "1a2b3c4d-0000-4000-8000-000000000000"\n');
     expect(md).toContain('project: "/home/dev/my-project"');
-    expect(md).toContain('tokens: "1234"');
+    expect(md).toContain("tokens: 1234\n");
+    expect(md).toContain('ended: "2026-10-16 16:05:00 UTC"');
     expect(md).toContain("# my-project — 1a2b3c4d");
     expect(md).toContain("## You · 2026-10-16 16:00:01 UTC\n\nList the files");
     expect(md).toContain("Sure.\n\n_Tools: `Bash`_");
@@ -85,6 +100,13 @@ describe("sessionToMarkdown", () => {
   test("fences tool output longer than any backtick run inside it", () => {
     const md = sessionToMarkdown(meta, [{ role: "tool_result", text: "has ```` inside" }]);
     expect(md).toContain("`````\nhas ```` inside\n`````");
+  });
+
+  test("a session that hasn't ended reports its last write, not an end", () => {
+    const md = sessionToMarkdown({ ...meta, status: "running" }, []);
+    expect(md).toContain('status: "running"');
+    expect(md).toContain('last_write: "2026-10-16 16:05:00 UTC"');
+    expect(md).not.toContain("ended:");
   });
 
   test("marks failed tool results", () => {

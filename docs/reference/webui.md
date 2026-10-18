@@ -29,7 +29,9 @@ bun run build         # → packages/webui/dist/, served via CT_STATIC_DIR
   transcript size), working directory, token usage, tool calls, and the transcript
   viewer. The identity bar links the session's raw data: the API's JSON, its events and
   (once ended) summary doc through the read-only CouchDB proxy and in Fauxton, and its
-  transcript blob through the S3 proxy.
+  transcript blob through the S3 proxy. **Export** saves the whole session as Markdown,
+  or opens the print dialog on a print-ready copy of it (and so "Save as PDF"), with or
+  without tool calls and their results.
 - **Search results** (`/search`) — paged, filterable by project, model, host and
   provenance, with all state in the query string.
 
