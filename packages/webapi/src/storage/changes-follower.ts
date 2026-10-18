@@ -15,6 +15,10 @@
  * avoidable. One feed, two consumers — a second follower would double the load on
  * CouchDB to learn the same facts.
  *
+ * Search updates are buffered and flushed every few minutes rather than sent per batch:
+ * Meilisearch pays per update, not per document, and a live session is a stream of
+ * one-document batches (#231). The session index, which is in memory, stays per batch.
+ *
  * Scope, deliberately: **upserts only**. Docs here are append-only by invariant
  * ([ADR 0016]), so deletion is an out-of-band admin action; `POST /api/search/reindex`
  * stays the reconciliation step for deletes and for history written before search
@@ -30,6 +34,7 @@ import {
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "./meili";
+import { type SearchBatch, SearchBuffer } from "./search-buffer";
 
 /**
  * Doc id of the resume point, so a restart doesn't replay the whole feed.
@@ -137,41 +142,68 @@ export async function writeCheckpoint(db: CheckpointStore, seq: string): Promise
 }
 
 /**
- * Project a batch of changed docs into Meilisearch. Only called when search is on.
+ * How long changes wait before reaching Meilisearch. Each flush is one update per
+ * index however many docs it carries, and Meilisearch's disk cost is per update (#231)
+ * — so this is the knob trading search freshness for write volume. Overridable via
+ * `system.search.flushIntervalMs`.
+ */
+export const DEFAULT_SEARCH_FLUSH_INTERVAL_MS = 3 * 60 * 1000;
+
+/** Flush early past this many buffered rows, so a bulk write can't pile up unbounded. */
+const MAX_BUFFERED_ROWS = 2000;
+
+/**
+ * Finished Meilisearch tasks older than this are pruned, at most once per this period.
+ * Overridable via `system.search.taskRetentionMs`.
+ */
+export const DEFAULT_TASK_RETENTION_MS = 60 * 60 * 1000;
+
+/**
+ * Buffer a batch of changed docs for search. Only called when search is on.
  *
  * Split out of the batch handler so that handler reads as the two things it does —
- * patch the session index, then index for search — rather than as one long block in
- * which the search half hides the other.
+ * patch the session index, then queue the search work — rather than as one long block
+ * in which the search half hides the other.
  */
-async function indexForSearch(ctx: AppContext, db: any, docs: any[]): Promise<void> {
-  const sessionDocs = docs.filter((d) => d.type === "summary").map((d) => toSessionSearchDoc(d));
-  const turnDocs = docs.filter((d) => d.type === "chunk").flatMap((d) => toTurnSearchDocs(d));
-
+export function bufferForSearch(buffer: SearchBuffer, docs: any[]): void {
+  for (const d of docs) {
+    if (d.type === "summary") buffer.addSummary(String(d.session_id), toSessionSearchDoc(d));
+    else if (d.type === "chunk") buffer.addTurns(toTurnSearchDocs(d));
+  }
   // A session becomes findable as soon as it starts, not when it ends. Event docs
-  // name the sessions that moved; re-project the ones still without a summary from
-  // the aggregate, which is the only place a running session's rollup exists.
-  //
-  // Projecting from the event doc itself would be cheaper and wrong: Meilisearch's
-  // add-or-replace would let a sparse event-shaped row overwrite the complete
-  // record an ended session already has.
-  const touched = new Set(
-    docs.filter((d) => d.type === "event" && d.session_id).map((d) => String(d.session_id)),
-  );
-  const alreadyEnded = new Set(docs.filter((d) => d.type === "summary").map((d) => d.session_id));
-  const pending = [...touched].filter((id) => !alreadyEnded.has(id));
-  if (pending.length) {
-    // The session index was patched from this same batch a moment ago, so when it is
-    // warm the rollups are already in memory and this costs no round trip at all.
+  // name the sessions that moved; the ones still without a summary are projected from
+  // the aggregate at flush time, which is the only place a running session's rollup
+  // exists. See `flushSearch`.
+  for (const d of docs) if (d.type === "event" && d.session_id) buffer.touch(String(d.session_id));
+}
+
+/**
+ * Write one buffered batch to Meilisearch: at most one update per index.
+ *
+ * Running sessions are projected here rather than when their events arrived, so a
+ * session that moved forty times since the last flush costs one row, built from its
+ * rollup as it stands now.
+ *
+ * Projecting from the event doc itself would be cheaper and wrong: Meilisearch's
+ * add-or-replace would let a sparse event-shaped row overwrite the complete
+ * record an ended session already has.
+ */
+async function flushSearch(ctx: AppContext, db: any, batch: SearchBatch): Promise<void> {
+  const sessionDocs = [...batch.summaries.values()];
+  if (batch.running.length) {
+    // The session index is patched from every batch as it arrives, so when it is warm
+    // the rollups are already in memory and this costs no round trip at all.
     const rows = ctx.sessionIndex.ready
-      ? pending.map((key) => ({ key, value: ctx.sessionIndex.get(key) }))
+      ? batch.running.map((key) => ({ key, value: ctx.sessionIndex.get(key) }))
       : (
           await db.view("session_index", "aggregate", {
             group: true,
             reduce: true,
-            keys: pending,
+            keys: batch.running,
           })
         ).rows;
     for (const row of rows as any[]) {
+      // A summary flushed in an earlier batch shows up here as `value.summary`.
       if (!row?.value || row.value.summary) continue;
       sessionDocs.push(toRunningSessionSearchDoc(String(row.key), row.value));
     }
@@ -179,7 +211,8 @@ async function indexForSearch(ctx: AppContext, db: any, docs: any[]): Promise<vo
 
   if (sessionDocs.length)
     await ctx.meili.index(indexName(ctx.config, SESSIONS_INDEX_KEY), sessionDocs);
-  if (turnDocs.length) await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), turnDocs);
+  if (batch.turns.size)
+    await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), [...batch.turns.values()]);
 }
 
 /**
@@ -191,13 +224,54 @@ async function indexForSearch(ctx: AppContext, db: any, docs: any[]): Promise<vo
  */
 export function startChangesFollower(ctx: AppContext): ChangesFollower {
   const db = ctx.couch.db("sessions") as any;
+  const searchCfg = ctx.config.system.search;
+  const flushIntervalMs = searchCfg?.flushIntervalMs ?? DEFAULT_SEARCH_FLUSH_INTERVAL_MS;
+  const taskRetentionMs = searchCfg?.taskRetentionMs ?? DEFAULT_TASK_RETENTION_MS;
+  const buffer = new SearchBuffer();
   let stopped = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let flushing: Promise<void> | null = null;
+  let lastPrune = 0;
+
+  /**
+   * Index what is buffered, then checkpoint. The checkpoint waits for the flush on
+   * purpose: advancing it per batch while the docs sat in memory would let a restart
+   * skip everything buffered at the time. Overlapping flushes share one run.
+   */
+  const flush = (): Promise<void> => {
+    if (flushing) return flushing;
+    flushing = (async () => {
+      const batch = buffer.take();
+      try {
+        await flushSearch(ctx, db, batch);
+      } catch (err) {
+        // The rows are dropped, not retried: the periodic reload and
+        // `POST /api/search/reindex` are the reconciliation paths, as they were
+        // when a per-batch index failed.
+        console.error("[changes] flushing search updates failed (continuing):", err);
+      }
+      if (batch.seq) await writeCheckpoint(db, batch.seq);
+      if (Date.now() - lastPrune >= taskRetentionMs) {
+        lastPrune = Date.now();
+        await ctx.meili.pruneTasks(taskRetentionMs);
+      }
+    })().finally(() => {
+      flushing = null;
+    });
+    return flushing;
+  };
 
   void (async () => {
     const since = (await readCheckpoint(db)) ?? "now";
     if (stopped) return;
 
-    // `wait: true` holds the next request until we've indexed the current batch, so a
+    if (ctx.meili.enabled) {
+      timer = setInterval(() => void flush(), flushIntervalMs);
+      // Never the thing holding the process open.
+      timer.unref?.();
+    }
+
+    // `wait: true` holds the next request until we've handled the current batch, so a
     // burst of writes can't outrun the indexer or balloon memory.
     const feed = db.changesReader.start({
       since,
@@ -211,16 +285,21 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
         const docs = batch.map((c) => c?.doc).filter((d) => d && !d._deleted);
 
         // Every doc type the aggregate maps over — `event`, `summary` and `chunk` —
-        // changes the answer for its session, so all three are re-read. This runs
-        // first so the search projection below sees the fresh rollups.
+        // changes the answer for its session, so all three are re-read. The session
+        // index stays per batch: it is in memory, and the list should be live.
         await ctx.sessionIndex.refresh([
           ...new Set(docs.filter((d) => d.session_id).map((d) => String(d.session_id))),
         ]);
 
-        if (ctx.meili.enabled) await indexForSearch(ctx, db, docs);
-
         const last = batch[batch.length - 1];
-        if (last?.seq) await writeCheckpoint(db, String(last.seq));
+        if (ctx.meili.enabled) {
+          bufferForSearch(buffer, docs);
+          if (last?.seq) buffer.advance(String(last.seq));
+          // Awaited, so `wait` mode turns a burst into backpressure rather than memory.
+          if (buffer.size >= MAX_BUFFERED_ROWS) await flush();
+        } else if (last?.seq) {
+          await writeCheckpoint(db, String(last.seq));
+        }
       } catch (err) {
         // Never let a batch failure stop the feed — the periodic index reload and
         // `POST /api/search/reindex` are the reconciliation paths.
@@ -242,11 +321,14 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
   return {
     stop() {
       stopped = true;
+      if (timer) clearInterval(timer);
       try {
         db.changesReader.stop();
       } catch {
         // already stopped
       }
+      // Whatever was buffered goes out now rather than waiting on a restart's replay.
+      if (ctx.meili.enabled) void flush();
     },
   };
 }
