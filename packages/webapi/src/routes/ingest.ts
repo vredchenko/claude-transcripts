@@ -1,13 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, indexName } from "../config";
 import type { AppContext } from "../context";
-import {
-  SESSIONS_INDEX_KEY,
-  searchDocId,
-  TURNS_INDEX_KEY,
-  toSessionSearchDoc,
-  toTurnSearchDocs,
-} from "../storage/meili";
+import { SESSIONS_INDEX_KEY, searchDocId, TURNS_INDEX_KEY } from "../storage/meili";
 import { validationHook } from "./validation";
 
 /**
@@ -251,11 +245,9 @@ export function ingestRoutes(ctx: AppContext) {
     } catch (err: any) {
       if (err?.statusCode !== 404) throw err;
     }
+    // No search indexing here: the change follower sees this write like any other and
+    // indexes it in its next batch. Indexing here too wrote every doc twice (#231).
     await db.insert(rev ? { ...doc, _id: id, _rev: rev } : { ...doc, _id: id });
-    // Index the session for full-text search (best-effort; no-ops when disabled).
-    await ctx.meili
-      .index(indexName(ctx.config, SESSIONS_INDEX_KEY), [toSessionSearchDoc(doc)])
-      .catch(() => {});
     return c.json({ ok: true, id, updated: rev !== undefined });
   });
 
@@ -274,11 +266,8 @@ export function ingestRoutes(ctx: AppContext) {
     const { docs } = c.req.valid("json");
     if (!docs.length) return c.json({ ok: true, inserted: 0 });
     const res = await ctx.couch.db("sessions").bulk({ docs });
+    // Turns reach search through the change follower, as for the summary route above.
     const inserted = Array.isArray(res) ? res.filter((r: any) => !r.error).length : docs.length;
-    // Index the parsed turns for full-text content search (best-effort; content
-    // chunks only — byte-range-only chunks yield no turn docs).
-    const turnDocs = docs.flatMap((d: any) => toTurnSearchDocs(d));
-    await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), turnDocs).catch(() => {});
     return c.json({ ok: true, inserted });
   });
 

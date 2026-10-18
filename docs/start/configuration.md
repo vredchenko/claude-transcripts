@@ -68,6 +68,8 @@ The committed template:
 | `system.logging.chunk` | Mid-session chunk flush: after this many transcript entries or this many ms, whichever first ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). |
 | `system.sessions.liveWindowMs` | A session with no `SessionEnd` counts as `running` for this long after its last event (24 h), then `incomplete`. A recency heuristic; there is no heartbeat. |
 | `system.sessions.idleThresholdMs` | Gaps between events longer than this (5 min) don't count towards a session's active time. |
+| `system.search.flushIntervalMs` | Changes reach the search index in batches, at most this far (3 min) behind; a live session that ends is flushed at once. Shorter is fresher search and more Meilisearch disk writes; each flush costs about the same however much it carries. |
+| `system.search.taskRetentionMs` | Finished Meilisearch tasks older than this (1 h) are pruned from its task queue, so it doesn't grow without bound. |
 | `couchdb.databases`, `s3.buckets`, `meilisearch.indexes`, `fossil.repositories` | Keyed maps: code refers to a store by logical key (`sessions`, `appLogs`, `turns`), never by its deployed name. The `claude-transcripts-` prefix keeps them from colliding with anything else on a shared server. Fossil repository names must be letters, digits, `-` and `_`; the Fossil container creates each named repository on start, and the default `sessions` entry is always kept (like the Meilisearch indexes). |
 | `features.s3Blobs` | Upload the transcript and a `summary.json` copy to S3. Off: no byte-exact transcript is kept anywhere; CouchDB still has the pruned per-turn content if full-content chunks are on. |
 | `features.midFlightChunking` | Tail the transcript into CouchDB `chunk` docs during the session. |

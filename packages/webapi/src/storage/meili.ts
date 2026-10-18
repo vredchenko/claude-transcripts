@@ -120,6 +120,34 @@ export class Meili {
     return { indexed: 0, failures: ["timed out waiting for Meilisearch to index"] };
   }
 
+  /**
+   * Delete finished tasks older than `olderThanMs` from Meilisearch's task queue.
+   *
+   * Meilisearch keeps every task it has ever run — up to a million before it starts
+   * evicting on its own — and the queue lives in the same storage the indexes do, so
+   * a follower enqueueing a task every few minutes grows it forever. Only *finished*
+   * tasks go, and only old ones, so a reindex still waiting on its own tasks (see
+   * {@link taskFailures}) never has them pulled out from under it. Only tasks on
+   * `indexUids`, too: a shared Meilisearch's queue holds other deployments' tasks,
+   * and those aren't ours to delete (ADR 0028). Best-effort.
+   */
+  async pruneTasks(indexUids: string[], olderThanMs: number): Promise<number | null> {
+    if (!indexUids.length) return null;
+    const params = new URLSearchParams({
+      statuses: "succeeded,failed,canceled",
+      indexUids: indexUids.join(","),
+      beforeFinishedAt: new Date(Date.now() - olderThanMs).toISOString(),
+    });
+    const res = await this.req("DELETE", `/tasks?${params}`);
+    if (!res?.ok) return null;
+    try {
+      const json = (await res.json()) as { taskUid?: number };
+      return typeof json.taskUid === "number" ? json.taskUid : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Search an index; returns the hits array (empty on any failure). Cropping +
    *  highlighting (for content snippets) are opt-in and land in each hit's
    *  `_formatted`. */

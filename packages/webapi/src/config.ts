@@ -59,6 +59,7 @@ export interface Config {
   system: {
     logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
     sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
+    search?: { flushIntervalMs?: number; taskRetentionMs?: number };
   };
   meili: {
     host: string;
