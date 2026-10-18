@@ -93,7 +93,10 @@ Plus:
   release). Run via `bun run scripts/<name>`; most are wrapped in CI.
 - `deploy/` — Docker Compose: CouchDB + Garage + Fossil + Meilisearch + admin UIs; `deploy/k8s/`
   the same stack as a generated kustomize base (ADR 0030).
-- `docs/` — design docs + ADRs. `tests/` — e2e, Playwright, mock Claude Code. Also:
+- `docs/` — design docs + ADRs: the **published** documentation (GitHub Pages, `/docs`),
+  so only what the project *is*. Proposals, evaluations and working notes go in
+  `rfcs/` (dated, unpublished; see `rfcs/README.md`) until decided.
+  `tests/` — e2e, Playwright, mock Claude Code. Also:
   `site/` (landing page), `brand/`, `.claude-plugin/` (marketplace), `install.sh`.
 
 **Operational-utility rule:** dev-only → `scripts/`; user-useful → `packages/cli/`.
