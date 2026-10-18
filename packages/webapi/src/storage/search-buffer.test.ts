@@ -4,7 +4,7 @@
  * by the running-session row it supersedes.
  */
 import { describe, expect, test } from "bun:test";
-import { bufferForSearch } from "./changes-follower";
+import { bufferForSearch, isLiveSessionEnd } from "./changes-follower";
 import { SearchBuffer } from "./search-buffer";
 
 const event = (session_id: string) => ({ type: "event", session_id });
@@ -65,5 +65,14 @@ describe("SearchBuffer", () => {
     expect(batch.seq).toBe("12-abc");
     expect(buffer.size).toBe(0);
     expect(buffer.take()).toMatchObject({ seq: null, running: [] });
+  });
+});
+
+describe("isLiveSessionEnd", () => {
+  test("a hook-written summary flushes at once; a backfilled one waits its turn", () => {
+    expect(isLiveSessionEnd(summary("s1"))).toBe(true); // no source ⇒ live
+    expect(isLiveSessionEnd({ ...summary("s1"), source: "live" })).toBe(true);
+    expect(isLiveSessionEnd({ ...summary("s1"), source: "backfill" })).toBe(false);
+    expect(isLiveSessionEnd(event("s1"))).toBe(false);
   });
 });
