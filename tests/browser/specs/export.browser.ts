@@ -27,7 +27,7 @@ test.describe("session export", () => {
     const md = await readFile(await file.path(), "utf8");
     expect(md).toContain(`session: "${MULTI_DAY_SESSION.sessionId}"`);
     expect(md).toContain("Can you add a retry policy to the beacon publisher?");
-    expect(md).toContain("## Tool result (error)");
+    expect(md).toContain("result (error)");
     expect(md).not.toContain("hook_success");
   });
 
@@ -37,13 +37,13 @@ test.describe("session export", () => {
     await detail.goto(MULTI_DAY_SESSION.sessionId);
 
     await page.getByRole("button", { name: "Export" }).click();
-    await page.getByRole("menuitem", { name: "Include tool calls" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Include tool calls" }).click();
     const download = page.waitForEvent("download");
     await page.getByRole("menuitem", { name: /Markdown/ }).click();
     const md = await readFile(await (await download).path(), "utf8");
 
     expect(md).toContain("bounded exponential backoff");
-    expect(md).not.toContain("Tool result");
+    expect(md).not.toContain("result ·");
     expect(md).not.toContain("_Tools:");
   });
 

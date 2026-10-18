@@ -62,7 +62,12 @@ export function ExportMenu({ session }: { session: SessionSummary }) {
           <ListItemText primary="PDF" secondary="Print, then “Save as PDF”" />
         </MenuItem>
         <Divider />
-        <MenuItem dense onClick={() => setIncludeTools((v) => !v)}>
+        <MenuItem
+          dense
+          role="menuitemcheckbox"
+          aria-checked={includeTools}
+          onClick={() => setIncludeTools((v) => !v)}
+        >
           <ListItemIcon>
             <Checkbox
               edge="start"
