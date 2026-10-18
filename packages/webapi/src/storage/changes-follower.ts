@@ -253,7 +253,10 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
       if (batch.seq) await writeCheckpoint(db, batch.seq);
       if (Date.now() - lastPrune >= taskRetentionMs) {
         lastPrune = Date.now();
-        await ctx.meili.pruneTasks(taskRetentionMs);
+        await ctx.meili.pruneTasks(
+          [SESSIONS_INDEX_KEY, TURNS_INDEX_KEY].map((key) => indexName(ctx.config, key)),
+          taskRetentionMs,
+        );
       }
     })().finally(() => {
       flushing = null;

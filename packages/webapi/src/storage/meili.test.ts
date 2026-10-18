@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { searchDocId, toSessionSearchDoc, toTurnSearchDocs } from "./meili";
+import { Meili, searchDocId, toSessionSearchDoc, toTurnSearchDocs } from "./meili";
 
 /**
  * Meilisearch document ids accept only `a-zA-Z0-9`, `-` and `_`, and it enforces that
@@ -53,5 +53,31 @@ describe("toSessionSearchDoc", () => {
     const doc = toSessionSearchDoc({ session_id: chunk.session_id, tool_counts: { Bash: 2 } });
     expect(String(doc.id)).toMatch(MEILI_ID);
     expect(doc.tools).toEqual(["Bash"]);
+  });
+});
+
+describe("Meili.pruneTasks", () => {
+  it("deletes only finished, old tasks on the given indexes", async () => {
+    const calls: { method: string; url: string }[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      calls.push({ method: String(init.method), url: String(url) });
+      return new Response(JSON.stringify({ taskUid: 7 }), { status: 202 });
+    }) as unknown as typeof fetch;
+    try {
+      const meili = new Meili({ host: "http://meili.test", enabled: true });
+      expect(await meili.pruneTasks(["a-sessions", "a-turns"], 60_000)).toBe(7);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    expect(calls.length).toBe(1);
+    const [call] = calls;
+    expect(call?.method).toBe("DELETE");
+    const params = new URL(call?.url ?? "").searchParams;
+    // A shared Meilisearch holds other deployments' tasks — never prune unscoped.
+    expect(params.get("indexUids")).toBe("a-sessions,a-turns");
+    expect(params.get("statuses")).toBe("succeeded,failed,canceled");
+    expect(Date.parse(params.get("beforeFinishedAt") ?? "")).toBeLessThan(Date.now() - 59_000);
   });
 });
