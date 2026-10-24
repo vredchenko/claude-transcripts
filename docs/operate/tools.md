@@ -16,7 +16,8 @@ All flags: [cli.md](../reference/cli.md#backfill-options).
 ## What it writes
 
 For each session, the same shape a live recording has, delivered through the webapi's
-`/api/ingest/*` routes (so it is indexed for search immediately):
+`/api/ingest/*` routes (indexed for search within `system.search.flushIntervalMs`, 3 min
+by default, like any other write):
 
 - the `summary:<id>` doc, with `source: "backfill"` and `backfilled_at`;
 - one `event` doc per reconstructed hook event;

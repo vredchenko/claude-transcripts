@@ -94,22 +94,31 @@ exists, computes it with `sumTranscriptTokens`.
 
 Two Meilisearch indexes named in `meilisearch.indexes`: sessions (metadata, one doc per
 session) and turns (one doc per user, assistant or tool-result turn; other transcript
-lines aren't indexed). They are derived from CouchDB and kept current three ways:
+lines aren't indexed). They are derived from CouchDB and kept current two ways:
 
-- the ingest routes index as they write;
-- the `_changes` follower catches everything else, including the hook's writes. It
-  checkpoints in the local document `_local/search_checkpoint` (local docs don't appear
-  in `_changes`, so the checkpoint can't wake the follower) and on first run starts at
-  "now";
+- the `_changes` follower indexes every write, whether it came through the ingest
+  routes or from the hook. It buffers changes and flushes every
+  `system.search.flushIntervalMs` (3 min), one update per index, because Meilisearch's
+  disk cost is per update rather than per document. It flushes early when a live
+  session ends (so an ended session is searchable at once) or when 2000 rows are
+  buffered. Backfilled summaries don't trigger an early flush. It checkpoints in the
+  local document `_local/search_checkpoint` (local docs don't appear in `_changes`, so
+  the checkpoint can't wake the follower) only after a flush, so a crash replays
+  whatever was buffered. A flush that fails is logged and its rows are dropped; the
+  checkpoint still moves past them. On first run the follower starts at "now";
 - `POST /api/search/reindex` (`claude-transcripts reindex`) clears and rebuilds, for
-  history that predates search, renamed indexes and deletes. Unlike ingest it waits on
-  Meilisearch's tasks and reports failures.
+  history that predates search, renamed indexes, deletes and failed flushes. Unlike the
+  follower it waits on Meilisearch's tasks and reports failures.
 
-`DELETE /api/ingest/{id}` also removes the session's search entries.
+`DELETE /api/ingest/{id}` also removes the session's search entries, directly: the
+follower handles upserts only.
 
 Meilisearch accepts only `a-zA-Z0-9`, `-` and `_` in document ids, so build them with
 `searchDocId()`. It validates batches asynchronously (`202 Accepted`, then failure in
 the task queue): if an index is unexpectedly empty, check `GET /tasks` on Meilisearch.
+The follower prunes finished tasks on this deployment's own indexes once they are older
+than `system.search.taskRetentionMs` (1 h), so look soon after the failure. It doesn't
+touch other indexes' tasks on a shared instance.
 
 ### Session index
 
