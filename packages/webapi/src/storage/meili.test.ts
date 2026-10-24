@@ -80,4 +80,20 @@ describe("Meili.pruneTasks", () => {
     expect(params.get("statuses")).toBe("succeeded,failed,canceled");
     expect(Date.parse(params.get("beforeFinishedAt") ?? "")).toBeLessThan(Date.now() - 59_000);
   });
+
+  it("returns null, not a throw, when Meilisearch rejects the request", async () => {
+    // A wrong parameter name comes back as a 400. Pruning is best-effort, so that
+    // must surface as null rather than an exception the follower would have to catch.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ message: "Unknown parameter `status`" }), {
+        status: 400,
+      })) as unknown as typeof fetch;
+    try {
+      const meili = new Meili({ host: "http://meili.test", enabled: true });
+      expect(await meili.pruneTasks(["a-sessions"], 60_000)).toBeNull();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
