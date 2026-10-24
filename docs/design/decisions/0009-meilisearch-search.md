@@ -82,8 +82,11 @@ coupled, optional** component.
 Search is optional (`features.meilisearch`, on by default) and local: the bundled
 Meilisearch listens on `127.0.0.1:7656` like the webapi on `127.0.0.1:7650`
 ([ADR 0020](0020-bundled-services-default-no-auth.md)). Only the webapi writes to it,
-from the ingest routes and by following CouchDB's `_changes` feed; the hook never
-touches it.
+by following CouchDB's `_changes` feed; the hook never touches it. Every write reaches
+search that way, whether it came through the ingest routes or from the hook, and the
+follower batches it: Meilisearch's disk cost is per update, not per document, so it
+sends one update per index every few minutes rather than one per change
+([webapi.md](../../reference/webapi.md#search)).
 
 The exception is an external Meilisearch, which
 [ADR 0028](0028-external-vs-bundled-meilisearch.md) makes safe from collisions but not

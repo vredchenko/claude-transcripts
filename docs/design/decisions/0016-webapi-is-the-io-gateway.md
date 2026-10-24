@@ -93,11 +93,13 @@ lossless. Different constraints, different path.
 
 - **No write-time validation.** Doc schemas are validated at the webapi on write; the
   hook's writes skip that. Nothing validates a hook-written document today.
-- **No write-time indexing.** The ingest routes index into Meilisearch as they write.
-  Direct writes don't — which is exactly why the `_changes` follower exists
+- **No write-time indexing.** Direct writes don't index into Meilisearch — which is
+  exactly why the `_changes` follower exists
   ([ADR 0009](0009-meilisearch-search.md)): it catches whatever reaches CouchDB by any
   path, so a live-recorded session becomes searchable without coupling the writer to
-  the reader.
+  the reader. The ingest routes once indexed as they wrote too; since the follower
+  indexes those writes anyway, that only wrote every doc twice, so all indexing now
+  goes through the follower.
 - **Store credentials on the host.** The hook's runtime config carries CouchDB
   credentials (mode 0600), so they live outside the container as well as in it.
 

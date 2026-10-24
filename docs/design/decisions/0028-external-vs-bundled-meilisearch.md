@@ -101,6 +101,9 @@ working without being edited.
   local dev can point at one engine without stepping on an install.
 - `reindex` keeps its clear-then-rebuild, which is only defensible because the uid it
   clears is one this deployment named.
+- The same scoping applies to Meilisearch's task queue. The webapi prunes old finished
+  tasks so the queue doesn't grow without bound, and filters the deletion by its own
+  index uids, so other tenants' task history on a shared instance is left alone.
 - Still open, and deferred until someone actually needs it: **scoped API keys**. A
   master key gives us the whole engine, which is more than we need on an instance we
   don't own. Meilisearch supports tenant tokens; wiring them is work with no demand yet.
