@@ -64,7 +64,8 @@ const LEGACY_CHECKPOINT_ID = "search_checkpoint";
 const CHECKPOINT_TYPE = "search_checkpoint";
 
 export interface ChangesFollower {
-  stop(): void;
+  /** Stop following, and resolve once anything buffered for search has been flushed. */
+  stop(): Promise<void>;
 }
 
 /** The slice of a CouchDB database the checkpoint needs — see the tests' fake. */
@@ -227,23 +228,34 @@ async function flushSearch(ctx: AppContext, db: any, batch: SearchBatch): Promis
  * corpus is bulk-loaded far more cheaply by `reindex` (search) and a single grouped
  * query (the session index) than by streaming every past change through them.
  */
-export function startChangesFollower(ctx: AppContext): ChangesFollower {
-  const db = ctx.couch.db("sessions") as any;
-  const searchCfg = ctx.config.system.search;
-  const flushIntervalMs = searchCfg?.flushIntervalMs ?? DEFAULT_SEARCH_FLUSH_INTERVAL_MS;
-  const taskRetentionMs = searchCfg?.taskRetentionMs ?? DEFAULT_TASK_RETENTION_MS;
+export interface SearchFlusher {
+  buffer: SearchBuffer;
+  /** Index what is buffered, then checkpoint. Resolves once both are done. */
+  flush(): Promise<void>;
+}
+
+/**
+ * The buffer and the flush that drains it, split out of the follower so the ordering
+ * it promises — index, then checkpoint; a flush asked for mid-flush runs after it —
+ * can be tested without a change feed.
+ */
+export function createSearchFlusher(
+  ctx: AppContext,
+  db: any,
+  taskRetentionMs = ctx.config.system.search?.taskRetentionMs ?? DEFAULT_TASK_RETENTION_MS,
+): SearchFlusher {
   const buffer = new SearchBuffer();
-  let stopped = false;
-  let timer: ReturnType<typeof setInterval> | undefined;
   let flushing: Promise<void> | null = null;
+  // Zero, so the first flush after boot prunes: that clears whatever queue built up
+  // before this instance started, rather than an hour later.
   let lastPrune = 0;
 
   /**
-   * Index what is buffered, then checkpoint. The checkpoint waits for the flush on
-   * purpose: advancing it per batch while the docs sat in memory would let a restart
-   * skip everything buffered at the time. A flush asked for while one is running
-   * queues behind it rather than joining it: the running one took its batch before
-   * the caller's docs arrived, so joining would leave them for the next interval.
+   * The checkpoint waits for the flush on purpose: advancing it per batch while the
+   * docs sat in memory would let a crash or restart skip everything buffered at the
+   * time. A flush asked for while one is running queues behind it rather than joining
+   * it: the running one took its batch before the caller's docs arrived, so joining
+   * would leave them for the next interval.
    */
   const flush = (): Promise<void> => {
     if (flushing) return flushing.then(flush);
@@ -252,9 +264,9 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
       try {
         await flushSearch(ctx, db, batch);
       } catch (err) {
-        // The rows are dropped, not retried: the periodic reload and
-        // `POST /api/search/reindex` are the reconciliation paths, as they were
-        // when a per-batch index failed.
+        // The rows are dropped, not retried, and the checkpoint still advances past
+        // them: the periodic reload and `POST /api/search/reindex` are the
+        // reconciliation paths, as they were when a per-batch index failed.
         console.error("[changes] flushing search updates failed (continuing):", err);
       }
       if (batch.seq) await writeCheckpoint(db, batch.seq);
@@ -270,6 +282,17 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
     });
     return flushing;
   };
+
+  return { buffer, flush };
+}
+
+export function startChangesFollower(ctx: AppContext): ChangesFollower {
+  const db = ctx.couch.db("sessions") as any;
+  const flushIntervalMs =
+    ctx.config.system.search?.flushIntervalMs ?? DEFAULT_SEARCH_FLUSH_INTERVAL_MS;
+  const { buffer, flush } = createSearchFlusher(ctx, db);
+  let stopped = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
 
   void (async () => {
     const since = (await readCheckpoint(db)) ?? "now";
@@ -332,7 +355,7 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
   })();
 
   return {
-    stop() {
+    async stop() {
       stopped = true;
       if (timer) clearInterval(timer);
       try {
@@ -341,7 +364,8 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
         // already stopped
       }
       // Whatever was buffered goes out now rather than waiting on a restart's replay.
-      if (ctx.meili.enabled) void flush();
+      // Awaited, so a caller shutting down can hold the exit until it has landed.
+      if (ctx.meili.enabled) await flush();
     },
   };
 }
