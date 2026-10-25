@@ -1,4 +1,4 @@
-# RFC: The webapi as the only writer, and required backing services
+# RFC: The webapi as the only writer, required backing services, and an all-in-one image
 
 Date: 2026-10-18
 
@@ -14,12 +14,17 @@ Proposed (2026-10-18). Nothing is built. The parts carry different weight:
 | [4. Projections: derived stores behind ports](#4-projections-derived-stores-behind-ports) | Proposed, open |
 | [5. The app distributes its own clients](#5-the-app-distributes-its-own-clients) | Proposed, open |
 | [6. Fossil sits behind the webapi](#6-fossil-sits-behind-the-webapi) | Proposed, open |
+| [7. Community Edition: an all-in-one image](#7-community-edition-an-all-in-one-image) | Proposed, open (added 2026-10-25) |
 
 If parts 1 and 2 are accepted, they become one ADR that supersedes the
 [ADR 0016 amendment](../docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)
 and the optionality in [ADR 0015](../docs/design/decisions/0015-tiered-architecture.md)
-and [ADR 0028](../docs/design/decisions/0028-external-vs-bundled-meilisearch.md). Parts 3–6
+and [ADR 0028](../docs/design/decisions/0028-external-vs-bundled-meilisearch.md). Parts 3–7
 would each get an ADR of their own.
+
+Part 7 is a distribution format rather than an architecture change. It's here because it
+only works cleanly on top of the rest: one door in (parts 1 and 6), every service present
+(part 2), and a search index that can be rebuilt rather than migrated (part 4).
 
 ## Context
 
@@ -193,6 +198,128 @@ like the other stores, which matches today's read-only proxy
 would go through curated endpoints, as for CouchDB. Whether `fossil clone` / `sync` ever
 needs a passthrough is left until something needs it.
 
+### 7. Community Edition: an all-in-one image
+
+Ship the Community Edition as **one Docker image**: a single `docker run`, one volume, one
+port. No compose file, no orchestration knowledge. Target hosts are a single Docker box,
+Unraid, Synology and the like. Today the bundled stack is a compose project of six or more
+containers (CouchDB, Garage, Garage UI, Meilisearch, Meilisearch UI, Fossil) around the
+combined app image ([ADR 0023](../docs/design/decisions/0023-lockstep-versioning-and-combined-image.md)).
+
+This is a distribution format, not the reference architecture. Multi-container deploys
+(compose, and the [Kubernetes base](../docs/design/decisions/0030-kubernetes-deploy-generated-from-the-model.md))
+stay the reference, and the compose file stays published: it's nearly as simple for
+anyone who has Compose, and it avoids the trade-offs below. Both are built from the same
+component images, so they can't drift.
+
+**Non-goals:** horizontal scaling or HA (one container, one node); replacing the
+multi-container deploys; per-service resource isolation (an accepted trade-off).
+
+#### What goes in
+
+| Service | Role | How it gets into the image |
+|---|---|---|
+| CouchDB | System of record | The base image: an Erlang release plus system libraries, the hardest piece to transplant |
+| Garage | S3 blobs | `COPY --from` the upstream image: a static Rust binary |
+| Meilisearch | Search projection | The release binary. Check musl vs glibc against the Debian base |
+| Fossil | Internal Tier 2 state | A static C binary, built in a builder stage |
+| webapi (+ webui, docs) | The single public entry point | Built in its own stage and copied in. The `serve` binary (#224) makes this one file |
+| s6-overlay | PID 1, supervision, init ordering | Upstream tarballs |
+
+The admin UIs (Garage UI, Meilisearch UI) are left out. Their data is already reachable
+through the webui and the webapi's read proxies.
+
+#### How it fits this RFC
+
+- **One port, served by the webapi.** Every other service binds to `127.0.0.1` inside the
+  container. That's parts 1 and 6 made physical: there's no other door. The attached scope
+  left "webapi or Caddy in front?" open; with this RFC the answer is the webapi, which
+  already serves the SPA, the docs and the read proxies. Caddy only comes back if TLS
+  termination inside the container is wanted.
+- **Fossil is internal only.** No direct HTTP sync, per part 6.
+- **Required services, no flags** (part 2). The image always contains all four stores, so
+  there is no permutation to test.
+- **One health check.** A single `HEALTHCHECK` hits a webapi endpoint that checks CouchDB,
+  Garage, Meilisearch and Fossil and reports per-service status. It's the same
+  machine-readable, per-store `503` reason part 2 gives the statusline.
+- **Meilisearch upgrades become a rebuild.** A Meilisearch major version needs a dump and
+  import, which users who never read release notes will miss. As a projection (part 4) the
+  index can simply be dropped and rebuilt from CouchDB on first boot of a new version.
+- **The image distributes its own clients** (part 5). Onboarding a workstation is one URL
+  against the one port.
+
+#### Layout, supervision and first boot
+
+One volume at `/data`:
+
+```
+/data
+  couchdb/
+  garage/meta/
+  garage/data/
+  meilisearch/
+  fossil/
+  secrets/        # generated on first boot
+```
+
+Services under `/etc/s6-overlay/s6-rc.d/`:
+
+- `init-firstboot` (oneshot): runs only when `/data` is empty or a marker file is missing.
+- `couchdb`, `garage`, `meilisearch`, `fossil` (longrun), each with a readiness check
+  (s6 notification or a polling script) so nothing races the Erlang VM.
+- `init-provision` (oneshot): waits for the four services, then does the idempotent setup
+  that needs running daemons.
+- `webapi` (longrun): depends on `init-provision`.
+
+**Failure policy:** if a core service dies repeatedly, stop the container
+(`S6_BEHAVIOUR_IF_STAGE2_FAILS=2` or a finish script), so the host's restart policy and
+monitoring notice, rather than limping along half-dead.
+
+**Provisioning**, idempotent and safe to re-run on every start:
+
+- **CouchDB:** admin credentials; the `_users` and `_replicator` system databases; the app
+  databases. The webapi's boot `ensure` already creates the app databases, so this step
+  only needs the system ones.
+- **Garage:** `garage layout assign` and `garage layout apply` for the single node (Garage
+  serves nothing until a layout exists); an access key; the buckets.
+- **Meilisearch:** the master key; indexes and settings (again the webapi's `ensure`).
+- **Fossil:** initialise the repository (today's `deploy/fossil/entrypoint.sh` seed).
+- **webapi:** receives all of the above as environment variables or secrets files.
+
+#### Configuration
+
+Environment variables only, all optional, with sane defaults, every one documented with
+its default. This sits against [ADR 0020](../docs/design/decisions/0020-bundled-services-default-no-auth.md)
+(bundled services default to no auth): inside the container nothing but the webapi is
+reachable, so no-auth stays safe. Where a service insists on a credential (Garage keys,
+the Meilisearch master key in production mode), generate it on first boot and persist it
+under `/data/secrets`, so restarts and upgrades keep working.
+
+#### Build, upgrade, backup and testing
+
+- **Build:** a multi-stage Dockerfile, one builder stage per component, final stage on the
+  CouchDB image. Every upstream pinned by tag and digest. `linux/amd64` and `linux/arm64`:
+  check each upstream binary exists for both, and build Fossil and the webapi per arch.
+- **Upgrade:** pull the new tag and recreate the container; provisioning re-runs. Release
+  notes call out any component migration that rebuilding can't cover.
+- **Backup:** stop the container and copy `/data`. Document it. A `backup` command that
+  dumps consistently while running is optional.
+- **CI:** build the image, start it on an empty volume, wait for healthy, run the e2e smoke
+  tests against the one port. A second run on the same volume proves idempotent restart.
+  An upgrade test starts the new image on the previous release's volume.
+
+#### Trade-offs
+
+- One health check surface for five processes.
+- Every component upgrades in lockstep.
+- A shared memory budget with no per-service limits.
+- A larger image than any single component.
+
+Open questions:
+- The minimum memory to document for the whole bundle.
+- Whether the image tracks the app's lockstep version (ADR 0023) or has its own, given that
+  an upstream security fix in one component would otherwise force an app release.
+
 ### Considered and dropped
 
 - **A local payload spool on the hook machine.** The transcript on disk already is one
@@ -209,7 +336,13 @@ needs a passthrough is left until something needs it.
   RFC removes that independence. If both are accepted, embedded mode either runs the
   webapi as a long-lived local process the hook calls, or keeps a direct in-process
   write as its own documented exception. Decide that explicitly; don't let it fall out
-  of whichever lands second.
+  of whichever lands second. Embedded mode and the all-in-one image (part 7) answer the
+  same need, one thing to run on one box, in two ways: a single binary over SQLite, or a
+  single container over the real stores. Choosing one doesn't rule out the other, but they
+  shouldn't both be built before one has proved it's wanted.
+- **`serve` (#224).** Folding the webapi, webui and docs into the CLI binary turns the
+  webapi into one file to copy into the image. Part 7 doesn't need it, but it's simpler
+  with it.
 - **Mirrors.** The hook's fan-out to several CouchDB instances goes away. Reporting into
   a shared instance becomes either CouchDB replication behind the webapi, or the webapi
   forwarding to another webapi. Either way it's a server concern, configured once, not
@@ -228,6 +361,15 @@ If parts 1 and 2 are accepted:
   list), ADR 0028, the architecture diagram's write lane, and the "Key invariants" in
   `CLAUDE.md`.
 - **Tier 3 auth** gets a single choke point.
+
+If part 7 is accepted:
+
+- **New:** an all-in-one Dockerfile, its s6 service tree and provisioning scripts, a
+  webapi health endpoint that reports per store, and a CI job for the image.
+- **Kept:** the compose file and the Kubernetes base, built from the same component
+  images.
+- **Docs to update:** installation (a single `docker run` path), the deploy README, and
+  ADR 0023 if the image is versioned on its own.
 
 ## Terms
 
