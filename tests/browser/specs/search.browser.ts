@@ -126,7 +126,10 @@ test.describe("following a result into its session", () => {
 
     // Exactly the one fold holding it, opened; the others stay shut.
     await expect(detail.folds.and(page.locator("[aria-expanded='true']"))).toHaveCount(1);
-    const expanded = page.locator(".MuiAccordionSummary-root[aria-expanded='true']");
+    // And the row inside it: a tool call, since the term is in a tool's result.
+    const expanded = detail.toolCallRows.filter({
+      has: page.locator("button[aria-expanded='true']"),
+    });
     await expect(expanded).toHaveCount(1);
     await expect(expanded).toContainText(new RegExp(SEARCH_FOLDED_QUERY, "i"));
   });

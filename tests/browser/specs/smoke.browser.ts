@@ -111,10 +111,12 @@ test.describe("session detail", () => {
 
     const fold = detail.folds.filter({ hasText: "tool_result" }).first();
     await fold.click();
-    const row = detail.transcriptRows.filter({ hasText: "publisher.ts:44" }).first();
+    // Tool results show as tool calls — named, with a line of what came back.
+    const row = detail.toolCallRows.filter({ hasText: "publisher.ts:44" }).first();
     await expect(row).toBeVisible();
-    await row.click();
-    await expect(page.getByText(/retry policy not configured/).first()).toBeVisible();
+    await expect(row).toContainText("⚙");
+    await row.getByRole("button").click();
+    await expect(row.locator("pre")).toContainText(/retry policy not configured/);
   });
 
   test("the raw reader shows every stored line", async ({ page }) => {

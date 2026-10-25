@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { TranscriptEntry } from "./api/generated";
 import {
   buildTimeline,
+  foldRows,
   type HiddenNode,
   hiddenCount,
   isDialogue,
@@ -10,7 +11,9 @@ import {
   nodeIndexContaining,
   stripSystemReminders,
   summarizeHidden,
+  type ToolRow,
   type TurnNode,
+  toolNamesById,
 } from "./transcript-timeline";
 
 const entry = (e: Partial<TranscriptEntry>): TranscriptEntry =>
@@ -255,5 +258,62 @@ describe("nodeIndexContaining", () => {
     expect(nodeIndexContaining(nodes, 2)).toBe(1);
     expect(nodeIndexContaining(nodes, 3)).toBe(2);
     expect(nodeIndexContaining(nodes, 99)).toBe(-1);
+  });
+});
+
+describe("foldRows", () => {
+  const call = (id: string, name: string) => entry({ role: "assistant", toolUses: [{ name, id }] });
+  const result = (id: string, text: string, extra: Partial<TranscriptEntry> = {}) =>
+    toolResult(text, { toolUseId: id, ...extra });
+
+  it("pairs each call with its result in one row", () => {
+    const entries = [user("go"), call("a", "Read"), result("a", "file body"), assistant("ok")];
+    const run = hidden(buildTimeline(entries))[0] as HiddenNode;
+    const rows = foldRows(run, toolNamesById(entries));
+    expect(rows).toHaveLength(1);
+    const row = rows[0] as ToolRow;
+    expect([row.type, row.name, row.index, row.result?.index]).toEqual(["tool", "Read", 1, 2]);
+  });
+
+  it("names a result whose call was on the turn above", () => {
+    const entries = [
+      assistant("checking", { toolUses: [{ name: "Grep", id: "g" }] }),
+      result("g", "3 matches", { isError: false }),
+      user("thanks"),
+    ];
+    const run = hidden(buildTimeline(entries))[0] as HiddenNode;
+    const row = foldRows(run, toolNamesById(entries))[0] as ToolRow;
+    expect([row.name, row.index, row.result?.index]).toEqual(["Grep", 1, 1]);
+  });
+
+  it("splits a multi-call line into one row per call, results matched by id", () => {
+    const entries = [
+      user("go"),
+      entry({
+        role: "assistant",
+        toolUses: [
+          { name: "Read", id: "r" },
+          { name: "Bash", id: "b" },
+        ],
+      }),
+      result("b", "exit 1", { isError: true }),
+      result("r", "body"),
+      assistant("done"),
+    ];
+    const run = hidden(buildTimeline(entries))[0] as HiddenNode;
+    const rows = foldRows(run, toolNamesById(entries)) as ToolRow[];
+    expect(rows.map((r) => [r.name, r.result?.index, r.result?.entry.isError])).toEqual([
+      ["Read", 3, undefined],
+      ["Bash", 2, true],
+    ]);
+  });
+
+  it("leaves a call with no result yet, and everything else, as it was", () => {
+    const hook = entry({ role: "other", text: "hook ok", kind: "attachment:hook_success" });
+    const entries = [user("go"), call("x", "Edit"), hook, assistant("waiting")];
+    const run = hidden(buildTimeline(entries))[0] as HiddenNode;
+    const rows = foldRows(run, toolNamesById(entries));
+    expect(rows.map((r) => r.type)).toEqual(["tool", "entry"]);
+    expect((rows[0] as ToolRow).result).toBeUndefined();
   });
 });
