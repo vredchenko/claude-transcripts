@@ -7,7 +7,14 @@
  * bug.
  */
 import { describe, expect, test } from "bun:test";
-import { clockTime, durationSplit, durationSplitLabel, roleLabel, statusTime } from "./format";
+import {
+  clockTime,
+  durationSplit,
+  durationSplitLabel,
+  formatCompact,
+  roleLabel,
+  statusTime,
+} from "./format";
 
 describe("roleLabel", () => {
   test("names the two speakers User and Claude", () => {
@@ -18,6 +25,28 @@ describe("roleLabel", () => {
 
   test("passes unlabelled kinds through", () => {
     expect(roleLabel("attachment:hook_success")).toBe("attachment:hook_success");
+  });
+});
+
+describe("formatCompact", () => {
+  test("leaves small counts alone", () => {
+    expect(formatCompact(0)).toBe("0");
+    expect(formatCompact(950)).toBe("950");
+  });
+
+  test("abbreviates with one decimal below 100 of a unit", () => {
+    expect(formatCompact(1_000)).toBe("1K");
+    expect(formatCompact(12_449)).toBe("12.4K");
+    expect(formatCompact(34_723_047)).toBe("34.7M");
+    expect(formatCompact(1_250_000_000)).toBe("1.3B");
+  });
+
+  test("drops the decimal from 100 of a unit up", () => {
+    expect(formatCompact(152_051_822)).toBe("152M");
+  });
+
+  test("says nothing for a missing count", () => {
+    expect(formatCompact(undefined)).toBe("—");
   });
 });
 

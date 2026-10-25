@@ -10,6 +10,7 @@ import type { SessionSummary } from "../../api/generated";
 import {
   durationSplit,
   durationSplitLabel,
+  formatCompact,
   formatCount,
   formatDuration,
   projectName,
@@ -185,9 +186,17 @@ function SessionRow({ s }: { s: SessionSummary }) {
 
       {/* Tokens + turns */}
       <Box sx={{ textAlign: "right" }}>
-        <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
-          {s.tokenUsage ? formatCount(s.tokenUsage.total) : "—"}
-        </Typography>
+        {s.tokenUsage ? (
+          <Tooltip title={`${formatCount(s.tokenUsage.total)} tokens`}>
+            <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
+              {formatCompact(s.tokenUsage.total)}
+            </Typography>
+          </Tooltip>
+        ) : (
+          <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
+            —
+          </Typography>
+        )}
         <Typography variant="caption" color="text.secondary">
           {formatCount(s.promptCount)} turn{s.promptCount === 1 ? "" : "s"} ·{" "}
           {formatCount(totalTools(s.toolCounts))} tools
@@ -236,7 +245,7 @@ function DayHeader({ group }: { group: DayGroup<SessionSummary> }) {
       <Typography variant="caption" color="text.secondary">
         {group.items.length} session{group.items.length === 1 ? "" : "s"}
         {activeMs > 0 && ` · ${formatDuration(activeMs)} active`}
-        {tokens > 0 && ` · ${formatCount(tokens)} tokens`}
+        {tokens > 0 && ` · ${formatCompact(tokens)} tokens`}
       </Typography>
     </Stack>
   );
