@@ -1,4 +1,4 @@
-# RFC: The webapi as the only writer, required backing services, and an all-in-one image
+# RFC: The webapi as the only writer, required backing services, and how it ships
 
 Date: 2026-10-18
 
@@ -14,17 +14,21 @@ Proposed (2026-10-18). Nothing is built. The parts carry different weight:
 | [4. Projections: derived stores behind ports](#4-projections-derived-stores-behind-ports) | Proposed, open |
 | [5. The app distributes its own clients](#5-the-app-distributes-its-own-clients) | Proposed, open |
 | [6. Fossil sits behind the webapi](#6-fossil-sits-behind-the-webapi) | Proposed, open |
-| [7. Community Edition: an all-in-one image](#7-community-edition-an-all-in-one-image) | Proposed, open (added 2026-10-25) |
+| [7. One release pipeline, three targets: omni, compose and Helm](#7-one-release-pipeline-three-targets-omni-compose-and-helm) | Proposed, open (added 2026-10-25) |
+| [8. A live event stream from the webapi](#8-a-live-event-stream-from-the-webapi) | Proposed, open (added 2026-10-25) |
+| [9. Consider rewriting the webapi in Elixir](#9-consider-rewriting-the-webapi-in-elixir) | To consider (added 2026-10-25) |
+| [10. Several Claude Code plugins writing to one backend](#10-several-claude-code-plugins-writing-to-one-backend) | Proposed, open (added 2026-10-25) |
+| [11. Configurable ingest routing and multiple backends](#11-configurable-ingest-routing-and-multiple-backends-an-idea) | Idea (added 2026-10-25) |
 
 If parts 1 and 2 are accepted, they become one ADR that supersedes the
 [ADR 0016 amendment](../docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)
 and the optionality in [ADR 0015](../docs/design/decisions/0015-tiered-architecture.md)
-and [ADR 0028](../docs/design/decisions/0028-external-vs-bundled-meilisearch.md). Parts 3–7
+and [ADR 0028](../docs/design/decisions/0028-external-vs-bundled-meilisearch.md). Parts 3–11
 would each get an ADR of their own.
 
-Part 7 is a distribution format rather than an architecture change. It's here because it
-only works cleanly on top of the rest: one door in (parts 1 and 6), every service present
-(part 2), and a search index that can be rebuilt rather than migrated (part 4).
+Parts 7–11 all lean on parts 1 and 2: once every write goes through the webapi, it's the
+one place to package (7), to stream from (8), to rewrite (9), to accept many writers at
+(10), and to route writes from (11).
 
 ## Context
 
@@ -104,10 +108,8 @@ turn. If it ever becomes one, the webapi is stateless and can be scaled horizont
 **Short-outage buffering in the webapi** (optional, later). The webapi could hold
 accepted writes in memory for a short grace period while a store is unreachable, then
 flush them or give up and report. It's best-effort only: a webapi restart drops the
-buffer, and repair remains the safety net. An Elixir/BEAM rewrite of the webapi would
-make this natural, but it's out of scope here: the webapi shares its blueprint, types
-and validators with the webui and CLI as isomorphic TypeScript, and a second language
-would split that.
+buffer, and repair remains the safety net. An Elixir/BEAM webapi would make this
+natural; part 9 weighs that against the shared TypeScript it would split.
 
 ### 2. Backing services are required; bundled or external is only a URL
 
@@ -198,24 +200,47 @@ like the other stores, which matches today's read-only proxy
 would go through curated endpoints, as for CouchDB. Whether `fossil clone` / `sync` ever
 needs a passthrough is left until something needs it.
 
-### 7. Community Edition: an all-in-one image
+### 7. One release pipeline, three targets: omni, compose and Helm
 
-Ship the Community Edition as **one Docker image**: a single `docker run`, one volume, one
-port. No compose file, no orchestration knowledge. Target hosts are a single Docker box,
-Unraid, Synology and the like. Today the bundled stack is a compose project of six or more
-containers (CouchDB, Garage, Garage UI, Meilisearch, Meilisearch UI, Fossil) around the
-combined app image ([ADR 0023](../docs/design/decisions/0023-lockstep-versioning-and-combined-image.md)).
+One pipeline builds the component images once and releases them in three shapes. Every
+shape is built from the same images, so none can drift from the others:
 
-This is a distribution format, not the reference architecture. Multi-container deploys
-(compose, and the [Kubernetes base](../docs/design/decisions/0030-kubernetes-deploy-generated-from-the-model.md))
-stay the reference, and the compose file stays published: it's nearly as simple for
-anyone who has Compose, and it avoids the trade-offs below. Both are built from the same
-component images, so they can't drift.
+| Target | What it is | For |
+|---|---|---|
+| **omni** | One container image: every service under s6-overlay, one volume, one port | A single Docker box, Unraid, Synology: `docker run` and done |
+| **compose** | Today's compose project: one container per service | Anyone with Compose who wants per-service limits and upgrades |
+| **Helm** | A chart (or another package Kubernetes and Argo CD deploy natively) | Clusters, GitOps |
 
-**Non-goals:** horizontal scaling or HA (one container, one node); replacing the
-multi-container deploys; per-service resource isolation (an accepted trade-off).
+Today there's the compose project and a generated kustomize base
+([ADR 0030](../docs/design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)).
+Argo CD already deploys kustomize, so the question for the third target is whether a Helm
+chart earns its place. It probably does: the include options below are exactly what Helm
+values are for, where kustomize would need a component per option. Either way it's
+**generated from the blueprint**, like compose and the kustomize base are now. It isn't
+hand-written.
 
-#### What goes in
+#### Include options
+
+Every target takes the same switches, projected from the blueprint:
+
+| Option | Default | Notes |
+|---|---|---|
+| Garage UI | off | An admin convenience; the data is reachable through the webui and the read proxies |
+| Meilisearch UI | off | Meilisearch serves its own UI on its main port |
+| Bundled web docs | on | The rendered docs the webapi serves at `/docs` (`CT_DOCS_DIR`); off for a smaller image when the public docs site is enough |
+| Each backing service: bundled or external | bundled | Unchanged (ADR 0020, ADR 0028). External means the target omits the container and takes a URL |
+
+In compose they're profiles. In Helm they're values. In omni they're build arguments for a
+variant image, or a runtime switch that just doesn't start the service.
+
+The webapi, webui and CLI stay **separate artifacts**. Folding all three into one binary
+(the `serve` proposal, #224) is a premature decision. Nothing in these targets needs it,
+and it couples three release cadences before there's a reason to.
+
+#### The omni image
+
+**Non-goals:** horizontal scaling or HA (one container, one node); replacing compose or
+Helm; per-service resource isolation (an accepted trade-off).
 
 | Service | Role | How it gets into the image |
 |---|---|---|
@@ -223,22 +248,18 @@ multi-container deploys; per-service resource isolation (an accepted trade-off).
 | Garage | S3 blobs | `COPY --from` the upstream image: a static Rust binary |
 | Meilisearch | Search projection | The release binary. Check musl vs glibc against the Debian base |
 | Fossil | Internal Tier 2 state | A static C binary, built in a builder stage |
-| webapi (+ webui, docs) | The single public entry point | Built in its own stage and copied in. The `serve` binary (#224) makes this one file |
+| webapi + webui (+ docs, optional) | The single public entry point | Built in its own stage and copied in |
+| Garage UI, Meilisearch UI | Optional admin UIs | Only when their option is on |
 | s6-overlay | PID 1, supervision, init ordering | Upstream tarballs |
 
-The admin UIs (Garage UI, Meilisearch UI) are left out. Their data is already reachable
-through the webui and the webapi's read proxies.
-
-#### How it fits this RFC
+How it fits the rest of this RFC:
 
 - **One port, served by the webapi.** Every other service binds to `127.0.0.1` inside the
-  container. That's parts 1 and 6 made physical: there's no other door. The attached scope
-  left "webapi or Caddy in front?" open; with this RFC the answer is the webapi, which
-  already serves the SPA, the docs and the read proxies. Caddy only comes back if TLS
-  termination inside the container is wanted.
+  container. That's parts 1 and 6 made physical: there's no other door. The webapi
+  already serves the SPA, the docs and the read proxies, so it's the router. Caddy only
+  comes back if TLS termination inside the container is wanted.
 - **Fossil is internal only.** No direct HTTP sync, per part 6.
-- **Required services, no flags** (part 2). The image always contains all four stores, so
-  there is no permutation to test.
+- **Required services** (part 2). The image always contains all four stores.
 - **One health check.** A single `HEALTHCHECK` hits a webapi endpoint that checks CouchDB,
   Garage, Meilisearch and Fossil and reports per-service status. It's the same
   machine-readable, per-store `503` reason part 2 gives the statusline.
@@ -247,8 +268,6 @@ through the webui and the webapi's read proxies.
   index can simply be dropped and rebuilt from CouchDB on first boot of a new version.
 - **The image distributes its own clients** (part 5). Onboarding a workstation is one URL
   against the one port.
-
-#### Layout, supervision and first boot
 
 One volume at `/data`:
 
@@ -277,48 +296,155 @@ monitoring notice, rather than limping along half-dead.
 
 **Provisioning**, idempotent and safe to re-run on every start:
 
-- **CouchDB:** admin credentials; the `_users` and `_replicator` system databases; the app
-  databases. The webapi's boot `ensure` already creates the app databases, so this step
-  only needs the system ones.
+- **CouchDB:** admin credentials and the `_users` and `_replicator` system databases. The
+  webapi's boot `ensure` already creates the app databases.
 - **Garage:** `garage layout assign` and `garage layout apply` for the single node (Garage
   serves nothing until a layout exists); an access key; the buckets.
-- **Meilisearch:** the master key; indexes and settings (again the webapi's `ensure`).
+- **Meilisearch:** the master key. Indexes and settings come from the webapi's `ensure`.
 - **Fossil:** initialise the repository (today's `deploy/fossil/entrypoint.sh` seed).
 - **webapi:** receives all of the above as environment variables or secrets files.
 
-#### Configuration
+**Configuration:** environment variables only, all optional, with sane defaults, every one
+documented with its default. This sits against
+[ADR 0020](../docs/design/decisions/0020-bundled-services-default-no-auth.md) (bundled
+services default to no auth): inside the container nothing but the webapi is reachable, so
+no-auth stays safe. Where a service insists on a credential (Garage keys, the Meilisearch
+master key in production mode), generate it on first boot and persist it under
+`/data/secrets`, so restarts and upgrades keep working.
 
-Environment variables only, all optional, with sane defaults, every one documented with
-its default. This sits against [ADR 0020](../docs/design/decisions/0020-bundled-services-default-no-auth.md)
-(bundled services default to no auth): inside the container nothing but the webapi is
-reachable, so no-auth stays safe. Where a service insists on a credential (Garage keys,
-the Meilisearch master key in production mode), generate it on first boot and persist it
-under `/data/secrets`, so restarts and upgrades keep working.
+**Upgrade:** pull the new tag and recreate the container; provisioning re-runs. Release
+notes call out any component migration that rebuilding can't cover. **Backup:** stop the
+container and copy `/data`. A `backup` command that dumps consistently while running is
+optional.
 
-#### Build, upgrade, backup and testing
+**Trade-offs:** one health check surface for five processes; every component upgrades in
+lockstep; a shared memory budget with no per-service limits; a larger image than any
+single component.
 
-- **Build:** a multi-stage Dockerfile, one builder stage per component, final stage on the
-  CouchDB image. Every upstream pinned by tag and digest. `linux/amd64` and `linux/arm64`:
-  check each upstream binary exists for both, and build Fossil and the webapi per arch.
-- **Upgrade:** pull the new tag and recreate the container; provisioning re-runs. Release
-  notes call out any component migration that rebuilding can't cover.
-- **Backup:** stop the container and copy `/data`. Document it. A `backup` command that
-  dumps consistently while running is optional.
-- **CI:** build the image, start it on an empty volume, wait for healthy, run the e2e smoke
-  tests against the one port. A second run on the same volume proves idempotent restart.
-  An upgrade test starts the new image on the previous release's volume.
+#### The pipeline
 
-#### Trade-offs
-
-- One health check surface for five processes.
-- Every component upgrades in lockstep.
-- A shared memory budget with no per-service limits.
-- A larger image than any single component.
+- **Build once:** one image per component, multi-stage, every upstream pinned by tag and
+  digest, `linux/amd64` and `linux/arm64` (check each upstream binary exists for both;
+  build Fossil and the webapi per arch). The omni image is assembled from those images
+  rather than built separately.
+- **Release three shapes:** the omni image (plus its option variants, if options are build
+  time), the compose files, and the chart, all versioned together.
+- **Test each shape:** start it on empty storage, wait for healthy, run the e2e smoke
+  tests. For omni, a second start on the same volume proves idempotent restart, and an
+  upgrade test starts the new image on the previous release's volume. For Helm, install
+  into a throwaway cluster (kind or k3d) in CI.
 
 Open questions:
-- The minimum memory to document for the whole bundle.
-- Whether the image tracks the app's lockstep version (ADR 0023) or has its own, given that
-  an upstream security fix in one component would otherwise force an app release.
+- Helm, or keep kustomize and add components for the options?
+- Are omni's options build time (variant tags) or runtime (one image, services skipped)?
+  Runtime is simpler to publish; build time gives smaller images.
+- The minimum memory to document for omni.
+- Whether every shape tracks the app's lockstep version (ADR 0023), given that an upstream
+  security fix in one component would otherwise force an app release.
+
+### 8. A live event stream from the webapi
+
+The webapi publishes what changes as a stream that clients subscribe to. The webui uses it
+to update in real time: new sessions appear in the list, a live session's transcript grows,
+status turns from live to ended or stalled. Nothing has to poll. In Tier 3, other users
+subscribe to the same stream: a teammate watching a session, a dashboard, an agent
+reacting to events.
+
+**Source.** The webapi already follows CouchDB's `_changes` feed
+(`packages/webapi/src/storage/changes-follower.ts`) for the session index and search. The
+stream is one more consumer of that feed. Because every write goes through the webapi
+(part 1) and the feed is ordered, the stream sees every write exactly once and in order,
+whichever writer made it.
+
+**Mechanism.**
+
+- **Transport:** WebSockets, with Server-Sent Events as the fallback for read-only
+  subscribers behind proxies that break upgrades. Both carry the same messages.
+- **Topics:** `sessions` (created, updated, ended, stalled), `session:<id>` (new turns and
+  events for one session), `incidents` (part 3), `health` (per-store status, part 2). A
+  client subscribes to topics with optional filters (host, project), so the webui's list
+  view and a detail view take only what they show.
+- **Resume:** each message carries the CouchDB sequence it came from. A reconnecting client
+  sends its last sequence and gets everything since, so a dropped connection loses nothing
+  and the client never needs a full refetch.
+- **Backpressure:** a slow subscriber gets coalesced updates ("session X changed",
+  refetch it) rather than an unbounded buffer, and is dropped past a limit. It can always
+  resume.
+- **Contract:** messages are typed in shared code and described alongside the OpenAPI
+  spec (AsyncAPI is the usual format for that), so clients are generated, not hand-written,
+  like the REST ones.
+- **Auth:** none in Tier 1, like the rest of the API. In Tier 3 subscriptions go through
+  the same single choke point (part 1), and topics are filtered by what the subscriber may
+  see.
+
+The blueprint gets a `channels` map (topic, payload schema, source), so the webui, the CLI
+and the docs project from it like everything else.
+
+### 9. Consider rewriting the webapi in Elixir
+
+To consider, not decided. Several parts of this RFC are things the BEAM does natively:
+
+- **The event stream** (part 8): Phoenix Channels and Phoenix.PubSub are exactly topics,
+  fan-out, presence and reconnect, distributed across nodes for free.
+- **Short-outage buffering** (part 1): per-store supervised processes that hold accepted
+  writes and retry, restarting cleanly when they crash.
+- **Ingest routing** (part 11): a supervision tree per backend, each failing on its own
+  without taking the others down.
+- **Many concurrent writers** (part 10): cheap processes per connection.
+
+The cost is the isomorphic TypeScript. Today the blueprint, the doc types and the
+validators are shared by the webapi, webui and CLI. A rewrite keeps the **OpenAPI spec (and
+the AsyncAPI spec) as the contract**, so the webui and CLI keep generated clients and don't
+notice. But the blueprint and validators would need a language-neutral source, such as
+JSON Schema generated from the TypeScript or the other way round, or they'd exist twice.
+The hook stays in TypeScript either way: it lives in the CLI.
+
+A way to find out without committing: build part 8's stream as a small Elixir service
+beside the TypeScript webapi, consuming the same `_changes` feed. If that's where the
+pleasure and the reliability are, move the rest over endpoint by endpoint behind the same
+contract.
+
+### 10. Several Claude Code plugins writing to one backend
+
+Today one plugin (ours) writes, and lockstep versioning assumes its version matches the
+server's. The backend should accept writes from **several writers at once**: many
+machines and users, plugin versions that lag the server, and other Claude Code plugins that
+want to record into the same store (a team plugin, a plugin for another agent).
+
+- **Writer identity:** every ingest call says who wrote it: plugin id, plugin version,
+  machine and, in Tier 3, user. It's stored on the docs, so provenance survives (today's
+  `source` field is the start of this).
+- **A compatibility window:** the ingest contract is versioned, and the webapi accepts the
+  current and previous version(s) rather than demanding lockstep. An older plugin keeps
+  recording; the statusline says it's out of date.
+- **Namespaces:** a third-party plugin writes under its own namespace and schema, validated
+  at the webapi (part 1 makes that possible: every write is seen). It can't touch another
+  writer's docs.
+- **Idempotency across writers:** ids are already stable per session, chunk and event. Two
+  plugins recording the same session need distinct ids or an explicit merge rule; decide
+  which.
+
+### 11. Configurable ingest routing and multiple backends (an idea)
+
+Just an idea for now. The webapi decides **where** each write goes, and a store can be more
+than one backend:
+
+- **Routing by store:** which CouchDB database and which S3 bucket each kind of write lands
+  in is configuration, not code. That already holds for names (`couchdb.databases`,
+  `s3.buckets` are keyed maps built for more than one); extend it to whole instances.
+- **Several backends per store:** for example omni's bundled CouchDB plus an external
+  CouchDB, both written; the same for S3 (bundled Garage plus an external bucket). One is
+  **primary**: writes must land there, and reads come from it. The others are
+  **secondaries**: written best-effort, and a failure there is an incident (part 3), not a
+  failed write.
+- **Policies, per store:** `primary-only`, `all` (fail if any fails), `primary + async
+  secondaries`. Possibly per database, so app logs could go only to the external one.
+- **Why it's cheap here:** documents are append-only and immutable, so writing the same
+  doc to two CouchDB instances can't conflict. A secondary that missed writes is caught up
+  by replication or by repair.
+
+This is where the hook's mirror fan-out goes (see Interactions): the same capability,
+moved to the server, configured once.
 
 ### Considered and dropped
 
@@ -328,6 +454,9 @@ Open questions:
   MongoDB with it. App logs already go to CouchDB (ADR 0018). If a log sink becomes
   pluggable later, emitting OpenTelemetry is the abstraction to reach for.
 - **Valkey** as a cache. Not until something actually needs one.
+- **One binary for the webapi, webui and CLI** (`serve`, #224). Premature: nothing in the
+  release targets (part 7) needs it, and it ties three release cadences together before
+  there's a reason to. Revisit if a target ever does.
 
 ## Interactions
 
@@ -336,17 +465,19 @@ Open questions:
   RFC removes that independence. If both are accepted, embedded mode either runs the
   webapi as a long-lived local process the hook calls, or keeps a direct in-process
   write as its own documented exception. Decide that explicitly; don't let it fall out
-  of whichever lands second. Embedded mode and the all-in-one image (part 7) answer the
-  same need, one thing to run on one box, in two ways: a single binary over SQLite, or a
-  single container over the real stores. Choosing one doesn't rule out the other, but they
-  shouldn't both be built before one has proved it's wanted.
-- **`serve` (#224).** Folding the webapi, webui and docs into the CLI binary turns the
-  webapi into one file to copy into the image. Part 7 doesn't need it, but it's simpler
-  with it.
-- **Mirrors.** The hook's fan-out to several CouchDB instances goes away. Reporting into
-  a shared instance becomes either CouchDB replication behind the webapi, or the webapi
-  forwarding to another webapi. Either way it's a server concern, configured once, not
-  per workstation.
+  of whichever lands second. Embedded mode and the omni image (part 7) answer the same
+  need, one thing to run on one box, in two ways: a single binary over SQLite, or a single
+  container over the real stores. Choosing one doesn't rule out the other, but they
+  shouldn't both be built before one has proved it's wanted. Embedded mode also takes
+  `serve` (#224) as its first step, which this RFC drops as premature; if embedded mode
+  goes ahead, that step comes back with it.
+- **Mirrors.** The hook's fan-out to several CouchDB instances goes away. It becomes
+  part 11: the webapi writes to a primary and any secondaries, configured once on the
+  server, not per workstation. Reporting into a shared instance is a secondary, CouchDB
+  replication behind the webapi, or one webapi forwarding to another.
+- **The event stream and the change follower.** Part 8 is a third consumer of the same
+  `_changes` feed as the session index and search. If parts 4 and 8 are both accepted, the
+  stream is best modelled as a projection whose "store" is the set of live subscribers.
 
 ## Consequences
 
@@ -364,12 +495,19 @@ If parts 1 and 2 are accepted:
 
 If part 7 is accepted:
 
-- **New:** an all-in-one Dockerfile, its s6 service tree and provisioning scripts, a
-  webapi health endpoint that reports per store, and a CI job for the image.
-- **Kept:** the compose file and the Kubernetes base, built from the same component
-  images.
-- **Docs to update:** installation (a single `docker run` path), the deploy README, and
-  ADR 0023 if the image is versioned on its own.
+- **New:** the omni Dockerfile, its s6 service tree and provisioning scripts; a Helm chart
+  (or kustomize components) generated from the blueprint; include options in the
+  blueprint, projected into compose profiles, chart values and omni; a webapi health
+  endpoint that reports per store; a release workflow and CI tests for all three shapes.
+- **Changed:** the admin UIs become opt-in in compose and Kubernetes too, and the bundled
+  docs become optional in the app image.
+- **Docs to update:** installation (a `docker run` path and a Helm path), the deploy
+  README, ADR 0030, and ADR 0023 if the shapes are versioned separately.
+
+If part 8 is accepted: a stream endpoint in the webapi, a `channels` map in the blueprint,
+a generated client, and the webui moving from refetching to subscribing.
+
+Parts 9–11 are exploratory; their consequences are written when one becomes a proposal.
 
 ## Terms
 
