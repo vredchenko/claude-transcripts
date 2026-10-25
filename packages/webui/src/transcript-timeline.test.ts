@@ -5,6 +5,7 @@ import {
   type HiddenNode,
   hiddenCount,
   isDialogue,
+  isInternal,
   isSyntheticUserText,
   nodeIndexContaining,
   stripSystemReminders,
@@ -141,6 +142,40 @@ describe("buildTimeline", () => {
     const nodes = buildTimeline([user("<command-name>/clear</command-name>"), user("hello")]);
     expect(turns(nodes).map((t) => t.text)).toEqual(["hello"]);
     expect(hiddenCount(hidden(nodes)[0] as HiddenNode)).toBe(1);
+  });
+});
+
+describe("internal lines", () => {
+  const snapshot = entry({ role: "other", kind: "file-history-snapshot" });
+  const hook = entry({ role: "other", text: "hook ok", kind: "attachment:hook_success" });
+
+  it("are the kind-bearing lines, except ones that errored or called tools", () => {
+    expect(isInternal(snapshot)).toBe(true);
+    expect(isInternal(hook)).toBe(true);
+    expect(isInternal(entry({ kind: "system:api_error", isError: true }))).toBe(false);
+    expect(isInternal(toolResult("ok"))).toBe(false);
+    expect(isInternal(user("hello"))).toBe(false);
+  });
+
+  it("hideInternal drops them, keeping original indices, and drops runs of nothing else", () => {
+    const entries = [
+      user("go"),
+      snapshot,
+      assistant("done"),
+      toolResult("ok"),
+      hook,
+      user("thanks"),
+    ];
+    const nodes = buildTimeline(entries, { hideInternal: true });
+    expect(nodes.map((n) => n.type)).toEqual(["turn", "turn", "hidden", "turn"]);
+    const run = hidden(nodes)[0] as HiddenNode;
+    expect(run.entries.map((e) => e.index)).toEqual([3]);
+    expect(turns(nodes).map((t) => t.index)).toEqual([0, 2, 5]);
+  });
+
+  it("are kept by default", () => {
+    const nodes = buildTimeline([user("go"), snapshot, assistant("done")]);
+    expect(hidden(nodes)).toHaveLength(1);
   });
 });
 

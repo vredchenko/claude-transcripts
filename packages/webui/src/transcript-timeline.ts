@@ -107,6 +107,19 @@ export function isDialogue(entry: TranscriptEntry): boolean {
   return false;
 }
 
+/**
+ * Is this line Claude Code's own bookkeeping rather than part of the work?
+ *
+ * The lines with a `kind` — file-history snapshots, hook attachments, mode changes,
+ * system notices — are what's left once dialogue, tool calls and tool results are
+ * accounted for. They mostly have no text, so an opened fold showed them as a column
+ * of "(no text content)" between the tool results a reader opened it for. An entry
+ * that errored is never internal: an error is always worth seeing.
+ */
+export function isInternal(entry: TranscriptEntry): boolean {
+  return Boolean(entry.kind) && entry.isError !== true && !entry.toolUses?.length;
+}
+
 /** Count occurrences into a tally, highest first, ties by first appearance. */
 function tally(names: string[]): Tally[] {
   const counts = new Map<string, number>();
@@ -135,13 +148,27 @@ function elapsed(prev: string | undefined, next: string | undefined): number | u
   return b - a;
 }
 
+/** How {@link buildTimeline} treats the transcript. */
+export interface TimelineOptions {
+  /**
+   * Leave {@link isInternal} lines out entirely. They don't break a run either — a
+   * run is the machinery between two turns whether or not its bookkeeping is shown —
+   * and a run made of nothing else disappears. Indices are the originals throughout.
+   */
+  hideInternal?: boolean;
+}
+
 /**
  * Partition transcript entries into dialogue turns and collapsed runs between them.
  *
  * Every input entry lands in exactly one node, in order, so the timeline is a view of
- * the transcript rather than a filtered copy of it.
+ * the transcript rather than a filtered copy of it — unless `hideInternal` asks for
+ * exactly that, and then only the internal lines are missing.
  */
-export function buildTimeline(entries: TranscriptEntry[]): TimelineNode[] {
+export function buildTimeline(
+  entries: TranscriptEntry[],
+  { hideInternal = false }: TimelineOptions = {},
+): TimelineNode[] {
   const nodes: TimelineNode[] = [];
   let pending: { index: number; entry: TranscriptEntry }[] = [];
   let prevTurnAt: string | undefined;
@@ -162,7 +189,7 @@ export function buildTimeline(entries: TranscriptEntry[]): TimelineNode[] {
 
   entries.forEach((entry, index) => {
     if (!isDialogue(entry)) {
-      pending.push({ index, entry });
+      if (!(hideInternal && isInternal(entry))) pending.push({ index, entry });
       return;
     }
     flush();

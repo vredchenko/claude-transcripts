@@ -120,9 +120,6 @@ function TurnText({ text, query }: { text: string; query?: string }) {
         sx={{
           whiteSpace: "pre-wrap",
           overflowWrap: "anywhere",
-          // A measure this side of ~90 characters is what makes a wall of text
-          // readable; the card itself still spans the page.
-          maxWidth: "90ch",
           ...(expanded
             ? {}
             : {
@@ -173,6 +170,10 @@ function TurnCard({ node, query, isMatch }: { node: TurnNode; query?: string; is
           sx={{
             flex: 1,
             minWidth: 0,
+            // The card is the measure: text fills it, and it stops at a width a wall of
+            // text is still readable at. It used to span the page with the text capped
+            // at 90ch inside, which left most of a wide card empty.
+            maxWidth: "110ch",
             p: 1.5,
             borderRadius: 1,
             border: 1,
