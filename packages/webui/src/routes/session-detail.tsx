@@ -4,7 +4,7 @@
  * Identity bar: back link, project name, 8-char id + copy, status, export, links to the
  * raw data.
  * Metadata strip: horizontal scroll row of fields.
- * Transcript section: speaker filter toggle (Both/You/Claude) + transcript viewer.
+ * Transcript section: speaker filter toggle (Both/User/Claude) + transcript viewer.
  */
 import {
   Box,
@@ -220,7 +220,7 @@ export function SessionDetailPage() {
               aria-label="speaker filter"
             >
               <ToggleButton value="all">Both</ToggleButton>
-              <ToggleButton value="user">You</ToggleButton>
+              <ToggleButton value="user">User</ToggleButton>
               <ToggleButton value="assistant">Claude</ToggleButton>
             </ToggleButtonGroup>
           </Stack>

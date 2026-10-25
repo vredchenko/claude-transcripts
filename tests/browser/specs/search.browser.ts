@@ -148,8 +148,8 @@ test.describe("following a result into its session", () => {
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId, `?q=${SEARCH_QUERY}`);
-    await detail.selectSpeaker("You");
-    await expect(page.getByText(/user turns?/)).toBeVisible();
+    await detail.selectSpeaker("User");
+    await expect(page.getByText(/turns? by you/)).toBeVisible();
     await expect(marks(page).first()).toBeVisible();
   });
 

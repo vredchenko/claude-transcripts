@@ -112,10 +112,10 @@ async function routes(): Promise<RouteSpec[]> {
       path: `/app/sessions/${sessionId}`,
       prepare: async (page) => {
         // Scoped to the toggle group: a transcript row is a button too, and one of
-        // them contains the word "You" often enough to match by accident.
+        // them contains the word "User" often enough to match by accident.
         await page
           .getByRole("group", { name: "speaker filter" })
-          .getByRole("button", { name: "You" })
+          .getByRole("button", { name: "User" })
           .click();
         await page.waitForTimeout(500);
       },

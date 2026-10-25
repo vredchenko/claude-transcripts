@@ -159,8 +159,8 @@ test.describe("session detail", () => {
     await setupPage(page);
     const detail = new SessionDetailPage(page);
     await detail.goto(MULTI_DAY_SESSION.sessionId);
-    await detail.selectSpeaker("You");
-    await expect(page.getByText(/user turns?/)).toBeVisible();
+    await detail.selectSpeaker("User");
+    await expect(page.getByText(/turns? by you/)).toBeVisible();
   });
 
   test("an unknown session id reports not-found rather than hanging", async ({ page }) => {

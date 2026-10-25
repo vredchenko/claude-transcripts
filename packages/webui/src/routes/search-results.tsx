@@ -25,7 +25,7 @@ import { useMemo } from "react";
 import { getSearchQueryKey, type TurnHit, useSearch } from "../api/generated";
 import { MarkedSnippet } from "../components/HighlightedText";
 import { EmptyState, Loading } from "../components/states";
-import { formatCount, formatTimestamp, projectName } from "../format";
+import { formatCount, formatTimestamp, projectName, roleLabel } from "../format";
 import {
   type FilterKey,
   PAGE_SIZE,
@@ -314,7 +314,7 @@ export function SearchResultsPage() {
                             )}
                             <Chip
                               size="small"
-                              label={t.role}
+                              label={roleLabel(t.role)}
                               sx={{ height: 18, fontSize: 10, flexShrink: 0 }}
                             />
                             <Typography

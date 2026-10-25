@@ -13,7 +13,7 @@
 import { Box, Button, Chip, Collapse, Stack, Typography, useTheme } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import type { TranscriptEntry } from "../api/generated";
-import { formatCount, formatDuration } from "../format";
+import { formatCount, formatDuration, roleLabel } from "../format";
 import { MONO } from "../theme";
 import {
   formatTally,
@@ -194,7 +194,7 @@ function TurnCard({ node, query, isMatch }: { node: TurnNode; query?: string; is
             sx={{ mb: 0.5, flexWrap: "wrap", gap: 0.5 }}
           >
             <Typography variant="caption" sx={{ fontWeight: 700 }}>
-              {isUser ? "You" : "Claude"}
+              {roleLabel(node.speaker)}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO }}>
               {timeOfDay(node.timestamp)}

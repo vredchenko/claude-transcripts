@@ -43,12 +43,12 @@ derive it.
 
 ### Transcript viewer
 
-A **Both / You / Claude** toggle picks the speaker. You or Claude shows one side of
+A **Both / User / Claude** toggle picks the speaker. User or Claude shows one side of
 the conversation from `GET /api/sessions/{id}/turns` (empty without full-content
 chunks). Both shows the full transcript in one of two readers over the same paged
 entries:
 
-- **Timeline** (default): dialogue turns only, labelled You / Claude with times, tools
+- **Timeline** (default): dialogue turns only, labelled User / Claude with times, tools
   called and a subagent chip. Runs of tool calls, results, attachments and system lines
   fold into one line (`› 12 lines · Read ×3, Bash`) that opens in place.
   `<system-reminder>` blocks are hidden from turn text.
