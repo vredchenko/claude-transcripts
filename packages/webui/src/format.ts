@@ -49,6 +49,22 @@ export function formatTimestamp(iso: string | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * How long ago `then` was, from `now`, at the coarsest unit that fits: "just now",
+ * "45s ago", "3m ago", "2h ago", "4d ago". For labels that tick, so it avoids the
+ * false precision of {@link formatDuration}.
+ */
+export function formatAgo(then: number, now: number): string {
+  const s = Math.max(0, Math.round((now - then) / 1000));
+  if (s < 10) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 /** Milliseconds → "1h 2m", "3m 4s", "5s". */
 export function formatDuration(ms: number | undefined): string {
   if (!ms || ms <= 0) return "—";

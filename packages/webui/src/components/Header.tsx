@@ -4,13 +4,15 @@ import { useAppBlueprint } from "../api/blueprint";
 import logoMark from "../assets/logo-mark.svg";
 import { displayVersion } from "../format";
 import { MONO } from "../theme";
+import { DataFreshness } from "./DataFreshness";
 import { AboutMenu, DevMenu, ServicesMenu } from "./nav/HeaderMenus";
 import { Omnibox } from "./Omnibox";
 import { SettingsMenu } from "./SettingsMenu";
 
 /**
  * The thin top header: app title + build version (left), a search box (center,
- * placeholder), and the Services / Dev / About menus + settings (right). Title/version come from
+ * placeholder), and how fresh the data is + refresh, the Services / Dev / About menus
+ * and settings (right). Title/version come from
  * `GET /api/blueprint`, falling back to sensible defaults while it loads.
  */
 export function Header() {
@@ -86,6 +88,7 @@ export function Header() {
             flexShrink: 0,
           }}
         >
+          <DataFreshness />
           <ServicesMenu />
           <DevMenu />
           <AboutMenu />
