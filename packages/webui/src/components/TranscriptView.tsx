@@ -1,5 +1,5 @@
 import { matchesQuery } from "@claude-transcripts/shared";
-import { Box, Button, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { Box, Button, Stack, Typography } from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUserSettings } from "../api/blueprint";
 import type { TranscriptEntry } from "../api/generated";
@@ -19,7 +19,7 @@ import { TranscriptTimeline } from "./TranscriptTimeline";
  * order, which is what you want when you're debugging the recording rather than
  * reading the session.
  */
-type TranscriptMode = "timeline" | "raw";
+export type TranscriptMode = "timeline" | "raw";
 
 /** Does this entry's text contain the query? Drives highlighting and auto-scroll. */
 function entryMatches(entry: TranscriptEntry, query: string | undefined): boolean {
@@ -51,9 +51,17 @@ function entryMatches(entry: TranscriptEntry, query: string | undefined): boolea
  * above is what makes that work on a match a thousand entries in; it used to need its
  * own bespoke auto-load loop.
  */
-export function TranscriptView({ sessionId, query }: { sessionId: string; query?: string }) {
+export function TranscriptView({
+  sessionId,
+  query,
+  mode,
+}: {
+  sessionId: string;
+  query?: string;
+  /** Which reader; the toggle lives in the page's transcript toolbar. */
+  mode: TranscriptMode;
+}) {
   const { transcriptAutoLoadMax } = useUserSettings();
-  const [mode, setMode] = useState<TranscriptMode>("timeline");
   /** Set by "Load the rest" — lifts the auto-load ceiling for this mount only. */
   const [unbounded, setUnbounded] = useState(false);
 
@@ -135,35 +143,17 @@ export function TranscriptView({ sessionId, query }: { sessionId: string; query?
 
   return (
     <Box>
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{ mb: 1, flexWrap: "wrap", gap: 1 }}
-      >
-        <Typography variant="body2" color="text.secondary">
-          {mode === "timeline"
-            ? `${formatCount(turns)} turn${turns === 1 ? "" : "s"} · ${formatCount(folded)} line${
-                folded === 1 ? "" : "s"
-              } folded`
-            : `Showing ${formatCount(entries.length)} of ${formatCount(totalCount)} entries`}
-          {/* Which store answered: `chunks` means this is readable mid-session and will
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {mode === "timeline"
+          ? `${formatCount(turns)} turn${turns === 1 ? "" : "s"} · ${formatCount(folded)} line${
+              folded === 1 ? "" : "s"
+            } folded`
+          : `Showing ${formatCount(entries.length)} of ${formatCount(totalCount)} entries`}
+        {/* Which store answered: `chunks` means this is readable mid-session and will
               keep growing; `s3` means the session's finalised transcript. */}
-          {source === "chunks" ? " · live from chunks" : " · from stored transcript"}
-          {query && firstMatch === -1 && searchStatus}
-        </Typography>
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={mode}
-          onChange={(_e, v: TranscriptMode | null) => v && setMode(v)}
-          aria-label="transcript reader"
-        >
-          <ToggleButton value="timeline">Timeline</ToggleButton>
-          <ToggleButton value="raw">Raw</ToggleButton>
-        </ToggleButtonGroup>
-      </Stack>
+        {source === "chunks" ? " · live from chunks" : " · from stored transcript"}
+        {query && firstMatch === -1 && searchStatus}
+      </Typography>
 
       {/* Every line folded away and none left to load: a session that was opened
           and closed without a prompt. Say so, rather than show a lone fold. */}
