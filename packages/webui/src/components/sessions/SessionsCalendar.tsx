@@ -5,16 +5,7 @@
  *
  * Month navigation (‹ ›, TODAY) retained. Click a bar to open the session detail.
  */
-import {
-  Box,
-  Button,
-  IconButton,
-  Paper,
-  Stack,
-  Tooltip,
-  Typography,
-  useTheme,
-} from "@mui/material";
+import { Box, Button, IconButton, Paper, Stack, Tooltip, Typography } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import type { SessionSummary } from "../../api/generated";
 import {
@@ -45,6 +36,55 @@ function projectHue(cwd: string | undefined): number {
   return Math.abs(hash * 137.508) % 360;
 }
 
+/** How many projects the legend names before summing the rest as "+N more". */
+const LEGEND_SHOWN = 8;
+
+/** Bar colour for a project, at a given opacity. */
+function projectColour(cwd: string | undefined, opacity: number): string {
+  return `hsla(${projectHue(cwd)}, 45%, 50%, ${opacity})`;
+}
+
+/** The month's projects, busiest first: what each bar colour means. */
+function ProjectLegend({ sessions }: { sessions: SessionSummary[] }) {
+  const counts = new Map<string, number>();
+  for (const s of sessions) counts.set(s.cwd ?? "", (counts.get(s.cwd ?? "") ?? 0) + 1);
+  const projects = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (projects.length === 0) return null;
+  const rest = projects.length - LEGEND_SHOWN;
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      sx={{ flexWrap: "wrap", columnGap: 1.5, rowGap: 0.5, mb: 1 }}
+      data-testid="calendar-legend"
+    >
+      {projects.slice(0, LEGEND_SHOWN).map(([cwd, n]) => (
+        <Tooltip
+          key={cwd}
+          title={`${cwd || "unknown directory"} · ${n} session${n === 1 ? "" : "s"}`}
+        >
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Box
+              sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: projectColour(cwd, 0.75) }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {projectName(cwd)}
+            </Typography>
+          </Stack>
+        </Tooltip>
+      ))}
+      {rest > 0 && (
+        <Typography variant="caption" color="text.secondary">
+          +{rest} more
+        </Typography>
+      )}
+      <Typography variant="caption" color="text.disabled" sx={{ ml: "auto" }}>
+        brighter bar = more of its runtime active
+      </Typography>
+    </Stack>
+  );
+}
+
 /** Tooltip content for a session bar. */
 function sessionTooltip(s: SessionSummary): string {
   return [
@@ -68,8 +108,6 @@ interface Placed {
 
 /** One day's 24h lane with positioned session bars. */
 function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]; now: number }) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === "dark";
   const todayKey = dayKey(now);
   const thisKey = dayKey(dayStart);
   const isToday = thisKey === todayKey;
@@ -109,10 +147,16 @@ function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]
         >
           {date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        {/* Count and active time on lines of their own: run together they wrapped
+            mid-figure ("56m" / "14s") in a cell this narrow. */}
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
           {sessionsOnDay.length} session{sessionsOnDay.length === 1 ? "" : "s"}
-          {activeMs > 0 && ` · ${formatDuration(activeMs)}`}
         </Typography>
+        {activeMs > 0 && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+            {formatDuration(activeMs)} active
+          </Typography>
+        )}
       </Box>
 
       {/* 24h lane */}
@@ -137,7 +181,6 @@ function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]
         {sessionsOnDay.map(({ session, interval }) => {
           const place = placements.get(interval.sessionId);
           if (!place) return null;
-          const hue = projectHue(session.cwd);
           const split = durationSplit(session.durationMs, session.activeMs);
           const activeRatio = split.activePct !== undefined ? split.activePct / 100 : 0.5;
           const opacity = 0.2 + 0.35 * activeRatio;
@@ -165,7 +208,7 @@ function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]
                 <Box
                   sx={{
                     height: "100%",
-                    bgcolor: `hsla(${hue}, ${dark ? "45%, 50%" : "55%, 45%"}, ${opacity})`,
+                    bgcolor: projectColour(session.cwd, opacity),
                     borderRadius: 0.5,
                     px: 0.5,
                     fontSize: 10,
@@ -245,30 +288,11 @@ export function SessionsCalendar({
         <Button size="small" onClick={() => onMonth(now)}>
           Today
         </Button>
-
-        {/* Legend */}
-        <Box sx={{ flex: 1 }} />
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: 0.5,
-              bgcolor: "primary.main",
-              opacity: 0.55,
-            }}
-          />
-          <Typography variant="caption" color="text.secondary">
-            active
-          </Typography>
-          <Box
-            sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: "primary.main", opacity: 0.2 }}
-          />
-          <Typography variant="caption" color="text.secondary">
-            idle
-          </Typography>
-        </Stack>
       </Stack>
+
+      {/* Bars are coloured by project and brightened by their active share; the old
+          "active / idle" swatches showed the primary colour, which no bar uses. */}
+      <ProjectLegend sessions={sessions} />
 
       {/* Hour axis header */}
       <Box sx={{ display: "flex", borderBottom: 2, borderColor: "divider" }}>

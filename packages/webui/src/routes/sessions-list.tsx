@@ -175,7 +175,11 @@ export function SessionsListPage() {
             label={
               activeFilters.length > 0
                 ? `${formatCount(shownCount)} of ${formatCount(totalCount)} shown`
-                : `${formatCount(totalCount)} sessions`
+                : view === "calendar"
+                  ? // The calendar fetches one month, so its total is the month's, not
+                    // the corpus's: say so, or it reads as a different "sessions" count.
+                    `${formatCount(totalCount)} this month`
+                  : `${formatCount(totalCount)} sessions`
             }
             variant="outlined"
           />
