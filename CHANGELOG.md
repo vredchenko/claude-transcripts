@@ -6,6 +6,27 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] — 2026-10-25
+
+A dependency-only release. v0.7.1's app image was never published: its vulnerability
+scan failed on three advisories that appeared after 0.7.0. The v0.7.1 CLI binaries and
+GitHub Release were published and work; this release adds only the dependency fixes.
+
+### Fixed
+
+- **The app image publishes again.** `zod` 3.25.76 → 4.6.7 (GHSA-mrhx-c7xc-m3w5; no
+  3.x fix exists), which brings `@hono/zod-openapi` 0.18 → 1.6 and
+  `@scalar/hono-api-reference` 0.5 → 0.12. `follow-redirects` 1.16.0 → 1.16.1
+  (GHSA-8r9p-f939-6h3c, GHSA-q3jh-wrc6-jgq8, via `nano`'s `axios`). A Kubernetes deploy
+  pinned to 0.7.1 references an app image that does not exist; move it to 0.7.2 ([#235]).
+
+### Changed
+
+- **Validation errors use zod 4's wording**, e.g.
+  `invalid request — limit: Invalid input: expected number, received NaN`. The `{ error }`
+  body is unchanged. The OpenAPI document changes only additively (parameter
+  descriptions, `additionalProperties` on passthrough bodies) ([#235]).
+
 ## [0.7.1] — 2026-10-25
 
 A patch release for one bug: Meilisearch rewrote a large share of its index on disk for
@@ -1828,6 +1849,8 @@ of them had ever executed:
 [#231]: https://github.com/vredchenko/claude-transcripts/issues/231
 [#232]: https://github.com/vredchenko/claude-transcripts/pull/232
 [#233]: https://github.com/vredchenko/claude-transcripts/pull/233
+[#235]: https://github.com/vredchenko/claude-transcripts/pull/235
+[0.7.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.2
 [0.7.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.1
 [0.7.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.0
 [0.6.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.2
