@@ -39,7 +39,13 @@ export const theme = createTheme({
     highlight: { bg: "rgba(210, 153, 34, 0.38)", fg: "inherit" },
     speaker: { user: "#58a6ff", assistant: "#D97757" },
   },
-  typography: { fontFamily: FONT_STACK },
+  typography: {
+    fontFamily: FONT_STACK,
+    // Buttons and toggle buttons say what they say. MUI's default uppercases every
+    // one, so the segmented controls (LIST / CALENDAR, BOTH / USER / CLAUDE) shouted
+    // beside sentence-case buttons that had opted out one call site at a time.
+    button: { textTransform: "none" },
+  },
   components: {
     MuiTableCell: {
       styleOverrides: { root: { borderColor: "rgba(255,255,255,0.08)" } },
