@@ -17,22 +17,9 @@ import type {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ErrorType } from "./http";
 import { customFetch } from "./http";
-export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const SessionStatus = {
-  ended: "ended",
-  running: "running",
-  incomplete: "incomplete",
-} as const;
-
-export interface TokenUsage {
-  input: number;
-  output: number;
-  cacheCreation: number;
-  cacheRead: number;
-  total: number;
-  messages: number;
+export interface SessionsResponse {
+  sessions: SessionSummary[];
+  totalCount: number;
 }
 
 export type SessionSummaryToolCounts = { [key: string]: number };
@@ -59,13 +46,48 @@ export interface SessionSummary {
   source?: string;
 }
 
-export interface SessionsResponse {
-  sessions: SessionSummary[];
-  totalCount: number;
+export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const SessionStatus = {
+  ended: "ended",
+  running: "running",
+  incomplete: "incomplete",
+} as const;
+
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheCreation: number;
+  cacheRead: number;
+  total: number;
+  messages: number;
 }
 
 export interface ApiError {
   error: string;
+}
+
+export interface TranscriptResponse {
+  entries: TranscriptEntry[];
+  totalCount: number;
+  hasMore: boolean;
+  source: TranscriptSource;
+  byteCoverage: number;
+}
+
+export interface TranscriptEntry {
+  role: SpeakerRole;
+  timestamp?: string;
+  text?: string;
+  /** @nullable */
+  toolUses?: ToolUseRef[] | null;
+  /** @nullable */
+  toolUseId?: string | null;
+  isError?: boolean;
+  isSidechain?: boolean;
+  /** @nullable */
+  kind?: string | null;
 }
 
 export type SpeakerRole = (typeof SpeakerRole)[keyof typeof SpeakerRole];
@@ -84,20 +106,6 @@ export interface ToolUseRef {
   id?: string;
 }
 
-export interface TranscriptEntry {
-  role: SpeakerRole;
-  timestamp?: string;
-  text?: string;
-  /** @nullable */
-  toolUses?: ToolUseRef[] | null;
-  /** @nullable */
-  toolUseId?: string | null;
-  isError?: boolean;
-  isSidechain?: boolean;
-  /** @nullable */
-  kind?: string | null;
-}
-
 export type TranscriptSource = (typeof TranscriptSource)[keyof typeof TranscriptSource];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -106,12 +114,18 @@ export const TranscriptSource = {
   s3: "s3",
 } as const;
 
-export interface TranscriptResponse {
-  entries: TranscriptEntry[];
+/**
+ * @nullable
+ */
+export type SessionTurnsResponseRoleAllOf = unknown | null;
+
+export type SessionTurnsResponseRole = SpeakerRole & SessionTurnsResponseRoleAllOf;
+
+export interface SessionTurnsResponse {
+  turns: SpeakerTurn[];
   totalCount: number;
   hasMore: boolean;
-  source: TranscriptSource;
-  byteCoverage: number;
+  role: SessionTurnsResponseRole;
 }
 
 export interface SpeakerTurn {
@@ -128,28 +142,6 @@ export interface SpeakerTurn {
 /**
  * @nullable
  */
-export type SessionTurnsResponseRoleAllOf = unknown | null;
-
-export type SessionTurnsResponseRole = SpeakerRole & SessionTurnsResponseRoleAllOf;
-
-export interface SessionTurnsResponse {
-  turns: SpeakerTurn[];
-  totalCount: number;
-  hasMore: boolean;
-  role: SessionTurnsResponseRole;
-}
-
-export interface CrossSessionTurn {
-  sessionId: string;
-  cwd: string;
-  role: SpeakerRole;
-  timestamp: string;
-  text: string;
-}
-
-/**
- * @nullable
- */
 export type CrossSessionTurnsResponseRoleAllOf = unknown | null;
 
 export type CrossSessionTurnsResponseRole = SpeakerRole & CrossSessionTurnsResponseRoleAllOf;
@@ -158,6 +150,14 @@ export interface CrossSessionTurnsResponse {
   turns: CrossSessionTurn[];
   hasMore: boolean;
   role: CrossSessionTurnsResponseRole;
+}
+
+export interface CrossSessionTurn {
+  sessionId: string;
+  cwd: string;
+  role: SpeakerRole;
+  timestamp: string;
+  text: string;
 }
 
 export type SessionResetResultDeleted = {
@@ -173,6 +173,15 @@ export interface SessionResetResult {
   deleted: SessionResetResultDeleted;
 }
 
+export interface SearchResponse {
+  hits: SearchHit[];
+  turns: TurnHit[];
+  query: string;
+  enabled: boolean;
+  totals: SearchTotals;
+  facets: SearchFacets;
+}
+
 export interface SearchHit {
   sessionId: string;
   timestamp?: string;
@@ -185,6 +194,7 @@ export interface SearchHit {
   promptCount?: number;
   eventCount?: number;
   matchedIn?: string[];
+  [key: string]: unknown | null;
 }
 
 export interface TurnHit {
@@ -207,13 +217,11 @@ export interface SearchFacets {
   source: string[];
 }
 
-export interface SearchResponse {
-  hits: SearchHit[];
-  turns: TurnHit[];
-  query: string;
+export interface ReindexResult {
   enabled: boolean;
-  totals: SearchTotals;
-  facets: SearchFacets;
+  sessions: IndexCounts;
+  turns: IndexCounts;
+  failures: string[];
 }
 
 export interface IndexCounts {
@@ -221,11 +229,11 @@ export interface IndexCounts {
   indexed: number;
 }
 
-export interface ReindexResult {
-  enabled: boolean;
-  sessions: IndexCounts;
-  turns: IndexCounts;
-  failures: string[];
+export interface MigrationStatus {
+  currentVersion: number;
+  latestVersion: number;
+  pending: MigrationStep[];
+  history: AppliedMigration[];
 }
 
 export interface MigrationStep {
@@ -239,11 +247,13 @@ export interface AppliedMigration {
   at: string;
 }
 
-export interface MigrationStatus {
-  currentVersion: number;
-  latestVersion: number;
-  pending: MigrationStep[];
-  history: AppliedMigration[];
+export interface MigrationRunResult {
+  direction: MigrationDirection;
+  fromVersion: number;
+  toVersion: number;
+  applied: MigrationStep[];
+  dryRun: boolean;
+  log: string[];
 }
 
 export type MigrationDirection = (typeof MigrationDirection)[keyof typeof MigrationDirection];
@@ -253,15 +263,6 @@ export const MigrationDirection = {
   up: "up",
   down: "down",
 } as const;
-
-export interface MigrationRunResult {
-  direction: MigrationDirection;
-  fromVersion: number;
-  toVersion: number;
-  applied: MigrationStep[];
-  dryRun: boolean;
-  log: string[];
-}
 
 export type ListSessionsParams = {
   /**
@@ -318,6 +319,9 @@ export type GetSessionTranscriptParams = {
 };
 
 export type GetSessionTurnsParams = {
+  /**
+   * One side of the conversation; omit for all turns.
+   */
   role?: SpeakerRole & unknown;
   /**
    * Page size (turns).
@@ -334,6 +338,9 @@ export type GetSessionTurnsParams = {
 };
 
 export type GetTurnsParams = {
+  /**
+   * Speaker to collect. `from`/`to` only apply when it is set.
+   */
   role?: SpeakerRole & unknown;
   /**
    * ISO timestamp lower bound.
@@ -403,6 +410,7 @@ export type IngestSummaryBody = {
   source?: string;
   backfilled_at?: string;
   actor?: string;
+  [key: string]: unknown | null;
 };
 
 export type IngestSummary200 = {
@@ -436,6 +444,7 @@ export type IngestEventsBodyDocsItem = {
   timestamp: string;
   hostname: string;
   cwd: string;
+  [key: string]: unknown | null;
 };
 
 export type IngestEventsBody = {
@@ -491,6 +500,7 @@ export type IngestChunksBodyDocsItemEntriesItem = {
   toolUseId?: string;
   isError?: boolean;
   isSidechain?: boolean;
+  [key: string]: unknown | null;
 };
 
 export type IngestChunksBodyDocsItem = {
@@ -505,6 +515,7 @@ export type IngestChunksBodyDocsItem = {
   cwd: string;
   schema_version: number;
   entries?: IngestChunksBodyDocsItemEntriesItem[];
+  [key: string]: unknown | null;
 };
 
 export type IngestChunksBody = {

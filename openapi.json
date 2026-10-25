@@ -6,33 +6,20 @@
   },
   "components": {
     "schemas": {
-      "SessionStatus": {
-        "type": "string",
-        "enum": ["ended", "running", "incomplete"]
-      },
-      "TokenUsage": {
+      "SessionsResponse": {
         "type": "object",
         "properties": {
-          "input": {
-            "type": "number"
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            }
           },
-          "output": {
-            "type": "number"
-          },
-          "cacheCreation": {
-            "type": "number"
-          },
-          "cacheRead": {
-            "type": "number"
-          },
-          "total": {
-            "type": "number"
-          },
-          "messages": {
+          "totalCount": {
             "type": "number"
           }
         },
-        "required": ["input", "output", "cacheCreation", "cacheRead", "total", "messages"]
+        "required": ["sessions", "totalCount"]
       },
       "SessionSummary": {
         "type": "object",
@@ -112,20 +99,33 @@
           "status"
         ]
       },
-      "SessionsResponse": {
+      "SessionStatus": {
+        "type": "string",
+        "enum": ["ended", "running", "incomplete"]
+      },
+      "TokenUsage": {
         "type": "object",
         "properties": {
-          "sessions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SessionSummary"
-            }
+          "input": {
+            "type": "number"
           },
-          "totalCount": {
+          "output": {
+            "type": "number"
+          },
+          "cacheCreation": {
+            "type": "number"
+          },
+          "cacheRead": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "messages": {
             "type": "number"
           }
         },
-        "required": ["sessions", "totalCount"]
+        "required": ["input", "output", "cacheCreation", "cacheRead", "total", "messages"]
       },
       "ApiError": {
         "type": "object",
@@ -136,21 +136,29 @@
         },
         "required": ["error"]
       },
-      "SpeakerRole": {
-        "type": "string",
-        "enum": ["user", "assistant", "tool_result", "system", "other"]
-      },
-      "ToolUseRef": {
+      "TranscriptResponse": {
         "type": "object",
         "properties": {
-          "name": {
-            "type": "string"
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptEntry"
+            }
           },
-          "id": {
-            "type": "string"
+          "totalCount": {
+            "type": "number"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/TranscriptSource"
+          },
+          "byteCoverage": {
+            "type": "number"
           }
         },
-        "required": ["name"]
+        "required": ["entries", "totalCount", "hasMore", "source", "byteCoverage"]
       },
       "TranscriptEntry": {
         "type": "object",
@@ -188,17 +196,33 @@
         },
         "required": ["role"]
       },
+      "SpeakerRole": {
+        "type": "string",
+        "enum": ["user", "assistant", "tool_result", "system", "other"]
+      },
+      "ToolUseRef": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      },
       "TranscriptSource": {
         "type": "string",
         "enum": ["chunks", "s3"]
       },
-      "TranscriptResponse": {
+      "SessionTurnsResponse": {
         "type": "object",
         "properties": {
-          "entries": {
+          "turns": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TranscriptEntry"
+              "$ref": "#/components/schemas/SpeakerTurn"
             }
           },
           "totalCount": {
@@ -207,14 +231,18 @@
           "hasMore": {
             "type": "boolean"
           },
-          "source": {
-            "$ref": "#/components/schemas/TranscriptSource"
-          },
-          "byteCoverage": {
-            "type": "number"
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpeakerRole"
+              },
+              {
+                "nullable": true
+              }
+            ]
           }
         },
-        "required": ["entries", "totalCount", "hasMore", "source", "byteCoverage"]
+        "required": ["turns", "totalCount", "hasMore", "role"]
       },
       "SpeakerTurn": {
         "type": "object",
@@ -245,55 +273,6 @@
         },
         "required": ["role", "timestamp", "text"]
       },
-      "SessionTurnsResponse": {
-        "type": "object",
-        "properties": {
-          "turns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SpeakerTurn"
-            }
-          },
-          "totalCount": {
-            "type": "number"
-          },
-          "hasMore": {
-            "type": "boolean"
-          },
-          "role": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SpeakerRole"
-              },
-              {
-                "nullable": true
-              }
-            ]
-          }
-        },
-        "required": ["turns", "totalCount", "hasMore", "role"]
-      },
-      "CrossSessionTurn": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "type": "string"
-          },
-          "cwd": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/SpeakerRole"
-          },
-          "timestamp": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": ["sessionId", "cwd", "role", "timestamp", "text"]
-      },
       "CrossSessionTurnsResponse": {
         "type": "object",
         "properties": {
@@ -318,6 +297,27 @@
           }
         },
         "required": ["turns", "hasMore", "role"]
+      },
+      "CrossSessionTurn": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/SpeakerRole"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["sessionId", "cwd", "role", "timestamp", "text"]
       },
       "SessionResetResult": {
         "type": "object",
@@ -348,6 +348,36 @@
           }
         },
         "required": ["ok", "id", "deleted"]
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            }
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TurnHit"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/SearchTotals"
+          },
+          "facets": {
+            "$ref": "#/components/schemas/SearchFacets"
+          }
+        },
+        "required": ["hits", "turns", "query", "enabled", "totals", "facets"]
       },
       "SearchHit": {
         "type": "object",
@@ -392,7 +422,10 @@
             }
           }
         },
-        "required": ["sessionId"]
+        "required": ["sessionId"],
+        "additionalProperties": {
+          "nullable": true
+        }
       },
       "TurnHit": {
         "type": "object",
@@ -457,48 +490,6 @@
         },
         "required": ["cwd", "model", "hostname", "source"]
       },
-      "SearchResponse": {
-        "type": "object",
-        "properties": {
-          "hits": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SearchHit"
-            }
-          },
-          "turns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TurnHit"
-            }
-          },
-          "query": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "totals": {
-            "$ref": "#/components/schemas/SearchTotals"
-          },
-          "facets": {
-            "$ref": "#/components/schemas/SearchFacets"
-          }
-        },
-        "required": ["hits", "turns", "query", "enabled", "totals", "facets"]
-      },
-      "IndexCounts": {
-        "type": "object",
-        "properties": {
-          "scanned": {
-            "type": "number"
-          },
-          "indexed": {
-            "type": "number"
-          }
-        },
-        "required": ["scanned", "indexed"]
-      },
       "ReindexResult": {
         "type": "object",
         "properties": {
@@ -519,6 +510,42 @@
           }
         },
         "required": ["enabled", "sessions", "turns", "failures"]
+      },
+      "IndexCounts": {
+        "type": "object",
+        "properties": {
+          "scanned": {
+            "type": "number"
+          },
+          "indexed": {
+            "type": "number"
+          }
+        },
+        "required": ["scanned", "indexed"]
+      },
+      "MigrationStatus": {
+        "type": "object",
+        "properties": {
+          "currentVersion": {
+            "type": "number"
+          },
+          "latestVersion": {
+            "type": "number"
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationStep"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppliedMigration"
+            }
+          }
+        },
+        "required": ["currentVersion", "latestVersion", "pending", "history"]
       },
       "MigrationStep": {
         "type": "object",
@@ -546,34 +573,6 @@
           }
         },
         "required": ["id", "name", "at"]
-      },
-      "MigrationStatus": {
-        "type": "object",
-        "properties": {
-          "currentVersion": {
-            "type": "number"
-          },
-          "latestVersion": {
-            "type": "number"
-          },
-          "pending": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MigrationStep"
-            }
-          },
-          "history": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppliedMigration"
-            }
-          }
-        },
-        "required": ["currentVersion", "latestVersion", "pending", "history"]
-      },
-      "MigrationDirection": {
-        "type": "string",
-        "enum": ["up", "down"]
       },
       "MigrationRunResult": {
         "type": "object",
@@ -604,6 +603,10 @@
           }
         },
         "required": ["direction", "fromVersion", "toVersion", "applied", "dryRun", "log"]
+      },
+      "MigrationDirection": {
+        "type": "string",
+        "enum": ["up", "down"]
       }
     },
     "parameters": {}
@@ -622,6 +625,7 @@
               "description": "Page size (sessions)."
             },
             "required": false,
+            "description": "Page size (sessions).",
             "name": "limit",
             "in": "query"
           },
@@ -634,6 +638,7 @@
               "description": "Sessions to skip before the page starts."
             },
             "required": false,
+            "description": "Sessions to skip before the page starts.",
             "name": "skip",
             "in": "query"
           },
@@ -643,6 +648,7 @@
               "description": "ISO instant. Keep sessions that end at or after it (overlap, not containment)."
             },
             "required": false,
+            "description": "ISO instant. Keep sessions that end at or after it (overlap, not containment).",
             "name": "from",
             "in": "query"
           },
@@ -652,6 +658,7 @@
               "description": "ISO instant. Keep sessions that started at or before it (overlap)."
             },
             "required": false,
+            "description": "ISO instant. Keep sessions that started at or before it (overlap).",
             "name": "to",
             "in": "query"
           },
@@ -661,6 +668,7 @@
               "description": "Exact project directory; a trailing slash is ignored."
             },
             "required": false,
+            "description": "Exact project directory; a trailing slash is ignored.",
             "name": "cwd",
             "in": "query"
           },
@@ -670,6 +678,7 @@
               "description": "Exact hostname."
             },
             "required": false,
+            "description": "Exact hostname.",
             "name": "hostname",
             "in": "query"
           },
@@ -679,6 +688,7 @@
               "description": "Exact model id. Sessions with no recorded model never match."
             },
             "required": false,
+            "description": "Exact model id. Sessions with no recorded model never match.",
             "name": "model",
             "in": "query"
           },
@@ -688,6 +698,7 @@
               "description": "Exact provenance (`source`)."
             },
             "required": false,
+            "description": "Exact provenance (`source`).",
             "name": "source",
             "in": "query"
           }
@@ -794,6 +805,7 @@
               "description": "Page size (transcript entries)."
             },
             "required": false,
+            "description": "Page size (transcript entries).",
             "name": "limit",
             "in": "query"
           },
@@ -806,6 +818,7 @@
               "description": "Entries to skip, in transcript order."
             },
             "required": false,
+            "description": "Entries to skip, in transcript order.",
             "name": "offset",
             "in": "query"
           }
@@ -878,6 +891,7 @@
               ]
             },
             "required": false,
+            "description": "One side of the conversation; omit for all turns.",
             "name": "role",
             "in": "query"
           },
@@ -890,6 +904,7 @@
               "description": "Page size (turns)."
             },
             "required": false,
+            "description": "Page size (turns).",
             "name": "limit",
             "in": "query"
           },
@@ -902,6 +917,7 @@
               "description": "Turns to skip, in role-then-transcript order."
             },
             "required": false,
+            "description": "Turns to skip, in role-then-transcript order.",
             "name": "offset",
             "in": "query"
           }
@@ -956,6 +972,7 @@
               ]
             },
             "required": false,
+            "description": "Speaker to collect. `from`/`to` only apply when it is set.",
             "name": "role",
             "in": "query"
           },
@@ -965,6 +982,7 @@
               "description": "ISO timestamp lower bound."
             },
             "required": false,
+            "description": "ISO timestamp lower bound.",
             "name": "from",
             "in": "query"
           },
@@ -974,6 +992,7 @@
               "description": "ISO timestamp upper bound."
             },
             "required": false,
+            "description": "ISO timestamp upper bound.",
             "name": "to",
             "in": "query"
           },
@@ -986,6 +1005,7 @@
               "description": "Page size (turns)."
             },
             "required": false,
+            "description": "Page size (turns).",
             "name": "limit",
             "in": "query"
           },
@@ -998,6 +1018,7 @@
               "description": "Turns to skip, in time order."
             },
             "required": false,
+            "description": "Turns to skip, in time order.",
             "name": "skip",
             "in": "query"
           }
@@ -1149,7 +1170,10 @@
                   "tool_counts",
                   "transcript_bytes",
                   "token_usage"
-                ]
+                ],
+                "additionalProperties": {
+                  "nullable": true
+                }
               }
             }
           }
@@ -1253,7 +1277,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["type", "event", "session_id", "timestamp", "hostname", "cwd"]
+                      "required": ["type", "event", "session_id", "timestamp", "hostname", "cwd"],
+                      "additionalProperties": {
+                        "nullable": true
+                      }
                     }
                   }
                 },
@@ -1412,7 +1439,10 @@
                                 "type": "boolean"
                               }
                             },
-                            "required": ["role"]
+                            "required": ["role"],
+                            "additionalProperties": {
+                              "nullable": true
+                            }
                           }
                         }
                       },
@@ -1427,7 +1457,10 @@
                         "hostname",
                         "cwd",
                         "schema_version"
-                      ]
+                      ],
+                      "additionalProperties": {
+                        "nullable": true
+                      }
                     }
                   }
                 },
@@ -1657,6 +1690,7 @@
               "description": "Query text. Empty or omitted returns no hits."
             },
             "required": false,
+            "description": "Query text. Empty or omitted returns no hits.",
             "name": "q",
             "in": "query"
           },
@@ -1669,6 +1703,7 @@
               "description": "Page size (hits per index)."
             },
             "required": false,
+            "description": "Page size (hits per index).",
             "name": "limit",
             "in": "query"
           },
@@ -1681,6 +1716,7 @@
               "description": "Hits to skip."
             },
             "required": false,
+            "description": "Hits to skip.",
             "name": "offset",
             "in": "query"
           },
@@ -1690,6 +1726,7 @@
               "description": "Exact project directory. Applies to sessions and turns."
             },
             "required": false,
+            "description": "Exact project directory. Applies to sessions and turns.",
             "name": "cwd",
             "in": "query"
           },
@@ -1699,6 +1736,7 @@
               "description": "Exact model id (sessions only)."
             },
             "required": false,
+            "description": "Exact model id (sessions only).",
             "name": "model",
             "in": "query"
           },
@@ -1708,6 +1746,7 @@
               "description": "Exact hostname (sessions only)."
             },
             "required": false,
+            "description": "Exact hostname (sessions only).",
             "name": "hostname",
             "in": "query"
           },
@@ -1717,6 +1756,7 @@
               "description": "Exact provenance (sessions only)."
             },
             "required": false,
+            "description": "Exact provenance (sessions only).",
             "name": "source",
             "in": "query"
           }
