@@ -202,14 +202,21 @@ export class WebapiSink implements SessionSink {
     const res = await resetSession(sessionId);
     return res.deleted;
   }
+  // The ingest bodies (and a chunk's entries) are passthrough schemas, so their generated
+  // types carry an index signature. `SummaryDoc`, `ChunkDoc` and `ChunkEntry` are closed
+  // interfaces, which TypeScript won't treat as indexable; a spread copy is an object
+  // literal type, which it will.
   async putSummary(doc: SummaryDoc): Promise<void> {
-    await ingestSummary(doc);
+    await ingestSummary({ ...doc });
   }
   async putEvents(docs: EventDoc[]): Promise<void> {
     if (docs.length) await ingestEvents({ docs });
   }
   async putChunks(docs: ChunkDoc[]): Promise<void> {
-    if (docs.length) await ingestChunks({ docs });
+    if (!docs.length) return;
+    await ingestChunks({
+      docs: docs.map((d) => ({ ...d, entries: d.entries?.map((e) => ({ ...e })) })),
+    });
   }
   async putTranscript(sessionId: string, bytes: Uint8Array): Promise<void> {
     await putRaw(

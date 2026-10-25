@@ -14,7 +14,7 @@
 import type { Hook } from "@hono/zod-openapi";
 import type { ZodError, ZodIssue } from "zod";
 
-/** "limit: Expected number, received nan" — the path, when there is one, then why. */
+/** "limit: Invalid input: expected number, received NaN" — the path, when there is one, then why. */
 function describe(issue: ZodIssue): string {
   const path = issue.path.join(".");
   return path ? `${path}: ${issue.message}` : issue.message;
