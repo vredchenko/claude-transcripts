@@ -6,18 +6,31 @@
  * order, since the day grouping *is* the ordering; the calendar fetches the month's
  * range. All URL state is linkable and back-button-navigable.
  */
-import { Box, Chip, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Chip,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from "@mui/material";
 import { useNavigate, useSearch as useRouterSearch } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { getListSessionsQueryKey, useListSessions } from "../api/generated";
 import { SessionsCalendar } from "../components/sessions/SessionsCalendar";
-import { SessionsList, SessionsListHeader } from "../components/sessions/SessionsList";
+import {
+  type RowSelection,
+  SessionsList,
+  SessionsListHeader,
+} from "../components/sessions/SessionsList";
 import { EmptyState, ErrorState, Loading } from "../components/states";
-import { formatCount } from "../format";
+import { formatCount, formatDuration } from "../format";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useInfiniteSessionList } from "../hooks/useInfiniteSessionList";
 import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
-import { dayKey, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
+import { dayKey, dayRollup, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
 
 /**
  * How many sessions the calendar will draw for one month. Far above any plausible
@@ -134,6 +147,28 @@ export function SessionsListPage() {
     view === "list" && listData.hasNextPage === true && !listData.isFetchingNextPage,
   );
 
+  // ── Row selection ───────────────────────────────────────────────────────────
+  //
+  // Held here rather than in the URL: it's a scratch set for "what do these add up
+  // to", not something to link to. Ids, not rows, so it survives the next page
+  // arriving; totals are taken over the loaded rows it names, so a selected session
+  // that a filter has since hidden drops out of the sum and the count alike.
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const selection: RowSelection = useMemo(
+    () => ({
+      selected: selectedIds,
+      onToggle: (ids, on) =>
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of ids) on ? next.add(id) : next.delete(id);
+          return next;
+        }),
+    }),
+    [selectedIds],
+  );
+  const selectedSessions = listData.sessions.filter((s) => selectedIds.has(s.sessionId));
+  const selectedRollup = dayRollup(selectedSessions);
+
   /** Replace part of the query string, leaving the rest alone. */
   const setSearch = useCallback(
     (next: Partial<SessionsRouteSearch>) =>
@@ -237,8 +272,43 @@ export function SessionsListPage() {
         </EmptyState>
       ) : (
         <>
-          <SessionsListHeader />
-          <SessionsList dayGroups={listData.dayGroups} />
+          {selectedSessions.length > 0 && (
+            <Paper
+              variant="outlined"
+              data-testid="selection-bar"
+              sx={{
+                position: "sticky",
+                top: 0,
+                zIndex: 2,
+                mb: 1,
+                px: 1.5,
+                py: 0.75,
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 1.5,
+                borderColor: "primary.main",
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {formatCount(selectedSessions.length)} selected
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {formatDuration(selectedRollup.activeMs)} active ·{" "}
+                {formatCount(selectedRollup.tokens)} tokens ·{" "}
+                {formatCount(selectedSessions.reduce((n, s) => n + s.promptCount, 0))} turns
+              </Typography>
+              <Box sx={{ flex: 1 }} />
+              <Button size="small" onClick={() => setSelectedIds(new Set())}>
+                Clear selection
+              </Button>
+            </Paper>
+          )}
+          <SessionsListHeader
+            sessionIds={listData.sessions.map((s) => s.sessionId)}
+            selection={selection}
+          />
+          <SessionsList dayGroups={listData.dayGroups} selection={selection} />
 
           {/* Sentinel for infinite scroll */}
           <div ref={sentinelRef} style={{ height: 1 }} />
