@@ -5,7 +5,7 @@
  * tokens+turns | status+when | id+copy+data links
  */
 import { Box, Chip, Stack, Tooltip, Typography, useTheme } from "@mui/material";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { SessionSummary } from "../../api/generated";
 import {
   durationSplit,
@@ -28,7 +28,7 @@ import { StatusChip } from "../StatusChip";
  * which says *where* the project ran — sits in the project cell instead of its own.
  */
 const GRID_TEMPLATE =
-  "52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 112px 128px";
+  "52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 120px 128px";
 
 /** How many tools the mix names before collapsing the rest into "+N". */
 const TOOL_MIX_SHOWN = 3;
@@ -68,6 +68,33 @@ function ToolMix({ toolCounts }: { toolCounts: Record<string, number> }) {
         />
       )}
     </Stack>
+  );
+}
+
+/**
+ * Failed tool calls, as a link to the session. A real link (not just the row's click
+ * handler) so it can be opened in a new tab and is reachable by keyboard.
+ */
+function ErrorCount({ sessionId, count }: { sessionId: string; count: number }) {
+  return (
+    <Tooltip
+      title={`${formatCount(count)} failed tool call${count === 1 ? "" : "s"}: open the session`}
+    >
+      <Link
+        to="/sessions/$id"
+        params={{ id: sessionId }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ textDecoration: "none", marginLeft: 14 }}
+      >
+        <Chip
+          size="small"
+          color="error"
+          variant="outlined"
+          label={`${formatCount(count)} err`}
+          sx={{ height: 18, fontSize: 10, cursor: "pointer" }}
+        />
+      </Link>
+    </Tooltip>
   );
 }
 
@@ -192,18 +219,14 @@ function SessionRow({ s }: { s: SessionSummary }) {
           {formatCount(s.promptCount)} turn{s.promptCount === 1 ? "" : "s"} ·{" "}
           {formatCount(totalTools(s.toolCounts))} tools
         </Typography>
-        {s.errorCount > 0 && (
-          <Chip
-            size="small"
-            color="error"
-            label={`${s.errorCount} err`}
-            sx={{ ml: 0.5, height: 18, fontSize: 10 }}
-          />
-        )}
       </Box>
 
-      {/* Status + when */}
-      <StatusChip status={s.status} at={statusTime(s)} reference={s.startTimestamp} />
+      {/* Status + when, and how many tool calls failed. The error count used to sit
+          under the token figures, where it read as a property of the tokens. */}
+      <Stack alignItems="flex-start" spacing={0.25} sx={{ minWidth: 0 }}>
+        <StatusChip status={s.status} at={statusTime(s)} reference={s.startTimestamp} />
+        {s.errorCount > 0 && <ErrorCount sessionId={s.sessionId} count={s.errorCount} />}
+      </Stack>
 
       {/* Session id + copy + data links */}
       <Stack direction="row" alignItems="center" spacing={0.25} sx={{ justifySelf: "end" }}>
