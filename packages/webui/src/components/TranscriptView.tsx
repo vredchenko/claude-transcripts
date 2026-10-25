@@ -1,12 +1,12 @@
 import { matchesQuery } from "@claude-transcripts/shared";
-import { Box, Button, Stack, Typography } from "@mui/material";
+import { Box, Button, FormControlLabel, Stack, Switch, Typography } from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUserSettings } from "../api/blueprint";
 import type { TranscriptEntry } from "../api/generated";
 import { formatCount } from "../format";
 import { useInfiniteTranscript } from "../hooks/useInfiniteTranscript";
 import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
-import { buildTimeline, countTurns } from "../transcript-timeline";
+import { buildTimeline, countTurns, isInternal } from "../transcript-timeline";
 import { EmptyState, ErrorState, Loading } from "./states";
 import { TranscriptEntryRow } from "./TranscriptEntryRow";
 import { TranscriptTimeline } from "./TranscriptTimeline";
@@ -64,6 +64,8 @@ export function TranscriptView({
   const { transcriptAutoLoadMax } = useUserSettings();
   /** Set by "Load the rest" — lifts the auto-load ceiling for this mount only. */
   const [unbounded, setUnbounded] = useState(false);
+  /** Show Claude Code's bookkeeping lines in the timeline's folds. The raw view always does. */
+  const [showInternal, setShowInternal] = useState(false);
 
   const {
     entries,
@@ -108,7 +110,11 @@ export function TranscriptView({
     return entries.findIndex((entry) => entryMatches(entry, query));
   }, [entries, query]);
 
-  const nodes = useMemo(() => buildTimeline(entries), [entries]);
+  const nodes = useMemo(
+    () => buildTimeline(entries, { hideInternal: !showInternal }),
+    [entries, showInternal],
+  );
+  const internalCount = useMemo(() => entries.filter(isInternal).length, [entries]);
 
   const loadRest = useCallback(() => {
     setUnbounded(true);
@@ -136,32 +142,54 @@ export function TranscriptView({
         : " · no match in this transcript";
 
   const turns = countTurns(nodes);
-  const folded = entries.length - turns;
+  const hiddenInternal = showInternal ? 0 : internalCount;
+  const folded = entries.length - turns - hiddenInternal;
   const remaining = Math.max(totalCount - entries.length, 0);
   /** Stopped short of the end because the ceiling was reached, not because we're done. */
   const capped = hasNextPage === true && !mayAutoLoad && !isFetchingNextPage;
 
   return (
     <Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        {mode === "timeline"
-          ? `${formatCount(turns)} turn${turns === 1 ? "" : "s"} · ${formatCount(folded)} line${
-              folded === 1 ? "" : "s"
-            } folded`
-          : `Showing ${formatCount(entries.length)} of ${formatCount(totalCount)} entries`}
-        {/* Which store answered: `chunks` means this is readable mid-session and will
-              keep growing; `s3` means the session's finalised transcript. */}
-        {source === "chunks" ? " · live from chunks" : " · from stored transcript"}
-        {query && firstMatch === -1 && searchStatus}
-      </Typography>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 1, flexWrap: "wrap", gap: 1 }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          {mode === "timeline"
+            ? `${formatCount(turns)} turn${turns === 1 ? "" : "s"} · ${formatCount(folded)} line${
+                folded === 1 ? "" : "s"
+              } folded${hiddenInternal > 0 ? ` · ${formatCount(hiddenInternal)} internal hidden` : ""}`
+            : `Showing ${formatCount(entries.length)} of ${formatCount(totalCount)} entries`}
+          {/* Which store answered: `chunks` means this is readable mid-session and will
+                keep growing; `s3` means the session's finalised transcript. */}
+          {source === "chunks" ? " · live from chunks" : " · from stored transcript"}
+          {query && firstMatch === -1 && searchStatus}
+        </Typography>
+        {mode === "timeline" && internalCount > 0 && (
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={showInternal}
+                onChange={(e) => setShowInternal(e.target.checked)}
+              />
+            }
+            label={<Typography variant="body2">Internal events</Typography>}
+            sx={{ mr: 0 }}
+          />
+        )}
+      </Stack>
 
       {/* Every line folded away and none left to load: a session that was opened
           and closed without a prompt. Say so, rather than show a lone fold. */}
       {mode === "timeline" && turns === 0 && !hasNextPage && (
         <EmptyState title="No conversation recorded">
-          This session stored {formatCount(folded)} system record{folded === 1 ? "" : "s"} but no
-          prompts or replies — usually one that was opened and closed without a prompt. They are
-          folded below, or listed under Raw.
+          This session stored {formatCount(entries.length)} system record
+          {entries.length === 1 ? "" : "s"} but no prompts or replies — usually one that was opened
+          and closed without a prompt. They are listed under Raw
+          {hiddenInternal > 0 ? ", or folded below with internal events on" : ", or folded below"}.
         </EmptyState>
       )}
 

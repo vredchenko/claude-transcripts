@@ -143,7 +143,9 @@ test.describe("session detail", () => {
     await detail.goto(NO_TURNS_SESSION.sessionId);
     await expect(page.getByText("No conversation recorded")).toBeVisible();
     await expect(page.getByText(/2 system records/)).toBeVisible();
-    // The records themselves stay reachable.
+    // The records are internal, so hidden by default — and one switch away.
+    await expect(detail.folds).toHaveCount(0);
+    await page.getByRole("checkbox", { name: "Internal events" }).check();
     await expect(detail.folds).toHaveCount(1);
   });
 
