@@ -19,6 +19,27 @@ export function formatCount(n: number | undefined): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+/**
+ * A large count at a glance: 950, 12.4K, 34.7M, 1.2B. One decimal below 100 of a unit,
+ * none above, so the column stays narrow; pair it with the exact {@link formatCount}
+ * in a tooltip wherever the precise figure matters.
+ */
+export function formatCompact(n: number | undefined): string {
+  if (n === undefined || n === null) return "—";
+  const units: [number, string][] = [
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [size, suffix] of units) {
+    if (Math.abs(n) >= size) {
+      const value = n / size;
+      return `${Math.abs(value) < 100 ? Number(value.toFixed(1)) : Math.round(value)}${suffix}`;
+    }
+  }
+  return String(n);
+}
+
 /** ISO timestamp → "YYYY-MM-DD HH:MM" in local time; falls back to the raw string. */
 export function formatTimestamp(iso: string | undefined): string {
   if (!iso) return "—";
