@@ -1,10 +1,10 @@
 /**
- * Sessions as an 8-column CSS grid with day grouping and infinite scroll.
+ * Sessions as a 9-column CSS grid with day grouping and infinite scroll.
  *
- * Columns: time | project+host+cwd | runtime+active bar | model | tool mix |
+ * Columns: select | time | project+host+cwd | runtime+active bar | model | tool mix |
  * tokens+turns | status+when | id+copy+data links
  */
-import { Box, Chip, Stack, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Checkbox, Chip, Stack, Tooltip, Typography, useTheme } from "@mui/material";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { SessionSummary } from "../../api/generated";
 import {
@@ -29,7 +29,7 @@ import { StatusChip } from "../StatusChip";
  * which says *where* the project ran — sits in the project cell instead of its own.
  */
 const GRID_TEMPLATE =
-  "52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 120px 128px";
+  "28px 52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 120px 128px";
 
 /** How many tools the mix names before collapsing the rest into "+N". */
 const TOOL_MIX_SHOWN = 3;
@@ -99,6 +99,43 @@ function ErrorCount({ sessionId, count }: { sessionId: string; count: number }) 
   );
 }
 
+/**
+ * Which rows are selected, and how to change that. Toggling takes a list so a day
+ * header or the column header can flip all of its rows at once.
+ */
+export interface RowSelection {
+  selected: ReadonlySet<string>;
+  onToggle: (sessionIds: string[], on: boolean) => void;
+}
+
+/**
+ * A checkbox for one row or a set of them: checked when all are selected,
+ * indeterminate when some are. Clicks stop here — the row underneath navigates.
+ */
+function SelectBox({
+  ids,
+  selection,
+  label,
+}: {
+  ids: string[];
+  selection: RowSelection;
+  label: string;
+}) {
+  const count = ids.filter((id) => selection.selected.has(id)).length;
+  const all = ids.length > 0 && count === ids.length;
+  return (
+    <Checkbox
+      size="small"
+      checked={all}
+      indeterminate={count > 0 && !all}
+      onClick={(e) => e.stopPropagation()}
+      onChange={() => selection.onToggle(ids, !all)}
+      slotProps={{ input: { "aria-label": label } }}
+      sx={{ p: 0.25 }}
+    />
+  );
+}
+
 /** Active/idle progress bar. */
 function ActiveBar({ durationMs, activeMs }: { durationMs?: number; activeMs?: number }) {
   const split = durationSplit(durationMs, activeMs);
@@ -114,12 +151,14 @@ function ActiveBar({ durationMs, activeMs }: { durationMs?: number; activeMs?: n
   );
 }
 
-function SessionRow({ s }: { s: SessionSummary }) {
+function SessionRow({ s, selection }: { s: SessionSummary; selection: RowSelection }) {
   const theme = useTheme();
   const navigate = useNavigate();
+  const isSelected = selection.selected.has(s.sessionId);
   return (
     <Box
       data-testid="session-row"
+      aria-selected={isSelected}
       onClick={() => navigate({ to: "/sessions/$id", params: { id: s.sessionId } })}
       sx={{
         display: { xs: "flex", md: "grid" },
@@ -132,6 +171,7 @@ function SessionRow({ s }: { s: SessionSummary }) {
         // page, as wide as the path, and the ellipsis never engaged. Capping each
         // cell at the row's width lets the `nowrap` lines truncate as intended.
         "& > *": { maxWidth: "100%" },
+        position: "relative",
         px: 1.5,
         py: 1,
         cursor: "pointer",
@@ -139,9 +179,19 @@ function SessionRow({ s }: { s: SessionSummary }) {
         color: "text.primary",
         borderBottom: 1,
         borderColor: "divider",
-        "&:hover": { bgcolor: "action.hover" },
+        bgcolor: isSelected ? "action.selected" : undefined,
+        "&:hover": { bgcolor: isSelected ? "action.selected" : "action.hover" },
       }}
     >
+      {/* Select — its own column on the grid, the row's top-right corner when stacked */}
+      <Box sx={{ position: { xs: "absolute", md: "static" }, top: 6, right: 6 }}>
+        <SelectBox
+          ids={[s.sessionId]}
+          selection={selection}
+          label={`Select session ${s.sessionId.slice(0, 8)}`}
+        />
+      </Box>
+
       {/* Time */}
       <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
         {timeOfDay(s.startTimestamp ?? s.timestamp)}
@@ -247,7 +297,13 @@ function SessionRow({ s }: { s: SessionSummary }) {
 }
 
 /** Day group header with rollup stats. */
-function DayHeader({ group }: { group: DayGroup<SessionSummary> }) {
+function DayHeader({
+  group,
+  selection,
+}: {
+  group: DayGroup<SessionSummary>;
+  selection: RowSelection;
+}) {
   const date = new Date(group.dayStart);
   const activeMs = group.items.reduce((sum, s) => sum + (s.activeMs ?? 0), 0);
   const tokens = group.items.reduce((sum, s) => sum + (s.tokenUsage?.total ?? 0), 0);
@@ -256,9 +312,14 @@ function DayHeader({ group }: { group: DayGroup<SessionSummary> }) {
     <Stack
       direction="row"
       spacing={1}
-      alignItems="baseline"
+      alignItems="center"
       sx={{ px: 1.5, py: 1, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}
     >
+      <SelectBox
+        ids={group.items.map((s) => s.sessionId)}
+        selection={selection}
+        label={`Select every session on ${date.toDateString()}`}
+      />
       <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
         {date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
       </Typography>
@@ -285,12 +346,20 @@ function DayHeader({ group }: { group: DayGroup<SessionSummary> }) {
  * server order. Rather than keep a control that lies, the list has one order —
  * newest first — and the headers say what the columns are.
  */
-export function SessionsListHeader() {
+export function SessionsListHeader({
+  sessionIds,
+  selection,
+}: {
+  /** Every loaded row, which the header checkbox selects or clears in one go. */
+  sessionIds: string[];
+  selection: RowSelection;
+}) {
   return (
     <Box
       sx={{
         display: { xs: "none", md: "grid" },
         gridTemplateColumns: GRID_TEMPLATE,
+        alignItems: "center",
         gap: 1.5,
         px: 1.5,
         py: 0.75,
@@ -302,6 +371,7 @@ export function SessionsListHeader() {
         zIndex: 1,
       }}
     >
+      <SelectBox ids={sessionIds} selection={selection} label="Select every loaded session" />
       <HeaderLabel>Time</HeaderLabel>
       <HeaderLabel>Project · Host</HeaderLabel>
       <HeaderLabel>Runtime</HeaderLabel>
@@ -322,7 +392,13 @@ function HeaderLabel({ children, align }: { children: React.ReactNode; align?: "
   );
 }
 
-export function SessionsList({ dayGroups }: { dayGroups: DayGroup<SessionSummary>[] }) {
+export function SessionsList({
+  dayGroups,
+  selection,
+}: {
+  dayGroups: DayGroup<SessionSummary>[];
+  selection: RowSelection;
+}) {
   return (
     <Box
       data-testid="sessions-list"
@@ -330,9 +406,9 @@ export function SessionsList({ dayGroups }: { dayGroups: DayGroup<SessionSummary
     >
       {dayGroups.map((group) => (
         <Box key={group.key}>
-          <DayHeader group={group} />
+          <DayHeader group={group} selection={selection} />
           {group.items.map((s) => (
-            <SessionRow key={s.sessionId} s={s} />
+            <SessionRow key={s.sessionId} s={s} selection={selection} />
           ))}
         </Box>
       ))}

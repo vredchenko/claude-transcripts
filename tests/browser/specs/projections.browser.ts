@@ -202,3 +202,29 @@ test("a running session is drawn up to now, not to the end of time", async ({ pa
   expect(new Date(NOW).getUTCFullYear()).toBe(2026);
   expect(MULTI_DAY_SESSION.sessionId).toBeTruthy();
 });
+
+test.describe("selecting rows", () => {
+  test("a checkbox selects without opening the session, and the bar sums the selection", async ({
+    page,
+  }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto();
+
+    const first = list.rows.first();
+    await first.getByRole("checkbox").check();
+    await expect(page).not.toHaveURL(/\/sessions\//);
+    await expect(first).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("selection-bar")).toContainText("1 selected");
+
+    // The column header — and its select-all — is a wide-screen thing.
+    if (!test.info().project.name.endsWith("-mobile")) {
+      await page.getByRole("checkbox", { name: "Select every loaded session" }).check();
+      await expect(page.getByTestId("selection-bar")).toContainText(`${SESSIONS.length} selected`);
+    }
+
+    await page.getByRole("button", { name: "Clear selection" }).click();
+    await expect(page.getByTestId("selection-bar")).toHaveCount(0);
+  });
+});
