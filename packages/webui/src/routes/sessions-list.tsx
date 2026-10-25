@@ -14,6 +14,7 @@ import { SessionsCalendar } from "../components/sessions/SessionsCalendar";
 import { SessionsList, SessionsListHeader } from "../components/sessions/SessionsList";
 import { EmptyState, ErrorState, Loading } from "../components/states";
 import { formatCount } from "../format";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useInfiniteSessionList } from "../hooks/useInfiniteSessionList";
 import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
 import { dayKey, monthKey, monthWeeks, parseDay, parseMonth } from "../sessions-view";
@@ -68,6 +69,11 @@ export function SessionsListPage() {
 
   const monthStart = parseMonth(routeSearch.month, now);
   const daySelected = parseDay(routeSearch.day);
+  useDocumentTitle(
+    view === "calendar"
+      ? `Calendar · ${new Date(monthStart).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`
+      : "Sessions",
+  );
 
   // ── Filters ─────────────────────────────────────────────────────────────────
   //

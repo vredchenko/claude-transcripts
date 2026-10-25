@@ -26,6 +26,7 @@ import { getSearchQueryKey, type TurnHit, useSearch } from "../api/generated";
 import { MarkedSnippet } from "../components/HighlightedText";
 import { EmptyState, Loading } from "../components/states";
 import { formatCount, formatTimestamp, projectName, roleLabel } from "../format";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
   type FilterKey,
   PAGE_SIZE,
@@ -59,6 +60,7 @@ export function SearchResultsPage() {
   const theme = useTheme();
 
   const q = (routeSearch.q ?? "").trim();
+  useDocumentTitle(q ? `"${q}" · Search` : "Search");
   const page = pageNumber(routeSearch);
   const params = toSearchParams(routeSearch, PAGE_SIZE);
 

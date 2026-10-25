@@ -37,6 +37,7 @@ import {
   statusTime,
   totalTools,
 } from "../format";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { sessionLinks } from "../nav-menus";
 import { MONO } from "../theme";
 
@@ -83,6 +84,13 @@ export function SessionDetailPage() {
   // A 404 is an answer about the id, not a failure to report: say which session
   // isn't here and offer the way back, rather than the request line that asked.
   const notFound = isError && error instanceof ApiRequestError && error.status === 404;
+  useDocumentTitle(
+    session
+      ? `${projectName(session.cwd)} ${session.sessionId.slice(0, 8)}`
+      : notFound
+        ? "Session not found"
+        : undefined,
+  );
 
   return (
     <Box>
