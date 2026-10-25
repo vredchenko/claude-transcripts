@@ -173,7 +173,7 @@ function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    color: dark ? "#e6edf3" : "#1f2328",
+                    color: "text.primary",
                     "&:hover": { filter: "brightness(1.15)" },
                   }}
                 >
