@@ -88,6 +88,17 @@ const announceRecording: Handler = async (ctx) => {
 };
 
 /**
+ * Say whether the running Claude Code matches the hook spec this build was made for —
+ * one line when it does, a short drift summary when it doesn't (`hook/compat.ts`).
+ * Skipped after a compaction: same session, same binary, already said.
+ */
+const checkHookCompat: Handler = async (ctx) => {
+  if (ctx.payload?.source === "compact") return;
+  const lines = ctx.hookCompat();
+  if (lines.length) ctx.output.notices = [...(ctx.output.notices ?? []), ...lines];
+};
+
+/**
  * Prime the session with the recall policy and how much history this cwd has, so
  * Claude knows there is something here to find — not merely that history is a concept.
  * Omitted entirely when the policy is off, the cwd is excluded, the corpus for it is
@@ -308,6 +319,7 @@ const uploadBlobs: Handler = async (ctx) => {
 export const HANDLERS: Record<string, Handler> = {
   "seed-session-start": seedSessionStart,
   "announce-recording": announceRecording,
+  "check-hook-compat": checkHookCompat,
   "inject-recall-policy": injectRecallPolicy,
   "update-counts": updateCounts,
   "write-event-marker": writeEventMarker,

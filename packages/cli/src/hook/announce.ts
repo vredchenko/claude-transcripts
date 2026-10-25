@@ -46,9 +46,11 @@ export const NOT_RECORDING_BANNER =
 
 /** The Claude Code hook-output envelope for SessionStart, or null if there is nothing to say. */
 export function sessionStartEnvelope(out: SessionStartOutput): object | null {
-  if (!out.systemMessage && !out.additionalContext) return null;
+  // One banner: the recording line first, then any notices under it.
+  const systemMessage = [out.systemMessage, ...(out.notices ?? [])].filter(Boolean).join("\n");
+  if (!systemMessage && !out.additionalContext) return null;
   return {
-    ...(out.systemMessage ? { systemMessage: out.systemMessage } : {}),
+    ...(systemMessage ? { systemMessage } : {}),
     ...(out.additionalContext
       ? {
           hookSpecificOutput: {

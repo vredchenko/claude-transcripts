@@ -11,7 +11,11 @@ import { BINDINGS } from "@claude-transcripts/shared";
 import { hookAsync } from "./index";
 
 /** Actions whose whole point is to write into the session — async discards their output. */
-const EMITS_INTO_SESSION = new Set(["announce-recording", "inject-recall-policy"]);
+const EMITS_INTO_SESSION = new Set([
+  "announce-recording",
+  "check-hook-compat",
+  "inject-recall-policy",
+]);
 /** Actions that must finish before the process can go away. */
 const MUST_COMPLETE = new Set(["write-summary", "upload-blobs"]);
 

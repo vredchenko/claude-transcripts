@@ -8,6 +8,7 @@
  * register them here.
  */
 import { runBackfill } from "./backfill";
+import { runCompat } from "./compat";
 import { runCompletions } from "./completions";
 import { runDoctor } from "./doctor";
 import { runExport } from "./export";
@@ -41,6 +42,7 @@ export const COMMANDS: Record<string, CommandRunner> = {
   migrate: runMigrate,
   reindex: runReindex,
   doctor: runDoctor,
+  compat: runCompat,
   sessions: runSessions,
   search: runSearch,
   turns: runTurns,

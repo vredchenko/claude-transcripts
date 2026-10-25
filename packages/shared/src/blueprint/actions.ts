@@ -38,6 +38,11 @@ export const ACTIONS: ActionDef[] = [
     implemented: true,
   },
   {
+    key: "check-hook-compat",
+    summary: "Check the running Claude Code's hook spec against ours and report any drift",
+    implemented: true,
+  },
+  {
     key: "inject-recall-policy",
     summary: "Prime the session with the recall policy + how much history this cwd has",
     implemented: true,
@@ -70,6 +75,7 @@ export const BINDINGS: HookActionBinding[] = [
       "seed-session-start",
       "write-event-marker",
       "announce-recording",
+      "check-hook-compat",
       "inject-recall-policy",
     ],
   },

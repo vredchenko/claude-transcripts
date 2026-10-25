@@ -313,6 +313,27 @@ export const CLI_SPEC: CliSpec = {
       examples: ["doctor", "doctor --keep"],
     },
     {
+      name: "compat",
+      group: "admin",
+      summary: "Check Claude Code's hook spec against this build's (exit 1 on drift)",
+      args: [
+        {
+          name: "action",
+          choices: ["check", "fetch"],
+          default: "check",
+          description:
+            "`check` reports drift; `fetch` caches a version's spec from npm (SessionStart " +
+            "starts it detached when it meets a version it doesn't know)",
+        },
+        {
+          name: "--cc-version",
+          type: "string",
+          description: "the Claude Code version to check (default: the installed one)",
+        },
+      ],
+      examples: ["compat", "compat --cc-version 2.1.300 --json"],
+    },
+    {
       name: "hook",
       group: "admin",
       summary: "The Claude Code hook, and its registration",

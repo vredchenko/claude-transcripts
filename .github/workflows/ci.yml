@@ -36,8 +36,7 @@ jobs:
       # everything and failing on a diff is what makes the claim checkable.
       #
       # `gen:clients` is deliberately separate from `gen:all` in package.json, so both
-      # run. `compatibility.json` stamps `generatedAt` but is gitignored, so it can't
-      # trip this.
+      # run. `gen:compat` reads one pinned npm release, so it is reproducible too.
       - run: bun run gen:clients
       - run: bun run gen:all
       - name: generated files are reproducible
