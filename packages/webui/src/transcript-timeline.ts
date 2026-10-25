@@ -32,6 +32,13 @@ export interface TurnNode {
   type: "turn";
   /** Position in the entries array — the `#n` the raw view labels the row with. */
   index: number;
+  /**
+   * 1-based position among the dialogue turns: what the card is labelled with, and
+   * the same count the "N turns" readout gives. The entry index runs several times
+   * faster — most lines aren't turns — so a session of 164 turns had cards numbered
+   * #8 and #32 and #1,190, which read as a different, larger count.
+   */
+  number: number;
   speaker: Speaker;
   /** Display text: the turn's text with `<system-reminder>` blocks removed. */
   text: string;
@@ -145,6 +152,7 @@ export function buildTimeline(entries: TranscriptEntry[]): TimelineNode[] {
   const nodes: TimelineNode[] = [];
   let pending: { index: number; entry: TranscriptEntry }[] = [];
   let prevTurnAt: string | undefined;
+  let turnCount = 0;
 
   const flush = () => {
     if (pending.length === 0) return;
@@ -169,6 +177,7 @@ export function buildTimeline(entries: TranscriptEntry[]): TimelineNode[] {
     const turn: TurnNode = {
       type: "turn",
       index,
+      number: ++turnCount,
       speaker: entry.role === "user" ? "user" : "assistant",
       text: stripSystemReminders(entry.text ?? ""),
       tools: tally((entry.toolUses ?? []).map((t) => t.name)),
