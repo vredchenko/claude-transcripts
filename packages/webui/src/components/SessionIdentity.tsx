@@ -2,7 +2,17 @@
  * A session's id with its copy button, and the menu of links to where its data lives —
  * shared by the session list and the session detail page so both look the same.
  */
-import { Box, IconButton, Menu, MenuItem, SvgIcon, Tooltip, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Divider,
+  IconButton,
+  Menu,
+  MenuItem,
+  SvgIcon,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import { type MouseEvent, useState } from "react";
 import { useAppBlueprint } from "../api/blueprint";
 import { type SessionRef, sessionLinks } from "../nav-menus";
@@ -25,6 +35,13 @@ function CheckIcon() {
     </SvgIcon>
   );
 }
+
+/**
+ * Why deletion is disabled. There's no delete endpoint yet, and it needs design before
+ * there is one: docs are append-only, so deleting a session means a tombstone plus
+ * cleanup in S3 and the search index, not a DELETE on a document.
+ */
+export const DELETE_PENDING = "Pending API implementation";
 
 /** Rows are clickable links to the session; clicks inside these controls must not be. */
 function stop(e: MouseEvent) {
@@ -123,7 +140,29 @@ export function SessionLinksButton({ session }: { session: SessionRef }) {
             </Typography>
           </MenuItem>
         ))}
+        <Divider />
+        {/* A disabled item takes no pointer events, so the tooltip hangs on a wrapper. */}
+        <Tooltip title={DELETE_PENDING} placement="left">
+          <span>
+            <MenuItem disabled sx={{ fontSize: 13 }}>
+              Delete session
+            </MenuItem>
+          </span>
+        </Tooltip>
       </Menu>
     </>
+  );
+}
+
+/** The session page's Delete button: shown, so the action has a home, but disabled. */
+export function DeleteSessionButton() {
+  return (
+    <Tooltip title={DELETE_PENDING}>
+      <span>
+        <Button size="small" color="error" variant="outlined" disabled>
+          Delete
+        </Button>
+      </span>
+    </Tooltip>
   );
 }
