@@ -1,0 +1,226 @@
+{
+  "claudeCode": "2.1.310",
+  "sdk": "0.3.310",
+  "base": {
+    "agent_id": [],
+    "agent_type": [],
+    "cwd": [],
+    "effort": [],
+    "permission_mode": [],
+    "prompt_id": [],
+    "session_id": [],
+    "transcript_path": []
+  },
+  "events": {
+    "PreToolUse": {
+      "mcp_server": [],
+      "tool_input": [],
+      "tool_name": [],
+      "tool_use_id": []
+    },
+    "PostToolUse": {
+      "duration_ms": [],
+      "mcp_server": [],
+      "tool_input": [],
+      "tool_name": [],
+      "tool_response": [],
+      "tool_use_id": []
+    },
+    "PostToolUseFailure": {
+      "duration_ms": [],
+      "error": [],
+      "is_interrupt": [],
+      "mcp_server": [],
+      "tool_input": [],
+      "tool_name": [],
+      "tool_use_id": []
+    },
+    "PostToolBatch": {
+      "tool_calls": []
+    },
+    "Notification": {
+      "message": [],
+      "notification_type": [],
+      "title": []
+    },
+    "UserPromptSubmit": {
+      "prompt": [],
+      "session_title": [],
+      "source": ["loop_wakeup", "poll_event", "schedule_wakeup", "sdk", "system", "user"]
+    },
+    "UserPromptExpansion": {
+      "command_args": [],
+      "command_name": [],
+      "command_source": [],
+      "expansion_type": ["mcp_prompt", "slash_command"],
+      "prompt": []
+    },
+    "SessionStart": {
+      "agent_type": [],
+      "context_tokens": [],
+      "estimated_cache_write_usd": [],
+      "model": [],
+      "prompt_cache_likely_expired": [],
+      "seconds_since_last_response": [],
+      "session_title": [],
+      "source": ["clear", "compact", "fork", "resume", "startup"]
+    },
+    "SessionEnd": {
+      "reason": ["clear", "logout", "other", "prompt_input_exit", "resume"]
+    },
+    "Stop": {
+      "background_tasks": [],
+      "last_assistant_message": [],
+      "session_crons": [],
+      "stop_hook_active": []
+    },
+    "StopFailure": {
+      "error": [
+        "account_on_hold",
+        "authentication_failed",
+        "billing_error",
+        "cloud_credential_error",
+        "invalid_request",
+        "max_output_tokens",
+        "model_not_found",
+        "oauth_org_not_allowed",
+        "overloaded",
+        "rate_limit",
+        "server_error",
+        "unknown",
+        "verification_required"
+      ],
+      "error_details": [],
+      "last_assistant_message": []
+    },
+    "SubagentStart": {
+      "agent_id": [],
+      "agent_type": []
+    },
+    "SubagentStop": {
+      "agent_id": [],
+      "agent_transcript_path": [],
+      "agent_type": [],
+      "background_tasks": [],
+      "last_assistant_message": [],
+      "session_crons": [],
+      "stop_hook_active": []
+    },
+    "PreCompact": {
+      "custom_instructions": [],
+      "trigger": ["auto", "manual"]
+    },
+    "PostCompact": {
+      "compact_summary": [],
+      "trigger": ["auto", "manual"]
+    },
+    "PreModelSwitch": {
+      "cache_ttl": ["1h", "5m"],
+      "context_tokens": [],
+      "estimated_cache_write_usd": [],
+      "from_model": [],
+      "pricing": ["catalog", "configured", "default"],
+      "prompt_cache_warm": [],
+      "requested_model": [],
+      "source": ["command", "picker", "sdk"],
+      "to_model": []
+    },
+    "PostModelSwitch": {
+      "cache_ttl": ["1h", "5m"],
+      "context_tokens": [],
+      "estimated_cache_write_usd": [],
+      "from_model": [],
+      "pricing": ["catalog", "configured", "default"],
+      "prompt_cache_warm": [],
+      "requested_model": [],
+      "source": ["auto", "command", "picker", "resume", "sdk"],
+      "to_model": []
+    },
+    "PermissionRequest": {
+      "mcp_server": [],
+      "permission_suggestions": [],
+      "tool_input": [],
+      "tool_name": []
+    },
+    "PermissionDenied": {
+      "mcp_server": [],
+      "reason": [],
+      "tool_input": [],
+      "tool_name": [],
+      "tool_use_id": []
+    },
+    "Setup": {
+      "trigger": ["init", "maintenance"]
+    },
+    "TeammateIdle": {
+      "team_name": [],
+      "teammate_name": []
+    },
+    "TaskCreated": {
+      "task_description": [],
+      "task_id": [],
+      "task_subject": [],
+      "team_name": [],
+      "teammate_name": []
+    },
+    "TaskCompleted": {
+      "task_description": [],
+      "task_id": [],
+      "task_subject": [],
+      "team_name": [],
+      "teammate_name": []
+    },
+    "Elicitation": {
+      "elicitation_id": [],
+      "mcp_server_name": [],
+      "message": [],
+      "mode": ["form", "url"],
+      "requested_schema": [],
+      "url": []
+    },
+    "ElicitationResult": {
+      "action": ["accept", "cancel", "decline"],
+      "content": [],
+      "elicitation_id": [],
+      "mcp_server_name": [],
+      "mode": ["form", "url"]
+    },
+    "ConfigChange": {
+      "file_path": [],
+      "source": ["local_settings", "policy_settings", "project_settings", "skills", "user_settings"]
+    },
+    "WorktreeCreate": {
+      "name": []
+    },
+    "WorktreeRemove": {
+      "worktree_path": []
+    },
+    "InstructionsLoaded": {
+      "file_path": [],
+      "globs": [],
+      "load_reason": ["compact", "include", "nested_traversal", "path_glob_match", "session_start"],
+      "memory_type": ["Local", "Managed", "Project", "User"],
+      "parent_file_path": [],
+      "trigger_file_path": []
+    },
+    "CwdChanged": {
+      "new_cwd": [],
+      "old_cwd": []
+    },
+    "FileChanged": {
+      "event": ["add", "change", "unlink"],
+      "file_path": []
+    },
+    "DirectoryAdded": {
+      "directory": [],
+      "source": ["register_repo_root", "slash_command"]
+    },
+    "MessageDisplay": {
+      "delta": [],
+      "final": [],
+      "index": [],
+      "message_id": [],
+      "turn_id": []
+    }
+  }
+}

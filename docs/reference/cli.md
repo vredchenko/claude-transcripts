@@ -77,6 +77,7 @@ Not built: `couch` / `s3` passthroughs and `meta post` enrichment.
 | `migrate [direction] [options]` | Run CouchDB migrations |
 | `reindex` | Rebuild the search indexes from CouchDB |
 | `doctor [options]` | Smoke-test the write/read/search path end-to-end |
+| `compat [action] [options]` | Check Claude Code's hook spec against this build's (exit 1 on drift) |
 | `hook [action] [options]` | The Claude Code hook, and its registration |
 | `statusline [action] [options]` | The Claude Code statusline indicator (recording / off), and its registration |
 | `completions <shell>` | Print a shell completion script to eval or source from your shell's rc |
@@ -333,6 +334,23 @@ Smoke-test the write/read/search path end-to-end
 ```bash
 claude-transcripts doctor
 claude-transcripts doctor --keep
+```
+
+### `compat [action] [options]`
+
+Check Claude Code's hook spec against this build's (exit 1 on drift)
+
+| Argument | |
+|---|---|
+| `action` | `check` reports drift; `fetch` caches a version's spec from npm (SessionStart starts it detached when it meets a version it doesn't know) (check \| fetch; default check) |
+
+| Option | |
+|---|---|
+| `--cc-version <value>` | the Claude Code version to check (default: the installed one) |
+
+```bash
+claude-transcripts compat
+claude-transcripts compat --cc-version 2.1.300 --json
 ```
 
 ### `hook [action] [options]`

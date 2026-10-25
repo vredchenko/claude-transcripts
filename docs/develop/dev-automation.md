@@ -20,7 +20,7 @@ Generated files are committed. `bun run gen:all` runs every generator below exce
 | `gen:k8s` | `gen-k8s.ts` | `deploy/k8s/base/` ([ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)) |
 | `gen:assets` | `gen-assets.ts` | `packages/cli/src/lib/assets.generated.ts`: compose files, `garage.toml` and the config template, embedded in the binary for `install` |
 | `gen:cli-docs` | `gen-cli-docs.ts` | the command sections of `packages/cli/README.md` and [`docs/reference/cli.md`](../reference/cli.md), from `CLI_SPEC` |
-| `gen:compat` | `regenerate-compatibility.ts` | `compatibility.json` (placeholder output, gitignored; [compatibility.md](../start/compatibility.md)) |
+| `gen:compat` | `regenerate-compatibility.ts` | `packages/shared/src/claude-code-hook-spec.json` — the pinned Claude Code hook spec; `--latest` moves the pin ([compatibility.md](../start/compatibility.md)) |
 | `gen:mock` | `regenerate-mock-fixtures.ts` | synthetic content for the hook fixtures under `tests/mock/` (not in `gen:all`) |
 
 Output must not depend on your local `config.json` or `.env`, or CI fails for a reason

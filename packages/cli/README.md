@@ -107,6 +107,7 @@ upgrades in place: it's idempotent and keeps your history.
 | `migrate [direction] [options]` | Run CouchDB migrations |
 | `reindex` | Rebuild the search indexes from CouchDB |
 | `doctor [options]` | Smoke-test the write/read/search path end-to-end |
+| `compat [action] [options]` | Check Claude Code's hook spec against this build's (exit 1 on drift) |
 | `hook [action] [options]` | The Claude Code hook, and its registration |
 | `statusline [action] [options]` | The Claude Code statusline indicator (recording / off), and its registration |
 | `completions <shell>` | Print a shell completion script to eval or source from your shell's rc |

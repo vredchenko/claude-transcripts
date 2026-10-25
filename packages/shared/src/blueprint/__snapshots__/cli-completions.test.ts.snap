@@ -8,7 +8,7 @@ exports[`toCompletions bash script matches its snapshot 1`] = `
 # Does flag \`cmd:--flag\` ($1) take a value?
 _claude_transcripts_valued() {
   case "$1" in
-    install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
+    install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|compat:--cc-version|compat:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
   esac
   return 1
 }
@@ -19,6 +19,7 @@ _claude_transcripts_choices() {
     stack:1) printf '%s' "up down restart logs ps" ;;
     turns:--role) printf '%s' "user assistant tool_result system other" ;;
     migrate:1) printf '%s' "up down status" ;;
+    compat:1) printf '%s' "check fetch" ;;
     hook:1) printf '%s' "run upload install uninstall status" ;;
     statusline:1) printf '%s' "render install uninstall status" ;;
     completions:1) printf '%s' "bash zsh fish" ;;
@@ -42,6 +43,7 @@ _claude_transcripts_flags() {
     migrate) printf '%s' "--to --steps --dry-run --webapi --help --version" ;;
     reindex) printf '%s' "--webapi --help --version" ;;
     doctor) printf '%s' "--keep --webapi --help --version" ;;
+    compat) printf '%s' "--cc-version --webapi --help --version" ;;
     hook) printf '%s' "--dry-run --force --session --transcript --webapi --help --version" ;;
     statusline) printf '%s' "--dry-run --webapi --help --version" ;;
     completions) printf '%s' "--webapi --help --version" ;;
@@ -65,7 +67,7 @@ _claude_transcripts() {
     if [[ $cur == -* ]]; then
       COMPREPLY=($(compgen -W "--help --version" -- "$cur"))
     else
-      COMPREPLY=($(compgen -W "install uninstall setup provision stack sessions search turns backfill export import migrate reindex doctor hook statusline completions" -- "$cur"))
+      COMPREPLY=($(compgen -W "install uninstall setup provision stack sessions search turns backfill export import migrate reindex doctor compat hook statusline completions" -- "$cur"))
     fi
     return 0
   fi
@@ -112,7 +114,7 @@ exports[`toCompletions zsh script matches its snapshot 1`] = `
 
 _claude_transcripts_valued() {
   case $1 in
-    (install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
+    (install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|compat:--cc-version|compat:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
   esac
   return 1
 }
@@ -123,6 +125,7 @@ _claude_transcripts_choices() {
     (stack:1) reply=(up down restart logs ps) ;;
     (turns:--role) reply=(user assistant tool_result system other) ;;
     (migrate:1) reply=(up down status) ;;
+    (compat:1) reply=(check fetch) ;;
     (hook:1) reply=(run upload install uninstall status) ;;
     (statusline:1) reply=(render install uninstall status) ;;
     (completions:1) reply=(bash zsh fish) ;;
@@ -146,6 +149,7 @@ _claude_transcripts_flags() {
     (migrate) reply=('--to:with \`up\`: stop at this schema version' '--steps:with \`down\`: how many to undo' '--dry-run:report what would run without writing' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (reindex) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (doctor) reply=('--keep:leave the synthetic session behind for inspection' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
+    (compat) reply=('--cc-version:the Claude Code version to check (default: the installed one)' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (hook) reply=('--dry-run:with \`install\`: show the change without writing' '--force:with \`install\`: register even if the plugin already does' '--session:with \`upload\`: the session id' '--transcript:with \`upload\`: the transcript file to ship' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (statusline) reply=('--dry-run:with \`install\`: show the change without writing' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (completions) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
@@ -170,6 +174,7 @@ _claude_transcripts() {
     'migrate:Run CouchDB migrations'
     'reindex:Rebuild the search indexes from CouchDB'
     'doctor:Smoke-test the write/read/search path end-to-end'
+    'compat:Check Claude Code'\\''s hook spec against this build'\\''s (exit 1 on drift)'
     'hook:The Claude Code hook, and its registration'
     'statusline:The Claude Code statusline indicator (recording / off), and its registration'
     'completions:Print a shell completion script to eval or source from your shell'\\''s rc'
@@ -286,6 +291,7 @@ complete -c claude-transcripts -n _claude_transcripts_at_command -a import -d 'R
 complete -c claude-transcripts -n _claude_transcripts_at_command -a migrate -d 'Run CouchDB migrations'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a reindex -d 'Rebuild the search indexes from CouchDB'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a doctor -d 'Smoke-test the write/read/search path end-to-end'
+complete -c claude-transcripts -n _claude_transcripts_at_command -a compat -d 'Check Claude Code\\'s hook spec against this build\\'s (exit 1 on drift)'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a hook -d 'The Claude Code hook, and its registration'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a statusline -d 'The Claude Code statusline indicator (recording / off), and its registration'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a completions -d 'Print a shell completion script to eval or source from your shell\\'s rc'
@@ -404,6 +410,12 @@ complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l keep -d 'le
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l help -d 'show help for a command (alias: -h)'
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l version -d 'print the CLI version (alias: -V)'
+
+complete -c claude-transcripts -n '_claude_transcripts_at_positional compat 1' -a 'check fetch'
+complete -c claude-transcripts -n '_claude_transcripts_in compat' -l cc-version -x -d 'the Claude Code version to check (default: the installed one)'
+complete -c claude-transcripts -n '_claude_transcripts_in compat' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
+complete -c claude-transcripts -n '_claude_transcripts_in compat' -l help -d 'show help for a command (alias: -h)'
+complete -c claude-transcripts -n '_claude_transcripts_in compat' -l version -d 'print the CLI version (alias: -V)'
 
 complete -c claude-transcripts -n '_claude_transcripts_at_positional hook 1' -a 'run upload install uninstall status'
 complete -c claude-transcripts -n '_claude_transcripts_in hook' -l dry-run -d 'with \`install\`: show the change without writing'

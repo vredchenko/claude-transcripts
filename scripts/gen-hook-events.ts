@@ -80,11 +80,10 @@ on stdin — used for both these docs and test automation), and the action(s) we
 
 This table is the **payload/fixture reference**. [actions.md](actions.md)
 narrates the hook → action model, and [hook.md](hook.md) covers the writer
-mechanics. A per-**version** list (which events each Claude Code version exposes) is
-planned as \`compatibility.json\`
-([compatibility.md](../start/compatibility.md), [ADR 0025](../design/decisions/0025-claude-code-compatibility-matrix.md));
-its generator is still a stub, so until then the official reference below is the
-authority when this table and a given CC version disagree.
+mechanics. Which events and payload fields a given Claude Code version actually has
+comes from its SDK release, not from this table: \`claude-transcripts compat\` checks
+it, and every session start says whether it drifted
+([compatibility.md](../start/compatibility.md), [ADR 0025](../design/decisions/0025-claude-code-compatibility-matrix.md)).
 
 - **Official reference:** <https://code.claude.com/docs/en/hooks>
 - **Guide:** <https://code.claude.com/docs/en/hooks-guide>

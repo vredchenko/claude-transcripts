@@ -4,6 +4,8 @@
  */
 
 export * from "./blueprint";
+// Claude Code's hook surface as data, and the drift check against our catalogue.
+export * from "./claude-code-spec";
 export * from "./couch-url";
 // The search-highlight marks + their readers. Shared because the webapi writes the
 // marks and the webui reads them: the two must agree on the delimiters, and a

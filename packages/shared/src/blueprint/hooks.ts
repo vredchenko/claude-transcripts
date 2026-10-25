@@ -4,8 +4,8 @@ import type { HookTypeDef } from "./types";
  * Canonical Claude Code hook types (the codebase-side source of truth). Goal: a
  * handler for every hook CC exposes; `wired` marks the ones bound today, and
  * `ignoreReason` records *why* an unwired event is intentionally not handled (the
- * hook-events doc renders it). The authoritative per-version list is generated into
- * compatibility.json; a drift check diffs this against it.
+ * hook-events doc renders it). The authoritative per-version list is Claude Code's own
+ * (`claude-code-spec.ts`); the session-start check diffs this against it.
  *
  * Order is **lifecycle order** (session opens at the top, closes at the bottom);
  * `category` groups the events and the hooks doc (gen-hook-events) renders sections

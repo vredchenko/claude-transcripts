@@ -23,6 +23,7 @@ import {
 import { hostname } from "node:os";
 import type { RecallConfigFile } from "@claude-transcripts/shared";
 import { S3Client } from "bun";
+import { hookCompatLines } from "./compat";
 import { spawnDetached, uploadArgv } from "./detach";
 import {
   fanOutBlob,
@@ -637,6 +638,8 @@ export async function fetchChunkHighWater(
 
 export interface SessionStartOutput {
   systemMessage?: string;
+  /** Extra lines shown under `systemMessage` (the hook-spec check), in one banner. */
+  notices?: string[];
   additionalContext?: string;
 }
 
@@ -673,6 +676,11 @@ export interface HookContext {
    * not start. A seam so tests don't spawn — the real one is `spawnDetached`.
    */
   detachUpload(sessionId: string, transcriptPath: string): boolean;
+  /**
+   * The hook-spec compatibility lines for this session's Claude Code. A seam so tests
+   * neither run `claude --version` nor spawn a fetch — the real one is `hookCompatLines`.
+   */
+  hookCompat(): string[];
 }
 
 const DEFAULT_SESSIONS_DB = "claude-transcripts-sessions";
@@ -685,6 +693,7 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
   const sessionsDb = config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB;
   return {
     output: {},
+    hookCompat: () => hookCompatLines(),
     chunkHighWater: () => fetchChunkHighWater(config, sessionsDb, sessionId),
     event,
     sessionId,
