@@ -1,8 +1,8 @@
 /**
  * `/sessions/$id` — session detail page.
  *
- * Identity bar: back link, project name, 8-char id + copy, status, export, links to the
- * raw data.
+ * Identity bar: back link, project name, 8-char id + copy, status, an "Open in…" menu
+ * of links to the raw data, export.
  * Metadata strip: horizontal scroll row of fields.
  * Transcript section: speaker filter toggle (Both/User/Claude) + transcript viewer.
  */
@@ -10,6 +10,8 @@ import {
   Box,
   Button,
   Chip,
+  Menu,
+  MenuItem,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
@@ -38,7 +40,7 @@ import {
   totalTools,
 } from "../format";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { sessionLinks } from "../nav-menus";
+import { type NavLink, sessionLinks } from "../nav-menus";
 import { MONO } from "../theme";
 
 type SpeakerFilter = "all" | "user" | "assistant";
@@ -64,6 +66,54 @@ function MetaField({ label, children }: { label: string; children: ReactNode }) 
         {children}
       </Typography>
     </Box>
+  );
+}
+
+/**
+ * The session's raw-data links behind one button. Five inline links (API JSON, CouchDB
+ * events, CouchDB summary, Fauxton, S3) competed with Export for the header and wrapped
+ * onto three rows on a phone; as a menu they take one slot at every width.
+ */
+function OpenInMenu({ links }: { links: NavLink[] }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  if (links.length === 0) return null;
+  return (
+    <>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={(e) => setAnchor(e.currentTarget)}
+        aria-haspopup="true"
+        aria-expanded={anchor ? "true" : undefined}
+      >
+        Open in… ▾
+      </Button>
+      <Menu
+        anchorEl={anchor}
+        open={Boolean(anchor)}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        MenuListProps={{ dense: true }}
+      >
+        {links.map((link) => (
+          <MenuItem
+            key={link.href}
+            component="a"
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setAnchor(null)}
+            sx={{ fontSize: 13, gap: 2, justifyContent: "space-between" }}
+          >
+            {link.label}
+            <Typography variant="caption" color="text.secondary">
+              ↗
+            </Typography>
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
   );
 }
 
@@ -116,20 +166,9 @@ export function SessionDetailPage() {
             <SessionIdCopy sessionId={session.sessionId} />
             <StatusChip status={session.status} />
             <Box sx={{ flex: 1 }} />
+            <OpenInMenu links={links} />
             <ExportMenu session={session} />
             <DeleteSessionButton />
-            {/* Links to the raw data */}
-            {links.map((link) => (
-              <Button
-                key={link.href}
-                size="small"
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {link.label} ↗
-              </Button>
-            ))}
           </>
         )}
       </Stack>
