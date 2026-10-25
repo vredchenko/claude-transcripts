@@ -228,3 +228,23 @@ test.describe("selecting rows", () => {
     await expect(page.getByTestId("selection-bar")).toHaveCount(0);
   });
 });
+
+test.describe("expanding rows", () => {
+  test("the chevron opens the details in place, without navigating", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto();
+
+    const first = list.rows.first();
+    await first.getByRole("button", { name: "Show details" }).click();
+    await expect(page).not.toHaveURL(/\/sessions\//);
+    await expect(first).toHaveAttribute("aria-expanded", "true");
+    const details = page.getByTestId("session-row-details");
+    await expect(details).toContainText(SESSIONS[0]?.sessionId ?? "");
+    await expect(details).toContainText("Not recorded yet");
+
+    await first.getByRole("button", { name: "Hide details" }).click();
+    await expect(details).toHaveCount(0);
+  });
+});

@@ -4,8 +4,19 @@
  * Columns: select | time | project+host+cwd | runtime+active bar | model | tool mix |
  * tokens+turns | status+when | id+copy+data links
  */
-import { Box, Checkbox, Chip, Stack, Tooltip, Typography, useTheme } from "@mui/material";
+import {
+  Box,
+  Checkbox,
+  Chip,
+  Collapse,
+  IconButton,
+  Stack,
+  Tooltip,
+  Typography,
+  useTheme,
+} from "@mui/material";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import type { SessionSummary } from "../../api/generated";
 import {
   durationSplit,
@@ -21,6 +32,7 @@ import type { DayGroup } from "../../sessions-view";
 import { MONO } from "../../theme";
 import { SessionIdCopy, SessionLinksButton } from "../SessionIdentity";
 import { StatusChip } from "../StatusChip";
+import { SessionRowDetails } from "./SessionRowDetails";
 
 /**
  * Grid template for the 8 columns. The project column used to be a bare `1fr` and took
@@ -29,7 +41,7 @@ import { StatusChip } from "../StatusChip";
  * which says *where* the project ran — sits in the project cell instead of its own.
  */
 const GRID_TEMPLATE =
-  "28px 52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 120px 128px";
+  "28px 52px minmax(200px, 1.3fr) 128px minmax(110px, 160px) minmax(150px, 1fr) 108px 120px 156px";
 
 /** How many tools the mix names before collapsing the rest into "+N". */
 const TOOL_MIX_SHOWN = 3;
@@ -155,144 +167,170 @@ function SessionRow({ s, selection }: { s: SessionSummary; selection: RowSelecti
   const theme = useTheme();
   const navigate = useNavigate();
   const isSelected = selection.selected.has(s.sessionId);
+  const [expanded, setExpanded] = useState(false);
   return (
-    <Box
-      data-testid="session-row"
-      aria-selected={isSelected}
-      onClick={() => navigate({ to: "/sessions/$id", params: { id: s.sessionId } })}
-      sx={{
-        display: { xs: "flex", md: "grid" },
-        flexDirection: { xs: "column", md: undefined },
-        gridTemplateColumns: { md: GRID_TEMPLATE },
-        gap: { xs: 0.5, md: 1.5 },
-        alignItems: "center",
-        // Below `md` the row is a centred column, and a centred column item sizes to
-        // its content rather than the row — so a long cwd made its cell, and the
-        // page, as wide as the path, and the ellipsis never engaged. Capping each
-        // cell at the row's width lets the `nowrap` lines truncate as intended.
-        "& > *": { maxWidth: "100%" },
-        position: "relative",
-        px: 1.5,
-        py: 1,
-        cursor: "pointer",
-        textDecoration: "none",
-        color: "text.primary",
-        borderBottom: 1,
-        borderColor: "divider",
-        bgcolor: isSelected ? "action.selected" : undefined,
-        "&:hover": { bgcolor: isSelected ? "action.selected" : "action.hover" },
-      }}
-    >
-      {/* Select — its own column on the grid, the row's top-right corner when stacked */}
-      <Box sx={{ position: { xs: "absolute", md: "static" }, top: 6, right: 6 }}>
-        <SelectBox
-          ids={[s.sessionId]}
-          selection={selection}
-          label={`Select session ${s.sessionId.slice(0, 8)}`}
-        />
-      </Box>
-
-      {/* Time */}
-      <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
-        {timeOfDay(s.startTimestamp ?? s.timestamp)}
-      </Typography>
-
-      {/* Project + host + cwd */}
-      <Box sx={{ minWidth: 0 }}>
-        <Stack direction="row" alignItems="baseline" spacing={1} sx={{ minWidth: 0 }}>
-          <Typography
-            variant="body2"
-            noWrap
-            sx={{
-              fontWeight: 600,
-              color: theme.palette.primary.main,
-              flexShrink: 0,
-              maxWidth: "70%",
-            }}
-          >
-            {projectName(s.cwd)}
-          </Typography>
-          {s.hostname && (
-            <Tooltip title={`Host: ${s.hostname}`}>
-              <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
-                @ {s.hostname}
-              </Typography>
-            </Tooltip>
-          )}
-        </Stack>
-        <Tooltip title={s.cwd}>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{
-              fontFamily: MONO,
-              fontSize: 10,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              display: "block",
-            }}
-          >
-            {s.cwd}
-          </Typography>
-        </Tooltip>
-      </Box>
-
-      {/* Runtime + active bar */}
-      <Box>
-        <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
-          {formatDuration(s.durationMs)}
-        </Typography>
-        <ActiveBar durationMs={s.durationMs} activeMs={s.activeMs} />
-      </Box>
-
-      {/* Model */}
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        noWrap
-        sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}
+    <>
+      <Box
+        data-testid="session-row"
+        aria-selected={isSelected}
+        aria-expanded={expanded}
+        onClick={() => navigate({ to: "/sessions/$id", params: { id: s.sessionId } })}
+        sx={{
+          display: { xs: "flex", md: "grid" },
+          flexDirection: { xs: "column", md: undefined },
+          gridTemplateColumns: { md: GRID_TEMPLATE },
+          gap: { xs: 0.5, md: 1.5 },
+          alignItems: "center",
+          // Below `md` the row is a centred column, and a centred column item sizes to
+          // its content rather than the row — so a long cwd made its cell, and the
+          // page, as wide as the path, and the ellipsis never engaged. Capping each
+          // cell at the row's width lets the `nowrap` lines truncate as intended.
+          "& > *": { maxWidth: "100%" },
+          position: "relative",
+          px: 1.5,
+          py: 1,
+          cursor: "pointer",
+          textDecoration: "none",
+          color: "text.primary",
+          borderBottom: 1,
+          borderColor: "divider",
+          bgcolor: isSelected ? "action.selected" : undefined,
+          "&:hover": { bgcolor: isSelected ? "action.selected" : "action.hover" },
+        }}
       >
-        {s.model ?? "—"}
-      </Typography>
+        {/* Select — its own column on the grid, the row's top-right corner when stacked */}
+        <Box sx={{ position: { xs: "absolute", md: "static" }, top: 6, right: 6 }}>
+          <SelectBox
+            ids={[s.sessionId]}
+            selection={selection}
+            label={`Select session ${s.sessionId.slice(0, 8)}`}
+          />
+        </Box>
 
-      {/* Tool mix — hidden below md */}
-      <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
-        <ToolMix toolCounts={s.toolCounts} />
-      </Box>
+        {/* Time */}
+        <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
+          {timeOfDay(s.startTimestamp ?? s.timestamp)}
+        </Typography>
 
-      {/* Tokens + turns */}
-      <Box sx={{ textAlign: "right" }}>
-        {s.tokenUsage ? (
-          <Tooltip title={`${formatCount(s.tokenUsage.total)} tokens`}>
-            <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
-              {formatCompact(s.tokenUsage.total)}
+        {/* Project + host + cwd */}
+        <Box sx={{ minWidth: 0 }}>
+          <Stack direction="row" alignItems="baseline" spacing={1} sx={{ minWidth: 0 }}>
+            <Typography
+              variant="body2"
+              noWrap
+              sx={{
+                fontWeight: 600,
+                color: theme.palette.primary.main,
+                flexShrink: 0,
+                maxWidth: "70%",
+              }}
+            >
+              {projectName(s.cwd)}
+            </Typography>
+            {s.hostname && (
+              <Tooltip title={`Host: ${s.hostname}`}>
+                <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                  @ {s.hostname}
+                </Typography>
+              </Tooltip>
+            )}
+          </Stack>
+          <Tooltip title={s.cwd}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                fontFamily: MONO,
+                fontSize: 10,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                display: "block",
+              }}
+            >
+              {s.cwd}
             </Typography>
           </Tooltip>
-        ) : (
+        </Box>
+
+        {/* Runtime + active bar */}
+        <Box>
           <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
-            —
+            {formatDuration(s.durationMs)}
           </Typography>
-        )}
-        <Typography variant="caption" color="text.secondary">
-          {formatCount(s.promptCount)} turn{s.promptCount === 1 ? "" : "s"} ·{" "}
-          {formatCount(totalTools(s.toolCounts))} tools
+          <ActiveBar durationMs={s.durationMs} activeMs={s.activeMs} />
+        </Box>
+
+        {/* Model */}
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}
+        >
+          {s.model ?? "—"}
         </Typography>
-      </Box>
 
-      {/* Status + when, and how many tool calls failed. The error count used to sit
+        {/* Tool mix — hidden below md */}
+        <Box sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}>
+          <ToolMix toolCounts={s.toolCounts} />
+        </Box>
+
+        {/* Tokens + turns */}
+        <Box sx={{ textAlign: "right" }}>
+          {s.tokenUsage ? (
+            <Tooltip title={`${formatCount(s.tokenUsage.total)} tokens`}>
+              <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
+                {formatCompact(s.tokenUsage.total)}
+              </Typography>
+            </Tooltip>
+          ) : (
+            <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
+              —
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary">
+            {formatCount(s.promptCount)} turn{s.promptCount === 1 ? "" : "s"} ·{" "}
+            {formatCount(totalTools(s.toolCounts))} tools
+          </Typography>
+        </Box>
+
+        {/* Status + when, and how many tool calls failed. The error count used to sit
           under the token figures, where it read as a property of the tokens. */}
-      <Stack alignItems="flex-start" spacing={0.25} sx={{ minWidth: 0 }}>
-        <StatusChip status={s.status} at={statusTime(s)} reference={s.startTimestamp} />
-        {s.errorCount > 0 && <ErrorCount sessionId={s.sessionId} count={s.errorCount} />}
-      </Stack>
+        <Stack alignItems="flex-start" spacing={0.25} sx={{ minWidth: 0 }}>
+          <StatusChip status={s.status} at={statusTime(s)} reference={s.startTimestamp} />
+          {s.errorCount > 0 && <ErrorCount sessionId={s.sessionId} count={s.errorCount} />}
+        </Stack>
 
-      {/* Session id + copy + data links */}
-      <Stack direction="row" alignItems="center" spacing={0.25} sx={{ justifySelf: "end" }}>
-        <SessionIdCopy sessionId={s.sessionId} />
-        <SessionLinksButton session={s} />
-      </Stack>
-    </Box>
+        {/* Session id + copy + data links */}
+        <Stack direction="row" alignItems="center" spacing={0.25} sx={{ justifySelf: "end" }}>
+          <SessionIdCopy sessionId={s.sessionId} />
+          <SessionLinksButton session={s} />
+          <Tooltip title={expanded ? "Hide details" : "Show details"}>
+            <IconButton
+              size="small"
+              aria-label={expanded ? "Hide details" : "Show details"}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((x) => !x);
+              }}
+              sx={{
+                width: 24,
+                height: 24,
+                fontSize: 12,
+                transition: "transform 150ms",
+                transform: expanded ? "rotate(180deg)" : undefined,
+              }}
+            >
+              ▾
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Box>
+      <Collapse in={expanded} unmountOnExit>
+        <SessionRowDetails s={s} />
+      </Collapse>
+    </>
   );
 }
 
