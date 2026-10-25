@@ -194,8 +194,16 @@ export interface SessionRef {
  * The summary doc is only written at SessionEnd, so a live or abandoned session gets
  * its events instead — linking a summary that doesn't exist yet would be a 404. The
  * transcript link likewise waits for `hasTranscript`.
+ *
+ * Given `origin` (the page's, in the browser), the gateway's own links come back as
+ * full URLs, so a copied link works when pasted elsewhere. External links (Fauxton)
+ * are already absolute and are left alone.
  */
-export function sessionLinks(model: AppBlueprintInfo | undefined, s: SessionRef): NavLink[] {
+export function sessionLinks(
+  model: AppBlueprintInfo | undefined,
+  s: SessionRef,
+  origin?: string,
+): NavLink[] {
   const id = s.sessionId;
   const links: NavLink[] = [
     { label: "API JSON", href: `/api/sessions/${encodeURIComponent(id)}`, external: true },
@@ -232,5 +240,7 @@ export function sessionLinks(model: AppBlueprintInfo | undefined, s: SessionRef)
       external: true,
     });
   }
-  return links;
+  if (!origin) return links;
+  const base = origin.replace(/\/+$/, "");
+  return links.map((l) => (l.href.startsWith("/") ? { ...l, href: base + l.href } : l));
 }

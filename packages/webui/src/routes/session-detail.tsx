@@ -79,7 +79,7 @@ export function SessionDetailPage() {
   const split = session ? durationSplit(session.durationMs, session.activeMs) : undefined;
 
   // Where this session's data lives — the same links the list's row menu offers.
-  const links = session ? sessionLinks(model, session) : [];
+  const links = session ? sessionLinks(model, session, window.location.origin) : [];
   const ended = session ? statusTime(session) : undefined;
   // A 404 is an answer about the id, not a failure to report: say which session
   // isn't here and offer the way back, rather than the request line that asked.

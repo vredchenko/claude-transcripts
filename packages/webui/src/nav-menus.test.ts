@@ -161,4 +161,20 @@ describe("sessionLinks", () => {
     );
     expect(href("Transcript (S3)")).toBe(`/api/s3/sessions/${id}/transcript.jsonl`);
   });
+
+  test("with an origin, the gateway's links are full URLs and external ones are untouched", () => {
+    const model = served();
+    model.servicesMenu = { couchdbFauxton: "http://127.0.0.1:7652/_utils" };
+    const links = sessionLinks(
+      model,
+      { sessionId: id, status: "ended", hasTranscript: true },
+      "https://transcripts.example.net/",
+    );
+    const href = (label: string) => links.find((l) => l.label === label)?.href;
+    expect(href("Transcript (S3)")).toBe(
+      `https://transcripts.example.net/api/s3/sessions/${id}/transcript.jsonl`,
+    );
+    expect(href("API JSON")).toBe(`https://transcripts.example.net/api/sessions/${id}`);
+    expect(href("Fauxton")).toStartWith("http://127.0.0.1:7652/_utils/#/database/");
+  });
 });
