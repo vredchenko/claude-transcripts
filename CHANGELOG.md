@@ -6,6 +6,38 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-10-25
+
+A patch release for one bug: Meilisearch rewrote a large share of its index on disk for
+every hook event of a live session, and kept every task it had ever run ([#231]). No
+action is needed to upgrade. The new settings are optional and have defaults.
+
+### Fixed
+
+- **Search indexing no longer hammers Meilisearch's disk.** The change follower sent
+  Meilisearch one update per `_changes` batch, which for a live session meant one per
+  hook event. Meilisearch's disk cost is per update, not per document. The follower now
+  buffers search work and flushes every `system.search.flushIntervalMs` (3 min), at most
+  one update per index. A chunk written twice is indexed once, and a running session that
+  moved many times since the last flush becomes one row ([#232]).
+- **Ingested docs are no longer indexed twice.** `/api/ingest/summary` and
+  `/api/ingest/chunks` indexed directly, and then the follower indexed the same docs again
+  from the CouchDB write. Indexing now goes through the follower only ([#232]).
+- **Meilisearch's task queue no longer grows without bound.** The webapi prunes finished
+  tasks older than `system.search.taskRetentionMs` (1 h). The deletion is filtered to this
+  deployment's own indexes, so a shared Meilisearch keeps other tenants' task history
+  ([ADR 0028](docs/design/decisions/0028-external-vs-bundled-meilisearch.md), [#232]).
+
+### Changed
+
+- **Search can lag a write by up to the flush interval.** A live session that ends is
+  flushed at once, so it is searchable as soon as it finishes. Backfilled sessions wait
+  for the interval, so that a backfill doesn't bring back one update per session. The
+  `_changes` checkpoint now moves only after a flush, so a crash or restart replays
+  whatever was buffered ([#232]).
+- **The search docs describe the batched path**: the webapi reference, the backfill
+  guide, and ADRs 0009, 0016 and 0028 ([#233]).
+
 ## [0.7.0] — 2026-10-18
 
 A minor release for one feature: a session can be exported from the webui, as Markdown
@@ -1793,6 +1825,10 @@ of them had ever executed:
 [#226]: https://github.com/vredchenko/claude-transcripts/issues/226
 [#227]: https://github.com/vredchenko/claude-transcripts/pull/227
 [#228]: https://github.com/vredchenko/claude-transcripts/pull/228
+[#231]: https://github.com/vredchenko/claude-transcripts/issues/231
+[#232]: https://github.com/vredchenko/claude-transcripts/pull/232
+[#233]: https://github.com/vredchenko/claude-transcripts/pull/233
+[0.7.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.1
 [0.7.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.0
 [0.6.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.2
 [0.6.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.6.1
