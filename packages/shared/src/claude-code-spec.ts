@@ -14,7 +14,7 @@
  * touches the network or the filesystem.
  */
 import type { HookTypeDef } from "./blueprint/types";
-import verified from "./claude-code-hook-spec.json";
+import verified from "./claude-code-hook-spec.json" with { type: "json" };
 
 /**
  * One event's payload fields. The value lists a field's allowed values when its type
@@ -56,7 +56,7 @@ function typeBody(dts: string, name: string): string | null {
     const c = dts[i];
     if (c === "{" || c === "(") depth++;
     else if (c === "}" || c === ")") depth--;
-    else if (c === ";" && depth === 0) return stripComments(dts.slice(start + head.length, i));
+    else if (c === ";" && depth === 0) return dts.slice(start + head.length, i);
   }
   return null;
 }
@@ -115,7 +115,8 @@ export function parseSdkHookSpec(
   versions: { claudeCode: string; sdk: string },
 ): HookSpec {
   // The published file has CRLF line endings, which `$` in a multiline regex won't take.
-  const dts = source.replace(/\r\n/g, "\n");
+  // Comments go first: their prose holds braces and semicolons the type walk would count.
+  const dts = stripComments(source.replace(/\r\n/g, "\n"));
   const list = /export declare const HOOK_EVENTS: readonly \[([^\]]*)\]/.exec(dts);
   if (!list) throw new Error("sdk.d.ts declares no HOOK_EVENTS — the SDK's layout changed");
   const baseBody = typeBody(dts, "BaseHookInput");
