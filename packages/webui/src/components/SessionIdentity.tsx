@@ -81,7 +81,7 @@ export function SessionIdCopy({ sessionId }: { sessionId: string }) {
 export function SessionLinksButton({ session }: { session: SessionRef }) {
   const { data: model } = useAppBlueprint();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const links = sessionLinks(model, session);
+  const links = sessionLinks(model, session, window.location.origin);
   return (
     <>
       <Tooltip title="Open this session's raw data">
