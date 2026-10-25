@@ -11,6 +11,7 @@ import {
   clockTime,
   durationSplit,
   durationSplitLabel,
+  formatAgo,
   formatCompact,
   roleLabel,
   statusTime,
@@ -47,6 +48,21 @@ describe("formatCompact", () => {
 
   test("says nothing for a missing count", () => {
     expect(formatCompact(undefined)).toBe("—");
+  });
+});
+
+describe("formatAgo", () => {
+  const now = Date.UTC(2026, 9, 25, 12, 0, 0);
+  test("rounds to the coarsest unit", () => {
+    expect(formatAgo(now - 3_000, now)).toBe("just now");
+    expect(formatAgo(now - 45_000, now)).toBe("45s ago");
+    expect(formatAgo(now - 3 * 60_000 - 20_000, now)).toBe("3m ago");
+    expect(formatAgo(now - 2 * 3_600_000, now)).toBe("2h ago");
+    expect(formatAgo(now - 4 * 86_400_000, now)).toBe("4d ago");
+  });
+
+  test("a time in the future reads as just now, not negative", () => {
+    expect(formatAgo(now + 5_000, now)).toBe("just now");
   });
 });
 
