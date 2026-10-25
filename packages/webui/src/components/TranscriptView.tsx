@@ -6,7 +6,7 @@ import type { TranscriptEntry } from "../api/generated";
 import { formatCount } from "../format";
 import { useInfiniteTranscript } from "../hooks/useInfiniteTranscript";
 import { useIntersectionObserver } from "../hooks/useIntersectionObserver";
-import { buildTimeline, countTurns, isInternal } from "../transcript-timeline";
+import { buildTimeline, countTurns, isInternal, toolNamesById } from "../transcript-timeline";
 import { EmptyState, ErrorState, Loading } from "./states";
 import { TranscriptEntryRow } from "./TranscriptEntryRow";
 import { TranscriptTimeline } from "./TranscriptTimeline";
@@ -115,6 +115,7 @@ export function TranscriptView({
     [entries, showInternal],
   );
   const internalCount = useMemo(() => entries.filter(isInternal).length, [entries]);
+  const toolNames = useMemo(() => toolNamesById(entries), [entries]);
 
   const loadRest = useCallback(() => {
     setUnbounded(true);
@@ -194,7 +195,12 @@ export function TranscriptView({
       )}
 
       {mode === "timeline" ? (
-        <TranscriptTimeline nodes={nodes} query={query} firstMatch={firstMatch} />
+        <TranscriptTimeline
+          nodes={nodes}
+          toolNames={toolNames}
+          query={query}
+          firstMatch={firstMatch}
+        />
       ) : (
         <Stack spacing={0.5} data-testid="transcript-raw">
           {entries.map((entry, i) => (

@@ -11,19 +11,21 @@
  * The folding decisions are in `transcript-timeline.ts`; this file only draws them.
  */
 import { Box, Button, Chip, Collapse, Stack, Tooltip, Typography, useTheme } from "@mui/material";
-import { useEffect, useRef, useState } from "react";
-import type { TranscriptEntry } from "../api/generated";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCount, formatDuration, roleLabel } from "../format";
 import { MONO } from "../theme";
 import {
+  foldRows,
   formatTally,
   type HiddenNode,
   hiddenCount,
+  rowIndices,
   summarizeHidden,
   type TimelineNode,
   type TurnNode,
 } from "../transcript-timeline";
 import { TermHighlight } from "./HighlightedText";
+import { ToolCallRow } from "./ToolCallRow";
 import { TranscriptEntryRow, useScrollToMatch } from "./TranscriptEntryRow";
 
 /** Below this, "0s later" is noise: turns in the same exchange are seconds apart. */
@@ -234,10 +236,12 @@ function TurnCard({ node, query, isMatch }: { node: TurnNode; query?: string; is
  */
 function HiddenRun({
   node,
+  toolNames,
   query,
   matchIndex,
 }: {
   node: HiddenNode;
+  toolNames: Map<string, string>;
   query?: string;
   /** Entry index of the search match inside this run, or -1. Opens the run. */
   matchIndex: number;
@@ -245,6 +249,7 @@ function HiddenRun({
   const [open, setOpen] = useState(matchIndex >= 0);
   const count = hiddenCount(node);
   const summary = summarizeHidden(node);
+  const rows = useMemo(() => foldRows(node, toolNames), [node, toolNames]);
 
   return (
     <Stack direction="row" spacing={1.5} alignItems="flex-start">
@@ -301,15 +306,24 @@ function HiddenRun({
         </Stack>
         <Collapse in={open} unmountOnExit>
           <Stack spacing={0.5} sx={{ my: 0.5 }}>
-            {node.entries.map(({ index, entry }: { index: number; entry: TranscriptEntry }) => (
-              <TranscriptEntryRow
-                key={index}
-                entry={entry}
-                index={index}
-                query={query}
-                isFirstMatch={index === matchIndex}
-              />
-            ))}
+            {rows.map((row) =>
+              row.type === "tool" ? (
+                <ToolCallRow
+                  key={`${row.index}:${row.id ?? row.name}`}
+                  row={row}
+                  query={query}
+                  isFirstMatch={rowIndices(row).includes(matchIndex)}
+                />
+              ) : (
+                <TranscriptEntryRow
+                  key={row.index}
+                  entry={row.entry}
+                  index={row.index}
+                  query={query}
+                  isFirstMatch={row.index === matchIndex}
+                />
+              ),
+            )}
           </Stack>
         </Collapse>
       </Box>
@@ -319,10 +333,13 @@ function HiddenRun({
 
 export function TranscriptTimeline({
   nodes,
+  toolNames,
   query,
   firstMatch,
 }: {
   nodes: TimelineNode[];
+  /** Tool names by call id, across the whole transcript (see `toolNamesById`). */
+  toolNames: Map<string, string>;
   query?: string;
   /** Entry index the search sent us to, or -1. */
   firstMatch: number;
@@ -341,6 +358,7 @@ export function TranscriptTimeline({
           <HiddenRun
             key={`h${node.index}`}
             node={node}
+            toolNames={toolNames}
             query={query}
             matchIndex={node.entries.some((e) => e.index === firstMatch) ? firstMatch : -1}
           />

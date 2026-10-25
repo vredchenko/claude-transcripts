@@ -131,6 +131,11 @@ export class SessionDetailPage {
   }
 
   /** The one-line summaries standing in for a run of folded, non-dialogue lines. */
+  /** Tool calls inside an opened fold, each paired with its result. */
+  get toolCallRows(): Locator {
+    return this.page.getByTestId("tool-call-row");
+  }
+
   get folds(): Locator {
     return this.page.getByTestId("timeline-fold");
   }

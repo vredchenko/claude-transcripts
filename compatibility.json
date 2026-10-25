@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-10-25T00:23:09.033Z",
+  "source": "TODO: external Claude Code source of truth",
+  "claudeCode": {
+    "latestPublic": {
+      "version": "0.0.0",
+      "hooks": []
+    },
+    "latestCompatible": {
+      "version": "0.0.0",
+      "hooks": []
+    },
+    "earliestCompatible": {
+      "version": "0.0.0",
+      "hooks": []
+    }
+  }
+}

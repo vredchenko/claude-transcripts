@@ -272,3 +272,84 @@ export function nodeIndexContaining(nodes: TimelineNode[], entryIndex: number): 
       : node.entries.some((e) => e.index === entryIndex),
   );
 }
+
+// ── Tool calls inside a fold ──────────────────────────────────────────────────────
+
+/** Every tool call's name by its id, so a result can say which tool produced it. */
+export function toolNamesById(entries: TranscriptEntry[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const entry of entries) {
+    for (const use of entry.toolUses ?? []) if (use.id) names.set(use.id, use.name);
+  }
+  return names;
+}
+
+/** One tool call, with its result when the run holds it. */
+export interface ToolRow {
+  type: "tool";
+  /** Entry index of the call, or of the result when the call was on a turn card. */
+  index: number;
+  name: string;
+  id?: string;
+  result?: { index: number; entry: TranscriptEntry };
+}
+
+/** Anything in a fold that isn't a tool call or its result: shown as the raw row. */
+export interface EntryRow {
+  type: "entry";
+  index: number;
+  entry: TranscriptEntry;
+}
+
+export type FoldRow = ToolRow | EntryRow;
+
+/**
+ * The rows an opened fold shows: each tool call as one row carrying its result,
+ * instead of an `assistant` line naming the tool and a `tool_result` line some
+ * distance below it with no name at all.
+ *
+ * A result whose call isn't in this run — the call was made by the turn above,
+ * whose card already lists it — still becomes a tool row, named from `names`.
+ */
+export function foldRows(node: HiddenNode, names: Map<string, string>): FoldRow[] {
+  const rows: FoldRow[] = [];
+  const open = new Map<string, ToolRow>();
+  for (const { index, entry } of node.entries) {
+    const uses = entry.toolUses ?? [];
+    if (uses.length > 0 && !stripSystemReminders(entry.text ?? "")) {
+      for (const use of uses) {
+        const row: ToolRow = { type: "tool", index, name: use.name };
+        if (use.id) {
+          row.id = use.id;
+          open.set(use.id, row);
+        }
+        rows.push(row);
+      }
+      continue;
+    }
+    const id = entry.toolUseId;
+    if (id) {
+      const call = open.get(id);
+      if (call && !call.result) {
+        call.result = { index, entry };
+        continue;
+      }
+      rows.push({
+        type: "tool",
+        index,
+        name: names.get(id) ?? "tool",
+        id,
+        result: { index, entry },
+      });
+      continue;
+    }
+    rows.push({ type: "entry", index, entry });
+  }
+  return rows;
+}
+
+/** Entry indices a fold row stands for — for finding the row a search match is in. */
+export function rowIndices(row: FoldRow): number[] {
+  if (row.type === "entry") return [row.index];
+  return row.result && row.result.index !== row.index ? [row.index, row.result.index] : [row.index];
+}
