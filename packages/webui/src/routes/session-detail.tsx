@@ -28,7 +28,7 @@ import { DeleteSessionButton, SessionIdCopy } from "../components/SessionIdentit
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
 import { EmptyState, ErrorState, Loading } from "../components/states";
-import { TranscriptView } from "../components/TranscriptView";
+import { type TranscriptMode, TranscriptView } from "../components/TranscriptView";
 import {
   durationSplit,
   formatBytes,
@@ -51,9 +51,18 @@ export interface SessionDetailSearch {
 }
 
 /** One labelled fact in the metadata strip. Omitted entirely if value is falsy. */
-function MetaField({ label, children }: { label: string; children: ReactNode }) {
+function MetaField({
+  label,
+  children,
+  wide,
+}: {
+  label: string;
+  children: ReactNode;
+  /** A long value (a path) that may wrap rather than hold the row open. */
+  wide?: boolean;
+}) {
   return (
-    <Box sx={{ flexShrink: 0 }}>
+    <Box sx={wide ? { minWidth: 0, overflowWrap: "anywhere" } : { flexShrink: 0 }}>
       <Typography
         variant="caption"
         component="div"
@@ -124,6 +133,7 @@ export function SessionDetailPage() {
   const { data: session, isPending, isError, error } = useGetSession(id);
   const { data: model } = useAppBlueprint();
   const [speaker, setSpeaker] = useState<SpeakerFilter>("all");
+  const [mode, setMode] = useState<TranscriptMode>("timeline");
   const navigate = useNavigate();
   const theme = useTheme();
   const split = session ? durationSplit(session.durationMs, session.activeMs) : undefined;
@@ -192,12 +202,15 @@ export function SessionDetailPage() {
 
       {session && (
         <>
-          {/* Metadata strip — horizontal scroll */}
+          {/* Metadata strip. It wraps rather than scrolling sideways: on a phone a
+              horizontal scroller hid two thirds of the fields with no sign they were
+              there. */}
           <Box
             sx={{
               display: "flex",
-              gap: 3,
-              overflowX: "auto",
+              flexWrap: "wrap",
+              columnGap: 3,
+              rowGap: 1.5,
               py: 1.5,
               px: 1,
               mb: 2,
@@ -222,6 +235,11 @@ export function SessionDetailPage() {
             )}
             {session.model && <MetaField label="MODEL">{session.model}</MetaField>}
             {session.hostname && <MetaField label="HOST">{session.hostname}</MetaField>}
+            {session.cwd && (
+              <MetaField label="DIRECTORY" wide>
+                {session.cwd}
+              </MetaField>
+            )}
             {session.tokenUsage && (
               <MetaField label="TOKENS">{formatCount(session.tokenUsage.total)}</MetaField>
             )}
@@ -259,22 +277,37 @@ export function SessionDetailPage() {
                 />
               )}
             </Stack>
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={speaker}
-              onChange={(_e, v: SpeakerFilter | null) => v && setSpeaker(v)}
-              aria-label="speaker filter"
-            >
-              <ToggleButton value="all">Both</ToggleButton>
-              <ToggleButton value="user">User</ToggleButton>
-              <ToggleButton value="assistant">Claude</ToggleButton>
-            </ToggleButtonGroup>
+            {/* Both controls on one row. The reader toggle only applies to the full
+                transcript, so it's disabled while one speaker is showing. */}
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={speaker}
+                onChange={(_e, v: SpeakerFilter | null) => v && setSpeaker(v)}
+                aria-label="speaker filter"
+              >
+                <ToggleButton value="all">Both</ToggleButton>
+                <ToggleButton value="user">User</ToggleButton>
+                <ToggleButton value="assistant">Claude</ToggleButton>
+              </ToggleButtonGroup>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={mode}
+                disabled={speaker !== "all"}
+                onChange={(_e, v: TranscriptMode | null) => v && setMode(v)}
+                aria-label="transcript reader"
+              >
+                <ToggleButton value="timeline">Timeline</ToggleButton>
+                <ToggleButton value="raw">Raw</ToggleButton>
+              </ToggleButtonGroup>
+            </Stack>
           </Stack>
           {speaker !== "all" ? (
             <SpeakerTurnsView sessionId={session.sessionId} role={speaker} query={query} />
           ) : session.hasTranscript ? (
-            <TranscriptView sessionId={session.sessionId} query={query} />
+            <TranscriptView sessionId={session.sessionId} query={query} mode={mode} />
           ) : (
             <Typography color="text.secondary" variant="body2">
               No transcript was stored for this session.
