@@ -148,7 +148,7 @@ export class SessionDetailPage {
     return this.page.getByRole("group", { name: "speaker filter" });
   }
 
-  async selectSpeaker(label: "Both" | "You" | "Claude"): Promise<void> {
+  async selectSpeaker(label: "Both" | "User" | "Claude"): Promise<void> {
     await this.speakerFilter.getByRole("button", { name: label }).click();
   }
 

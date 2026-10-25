@@ -26,7 +26,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppBlueprint } from "../api/blueprint";
 import { getSearchQueryKey, useSearch } from "../api/generated";
-import { projectName } from "../format";
+import { projectName, roleLabel } from "../format";
 import { COMMANDS, type CommandContext } from "../omnibox/commands";
 import { OPERATORS, parseOmniboxInput } from "../omnibox/parse";
 import { addRecentSearch, getRecentSearches, getSavedFilters } from "../omnibox/storage";
@@ -456,7 +456,7 @@ function TextModeDropdown({
                     <Chip
                       component="span"
                       size="small"
-                      label={t.role}
+                      label={roleLabel(t.role)}
                       sx={{ mr: 1, height: 18, fontSize: 10 }}
                     />
                     <MarkedSnippet snippet={t.snippet} />

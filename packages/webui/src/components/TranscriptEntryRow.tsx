@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import { useEffect, useRef } from "react";
 import type { TranscriptEntry } from "../api/generated";
+import { roleLabel } from "../format";
 import { MONO } from "../theme";
 import { type EntryView, summarizeEntry } from "../transcript-entry";
 import { TermHighlight } from "./HighlightedText";
@@ -99,7 +100,7 @@ export function TranscriptEntryRow({
           <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO, width: 44 }}>
             #{index}
           </Typography>
-          <Chip size="small" color={kindColor(view.kind)} label={view.kind} />
+          <Chip size="small" color={kindColor(view.kind)} label={roleLabel(view.kind)} />
           {view.sidechain && <Chip size="small" variant="outlined" label="subagent" />}
           {view.isError && <Chip size="small" color="error" label="error" />}
           <Typography

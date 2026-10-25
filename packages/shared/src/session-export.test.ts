@@ -91,7 +91,7 @@ describe("sessionToMarkdown", () => {
     expect(md).toContain("tokens: 1234\n");
     expect(md).toContain('ended: "2026-10-16 16:05:00 UTC"');
     expect(md).toContain("# my-project — 1a2b3c4d");
-    expect(md).toContain("## You · 2026-10-16 16:00:01 UTC\n\nList the files");
+    expect(md).toContain("## User · 2026-10-16 16:00:01 UTC\n\nList the files");
     expect(md).toContain("Sure.\n\n_Tools: `Bash`_");
     expect(md).toContain("<details>\n<summary>Output</summary>\n\n```\na.ts\nb.ts\n```");
     expect(md).not.toContain("hook_success");

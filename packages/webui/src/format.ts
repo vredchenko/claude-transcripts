@@ -47,6 +47,23 @@ export function projectName(cwd: string | undefined): string {
   return parts[parts.length - 1] || cwd;
 }
 
+/** What the UI calls each speaker. The API's role names are an implementation detail. */
+const ROLE_LABEL: Record<string, string> = {
+  user: "User",
+  assistant: "Claude",
+  tool_result: "Tool result",
+  system: "System",
+};
+
+/**
+ * A role or entry kind as the reader should see it: "User" and "Claude" everywhere, so
+ * the transcript, search and the omnibox speak one vocabulary. Kinds without a label
+ * (`attachment:hook_success`, …) pass through unchanged.
+ */
+export function roleLabel(role: string): string {
+  return ROLE_LABEL[role] ?? role;
+}
+
 /** Sum of a tool-count map. */
 export function totalTools(toolCounts: Record<string, number> | undefined): number {
   if (!toolCounts) return 0;

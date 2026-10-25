@@ -65,7 +65,7 @@ export interface ExportSection {
 const DEFAULT_TOOL_RESULT_LIMIT = 2000;
 
 const HEADINGS: Record<ExportSection["role"], string> = {
-  user: "You",
+  user: "User",
   assistant: "Claude",
   tool_result: "Tool result",
 };

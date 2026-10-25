@@ -7,7 +7,19 @@
  * bug.
  */
 import { describe, expect, test } from "bun:test";
-import { clockTime, durationSplit, durationSplitLabel, statusTime } from "./format";
+import { clockTime, durationSplit, durationSplitLabel, roleLabel, statusTime } from "./format";
+
+describe("roleLabel", () => {
+  test("names the two speakers User and Claude", () => {
+    expect(roleLabel("user")).toBe("User");
+    expect(roleLabel("assistant")).toBe("Claude");
+    expect(roleLabel("tool_result")).toBe("Tool result");
+  });
+
+  test("passes unlabelled kinds through", () => {
+    expect(roleLabel("attachment:hook_success")).toBe("attachment:hook_success");
+  });
+});
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

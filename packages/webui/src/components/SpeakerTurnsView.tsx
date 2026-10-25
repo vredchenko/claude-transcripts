@@ -1,7 +1,7 @@
 import { Box, Button, Chip, Stack, Typography, useTheme } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { type SpeakerRole, useGetSessionTurns } from "../api/generated";
-import { formatCount, formatTimestamp } from "../format";
+import { formatCount, formatTimestamp, roleLabel } from "../format";
 import { MONO } from "../theme";
 import { TermHighlight } from "./HighlightedText";
 import { EmptyState, ErrorState, Loading } from "./states";
@@ -49,7 +49,8 @@ export function SpeakerTurnsView({
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        {formatCount(data.turns.length)} {role} turn{data.turns.length === 1 ? "" : "s"}
+        {formatCount(data.turns.length)} turn{data.turns.length === 1 ? "" : "s"} by{" "}
+        {role === "user" ? "you" : roleLabel(role)}
         {data.hasMore ? " (truncated)" : ""}
       </Typography>
       <Stack spacing={1}>
