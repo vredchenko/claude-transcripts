@@ -39,7 +39,7 @@ function HeaderMenu({
         onClick={(e) => setAnchor(e.currentTarget)}
         aria-haspopup="true"
         aria-expanded={open ? "true" : undefined}
-        sx={{ textTransform: "none", fontWeight: 500, minWidth: 0, px: 1 }}
+        sx={{ fontWeight: 500, minWidth: 0, px: 1 }}
       >
         {label} ▾
       </Button>

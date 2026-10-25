@@ -117,7 +117,6 @@ export function SessionDetailPage() {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                sx={{ textTransform: "none" }}
               >
                 {link.label} ↗
               </Button>

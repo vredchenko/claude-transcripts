@@ -50,7 +50,6 @@ export function ExportMenu({ session }: { session: SessionSummary }) {
         title={error ? `Export failed: ${error}` : undefined}
         onClick={(e) => setAnchor(e.currentTarget)}
         aria-haspopup="menu"
-        sx={{ textTransform: "none" }}
       >
         {busy ? "Exporting…" : error ? "Export failed — retry" : "Export"}
       </Button>
