@@ -22,7 +22,7 @@ import { useAppBlueprint } from "../api/blueprint";
 import { useGetSession } from "../api/generated";
 import { ApiRequestError } from "../api/http";
 import { ExportMenu } from "../components/ExportMenu";
-import { SessionIdCopy } from "../components/SessionIdentity";
+import { DeleteSessionButton, SessionIdCopy } from "../components/SessionIdentity";
 import { SpeakerTurnsView } from "../components/SpeakerTurnsView";
 import { StatusChip } from "../components/StatusChip";
 import { EmptyState, ErrorState, Loading } from "../components/states";
@@ -109,6 +109,7 @@ export function SessionDetailPage() {
             <StatusChip status={session.status} />
             <Box sx={{ flex: 1 }} />
             <ExportMenu session={session} />
+            <DeleteSessionButton />
             {/* Links to the raw data */}
             {links.map((link) => (
               <Button
