@@ -129,6 +129,14 @@ describe("buildTimeline", () => {
     ]);
   });
 
+  it("numbers turns among themselves, not by entry index", () => {
+    expect(turns(buildTimeline(entries)).map((t) => [t.number, t.index])).toEqual([
+      [1, 0],
+      [2, 1],
+      [3, 6],
+    ]);
+  });
+
   it("tallies a turn's own tool calls by name", () => {
     expect(turns(buildTimeline(entries))[1]?.tools).toEqual([{ name: "Read", count: 2 }]);
   });

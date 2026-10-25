@@ -10,7 +10,7 @@
  *
  * The folding decisions are in `transcript-timeline.ts`; this file only draws them.
  */
-import { Box, Button, Chip, Collapse, Stack, Typography, useTheme } from "@mui/material";
+import { Box, Button, Chip, Collapse, Stack, Tooltip, Typography, useTheme } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import type { TranscriptEntry } from "../api/generated";
 import { formatCount, formatDuration, roleLabel } from "../format";
@@ -202,9 +202,13 @@ function TurnCard({ node, query, isMatch }: { node: TurnNode; query?: string; is
             </Typography>
             {node.sidechain && <Chip size="small" variant="outlined" label="subagent" />}
             <Box sx={{ flex: 1 }} />
-            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO }}>
-              #{node.index}
-            </Typography>
+            {/* Turn number, not entry index: it agrees with the "N turns" readout. The
+                index is still there for whoever is cross-referencing the raw view. */}
+            <Tooltip title={`Line #${node.index} in the raw view`}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: MONO }}>
+                turn {formatCount(node.number)}
+              </Typography>
+            </Tooltip>
           </Stack>
 
           <TurnText text={node.text} query={query} />
