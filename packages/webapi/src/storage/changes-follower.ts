@@ -15,6 +15,10 @@
  * avoidable. One feed, two consumers — a second follower would double the load on
  * CouchDB to learn the same facts.
  *
+ * The index also says which sessions went quiet without ever ending, so the follower
+ * runs the `reconcile-session` sweep too (`reconcile-sweep.ts`): one feed, and the one
+ * place that already knows.
+ *
  * Search updates are buffered and flushed every few minutes rather than sent per batch:
  * Meilisearch pays per update, not per document, and a live session is a stream of
  * one-document batches (#231). The session index, which is in memory, stays per batch.
@@ -34,6 +38,7 @@ import {
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "./meili";
+import { startReconcileSweep } from "./reconcile-sweep";
 import { type SearchBatch, SearchBuffer } from "./search-buffer";
 
 /**
@@ -293,6 +298,9 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
   const { buffer, flush } = createSearchFlusher(ctx, db);
   let stopped = false;
   let timer: ReturnType<typeof setInterval> | undefined;
+  // The follower keeps the session index current, which is what tells it which
+  // sessions went quiet without ending — so it is also what finalises them.
+  const reconcile = startReconcileSweep(ctx);
 
   void (async () => {
     const since = (await readCheckpoint(db)) ?? "now";
@@ -358,6 +366,7 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
     async stop() {
       stopped = true;
       if (timer) clearInterval(timer);
+      reconcile?.stop();
       try {
         db.changesReader.stop();
       } catch {

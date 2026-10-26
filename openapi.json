@@ -701,6 +701,22 @@
             "description": "Exact provenance (`source`).",
             "name": "source",
             "in": "query"
+          },
+          {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SessionStatus"
+                },
+                {
+                  "description": "Only sessions in this state. `incomplete` lists the ones `reconcile` would finalise."
+                }
+              ]
+            },
+            "required": false,
+            "description": "Only sessions in this state. `incomplete` lists the ones `reconcile` would finalise.",
+            "name": "status",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1168,8 +1184,7 @@
                   "prompt_count",
                   "error_count",
                   "tool_counts",
-                  "transcript_bytes",
-                  "token_usage"
+                  "transcript_bytes"
                 ],
                 "additionalProperties": {
                   "nullable": true

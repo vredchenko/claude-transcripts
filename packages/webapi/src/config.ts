@@ -58,7 +58,11 @@ export interface Config {
   };
   system: {
     logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } };
-    sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
+    sessions?: {
+      liveWindowMs?: number;
+      idleThresholdMs?: number;
+      reconcile?: { follower?: boolean; intervalMs?: number; batchSize?: number };
+    };
     search?: { flushIntervalMs?: number; taskRetentionMs?: number };
   };
   meili: {
@@ -140,6 +144,25 @@ export function loadConfig(): Config {
 export function liveWindowMs(config: Config): number {
   const v = config.system.sessions?.liveWindowMs;
   return typeof v === "number" && v > 0 ? v : DEFAULT_LIVE_WINDOW_MS;
+}
+
+/**
+ * The follower's reconcile sweep (`reconcile-session`): on unless switched off, hourly,
+ * at most 50 sessions a sweep. A session is a candidate once it reads as `incomplete`
+ * — no summary, and quiet for longer than {@link liveWindowMs}.
+ */
+export function reconcileSettings(config: Config): {
+  follower: boolean;
+  intervalMs: number;
+  batchSize: number;
+} {
+  const r = config.system.sessions?.reconcile ?? {};
+  const positive = (v: unknown, d: number) => (typeof v === "number" && v > 0 ? v : d);
+  return {
+    follower: r.follower !== false,
+    intervalMs: positive(r.intervalMs, 60 * 60 * 1000),
+    batchSize: positive(r.batchSize, 50),
+  };
 }
 
 /** The configured idle threshold (ms) for active-duration, falling back to 5 min. */

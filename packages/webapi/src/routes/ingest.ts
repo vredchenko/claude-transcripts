@@ -47,9 +47,11 @@ const SummaryDocSchema = z
     error_count: z.number(),
     tool_counts: z.record(z.string(), z.number()),
     transcript_bytes: z.number(),
-    token_usage: TokenUsageSchema,
-    // Provenance: "live" (hook) | "backfill" (adopted from fs). Kept open (string)
-    // so it's not brittle as sources evolve.
+    // Optional for `reconcile`: a session that never ended has no transcript in S3 to
+    // count tokens from, and a zero would read as a measurement.
+    token_usage: TokenUsageSchema.optional(),
+    // Provenance: "live" (hook) | "backfill" (adopted from fs) | "reconcile" (finalised
+    // after the fact). Kept open (string) so it's not brittle as sources evolve.
     source: z.string().optional(),
     backfilled_at: z.string().optional(),
     actor: z.string().optional(),

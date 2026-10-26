@@ -10,13 +10,15 @@ import {
   type ChunkEntry,
   chunkDocId,
   sliceIntoChunks,
+  sumTranscriptTokens,
 } from "@claude-transcripts/shared";
+import type { SessionSummary } from "../api/generated";
 import { parseEntries, type SessionFacts } from "./transcript";
 
 /** Provenance of an ingested doc — distinguishes adopted history (`backfill`) and
  *  the `doctor` smoke-test's synthetic session from live logging (the hook writes
  *  `"live"`). */
-export type IngestSource = "backfill" | "doctor";
+export type IngestSource = "backfill" | "doctor" | "reconcile";
 
 /** A `summary:<id>` doc — the session rollup the hook writes at SessionEnd. */
 export interface SummaryDoc {
@@ -34,11 +36,14 @@ export interface SummaryDoc {
   error_count: number;
   tool_counts: Record<string, number>;
   transcript_bytes: number;
-  token_usage: SessionFacts["tokenUsage"];
+  /** Absent only on a `reconcile` summary with no S3 transcript to count from. */
+  token_usage?: SessionFacts["tokenUsage"];
   source: IngestSource;
   /** when the backfill ran (provenance) — distinct from `timestamp`, which is the
    *  session's real end time, so history never reads as created-at-backfill. */
   backfilled_at?: string;
+  /** when `reconcile` finalised it — `timestamp` stays the session's last activity. */
+  reconciled_at?: string;
   /** optional attribution (backfill --host/--actor) */
   actor?: string;
 }
@@ -69,6 +74,46 @@ export function buildSummaryDoc(
     source,
     ...(opts.backfilledAt ? { backfilled_at: opts.backfilledAt } : {}),
     ...(opts.actor ? { actor: opts.actor } : {}),
+  };
+}
+
+/**
+ * The summary a session would have had, for one that never fired `SessionEnd`.
+ *
+ * Built from what was recorded rather than from the transcript: the counts are the
+ * event aggregate the gateway already serves for a summary-less session — the same
+ * markers the hook's own counters would have totalled — so finalising a session does
+ * not move its numbers. The S3 transcript, when one exists, adds what only it holds:
+ * token usage and the exact byte count. Without it there are no token figures, so
+ * `token_usage` is left out rather than written as zeros.
+ *
+ * `end_reason` is `unknown` (nothing recorded why it stopped) and `timestamp` is the
+ * last activity, so the session reads as ending when it went quiet, not when it was
+ * reconciled; `source: "reconcile"` + `reconciled_at` say how and when.
+ */
+export function buildReconciledSummary(
+  s: SessionSummary,
+  transcript: string | null,
+  reconciledAt: string,
+): SummaryDoc {
+  return {
+    _id: `summary:${s.sessionId}`,
+    type: "summary",
+    event: "SessionEnd",
+    session_id: s.sessionId,
+    timestamp: s.lastActivity || s.timestamp,
+    hostname: s.hostname,
+    cwd: s.cwd,
+    ...(s.model ? { model: s.model } : {}),
+    end_reason: "unknown",
+    event_count: s.eventCount,
+    prompt_count: s.promptCount,
+    error_count: s.errorCount,
+    tool_counts: s.toolCounts,
+    transcript_bytes: transcript ? Buffer.byteLength(transcript) : (s.transcriptSize ?? 0),
+    ...(transcript ? { token_usage: sumTranscriptTokens(transcript) } : {}),
+    source: "reconcile",
+    reconciled_at: reconciledAt,
   };
 }
 

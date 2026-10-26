@@ -81,14 +81,17 @@ Written once per session. A session is `ended` exactly when this doc exists.
   "transcript_bytes": 0,          // size only; the transcript is in S3
   "token_usage": { "input": 0, "output": 0, "cacheCreation": 0, "cacheRead": 0, "total": 0, "messages": 0 },
   "system_checks": {},            // hook-written docs; reserved, currently empty
-  "source": "live | backfill | doctor",
-  "model": "…",                   // backfill/doctor docs, from the transcript
+  "source": "live | backfill | doctor | reconcile",
+  "model": "…",                   // backfill/doctor/reconcile docs
   "backfilled_at": "…",           // backfill only; the session's own time stays in `timestamp`
+  "reconciled_at": "…",           // reconcile only; `timestamp` is the session's last activity
   "actor": "…"                    // optional, from `backfill --actor`
 }
 ```
 
-`token_usage` is computed by `sumTranscriptTokens`, deduplicated by `message.id`.
+`token_usage` is computed by `sumTranscriptTokens`, deduplicated by `message.id`. A
+`reconcile` summary has it only when the session's S3 transcript exists; its counts
+come from the session's event markers, so finalising a session doesn't change them.
 
 ### `chunk`
 

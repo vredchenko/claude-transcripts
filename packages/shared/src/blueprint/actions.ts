@@ -1,9 +1,11 @@
 import type { ActionDef, HookActionBinding } from "./types";
 
 /**
- * The catalogue of event-handling actions, defined independently of any hook.
- * Hooks bind to actions many-to-many (BINDINGS). `implemented` flags the ones the hook
- * has a handler for (the CLI's `HANDLERS` map; a test there keeps the two in step).
+ * The catalogue of actions, defined independently of what starts them. Hooks bind to
+ * actions many-to-many (BINDINGS); `triggers` names the other starters — a CLI command,
+ * the webapi's change follower. `implemented` flags the ones that run today: a bound
+ * action has a hook handler (the CLI's `HANDLERS` map), an unbound one has its CLI
+ * command (tests in the CLI keep both in step).
  */
 export const ACTIONS: ActionDef[] = [
   {
@@ -62,8 +64,10 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     key: "reconcile-session",
-    summary: "Finalize a stale running session from chunks/S3",
-    implemented: false,
+    summary:
+      "Write the missing summary for a session that never fired SessionEnd, from its events (and S3 transcript)",
+    implemented: true,
+    triggers: { cli: "reconcile", follower: true },
   },
 ];
 
@@ -101,3 +105,19 @@ export const BINDINGS: HookActionBinding[] = [
   { event: "PostCompact", actions: ["write-event-marker"] },
   { event: "SessionEnd", actions: ["flush-transcript-chunk", "write-summary", "upload-blobs"] },
 ];
+
+/**
+ * The CLI arguments the webapi's follower runs an action with: its `triggers.cli`
+ * command over these sessions, against this webapi, reporting JSON. Null when the
+ * action has no follower trigger. Lives with the catalogue so a test can hold it to
+ * `CLI_SPEC` — the CLI rejects an undeclared flag before the command runs.
+ */
+export function followerCliArgs(
+  action: ActionDef,
+  sessionIds: string[],
+  webapiUrl: string,
+): string[] | null {
+  const command = action.triggers?.cli;
+  if (!action.implemented || !action.triggers?.follower || !command) return null;
+  return [command, ...sessionIds, "--webapi", webapiUrl, "--json"];
+}

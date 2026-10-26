@@ -108,3 +108,47 @@ describe("GET /sessions/{id}/turns", () => {
     expect(body).toEqual({ turns: [], totalCount: 0, hasMore: false, role: "assistant" });
   });
 });
+
+describe("GET /sessions?status=", () => {
+  const now = Date.now();
+  const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
+  const agg = (last: string, summary: object | null = null) => ({
+    ended: summary ? 1 : 0,
+    events: 3,
+    prompts: 1,
+    errors: 0,
+    started: 1,
+    tools: {},
+    first: last,
+    last,
+    model: "",
+    cwd: "/p",
+    hostname: "h",
+    summary,
+    chunkEntries: 0,
+    chunkBytes: 0,
+  });
+  const rows = [
+    { key: "ended", value: agg(ago(100), { event_count: 3, timestamp: ago(100) }) },
+    { key: "running", value: agg(ago(1)) },
+    { key: "incomplete", value: agg(ago(48)) },
+  ];
+  const ctx = {
+    couch: { db: () => ({ view: async () => ({ rows: [] }) }) },
+    sessionIndex: { ready: true, rows: () => rows },
+    config: { system: {} },
+  } as unknown as AppContext;
+  const app = sessionRoutes(ctx);
+
+  test.each(["ended", "running", "incomplete"])("lists only the %s sessions", async (status) => {
+    const res = await app.fetch(new Request(`http://localhost/sessions?status=${status}`));
+    const body = (await res.json()) as any;
+    expect(body.sessions.map((s: any) => s.sessionId)).toEqual([status]);
+    expect(body.totalCount).toBe(1);
+  });
+
+  test("rejects a status that doesn't exist", async () => {
+    const res = await app.fetch(new Request("http://localhost/sessions?status=crashed"));
+    expect(res.status).toBe(400);
+  });
+});

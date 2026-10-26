@@ -289,6 +289,10 @@ export type ListSessionsParams = {
    * Exact provenance (`source`).
    */
   source?: string;
+  /**
+   * Only sessions in this state. `incomplete` lists the ones `reconcile` would finalise.
+   */
+  status?: SessionStatus & unknown;
 };
 
 export type GetSessionTranscriptParams = {
@@ -394,7 +398,7 @@ export type IngestSummaryBody = {
   error_count: number;
   tool_counts: IngestSummaryBodyToolCounts;
   transcript_bytes: number;
-  token_usage: IngestSummaryBodyTokenUsage;
+  token_usage?: IngestSummaryBodyTokenUsage;
   source?: string;
   backfilled_at?: string;
   actor?: string;

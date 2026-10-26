@@ -22,7 +22,11 @@ The committed template:
   "app": { "name": "claude-transcripts" },
   "system": {
     "logging": { "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 } },
-    "sessions": { "liveWindowMs": 86400000, "idleThresholdMs": 300000 }
+    "sessions": {
+      "liveWindowMs": 86400000,
+      "idleThresholdMs": 300000,
+      "reconcile": { "follower": true, "intervalMs": 3600000, "batchSize": 50 }
+    }
   },
   "couchdb": {
     "databases": {
@@ -67,6 +71,7 @@ The committed template:
 |-----|---------|
 | `system.logging.chunk` | Mid-session chunk flush: after this many transcript entries or this many ms, whichever first ([mid-flight-chunking.md](../design/mid-flight-chunking.md)). |
 | `system.sessions.liveWindowMs` | A session with no `SessionEnd` counts as `running` for this long after its last event (24 h), then `incomplete`. A recency heuristic; there is no heartbeat. |
+| `system.sessions.reconcile` | The webapi's sweep that finalises sessions which never fired `SessionEnd` ([tools.md](../operate/tools.md#reconcile)): every `intervalMs` (1 h) it runs `claude-transcripts reconcile` on up to `batchSize` (50) sessions that read as `incomplete`. `follower: false` turns it off; `reconcile` by hand still works. Needs the CLI next to the webapi: the app image ships it (`CT_CLI_BIN`), a checkout uses the workspace's. |
 | `system.sessions.idleThresholdMs` | Gaps between events longer than this (5 min) don't count towards a session's active time. |
 | `system.search.flushIntervalMs` | Changes reach the search index in batches, at most this far (3 min) behind; a live session that ends is flushed at once. Shorter is fresher search and more Meilisearch disk writes; each flush costs about the same however much it carries. |
 | `system.search.taskRetentionMs` | Finished Meilisearch tasks older than this (1 h) are pruned from its task queue, so it doesn't grow without bound. |

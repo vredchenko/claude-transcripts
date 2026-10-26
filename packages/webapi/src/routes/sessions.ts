@@ -241,10 +241,7 @@ function aggregateToSummary(
     };
   }
 
-  const last = agg.last || agg.first || "";
-  const lastMs = last ? Date.parse(last) : Number.NaN;
-  const stale = Number.isNaN(lastMs) || nowMs - lastMs > windowMs;
-  const status: SessionStatus = stale ? "incomplete" : "running";
+  const status = sessionStatus(agg, nowMs, windowMs);
   return {
     sessionId,
     timestamp: agg.first || agg.last || "",
@@ -318,8 +315,24 @@ function orderKey(s: SessionSummary): string {
   return s.lastActivity || s.timestamp || "";
 }
 
+/**
+ * `ended` with a summary; otherwise `running` while its last activity is inside the
+ * live window, `incomplete` past it. The one place that rule lives — the list, the
+ * detail route and the follower's reconcile sweep all ask it.
+ */
+export function sessionStatus(
+  agg: SessionAggregate,
+  nowMs: number,
+  windowMs: number,
+): SessionStatus {
+  if (agg.summary) return "ended";
+  const last = agg.last || agg.first || "";
+  const lastMs = last ? Date.parse(last) : Number.NaN;
+  return Number.isNaN(lastMs) || nowMs - lastMs > windowMs ? "incomplete" : "running";
+}
+
 /** A session_index row worth showing: ended, or a real started/active session. */
-function isRealSession(agg: SessionAggregate | undefined): agg is SessionAggregate {
+export function isRealSession(agg: SessionAggregate | undefined): agg is SessionAggregate {
   return (
     Boolean(agg) && ((agg?.ended ?? 0) > 0 || (agg?.started ?? 0) > 0 || (agg?.events ?? 0) > 0)
   );
@@ -409,6 +422,10 @@ const listRoute = createRoute({
         description: "Exact model id. Sessions with no recorded model never match.",
       }),
       source: z.string().optional().openapi({ description: "Exact provenance (`source`)." }),
+      status: SessionStatusSchema.optional().openapi({
+        description:
+          "Only sessions in this state. `incomplete` lists the ones `reconcile` would finalise.",
+      }),
     }),
   },
   responses: {
@@ -591,7 +608,7 @@ export function sessionRoutes(ctx: AppContext) {
   };
 
   route.openapi(listRoute, async (c: any) => {
-    const { limit, skip, from, to, cwd, hostname, model, source } = c.req.valid("query");
+    const { limit, skip, from, to, cwd, hostname, model, source, status } = c.req.valid("query");
     const db = ctx.couch.db("sessions");
     // One aggregate row per session (ended + running + incomplete), grouped by
     // session_id, then sorted + paginated in memory.
@@ -616,7 +633,8 @@ export function sessionRoutes(ctx: AppContext) {
         (!cwd || sameDir(s.cwd, cwd)) &&
         (!hostname || s.hostname === hostname) &&
         (!model || s.model === model) &&
-        (!source || s.source === source),
+        (!source || s.source === source) &&
+        (!status || s.status === status),
     );
     windowed.sort((a, b) => orderKey(b).localeCompare(orderKey(a)));
     const page = windowed.slice(skip, skip + limit);

@@ -76,6 +76,7 @@ Not built: `couch` / `s3` passthroughs and `meta post` enrichment.
 |---|---|
 | `migrate [direction] [options]` | Run CouchDB migrations |
 | `reindex` | Rebuild the search indexes from CouchDB |
+| `reconcile [session-id] [options]` | Finalise sessions that never ended (write their missing summary) |
 | `doctor [options]` | Smoke-test the write/read/search path end-to-end |
 | `compat [action] [options]` | Check Claude Code's hook spec against this build's (exit 1 on drift) |
 | `hook [action] [options]` | The Claude Code hook, and its registration |
@@ -321,6 +322,26 @@ Rebuild the search indexes from CouchDB
 
 ```bash
 claude-transcripts reindex
+```
+
+### `reconcile [session-id] [options]`
+
+Finalise sessions that never ended (write their missing summary)
+
+| Argument | |
+|---|---|
+| `session-id` | sessions to finalise (repeatable); default: every session that reads as `incomplete` |
+
+| Option | |
+|---|---|
+| `--dry-run` | say what would be written, write nothing |
+| `--force` | also finalise a named session that still reads as `running` |
+| `--json` | print the outcomes as JSON (what the follower reads) |
+
+```bash
+claude-transcripts reconcile --dry-run
+claude-transcripts reconcile 3f9a2c1e-… --force
+claude-transcripts reconcile --json
 ```
 
 ### `doctor [options]`
