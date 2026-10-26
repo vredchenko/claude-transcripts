@@ -50,8 +50,16 @@ clickable only where the terminal spots URLs itself, which it does most reliably
 nothing is attached to either end. It runs ahead of the config check, so an unconfigured
 machine says so:
 `○ Claude Transcripts not recording — no instance configured. Run claude-transcripts install.`
-Every URL comes from the resolved config. It is the only hook output on stdout, which
-is why `SessionStart` is registered synchronously ([hook.md](../reference/hook.md#dispatch)).
+Every URL comes from the resolved config. Under it, `check-hook-compat` adds one line
+saying whether the running Claude Code matches the hook spec this build was made for,
+or a short summary of what drifted ([compatibility.md](../start/compatibility.md)):
+
+```
+✓ Hook spec matches Claude Code 2.1.310 (33 events, 11 recorded)
+```
+
+The banner is the only hook output on stdout, which is why `SessionStart` is registered
+synchronously ([hook.md](../reference/hook.md#dispatch)).
 
 ### 1b. Statusline
 
