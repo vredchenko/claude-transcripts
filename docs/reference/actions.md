@@ -1,7 +1,7 @@
 # Actions and bindings
 
-An **action** is one behaviour the hook performs. Actions are defined independently of
-hook events and bound to them many-to-many
+An **action** is one behaviour the system performs. Most are hook behaviours. Actions
+are defined independently of hook events and bound to them many-to-many
 ([ADR 0017](../design/decisions/0017-hooks-and-actions-decoupled.md)), all in the app
 model:
 
@@ -9,7 +9,10 @@ model:
   `wired` marks the bound ones and `ignoreReason` says why the rest aren't.
 - `ACTIONS` and `BINDINGS` (`packages/shared/src/blueprint/actions.ts`) — the catalogue and
   the `event → actions[]` table.
-- `HANDLERS` (`packages/cli/src/hook/handlers.ts`) — one implementation per action.
+- `HANDLERS` (`packages/cli/src/hook/handlers.ts`) — one implementation per bound action.
+- `triggers` on an action — the other ways it starts: `cli` names the `CLI_SPEC` command
+  that implements it, and `follower: true` has the webapi's change follower run that
+  command on a sweep (`followerCliArgs` builds the call; a test holds it to `CLI_SPEC`).
 
 The current event → actions table is generated into [hook-events.md](hook-events.md)
 ("What we do").
@@ -25,14 +28,14 @@ The current event → actions table is generated into [hook-events.md](hook-even
 | `upload-blobs` | Upload the byte-exact `transcript.jsonl` | S3 |
 | `seed-session-start` | Reset counters and chunk offset; record the resolved targets and last-write time for the statusline | `/tmp`, CouchDB |
 | `inject-recall-policy` | Prime the session with the recall policy and how much history this directory has; omitted when recall is off, the directory is excluded or empty, or the webapi is slow ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)) | stdout (context) |
+| `reconcile-session` | Write the missing `summary:<id>` for a session that never fired `SessionEnd`, from its event markers and (when present) its S3 transcript. Not bound to an event, because a dead session fires none. It is the `reconcile` CLI command, and the change follower runs it on a sweep ([tools.md](../operate/tools.md#reconcile)). | CouchDB (via the webapi) |
 | `announce-recording` | Print the session-start banner: where the session is recorded, or that it isn't. The only action that writes to stdout. | stdout (transcript) |
 
 Planned, with no handler yet: `enrich-metadata` (post host and harness metadata),
 `extract-feature` (URLs, repos, PRs, slash commands, models), `detect-memory-write`
 (`Edit`/`Write` to memory files, `CLAUDE.md`, `AGENTS.md`), `app-log`
 ([app-logging.md](../operate/app-logging.md)), `index-for-search` (search indexing
-already happens in the webapi's change follower), `reconcile-session` (finalise a
-session that never ended).
+already happens in the webapi's change follower).
 
 ## What is wired
 

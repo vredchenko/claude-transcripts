@@ -8,9 +8,6 @@ in parentheses are the original tracking issues. Shipped work is recorded in
 
 Tier 1 (capture, browse, search, export/import, one-command install) is built. Open:
 
-- **`reconcile`** — write the missing summary for a session that never fired
-  `SessionEnd`, from its chunks or S3 transcript (#4). Until then such sessions stay
-  `incomplete`.
 - **Restoring a bundle across a document-reshaping migration.** Import refuses that
   case today (`transformsDocs`); the fix is a scoped replay of the migration over the
   restored ids, worth building once such a migration exists

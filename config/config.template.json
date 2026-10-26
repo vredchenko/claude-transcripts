@@ -6,7 +6,11 @@
     "logging": {
       "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 }
     },
-    "sessions": { "liveWindowMs": 86400000, "idleThresholdMs": 300000 },
+    "sessions": {
+      "liveWindowMs": 86400000,
+      "idleThresholdMs": 300000,
+      "reconcile": { "follower": true, "intervalMs": 3600000, "batchSize": 50 }
+    },
     "search": { "flushIntervalMs": 180000, "taskRetentionMs": 3600000 }
   },
   "couchdb": {

@@ -38,7 +38,16 @@ export interface AppConfigFile {
      * above which a session counts as idle when computing active (vs wall-clock)
      * duration. Both optional — the webapi defaults them.
      */
-    sessions?: { liveWindowMs?: number; idleThresholdMs?: number };
+    sessions?: {
+      liveWindowMs?: number;
+      idleThresholdMs?: number;
+      /**
+       * The follower's sweep that finalises sessions which never ended
+       * (`reconcile-session`). `follower` switches the sweep off; `intervalMs` is how
+       * often it looks; `batchSize` caps the sessions one sweep takes on.
+       */
+      reconcile?: { follower?: boolean; intervalMs?: number; batchSize?: number };
+    };
     /**
      * Search-indexing tunables. `flushIntervalMs` is how long change-feed updates are
      * buffered before going to Meilisearch as one update per index — the trade between
@@ -227,7 +236,29 @@ export interface HookTypeDef {
 export interface ActionDef {
   key: string;
   summary: string;
+  /**
+   * Runs somewhere today: a hook handler when the action is bound to an event, the
+   * CLI command `triggers.cli` names when it isn't.
+   */
   implemented: boolean;
+  /** Where else the action runs, beyond the hook events `BINDINGS` ties it to. */
+  triggers?: ActionTriggers;
+}
+
+/**
+ * The non-hook ways an action is started. An action is one implementation however it
+ * is started: the CLI command *is* the implementation, and the follower runs that
+ * command rather than a second copy (the app image ships the CLI for exactly this).
+ */
+export interface ActionTriggers {
+  /** The `CLI_SPEC` command that runs it on demand. */
+  cli?: string;
+  /**
+   * The webapi's change follower runs it on a sweep, by invoking `cli`. Requires `cli`.
+   * Switched off per deployment by the action's own config (for `reconcile-session`,
+   * `system.sessions.reconcile.follower`).
+   */
+  follower?: boolean;
 }
 
 export interface HookActionBinding {

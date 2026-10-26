@@ -53,9 +53,37 @@ them.
   leaves the summary and events alone. It refuses running sessions and sessions that
   already have turns.
 
+## reconcile
+
+A session killed or crashed before `SessionEnd` has its event markers and chunks but
+no `summary:<id>`, so it reads as `incomplete` with no token totals. `reconcile` writes
+the summary it never got:
+
+```
+claude-transcripts reconcile                  # every session that reads as incomplete
+claude-transcripts reconcile <id>… [--force]  # these sessions; --force also takes a running one
+claude-transcripts reconcile --dry-run --json
+```
+
+- **Counts** (events, prompts, errors, tools) are the session's recorded event markers,
+  the same figures the session list already showed, so they don't move.
+- **Token usage and transcript size** come from the S3 transcript when there is one.
+  Without one (S3 off, or the upload never happened) the summary has no token figures
+  rather than zeros. If S3 is on but doesn't answer, the session fails and is left for
+  the next run, because a summary written without tokens would stay that way.
+- `timestamp` is the session's last activity and `end_reason` is `unknown`;
+  `source: "reconcile"` and `reconciled_at` record how and when.
+- It reads and writes through the webapi (`/api/ingest/summary`), and skips sessions
+  that already ended. If a reconciled session is later resumed, its live `SessionEnd`
+  replaces the reconciled summary. Between the resume and that `SessionEnd`, the
+  session reads as `ended`.
+
+**Automatically:** the webapi's change follower runs the same command every hour on up
+to 50 sessions that read as `incomplete` (`system.sessions.reconcile`,
+[configuration.md](../start/configuration.md)). It needs the CLI beside the webapi; the
+app image ships it. A session the command fails on isn't retried until the webapi
+restarts.
+
 ## Not built
 
-- `reconcile` — finalise a session that never fired `SessionEnd` by writing its
-  summary from the chunks or the S3 transcript. Until then such sessions show as
-  `incomplete`.
 - `couch` / `s3` power-user passthroughs and `meta post` enrichment.

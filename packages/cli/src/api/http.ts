@@ -221,6 +221,18 @@ export async function getOrNull<T>(path: string): Promise<T | null> {
 }
 
 /**
+ * GET a raw text resource (a transcript blob), or null when it is not there (404).
+ * Any other failure throws: "the store couldn't say" is not "there is nothing".
+ */
+export async function getTextOrNull(path: string): Promise<string | null> {
+  const res = await fetch(`${base()}${path}`);
+  if (res.status === 404) return null;
+  if (!res.ok)
+    throw new Error(`GET ${path} → ${res.status} ${res.statusText}${await errorDetail(res)}`);
+  return await res.text();
+}
+
+/**
  * Stream a file up as the request body, without reading it into memory.
  *
  * Transcripts dominate a bundle (~100MB across 43 sessions on a real instance), so a

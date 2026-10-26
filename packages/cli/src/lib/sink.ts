@@ -159,7 +159,7 @@ export class DryRunSink implements SessionSink {
   async putSummary(doc: SummaryDoc): Promise<void> {
     const tools = Object.keys(doc.tool_counts).length;
     console.log(
-      `  [dry-run] PUT ${doc._id}  (${doc.token_usage.total} tok, ${doc.prompt_count} prompts, ${tools} tools)`,
+      `  [dry-run] PUT ${doc._id}  (${doc.token_usage?.total ?? "?"} tok, ${doc.prompt_count} prompts, ${tools} tools)`,
     );
   }
   async putEvents(docs: EventDoc[]): Promise<void> {

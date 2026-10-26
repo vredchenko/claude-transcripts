@@ -306,6 +306,25 @@ export const CLI_SPEC: CliSpec = {
       examples: ["reindex"],
     },
     {
+      name: "reconcile",
+      group: "admin",
+      summary: "Finalise sessions that never ended (write their missing summary)",
+      args: [
+        {
+          name: "session-id",
+          description:
+            "sessions to finalise (repeatable); default: every session that reads as `incomplete`",
+        },
+        { name: "--dry-run", description: "say what would be written, write nothing" },
+        {
+          name: "--force",
+          description: "also finalise a named session that still reads as `running`",
+        },
+        { name: "--json", description: "print the outcomes as JSON (what the follower reads)" },
+      ],
+      examples: ["reconcile --dry-run", "reconcile 3f9a2c1e-… --force", "reconcile --json"],
+    },
+    {
       name: "doctor",
       group: "admin",
       summary: "Smoke-test the write/read/search path end-to-end",

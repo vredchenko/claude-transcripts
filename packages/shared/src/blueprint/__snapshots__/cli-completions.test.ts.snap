@@ -8,7 +8,7 @@ exports[`toCompletions bash script matches its snapshot 1`] = `
 # Does flag \`cmd:--flag\` ($1) take a value?
 _claude_transcripts_valued() {
   case "$1" in
-    install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|compat:--cc-version|compat:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
+    install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|reconcile:--webapi|doctor:--webapi|compat:--cc-version|compat:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
   esac
   return 1
 }
@@ -42,6 +42,7 @@ _claude_transcripts_flags() {
     import) printf '%s' "--dry-run --no-blobs --webapi --help --version" ;;
     migrate) printf '%s' "--to --steps --dry-run --webapi --help --version" ;;
     reindex) printf '%s' "--webapi --help --version" ;;
+    reconcile) printf '%s' "--dry-run --force --json --webapi --help --version" ;;
     doctor) printf '%s' "--keep --webapi --help --version" ;;
     compat) printf '%s' "--cc-version --webapi --help --version" ;;
     hook) printf '%s' "--dry-run --force --session --transcript --webapi --help --version" ;;
@@ -67,7 +68,7 @@ _claude_transcripts() {
     if [[ $cur == -* ]]; then
       COMPREPLY=($(compgen -W "--help --version" -- "$cur"))
     else
-      COMPREPLY=($(compgen -W "install uninstall setup provision stack sessions search turns backfill export import migrate reindex doctor compat hook statusline completions" -- "$cur"))
+      COMPREPLY=($(compgen -W "install uninstall setup provision stack sessions search turns backfill export import migrate reindex reconcile doctor compat hook statusline completions" -- "$cur"))
     fi
     return 0
   fi
@@ -114,7 +115,7 @@ exports[`toCompletions zsh script matches its snapshot 1`] = `
 
 _claude_transcripts_valued() {
   case $1 in
-    (install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|doctor:--webapi|compat:--cc-version|compat:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
+    (install:--port-base|install:--webapi|uninstall:--webapi|setup:--webapi|provision:--webapi|stack:--webapi|sessions:--limit|sessions:--cwd|sessions:--model|sessions:--hostname|sessions:--source|sessions:--from|sessions:--to|sessions:--webapi|search:--limit|search:--offset|search:--cwd|search:--model|search:--hostname|search:--source|search:--webapi|turns:--role|turns:--from|turns:--to|turns:--limit|turns:--skip|turns:--webapi|backfill:--dir|backfill:--host|backfill:--actor|backfill:--chunk-size|backfill:--session|backfill:--webapi|export:--since|export:--session|export:--webapi|import:--webapi|migrate:--to|migrate:--steps|migrate:--webapi|reindex:--webapi|reconcile:--webapi|doctor:--webapi|compat:--cc-version|compat:--webapi|hook:--session|hook:--transcript|hook:--webapi|statusline:--webapi|completions:--webapi) return 0 ;;
   esac
   return 1
 }
@@ -148,6 +149,7 @@ _claude_transcripts_flags() {
     (import) reply=('--dry-run:verify the bundle without writing' '--no-blobs:skip transcripts; restore docs only' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (migrate) reply=('--to:with \`up\`: stop at this schema version' '--steps:with \`down\`: how many to undo' '--dry-run:report what would run without writing' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (reindex) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
+    (reconcile) reply=('--dry-run:say what would be written, write nothing' '--force:also finalise a named session that still reads as \`running\`' '--json:print the outcomes as JSON (what the follower reads)' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (doctor) reply=('--keep:leave the synthetic session behind for inspection' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (compat) reply=('--cc-version:the Claude Code version to check (default: the installed one)' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (hook) reply=('--dry-run:with \`install\`: show the change without writing' '--force:with \`install\`: register even if the plugin already does' '--session:with \`upload\`: the session id' '--transcript:with \`upload\`: the transcript file to ship' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
@@ -173,6 +175,7 @@ _claude_transcripts() {
     'import:Restore session data from a portable bundle'
     'migrate:Run CouchDB migrations'
     'reindex:Rebuild the search indexes from CouchDB'
+    'reconcile:Finalise sessions that never ended (write their missing summary)'
     'doctor:Smoke-test the write/read/search path end-to-end'
     'compat:Check Claude Code'\\''s hook spec against this build'\\''s (exit 1 on drift)'
     'hook:The Claude Code hook, and its registration'
@@ -290,6 +293,7 @@ complete -c claude-transcripts -n _claude_transcripts_at_command -a export -d 'E
 complete -c claude-transcripts -n _claude_transcripts_at_command -a import -d 'Restore session data from a portable bundle'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a migrate -d 'Run CouchDB migrations'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a reindex -d 'Rebuild the search indexes from CouchDB'
+complete -c claude-transcripts -n _claude_transcripts_at_command -a reconcile -d 'Finalise sessions that never ended (write their missing summary)'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a doctor -d 'Smoke-test the write/read/search path end-to-end'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a compat -d 'Check Claude Code\\'s hook spec against this build\\'s (exit 1 on drift)'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a hook -d 'The Claude Code hook, and its registration'
@@ -405,6 +409,13 @@ complete -c claude-transcripts -n '_claude_transcripts_in migrate' -l version -d
 complete -c claude-transcripts -n '_claude_transcripts_in reindex' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
 complete -c claude-transcripts -n '_claude_transcripts_in reindex' -l help -d 'show help for a command (alias: -h)'
 complete -c claude-transcripts -n '_claude_transcripts_in reindex' -l version -d 'print the CLI version (alias: -V)'
+
+complete -c claude-transcripts -n '_claude_transcripts_in reconcile' -l dry-run -d 'say what would be written, write nothing'
+complete -c claude-transcripts -n '_claude_transcripts_in reconcile' -l force -d 'also finalise a named session that still reads as \`running\`'
+complete -c claude-transcripts -n '_claude_transcripts_in reconcile' -l json -d 'print the outcomes as JSON (what the follower reads)'
+complete -c claude-transcripts -n '_claude_transcripts_in reconcile' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
+complete -c claude-transcripts -n '_claude_transcripts_in reconcile' -l help -d 'show help for a command (alias: -h)'
+complete -c claude-transcripts -n '_claude_transcripts_in reconcile' -l version -d 'print the CLI version (alias: -V)'
 
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l keep -d 'leave the synthetic session behind for inspection'
 complete -c claude-transcripts -n '_claude_transcripts_in doctor' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
