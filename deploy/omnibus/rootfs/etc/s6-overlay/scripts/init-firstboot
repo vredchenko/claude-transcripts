@@ -1,0 +1,71 @@
+#!/command/with-contenv sh
+# Every boot, before any daemon: lay out /data, settle the configuration and secrets,
+# and render each service's config from them. Idempotent — the first boot generates
+# what's missing, later boots reuse it.
+set -eu
+. /opt/omnibus/lib.sh
+
+mkdir -p /data/couchdb /data/garage/meta /data/garage/data /data/meilisearch /data/fossil \
+  "$SECRETS" /run/omnibus
+chmod 700 "$SECRETS"
+[ -e /data/.omnibus ] || log "first boot: initialising /data"
+
+# Ports and store names, projected from the blueprint (overrides in the env win).
+bun run /app/deploy/omnibus/omnibus-env.ts > /run/omnibus/stack.env
+while IFS='=' read -r key value; do setenv_default "$key" "$value"; done < /run/omnibus/stack.env
+
+for name in COUCHDB_PASSWORD GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN GARAGE_METRICS_TOKEN \
+  MEILI_MASTER_KEY; do
+  secret "$name"
+done
+setenv_default COUCHDB_USER admin
+setenv_default MEILI_API_KEY "$(getenv MEILI_MASTER_KEY)"
+
+# The S3 app key is minted by provisioning (Garage has to be up); bootstrap-garage.ts
+# keeps it in an env file, which the webapi also auto-loads as /app/.env.
+[ -e "$SECRETS/s3.env" ] || printf 'S3_ACCESS_KEY=\nS3_SECRET_KEY=\n' > "$SECRETS/s3.env"
+chmod 600 "$SECRETS/s3.env"
+ln -sf "$SECRETS/s3.env" /app/.env
+
+bind="$OMNIBUS_BIND"
+
+# CouchDB. The admin is re-applied from the env on every boot (CouchDB hashes it in
+# place); local.d lives in the image, so changing COUCHDB_PASSWORD takes effect.
+cat > /opt/couchdb/etc/local.d/omnibus.ini <<INI
+[couchdb]
+single_node = true
+database_dir = /data/couchdb
+view_index_dir = /data/couchdb
+
+[cluster]
+n = 1
+
+[chttpd]
+bind_address = $bind
+port = $(getenv COUCHDB_PORT)
+
+[admins]
+$(getenv COUCHDB_USER) = $(getenv COUCHDB_PASSWORD)
+INI
+chown -R couchdb:couchdb /data/couchdb /opt/couchdb/etc/local.d
+chmod 600 /opt/couchdb/etc/local.d/omnibus.ini
+
+# Garage. Secrets reach it through GARAGE_* in the env, not this file. RPC is
+# single-node, so it stays on loopback whatever OMNIBUS_BIND says.
+cat > /run/omnibus/garage.toml <<TOML
+metadata_dir = "/data/garage/meta"
+data_dir = "/data/garage/data"
+db_engine = "lmdb"
+replication_factor = 1
+rpc_bind_addr = "127.0.0.1:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "$bind:$(getenv GARAGE_S3_PORT)"
+
+[admin]
+api_bind_addr = "$bind:$(getenv GARAGE_ADMIN_PORT)"
+TOML
+
+date -u +%Y-%m-%dT%H:%M:%SZ > /data/.omnibus

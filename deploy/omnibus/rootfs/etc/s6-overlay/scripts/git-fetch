@@ -1,0 +1,11 @@
+#!/command/with-contenv sh
+# Bring the baked-in clone up to date. Best-effort: no network is not an error.
+. /opt/omnibus/lib.sh
+[ "${OMNIBUS_GIT_FETCH:-1}" = 1 ] || exit 0
+repo=/workspace/claude-transcripts
+if timeout 60 git -C "$repo" fetch --quiet --prune origin 2>/dev/null; then
+  log "git: fetched $(git -C "$repo" remote get-url origin)"
+else
+  log "git: fetch failed (offline?) — the clone is as built"
+fi
+exit 0

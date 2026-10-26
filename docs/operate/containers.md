@@ -42,6 +42,8 @@ the checkout.
   ([README](../../deploy/k8s/README.md),
   [ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)),
   for a single-node k3s or any cluster with a default StorageClass.
+- **Omnibus** — the whole stack in one container under s6-overlay, for a single Docker
+  host that wants one `docker run` ([omnibus.md](omnibus.md)).
 - **External backends** — run the app container alone with its environment pointing
   at your own CouchDB, S3 and Meilisearch
   ([configuration.md](../start/configuration.md#backend-topology--bundled-or-external)).

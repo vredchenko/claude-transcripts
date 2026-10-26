@@ -26,7 +26,7 @@ const IMMUTABLE = "public, max-age=31536000, immutable";
 const REVALIDATE = "no-cache";
 
 /** Which static tree a file was served from. See {@link cacheControlFor}. */
-export type StaticKind = "spa" | "docs";
+export type StaticKind = "spa" | "docs" | "downloads";
 
 const ASSETS_SEGMENT = /(?:^|\/)assets\//;
 

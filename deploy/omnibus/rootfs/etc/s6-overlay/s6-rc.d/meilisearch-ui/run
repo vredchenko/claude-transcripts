@@ -1,0 +1,4 @@
+#!/command/with-contenv sh
+exec 2>&1
+exec bun run /app/deploy/omnibus/serve-static.ts /opt/omnibus/meilisearch-ui \
+  "$MEILI_UI_PORT" "$OMNIBUS_BIND"
