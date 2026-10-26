@@ -38,6 +38,7 @@ export interface Config {
     staticDir?: string;
     docsDir?: string;
     cliBin?: string;
+    downloadsDir?: string;
     version: string;
   };
   couchdb: {
@@ -98,6 +99,7 @@ export function loadConfig(): Config {
       staticDir: env.CT_STATIC_DIR || undefined,
       docsDir: env.CT_DOCS_DIR || undefined,
       cliBin: env.CT_CLI_BIN || undefined,
+      downloadsDir: env.CT_DOWNLOADS_DIR || undefined,
       version: env.CT_VERSION ?? "0.0.0-dev",
     },
     couchdb: {

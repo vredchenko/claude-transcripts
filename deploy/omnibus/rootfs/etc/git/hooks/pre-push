@@ -1,0 +1,4 @@
+#!/bin/sh
+# System-wide (core.hooksPath in /etc/gitconfig): this container fetches, it doesn't push.
+echo "push is disabled in the omnibus container — clone the repo on your host to push" >&2
+exit 1

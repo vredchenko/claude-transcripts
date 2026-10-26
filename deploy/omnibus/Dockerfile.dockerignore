@@ -1,0 +1,10 @@
+# The omnibus build's context (the repo root) — BuildKit reads this instead of the root
+# .dockerignore for deploy/omnibus/Dockerfile. Everything else it needs comes from the
+# component images, so allow only what it COPYs.
+**
+!.claude-plugin
+!hooks
+!scripts/bootstrap-garage.ts
+!scripts/lib/config-file.ts
+!deploy/omnibus
+deploy/omnibus/**/*.test.ts

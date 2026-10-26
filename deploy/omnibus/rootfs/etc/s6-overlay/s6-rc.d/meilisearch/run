@@ -1,0 +1,7 @@
+#!/command/with-contenv sh
+exec 2>&1
+cd /data/meilisearch
+exec meilisearch --http-addr "$OMNIBUS_BIND:$MEILI_PORT" --env development --no-analytics \
+  --log-level "${MEILI_LOG_LEVEL:-WARN}" \
+  --db-path /data/meilisearch/data.ms --dump-dir /data/meilisearch/dumps \
+  --snapshot-dir /data/meilisearch/snapshots

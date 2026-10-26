@@ -23,7 +23,7 @@ directory); secrets and endpoints from the environment
 | `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | `http://127.0.0.1:7653`, `garage` |
 | `MEILI_HOST`, `MEILI_API_KEY` (used only when `features.meilisearch` is on) | `http://127.0.0.1:7656` |
 | `WEBAPI_HOST`, `WEBAPI_PORT` | `127.0.0.1:7650` |
-| `CT_STATIC_DIR`, `CT_DOCS_DIR`, `CT_CLI_BIN` | unset; each enables `/app`, `/docs`, `/cli/download` |
+| `CT_STATIC_DIR`, `CT_DOCS_DIR`, `CT_CLI_BIN`, `CT_DOWNLOADS_DIR` | unset; each enables `/app`, `/docs`, `/cli/download`, `/downloads/` |
 | `CT_VERSION` | baked into the image from the git tag; reported by `/health` |
 
 ## HTTP API

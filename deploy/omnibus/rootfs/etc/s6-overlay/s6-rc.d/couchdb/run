@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+exec 2>&1
+cd /opt/couchdb
+export HOME=/opt/couchdb
+exec s6-setuidgid couchdb /opt/couchdb/bin/couchdb

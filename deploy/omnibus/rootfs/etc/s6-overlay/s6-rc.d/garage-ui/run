@@ -1,0 +1,8 @@
+#!/command/with-contenv sh
+exec 2>&1
+. /opt/omnibus/lib.sh
+h="$(local_host)"
+export CONFIG_PATH=/run/omnibus/garage.toml HOST="$OMNIBUS_BIND" PORT="$GARAGE_WEBUI_PORT" \
+  API_BASE_URL="http://$h:$GARAGE_ADMIN_PORT" API_ADMIN_KEY="$GARAGE_ADMIN_TOKEN" \
+  S3_ENDPOINT_URL="http://$h:$GARAGE_S3_PORT" S3_REGION=garage
+exec garage-webui

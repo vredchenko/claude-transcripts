@@ -24,8 +24,9 @@ response shapes for the typed `/api` routes are in the OpenAPI spec, browsable a
 | `/app` | The webui, when `CT_STATIC_DIR` is set. |
 | `/docs` | These docs as HTML, when `CT_DOCS_DIR` is set. |
 | `/cli/download` | The bundled CLI binary, when `CT_CLI_BIN` is set. |
+| `/downloads/` | A directory of downloadable files, when `CT_DOWNLOADS_DIR` is set. The [all-in-one image](../operate/omnibus.md) puts the CLI for every platform and the Claude Code plugin bundle there. |
 
-The app image sets all three `CT_*` variables. Writes are never proxied to the stores.
+The app image sets the first three `CT_*` variables. Writes are never proxied to the stores.
 
 The backing services' admin UIs (Fauxton, Garage web UI, Meilisearch UI) are not served
 by the app; they are reached on their own ports and linked from the webui's menu

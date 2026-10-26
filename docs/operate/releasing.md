@@ -31,6 +31,7 @@ git tag v0.4.0 && git push origin v0.4.0 # from main, once merged
 | Artifact | Where | Workflow |
 |----------|-------|----------|
 | App image `claude-transcripts-app` (webapi + webui + docs + CLI) | `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
+| Omnibus image `claude-transcripts-omnibus` (the whole stack, one container) | `ghcr.io/<owner>/claude-transcripts-omnibus` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Mirrored backing images (CouchDB, Garage, Meilisearch, admin UIs) | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
 | CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
 | `@claude-transcripts/cli` on npm (needs Bun at runtime) | npmjs.org | `release-cli.yml`, skipped with a warning until `NPM_TOKEN` is set |
@@ -54,6 +55,14 @@ manual `release-cli` run uploads the binaries as workflow artifacts without publ
 version, or to `main` for an unreleased CLI, and warns if the running app reports a
 different version. Every build is scanned with grype and trivy and fails on HIGH
 severity, so a base-image CVE can block a merge build too.
+
+### Omnibus image tags
+
+`claude-transcripts-omnibus` ([omnibus.md](omnibus.md)) is published on a release only:
+`vX.Y.Z`, `latest` and `<short-sha>`, by the `omnibus` job in `publish-image.yml`. It is
+assembled from the app image that workflow has just scanned and pushed, smoke-tested,
+and held to the same scan gate. linux/amd64 only, like the app image. Pull requests that
+touch it are built and smoke-tested by `omnibus.yml`.
 
 ## One-time setup
 
