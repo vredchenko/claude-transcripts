@@ -39,6 +39,7 @@
     "seed": "bun run scripts/seed.ts",
     "bootstrap:garage": "bun run scripts/bootstrap-garage.ts",
     "omnibus:build": "bun run scripts/build-omnibus.ts",
+    "omnibus:smoke": "bun run scripts/smoke-omnibus.ts",
     "test": "bun test",
     "test:e2e": "bun test ./tests/e2e/*.test.ts",
     "check:contract": "bun run scripts/check-contract.ts",

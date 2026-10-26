@@ -14,11 +14,24 @@ the way to run it properly. What you give up is listed under
 ## Run it
 
 ```bash
-bun run omnibus:build                    # from a checkout: app + Fossil images, then the omnibus
 docker run -d --name claude-transcripts \
   -p 127.0.0.1:7650:7650 -v ct-omnibus:/data \
-  claude-transcripts-omnibus:local
+  ghcr.io/<owner>/claude-transcripts-omnibus:latest
 ```
+
+Releases publish it to GHCR ([tags](releasing.md#omnibus-image-tags)). To build it from
+a checkout instead:
+
+```bash
+bun run omnibus:build     # → claude-transcripts-omnibus:local
+bun run omnibus:smoke     # boot it twice on a scratch volume and check every surface
+```
+
+`omnibus:build` is one `docker buildx bake` (`deploy/omnibus/docker-bake.hcl`): the app
+image, the Fossil image and the omnibus build as one graph, and the omnibus copies from
+the other two rather than rebuilding what they contain. Set `APP_IMAGE` to a published
+app image to skip building one. That is what a release does: it assembles the omnibus
+from the app image it has just scanned and pushed.
 
 Then open `http://127.0.0.1:7650/app/`. First boot takes a minute or so while CouchDB
 starts and Garage gets its layout; `docker ps` shows `healthy` when it's done.
@@ -90,7 +103,7 @@ it. A variable you do supply wins over the stored one. App configuration (`confi
 is the image's template; mount `/app/config/config.json` to override it.
 
 Build arguments: `APP_IMAGE` and `FOSSIL_IMAGE` (the component images to assemble;
-`omnibus:build` passes the ones it just built), `OMNIBUS_GIT_URL` and
+bake passes its own builds), `OMNIBUS_GIT_URL` and
 `OMNIBUS_GIT_REF` (the repository to clone), and the pinned upstream images and
 versions at the top of `deploy/omnibus/Dockerfile`.
 
@@ -128,6 +141,19 @@ prints every service's state; the `HEALTHCHECK` runs the same script.
   docker run --rm -v ct-omnibus:/data -v "$PWD":/backup alpine tar -czf /backup/ct-omnibus.tgz -C /data .
   docker start claude-transcripts
   ```
+
+## What differs from the compose stack
+
+The same versions, with three changes, all made so the image passes the release scan
+(grype and trivy, failing on fixed HIGH and CRITICAL findings):
+
+- **Garage web UI** is rebuilt from its release source with a current Go and
+  `golang.org/x/crypto` raised to its fixed version. The published image's binary
+  carries the advisories of the Go 1.23 it was built with.
+- **CouchDB's Nouveau** (its optional Java search service) is removed. It is never
+  enabled here; Meilisearch does search.
+- **Meilisearch** is its glibc release binary, since the upstream image's is linked
+  against musl.
 
 ## Trade-offs
 

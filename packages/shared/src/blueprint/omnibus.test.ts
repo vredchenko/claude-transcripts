@@ -24,7 +24,6 @@ describe("omnibus pins", () => {
   for (const [argName, key] of [
     ["COUCHDB_IMAGE", "couchdb"],
     ["GARAGE_IMAGE", "garage"],
-    ["GARAGE_UI_IMAGE", "garage-ui"],
     ["MEILI_UI_IMAGE", "meilisearch-ui"],
   ] as const) {
     test(`${argName} is the ${key} service's image at its tag, by digest`, () => {
@@ -34,6 +33,10 @@ describe("omnibus pins", () => {
       );
     });
   }
+
+  test("garage-webui is rebuilt from the release the blueprint's tag names", () => {
+    expect(arg("GARAGE_UI_VERSION")).toBe(tag("garage-ui"));
+  });
 
   test("Meilisearch is a release of the series the blueprint's tag names", () => {
     // The tag is a minor series (v1.10); the release binary needs an exact version.
