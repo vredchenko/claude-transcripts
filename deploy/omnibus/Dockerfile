@@ -12,29 +12,33 @@
 #
 # It ASSEMBLES component images rather than rebuilding them, so it can't drift from
 # what the compose stack and k8s run: the app image (root Dockerfile) and the Fossil
-# image (deploy/fossil/Dockerfile) come in as APP_IMAGE / FOSSIL_IMAGE. Build all of it
-# from a checkout with:
+# image (deploy/fossil/Dockerfile) come in as APP_IMAGE / FOSSIL_IMAGE. docker-bake.hcl
+# builds all three as one graph:
 #
-#   bun run omnibus:build          # builds app + fossil, then this; tags claude-transcripts-omnibus:local
+#   bun run omnibus:build          # bake → claude-transcripts-omnibus:local
+#   bun run omnibus:smoke          # boot it twice on a scratch volume and check it
 #
 # Build context is the repo root (it copies the plugin from hooks/).
 
 # ── component images ────────────────────────────────────────────────────────────
 # Upstream images are pinned by tag AND digest (multi-arch index digests: amd64 + arm64).
 # The tags must equal the blueprint's defaultTag for each service
-# (packages/shared/src/blueprint/services.ts) — deploy/omnibus/omnibus.test.ts checks.
+# (packages/shared/src/blueprint/services.ts); packages/shared/src/blueprint/omnibus.test.ts checks.
 ARG COUCHDB_IMAGE=couchdb:3@sha256:4e8e0a366208a87d5059b0f4fcbefff13c32401a655d4629c19be6288ea77675
 ARG GARAGE_IMAGE=dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
-ARG GARAGE_UI_IMAGE=khairul169/garage-webui:1.1.0@sha256:17c793551873155065bf9a022dabcde874de808a1f26e648d4b82e168806439c
+# Toolchains for the one component rebuilt from source here (garage-webui, below).
+ARG NODE_IMAGE=node:22-trixie-slim@sha256:8eb619e402eaede1748a3c8173bffab391592812e85136452f781741c7242ddf
+ARG GO_IMAGE=golang:1.27-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4
+ARG GARAGE_UI_VERSION=1.1.0
 ARG MEILI_UI_IMAGE=riccoxie/meilisearch-ui:v0.14.1@sha256:f911cccfa54ab4cd75f9f43627ee4995e51061cf026b059db894aaeadecc3a8f
 ARG ALPINE_IMAGE=alpine:3.22@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f
-# Ours. Defaults are the tags `omnibus:build` (and the compose --build/--upstream
-# paths) give local builds; pass the published GHCR refs to assemble from a release.
+# Ours. Defaults are the tags the compose --build/--upstream paths give local builds;
+# bake replaces them with its own build contexts, and a release passes the app image
+# it just published.
 ARG APP_IMAGE=claude-transcripts-app:local
 ARG FOSSIL_IMAGE=claude-transcripts-fossil:2.28-local
 
 FROM ${GARAGE_IMAGE} AS garage
-FROM ${GARAGE_UI_IMAGE} AS garage-ui
 FROM ${FOSSIL_IMAGE} AS fossil
 FROM ${APP_IMAGE} AS app
 
@@ -68,6 +72,29 @@ FROM meili-base AS meili-arm64
 ADD --checksum=sha256:b9c1e5aa1ec0e08a4d57ad81dc1839aa6b086c64b3be9766b892581fa8396200 \
     https://github.com/meilisearch/meilisearch/releases/download/v${MEILI_VERSION}/meilisearch-linux-aarch64 /meilisearch
 FROM meili-${TARGETARCH} AS meili
+
+# ── Garage web UI: rebuilt from its release source ─────────────────────────────
+# The published image's binary is built with Go 1.23, whose standard library carries
+# dozens of fixed HIGH/CRITICAL advisories — enough on its own to fail the release
+# scan — and pins golang.org/x/crypto at a version with more. Same tag, same Makefile
+# flags, a current Go and that one module raised to its fixed version. The UI is
+# go:embed'ed, so the frontend builds first; both run on the build platform (the Go
+# build cross-compiles).
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS garage-ui-web
+ARG GARAGE_UI_VERSION
+ADD https://github.com/khairul169/garage-webui.git#${GARAGE_UI_VERSION} /src
+WORKDIR /src
+RUN npm install -g pnpm@9 && pnpm install --frozen-lockfile && pnpm run build
+
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS garage-ui
+ARG TARGETOS TARGETARCH
+COPY --from=garage-ui-web /src/backend /src
+COPY --from=garage-ui-web /src/dist /src/ui/dist
+WORKDIR /src
+ARG XCRYPTO_VERSION=v0.55.0
+RUN GOTOOLCHAIN=local go get golang.org/x/crypto@${XCRYPTO_VERSION} && GOTOOLCHAIN=local go mod tidy
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOTOOLCHAIN=local \
+      go build -trimpath -ldflags=-s -tags=prod -o /garage-webui main.go
 
 # ── Meilisearch UI: the upstream image builds its SPA at container start (vite) ──
 # Build it once here instead and serve the static files. Same files on every arch.
@@ -111,11 +138,14 @@ RUN set -eux; \
   apt-get update; \
   apt-get upgrade -y --no-install-recommends; \
   apt-get install -y --no-install-recommends git gh xz-utils; \
-  apt-get clean; rm -rf /var/lib/apt/lists/*
+  apt-get clean; rm -rf /var/lib/apt/lists/*; \
+  # Nouveau, CouchDB's optional Java search service: never enabled here (Meilisearch
+  # does search), and its bundled Jetty and Jackson are the rest of what the scan flags.
+  rm -rf /opt/couchdb/nouveau
 
 COPY --from=s6 /s6/ /
 COPY --from=garage /garage /usr/local/bin/garage
-COPY --from=garage-ui /bin/main /usr/local/bin/garage-webui
+COPY --from=garage-ui /garage-webui /usr/local/bin/garage-webui
 COPY --from=meili --chmod=755 /meilisearch /usr/local/bin/meilisearch
 COPY --from=meili-ui /opt/meilisearch-ui/dist /opt/omnibus/meilisearch-ui
 COPY --from=fossil /bin/fossil /usr/local/bin/fossil

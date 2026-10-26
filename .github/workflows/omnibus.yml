@@ -1,0 +1,56 @@
+name: omnibus
+# Build the omnibus image (deploy/omnibus/) from this commit and smoke-test it: boot on
+# an empty volume, check every surface, recreate on the same volume and check nothing
+# was lost or re-provisioned (scripts/smoke-omnibus.ts). Publishing happens on release,
+# in publish-image.yml, from the app image that workflow has just scanned and pushed.
+#
+# One `buildx bake` builds the app, Fossil and the omnibus as a single graph. Their
+# layers live in the GitHub Actions cache (deploy/omnibus/docker-bake.hcl, CACHE=gha),
+# so a run rebuilds only the stages its change touched.
+on:
+  pull_request:
+    branches: [main]
+    paths: &paths
+      - Dockerfile
+      - deploy/omnibus/**
+      - deploy/fossil/**
+      - packages/**
+      - hooks/**
+      - .claude-plugin/**
+      - config/**
+      - scripts/bootstrap-garage.ts
+      - scripts/lib/**
+      - scripts/smoke-omnibus.ts
+      - package.json
+      - bun.lock
+      - .github/workflows/omnibus.yml
+  push:
+    branches: [main]
+    paths: *paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (app + fossil + omnibus, one graph)
+        uses: docker/bake-action@v6
+        env:
+          CACHE: gha
+        with:
+          source: .
+          files: deploy/omnibus/docker-bake.hcl
+          targets: omnibus
+          load: true
+
+      - name: Smoke test
+        run: bun run scripts/smoke-omnibus.ts claude-transcripts-omnibus:local
