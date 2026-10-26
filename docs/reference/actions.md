@@ -29,7 +29,8 @@ The current event → actions table is generated into [hook-events.md](hook-even
 | `seed-session-start` | Reset counters and chunk offset; record the resolved targets and last-write time for the statusline | `/tmp`, CouchDB |
 | `inject-recall-policy` | Prime the session with the recall policy and how much history this directory has; omitted when recall is off, the directory is excluded or empty, or the webapi is slow ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)) | stdout (context) |
 | `reconcile-session` | Write the missing `summary:<id>` for a session that never fired `SessionEnd`, from its event markers and (when present) its S3 transcript. Not bound to an event, because a dead session fires none. It is the `reconcile` CLI command, and the change follower runs it on a sweep ([tools.md](../operate/tools.md#reconcile)). | CouchDB (via the webapi) |
-| `announce-recording` | Print the session-start banner: where the session is recorded, or that it isn't. The only action that writes to stdout. | stdout (transcript) |
+| `announce-recording` | Print the session-start banner: where the session is recorded, or that it isn't. | stdout (transcript) |
+| `check-hook-compat` | Add the hook-spec check to that banner: one line when the running Claude Code matches the spec this build was made for, a short drift summary when it doesn't ([compatibility.md](../start/compatibility.md)). Skipped after a compaction. | stdout (transcript) |
 
 Planned, with no handler yet: `enrich-metadata` (post host and harness metadata),
 `extract-feature` (URLs, repos, PRs, slash commands, models), `detect-memory-write`

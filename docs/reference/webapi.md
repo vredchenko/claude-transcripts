@@ -138,6 +138,18 @@ memory (5–70 ms).
 
 The change follower therefore runs even with Meilisearch off.
 
+### Reconcile sweep
+
+The follower also finalises sessions that never fired `SessionEnd`
+(`src/storage/reconcile-sweep.ts`). Every `system.sessions.reconcile.intervalMs` (1 h)
+it takes up to `batchSize` (50) sessions that read as `incomplete` from the session
+index, oldest first, and runs the `reconcile-session` action's CLI command —
+`claude-transcripts reconcile <ids> --webapi <self> --json` — with the bundled binary
+(`CT_CLI_BIN`), or the workspace CLI in a checkout. The summary comes back through
+`POST /api/ingest/summary` like any other write. A session the command fails on is held
+back until restart. Off with `system.sessions.reconcile.follower: false`
+([tools.md](../operate/tools.md#reconcile)).
+
 ## Storage and boot
 
 - **CouchDB** (`src/storage/couch.ts`): `db(key)` opens a database by its logical key
@@ -149,7 +161,7 @@ The change follower therefore runs even with Meilisearch off.
 - **Boot** (`src/storage/ensure.ts`, idempotent): creates CouchDB's system databases and
   every configured database, applies pending [migrations](../operate/migrations.md),
   creates a Mango index on `type`, then starts the session index and the change
-  follower.
+  follower (which starts the reconcile sweep).
 
 ## Serving the SPA and docs
 

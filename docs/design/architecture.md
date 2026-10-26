@@ -64,13 +64,17 @@ technologies: [database-choice.md](database-choice.md).
 
 ## Session lifecycle
 
-1. `SessionStart` resets per-session state, writes an event doc, prints the banner and
-   injects the recall primer.
+1. `SessionStart` resets per-session state, writes an event doc, prints the banner
+   (with the Claude Code hook-spec check) and injects the recall primer.
 2. Each prompt, tool call and stop writes an event doc; the transcript is tailed into
    `chunk` docs every 200 entries or 15 s ([mid-flight-chunking.md](mid-flight-chunking.md)),
    so a live or crashed session can be read.
 3. `SessionEnd` flushes the last chunk, writes `summary:<id>` with counts and token
    usage, and uploads the transcript to S3.
+
+4. A session that never reaches `SessionEnd` (killed, crashed) is finalised later:
+   the webapi's change follower runs `claude-transcripts reconcile` on it, which writes
+   the missing summary from the recorded events ([tools.md](../operate/tools.md#reconcile)).
 
 Status is derived: `ended` once the summary exists, otherwise `running` within
 `system.sessions.liveWindowMs` (24 h) of its last activity and `incomplete` after.
