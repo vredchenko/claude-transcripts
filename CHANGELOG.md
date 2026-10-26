@@ -6,6 +6,71 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-10-26
+
+A minor release. Sessions that never ended are finalised automatically, every session
+start checks the running Claude Code's hook spec, and the web UI has had a long run of
+improvements. No action is needed to upgrade. The new settings are optional and have
+defaults.
+
+### Added
+
+- **Sessions that never ended get their summary.** A session that is killed or crashes
+  before `SessionEnd` used to read as `incomplete` forever, with no token totals
+  ([#258]).
+  - `claude-transcripts reconcile [<id>…] [--force] [--dry-run] [--json]` writes the
+    missing `summary:<id>`. The counts are the recorded event markers, so they don't
+    change.
+  - Token usage and size come from the S3 transcript when there is one, and are left
+    out (not zeroed) when there isn't. If S3 is enabled but doesn't answer, the session
+    fails and is retried next time rather than written without tokens.
+  - The webapi's change follower runs the same command every hour on up to 50
+    `incomplete` sessions (`system.sessions.reconcile`), using the CLI the app image
+    ships.
+  - Reconciled summaries carry `source: "reconcile"` and `reconciled_at`.
+- **Every session checks Claude Code's hook spec.** The session-start banner adds one
+  line when the running Claude Code fires the hook events, with the payloads, that this
+  build was made for, and a short drift summary when it doesn't. The spec comes from the
+  matching `@anthropic-ai/claude-agent-sdk` release on npm. The spec for the pinned
+  version ships in the build; any other version is fetched in the background and
+  cached ([#256], [ADR 0025](docs/design/decisions/0025-claude-code-compatibility-matrix.md)).
+  - `claude-transcripts compat [check|fetch] [--cc-version X] [--json]` runs the same
+    check on demand, and exits 1 on drift.
+  - `bun run gen:compat` now generates the pinned spec reproducibly. `--latest` moves
+    the pin.
+- **`GET /api/sessions?status=`** filters the list to `ended`, `running` or
+  `incomplete` ([#258]).
+- **Web UI**
+  - Select session rows to see what they add up to ([#250]).
+  - Expand a session row to see its details in place ([#251]).
+  - Compact two-line rows on narrow screens ([#252]).
+  - Says how old the data on screen is, and refreshes in place ([#249]).
+  - A session's error count under its status, as a link ([#247]).
+  - Each page has its own browser tab title ([#242]).
+  - Opened folds show tool calls as compact rows ([#255]).
+  - A disabled "Delete session" action, pending the API ([#243]).
+
+### Changed
+
+- **Web UI look and wording**
+  - Restyled in the Gruvbox dark palette, using the full window width ([#240], [#238]).
+  - The two speakers are "User" and "Claude" everywhere ([#237]).
+  - Buttons and toggles are sentence-case ([#239]).
+  - Calendar labels say what they count ([#248]).
+  - Token counts in the session list are compact ([#241]).
+- **Web UI session page**
+  - The toolbar is on one row, and the metadata wraps ([#246]).
+  - Data links are full URLs, folded into an "Open in…" menu ([#244], [#245]).
+  - Transcript turns are labelled by turn number, not entry index ([#254]).
+  - The timeline hides Claude Code's bookkeeping entries and sizes turns to their
+    text ([#253]).
+- **Summary ingest accepts a missing `token_usage`**, for reconciled sessions with no
+  transcript to count ([#258]).
+- **Docs and site** describe the compat check and reconcile. The landing page's
+  "nothing is released" banner now matches the README ([#259]). New RFCs propose the
+  webapi as the only writer, required backing services, release targets and the
+  Community Edition image ([#229]).
+
 ## [0.7.2] — 2026-10-25
 
 A dependency-only release. v0.7.1's app image was never published: its vulnerability
@@ -1850,6 +1915,30 @@ of them had ever executed:
 [#232]: https://github.com/vredchenko/claude-transcripts/pull/232
 [#233]: https://github.com/vredchenko/claude-transcripts/pull/233
 [#235]: https://github.com/vredchenko/claude-transcripts/pull/235
+[#229]: https://github.com/vredchenko/claude-transcripts/pull/229
+[#237]: https://github.com/vredchenko/claude-transcripts/pull/237
+[#238]: https://github.com/vredchenko/claude-transcripts/pull/238
+[#239]: https://github.com/vredchenko/claude-transcripts/pull/239
+[#240]: https://github.com/vredchenko/claude-transcripts/pull/240
+[#241]: https://github.com/vredchenko/claude-transcripts/pull/241
+[#242]: https://github.com/vredchenko/claude-transcripts/pull/242
+[#243]: https://github.com/vredchenko/claude-transcripts/pull/243
+[#244]: https://github.com/vredchenko/claude-transcripts/pull/244
+[#245]: https://github.com/vredchenko/claude-transcripts/pull/245
+[#246]: https://github.com/vredchenko/claude-transcripts/pull/246
+[#247]: https://github.com/vredchenko/claude-transcripts/pull/247
+[#248]: https://github.com/vredchenko/claude-transcripts/pull/248
+[#249]: https://github.com/vredchenko/claude-transcripts/pull/249
+[#250]: https://github.com/vredchenko/claude-transcripts/pull/250
+[#251]: https://github.com/vredchenko/claude-transcripts/pull/251
+[#252]: https://github.com/vredchenko/claude-transcripts/pull/252
+[#253]: https://github.com/vredchenko/claude-transcripts/pull/253
+[#254]: https://github.com/vredchenko/claude-transcripts/pull/254
+[#255]: https://github.com/vredchenko/claude-transcripts/pull/255
+[#256]: https://github.com/vredchenko/claude-transcripts/pull/256
+[#258]: https://github.com/vredchenko/claude-transcripts/pull/258
+[#259]: https://github.com/vredchenko/claude-transcripts/pull/259
+[0.8.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.8.0
 [0.7.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.2
 [0.7.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.1
 [0.7.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.0
