@@ -180,6 +180,23 @@ export function buildServer(ctx: AppContext) {
     });
   }
 
+  // Serve a directory of downloads at /downloads (CT_DOWNLOADS_DIR set): CLI binaries
+  // for other platforms, the Claude Code plugin bundle — whatever the image put there.
+  // The all-in-one image uses it so a host can fetch both through the one public port.
+  const downloadsDir = ctx.config.webapi.downloadsDir;
+  if (downloadsDir) {
+    app.get("/downloads", (c) => c.redirect("/downloads/"));
+    app.use("/downloads/*", etag());
+    app.use(
+      "/downloads/*",
+      serveStatic({
+        root: downloadsDir,
+        rewriteRequestPath: (p) => p.replace(/^\/downloads\/?/, "/"),
+        onFound: (path, c) => c.header("Cache-Control", cacheControlFor("downloads", path)),
+      }),
+    );
+  }
+
   // Attach the generated OpenAPI document back onto the blueprint (central state), so
   // the manifest + any consumer can see the live API contract in-memory.
   ctx.blueprint.apiSpec = app.getOpenAPIDocument(openapiConfig);

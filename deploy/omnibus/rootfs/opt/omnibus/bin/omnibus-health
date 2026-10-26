@@ -1,0 +1,18 @@
+#!/command/with-contenv sh
+# The container HEALTHCHECK: every service, one line each; unhealthy if any core one
+# isn't answering. Also handy by hand: docker exec <container> omnibus-health
+. /opt/omnibus/lib.sh
+h="$(local_host)"
+fail=0
+check() { # check <name> <core|extra> <url> [expected body fragment]
+  body="$(curl -fsS --max-time 5 "$3" 2>/dev/null)" && { [ -z "${4:-}" ] || echo "$body" | grep -q "$4"; }
+  if [ $? -eq 0 ]; then echo "ok    $1"; else echo "FAIL  $1 ($3)"; [ "$2" = core ] && fail=1; fi
+}
+check webapi core "http://127.0.0.1:$WEBAPI_PORT/health" '"ok":true'
+check couchdb core "http://$h:$COUCHDB_PORT/_up"
+check garage core "http://$h:$GARAGE_ADMIN_PORT/health"
+check meilisearch core "http://$h:$MEILI_PORT/health"
+check fossil core "http://$h:$FOSSIL_PORT/"
+check garage-ui extra "http://$h:$GARAGE_WEBUI_PORT/"
+check meilisearch-ui extra "http://$h:$MEILI_UI_PORT/"
+exit $fail

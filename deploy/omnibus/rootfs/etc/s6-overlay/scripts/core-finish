@@ -1,0 +1,20 @@
+#!/command/with-contenv sh
+# finish for the core services: s6 restarts a service that dies, but one that keeps
+# dying stops the container, so the host's restart policy and monitoring see it
+# instead of a container that is up and half dead.
+#   core-finish <service> <exit code> <signal>
+. /opt/omnibus/lib.sh
+svc="$1" code="$2" sig="$3"
+# Brought down on purpose (container shutdown, s6-svc -d): nothing to count.
+[ "$(s6-svstat -o wantedup "/run/service/$svc" 2>/dev/null)" = false ] && exit 0
+
+now="$(date +%s)" window="${OMNIBUS_RESTART_WINDOW:-60}" max="${OMNIBUS_MAX_RESTARTS:-5}"
+file="/run/omnibus/restarts-$svc"
+echo "$now" >> "$file"
+recent="$(awk -v since=$((now - window)) '$1 >= since' "$file" | wc -l)"
+log "$svc exited (code $code, signal $sig) — $recent time(s) in ${window}s"
+if [ "$recent" -ge "$max" ]; then
+  log "$svc keeps dying; stopping the container"
+  echo 1 > /run/s6-linux-init-container-results/exitcode
+  exec /run/s6/basedir/bin/halt
+fi

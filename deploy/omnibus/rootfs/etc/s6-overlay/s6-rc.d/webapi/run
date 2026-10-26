@@ -1,0 +1,4 @@
+#!/command/with-contenv sh
+exec 2>&1
+cd /app
+exec bun run packages/webapi/src/index.ts

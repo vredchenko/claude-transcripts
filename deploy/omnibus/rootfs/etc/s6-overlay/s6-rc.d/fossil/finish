@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /etc/s6-overlay/scripts/core-finish fossil "$1" "$2"

@@ -62,4 +62,5 @@ export const ROUTES: RouteDef[] = [
     serves: "the bundled CLI binary",
     nav: { label: "Download CLI", section: "Install" },
   },
+  { path: "/downloads", serves: "files offered for download (CLI builds, plugin bundle)" },
 ];

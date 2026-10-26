@@ -1,0 +1,6 @@
+#!/command/with-contenv sh
+exec 2>&1
+# The Fossil image's own entrypoint: seeds FOSSIL_REPOSITORIES, then serves them.
+export FOSSIL_MUSEUM=/data/fossil FOSSIL_BUSYBOX=
+exec sh /opt/omnibus/fossil-entrypoint.sh --port "$OMNIBUS_BIND:$FOSSIL_PORT" \
+  --repolist --jsmode bundled /data/fossil

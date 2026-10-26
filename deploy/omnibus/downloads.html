@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Transcripts downloads</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+  code, pre { font-family: ui-monospace, monospace; font-size: 0.9em; }
+  pre { padding: 0.75rem; overflow-x: auto; border: 1px solid #8884; border-radius: 6px; }
+  td { padding: 0.2rem 1rem 0.2rem 0; }
+</style>
+</head>
+<body>
+<h1>Claude Transcripts @VERSION@</h1>
+<p>Served by this instance. Each file has a <code>.sha256</code> next to it.</p>
+
+<h2>CLI</h2>
+<table>
+  <tr><td>Linux x64</td><td><a href="claude-transcripts-linux-x64">claude-transcripts-linux-x64</a></td></tr>
+  <tr><td>Linux arm64</td><td><a href="claude-transcripts-linux-arm64">claude-transcripts-linux-arm64</a></td></tr>
+  <tr><td>macOS x64</td><td><a href="claude-transcripts-darwin-x64">claude-transcripts-darwin-x64</a></td></tr>
+  <tr><td>macOS arm64</td><td><a href="claude-transcripts-darwin-arm64">claude-transcripts-darwin-arm64</a></td></tr>
+</table>
+<pre>BASE=http://127.0.0.1:7650/downloads   # this page's address
+curl -fsSLO "$BASE/claude-transcripts-linux-x64"
+curl -fsSL "$BASE/claude-transcripts-linux-x64.sha256" | sha256sum -c -
+install -m 755 claude-transcripts-linux-x64 ~/.local/bin/claude-transcripts</pre>
+
+<h2>Claude Code plugin</h2>
+<p><a href="claude-transcripts-plugin.tar.gz">claude-transcripts-plugin.tar.gz</a> — a local plugin marketplace.</p>
+<pre>curl -fsSL "$BASE/claude-transcripts-plugin.tar.gz" | tar -xz -C ~/.claude
+claude plugin marketplace add ~/.claude/claude-transcripts-plugin
+claude plugin install claude-transcripts@claude-transcripts</pre>
+<p>The plugin hands every hook event to the CLI above, and needs Bun on <code>PATH</code>.</p>
+</body>
+</html>

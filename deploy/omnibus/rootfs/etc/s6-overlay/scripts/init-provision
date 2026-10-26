@@ -1,0 +1,36 @@
+#!/command/with-contenv sh
+# Once the four core daemons are up: wait until each actually answers, then do the
+# setup that needs them running. Idempotent, so it runs on every boot. A core service
+# that never becomes ready fails this, which stops the container (S6_BEHAVIOUR_IF_STAGE2_FAILS).
+set -eu
+. /opt/omnibus/lib.sh
+h="$(local_host)"
+
+wait_http couchdb "http://$h:$COUCHDB_PORT/_up"
+# Garage's /health is 503 until a layout exists — and making one is the next step.
+wait_http garage "http://$h:$GARAGE_ADMIN_PORT/health" any
+wait_http meilisearch "http://$h:$MEILI_PORT/health"
+wait_http fossil "http://$h:$FOSSIL_PORT/" any
+
+# CouchDB's system databases (single_node creates them too; this makes sure). The app's
+# own databases and the search indexes are created by the webapi at start.
+for db in _users _replicator; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' -u "$COUCHDB_USER:$COUCHDB_PASSWORD" \
+    -X PUT "http://$h:$COUCHDB_PORT/$db")"
+  case "$code" in
+    201 | 202) log "couchdb: created $db" ;;
+    412) ;;
+    *) log "couchdb: could not create $db (HTTP $code)"; exit 1 ;;
+  esac
+done
+
+# Garage: layout, bucket, app key — the dev stack's own bootstrap, writing to s3.env.
+# Object storage is optional (Tier 1), so a failure here is reported, not fatal.
+if (cd /app && GARAGE_ADMIN_PORT="$GARAGE_ADMIN_PORT" bun run scripts/bootstrap-garage.ts); then
+  while IFS='=' read -r key value; do
+    case "$key" in S3_ACCESS_KEY | S3_SECRET_KEY) [ -n "$value" ] && setenv_default "$key" "$value" ;; esac
+  done < "$SECRETS/s3.env"
+  setenv_default S3_ENDPOINT "http://$h:$GARAGE_S3_PORT"
+else
+  log "garage bootstrap failed — the app will run without object storage"
+fi
