@@ -1,0 +1,57 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+
+# Every image the chart runs. Backing services at their pinned upstream refs, ours at
+# this release. Point any of them at a mirror (ADR 0024).
+images:
+  couchdb: couchdb:3
+  garage: dxflrs/garage:v2.3.0
+  garageUi: khairul169/garage-webui:1.1.0
+  fossil: ghcr.io/vredchenko/claude-transcripts-fossil:2.28
+  meilisearch: getmeili/meilisearch:v1.10
+  meilisearchUi: riccoxie/meilisearch-ui:v0.14.1
+  app: ghcr.io/vredchenko/claude-transcripts-app:v0.8.0
+imagePullPolicy: IfNotPresent
+# One ReadWriteOnce volume per data directory. Empty storageClass: the cluster
+# default (k3s: local-path). keep: the volumes survive `helm uninstall`.
+persistence:
+  storageClass: ""
+  size: 10Gi
+  keep: true
+# Use a Secret you manage (sealed-secrets, External Secrets, …) instead of the one the
+# chart renders. Under Argo CD or `helm template`, which can't read the cluster back,
+# set this or every secret in `env`, or the generated ones change on every render.
+existingSecret: ""
+# Values for the env Secret, by variable name (see .env.template in deploy/k8s/base).
+# Unset ones keep their current value, or are generated on install: COUCHDB_PASSWORD
+# and the Garage tokens. S3_ACCESS_KEY / S3_SECRET_KEY are minted by the provisioning
+# Job; set them only for an external S3.
+env: {}
+# An Ingress for the app (webapi + webui). The stack has no auth (ADR 0020): put it
+# on a network you trust.
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  annotations: {}
+  tls: []
+couchdb:
+  resources: {}
+garage:
+  enabled: true
+  resources: {}
+garageUi:
+  enabled: true
+  resources: {}
+fossil:
+  enabled: true
+  resources: {}
+meilisearch:
+  enabled: true
+  resources: {}
+meilisearchUi:
+  enabled: true
+  resources: {}
+app:
+  resources: {}

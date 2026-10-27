@@ -1,0 +1,55 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+{{- if .Values.meilisearchUi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meilisearch-ui
+  labels:
+    app.kubernetes.io/name: meilisearch-ui
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch-ui
+      app.kubernetes.io/part-of: claude-transcripts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: meilisearch-ui
+        app.kubernetes.io/part-of: claude-transcripts
+      annotations:
+        checksum/env: {{ list .Values.env .Values.existingSecret | toJson | sha256sum }}
+    spec:
+      containers:
+        - name: meilisearch-ui
+          image: {{ .Values.images.meilisearchUi | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: 24900
+          {{- with .Values.meilisearchUi.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meilisearch-ui
+  labels:
+    app.kubernetes.io/name: meilisearch-ui
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: meilisearch-ui
+    app.kubernetes.io/part-of: claude-transcripts
+  ports:
+    - name: http
+      port: 24900
+      targetPort: 24900
+{{- end }}

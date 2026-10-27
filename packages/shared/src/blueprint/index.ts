@@ -4,6 +4,7 @@ export * from "./cli";
 export * from "./cli-project";
 export * from "./distributions";
 export * from "./env";
+export * from "./helm";
 export * from "./hooks";
 export * from "./k8s";
 export * from "./project";

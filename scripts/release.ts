@@ -8,7 +8,8 @@
  *   bun run scripts/release.ts 0.1.0     # bump, then commit + tag by hand
  *   bun run scripts/release.ts 0.1.0 --check   # verify only, no writes
  *
- * Stamping also re-runs gen:k8s (the k8s base pins the app image); --check verifies it.
+ * Stamping also re-runs gen:k8s (the k8s base pins the app image) and gen:helm (the chart
+ * is versioned with the release); --check verifies both.
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -67,7 +68,21 @@ if (!check) {
     stderr: "inherit",
   });
   if (gen.exitCode !== 0) throw new Error("gen-k8s failed — the k8s base was not re-pinned");
+  const helm = Bun.spawnSync(["bun", "run", "scripts/gen-helm.ts"], {
+    cwd: ROOT,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  if (helm.exitCode !== 0) throw new Error("gen-helm failed — the chart was not re-versioned");
 }
+const chartYaml = readFileSync(
+  join(ROOT, "deploy", "helm", "claude-transcripts", "Chart.yaml"),
+  "utf8",
+);
+const chartStale =
+  !chartYaml.includes(`\nversion: ${version}\n`) ||
+  !chartYaml.includes(`\nappVersion: ${version}\n`);
+if (chartStale) console.log(`[release] deploy/helm chart is not at ${version}`);
 const base = readdirSync(K8S_BASE)
   .filter((f) => f.endsWith(".yaml"))
   .map((f) => readFileSync(join(K8S_BASE, f), "utf8"))
@@ -79,14 +94,15 @@ const unpinned = ownImages.filter((ref) => !base.includes(`image: ${ref}\n`));
 for (const ref of unpinned) console.log(`[release] deploy/k8s/base does not run ${ref}`);
 
 if (check) {
-  if (stale > 0 || unpinned.length > 0) {
+  if (stale > 0 || unpinned.length > 0 || chartStale) {
     throw new Error(
       `${stale} manifest(s) not at ${version}, ${unpinned.length} k8s image(s) not pinned to it` +
-        " — run without --check to stamp",
+        `${chartStale ? ", the chart not versioned with it" : ""} — run without --check to stamp`,
     );
   }
-  console.log(`[release] all manifests and the k8s base at ${version}`);
+  console.log(`[release] all manifests, the k8s base and the chart at ${version}`);
 } else {
   if (unpinned.length > 0) throw new Error("k8s base still not pinned after gen-k8s");
+  if (chartStale) throw new Error("chart still not versioned after gen-helm");
   console.log(`[release] stamped ${version}; next: commit, then tag v${version} and push`);
 }

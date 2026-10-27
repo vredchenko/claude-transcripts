@@ -1,0 +1,16 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+apiVersion: v2
+name: claude-transcripts
+description: "Claude Transcripts — self-hosted history for Claude Code sessions: CouchDB, Garage (S3), Fossil, Meilisearch and the app."
+type: application
+version: 0.8.0
+appVersion: 0.8.0
+keywords:
+  - claude
+  - claude-code
+  - transcripts
+  - couchdb
+  - s3
+  - self-hosted

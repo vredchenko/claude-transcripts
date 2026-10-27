@@ -1,0 +1,36 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 7650
+{{- end }}

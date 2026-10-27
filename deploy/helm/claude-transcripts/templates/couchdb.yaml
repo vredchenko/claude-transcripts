@@ -1,0 +1,103 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: couchdb-data
+  labels:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.persistence.keep }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: couchdb
+  labels:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: couchdb
+      app.kubernetes.io/part-of: claude-transcripts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: couchdb
+        app.kubernetes.io/part-of: claude-transcripts
+      annotations:
+        checksum/env: {{ list .Values.env .Values.existingSecret | toJson | sha256sum }}
+    spec:
+      containers:
+        - name: couchdb
+          image: {{ .Values.images.couchdb | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          env:
+            - name: COUCHDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "claude-transcripts.envSecret" . }}
+                  key: COUCHDB_USER
+            - name: COUCHDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "claude-transcripts.envSecret" . }}
+                  key: COUCHDB_PASSWORD
+          ports:
+            - name: http-api-fauxto
+              containerPort: 5984
+          readinessProbe:
+            httpGet:
+              path: /_up
+              port: 5984
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: couchdb-data
+              mountPath: /opt/couchdb/data
+          {{- with .Values.couchdb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: couchdb-data
+          persistentVolumeClaim:
+            claimName: couchdb-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: couchdb
+  labels:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: claude-transcripts
+  ports:
+    - name: http-api-fauxto
+      port: 5984
+      targetPort: 5984
