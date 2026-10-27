@@ -38,6 +38,9 @@ git tag v0.4.0 && git push origin v0.4.0 # from main, once merged
 The binaries embed the Bun runtime and need nothing else. The npm package is a bundle
 with no runtime dependencies, for `bunx @claude-transcripts/cli`.
 
+What each artefact carries, platforms included, is in
+[distributions.md](../reference/distributions.md).
+
 `release-cli` and `mirror-images` can also be run by hand from the Actions tab; a
 manual `release-cli` run uploads the binaries as workflow artifacts without publishing.
 

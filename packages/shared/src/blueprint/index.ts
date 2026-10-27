@@ -2,6 +2,7 @@ export * from "./actions";
 export * from "./build";
 export * from "./cli";
 export * from "./cli-project";
+export * from "./distributions";
 export * from "./env";
 export * from "./hooks";
 export * from "./k8s";
