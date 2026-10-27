@@ -81,6 +81,11 @@ export const ENV_VARS: EnvVarDef[] = [
   { name: "S3_REGION", scope: "endpoint", default: "garage", description: "S3 region" },
   { name: "S3_ACCESS_KEY", scope: "secret", description: "app-facing S3 access key" },
   { name: "S3_SECRET_KEY", scope: "secret", description: "app-facing S3 secret key" },
+  {
+    name: "GARAGE_ADMIN_URL",
+    scope: "endpoint",
+    description: "full Garage admin API URL; wins over 127.0.0.1:GARAGE_ADMIN_PORT (`provision`)",
+  },
   { name: "GARAGE_RPC_SECRET", scope: "secret", description: "Garage internal RPC secret" },
   { name: "GARAGE_ADMIN_TOKEN", scope: "secret", description: "Garage admin token" },
   { name: "GARAGE_METRICS_TOKEN", scope: "secret", description: "Garage metrics token" },

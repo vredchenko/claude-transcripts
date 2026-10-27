@@ -1,0 +1,23 @@
+Claude Transcripts {{ .Chart.AppVersion }} is installing in {{ .Release.Namespace }}.
+
+The provisioning Job creates the databases, Garage's layout, bucket and key, then
+restarts the app with the key. Watch it:
+
+  kubectl -n {{ .Release.Namespace }} get pods -w
+
+Nothing is exposed (the stack has no auth). Reach it on the ports the compose stack
+uses on localhost, so the hook and CLI defaults work unchanged:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/couchdb 7652:5984 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/garage 7653:3900 7654:3903 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/garage-ui 7655:3909 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/fossil 7658:8080 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/meilisearch 7656:7700 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/meilisearch-ui 7657:24900 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/app 7650:7650 &
+
+Then open http://127.0.0.1:7650/app/
+{{- if .Values.ingress.enabled }}
+
+Or through the Ingress: http://{{ .Values.ingress.host }}/app/
+{{- end }}

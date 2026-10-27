@@ -1,0 +1,98 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+{{- if .Values.fossil.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fossil-data
+  labels:
+    app.kubernetes.io/name: fossil
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.persistence.keep }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fossil
+  labels:
+    app.kubernetes.io/name: fossil
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fossil
+      app.kubernetes.io/part-of: claude-transcripts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fossil
+        app.kubernetes.io/part-of: claude-transcripts
+      annotations:
+        checksum/env: {{ list .Values.env .Values.existingSecret | toJson | sha256sum }}
+    spec:
+      containers:
+        - name: fossil
+          image: {{ .Values.images.fossil | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          env:
+            - name: FOSSIL_REPOSITORIES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "claude-transcripts.envSecret" . }}
+                  key: FOSSIL_REPOSITORIES
+          ports:
+            - name: web-ui-sync
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          volumeMounts:
+            - name: fossil-data
+              mountPath: /museum
+          {{- with .Values.fossil.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: fossil-data
+          persistentVolumeClaim:
+            claimName: fossil-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fossil
+  labels:
+    app.kubernetes.io/name: fossil
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: fossil
+    app.kubernetes.io/part-of: claude-transcripts
+  ports:
+    - name: web-ui-sync
+      port: 8080
+      targetPort: 8080
+{{- end }}

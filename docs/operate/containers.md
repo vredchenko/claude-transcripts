@@ -38,10 +38,13 @@ the checkout.
 
 ## Other topologies
 
-- **Kubernetes** — the same stack as a generated kustomize base in `deploy/k8s/`
-  ([README](../../deploy/k8s/README.md),
-  [ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)),
-  for a single-node k3s or any cluster with a default StorageClass.
+- **Kubernetes** — the same stack, generated from the same model, two ways: a Helm chart
+  in `deploy/helm/` ([README](../../deploy/helm/README.md)), published to GHCR on each
+  release, which generates secrets and provisions Garage itself and works with Argo CD
+  and Flux; or a plain kustomize base in `deploy/k8s/`
+  ([README](../../deploy/k8s/README.md)) to clone and `kubectl apply -k`. Both suit a
+  single-node k3s or any cluster with a default StorageClass
+  ([ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)).
 - **External backends** — run the app container alone with its environment pointing
   at your own CouchDB, S3 and Meilisearch
   ([configuration.md](../start/configuration.md#backend-topology--bundled-or-external)).

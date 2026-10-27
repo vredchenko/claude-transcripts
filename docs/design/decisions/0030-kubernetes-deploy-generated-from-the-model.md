@@ -82,3 +82,44 @@ generator must not bake in.
   on Kubernetes that means the machine running Claude Code needs a route to those
   Services (port-forward, Ingress, a tailnet) — the same requirement compose's
   localhost ports satisfy implicitly.
+
+## Amendment: a Helm chart too, generated the same way
+
+*2026-10-27.*
+
+The decision above chose kustomize *rather than* Helm, for readable manifests and
+per-cluster overlays. Both still hold for the base. What it didn't cover is how
+people install software on a cluster they don't want to fork a repo for, and three
+gaps came out of that:
+
+1. **The base can't be consumed remotely.** Its `secretGenerator` reads a `.env` next
+   to the kustomization, so `kubectl apply -k github.com/…?ref=vX.Y.Z` and an Argo CD
+   Application pointed at a release tag both fail without a fork to hold that file.
+2. **Garage's bootstrap is a manual step.** Layout, bucket and app key need a running
+   Garage, and the base has nowhere to run something after the stack is up.
+3. **There is no versioned, installable artefact.** A Kubernetes user expects
+   `helm install` from a registry, with the knobs listed in `values.yaml`.
+
+So there is also a **Helm chart**, as a third projection beside compose and the base.
+It does not replace either and is not hand-maintained: `toHelmChart`
+(`packages/shared/src/blueprint/helm.ts`) starts from exactly the objects
+`toKubernetesObjects` emits and swaps template expressions in where a value belongs to
+the installer (images, storage, resources, which optional services run, the Secret's
+name). `scripts/gen-helm.ts` writes it to `deploy/helm/claude-transcripts/`, `gen:all`
+runs it, and CI fails on a stale chart the same way it does for the base. Releases
+publish it as an OCI chart.
+
+What the chart adds, because a published install needs it and a base can't have it:
+
+- **Secrets generated once and kept.** The env Secret is rendered with `lookup`, so an
+  unset value is generated on install and read back on every upgrade. Under Argo CD
+  (or anything else that runs `helm template` without a cluster to read back),
+  `existingSecret` or explicit values are required, and the README says so.
+- **Provisioning as a hook.** A post-install/post-upgrade Job runs the CLI's own
+  `provision` from the app image against the in-cluster services, then stores the
+  minted S3 key in a Secret the chart never renders. Neither a `helm upgrade` nor a
+  GitOps sync can overwrite that key. Reaching an in-cluster Garage needed one generic
+  addition to the CLI: `GARAGE_ADMIN_URL`, which wins over the loopback port the way
+  `COUCHDB_URL` does.
+
+Gap 1 still applies to the base: it remains a clone-and-apply artefact.

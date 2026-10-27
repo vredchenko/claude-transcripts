@@ -70,7 +70,12 @@ const CAPACITY = 1_000_000_000; // 1 GB
 const KEY_NAME = "claude-transcripts-app";
 
 function garageApi(env: EnvMap) {
-  const admin = `http://127.0.0.1:${env.GARAGE_ADMIN_PORT}`;
+  // GARAGE_ADMIN_URL reaches a Garage that isn't on this machine's loopback — another
+  // pod, another host — the way COUCHDB_URL does for CouchDB.
+  const admin = (env.GARAGE_ADMIN_URL || `http://127.0.0.1:${env.GARAGE_ADMIN_PORT}`).replace(
+    /\/+$/,
+    "",
+  );
   const token = env.GARAGE_ADMIN_TOKEN ?? "";
   return async function api(method: string, path: string, body?: unknown): Promise<ApiResult> {
     const res = await fetch(`${admin}${path}`, {

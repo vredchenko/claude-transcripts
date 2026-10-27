@@ -1,5 +1,9 @@
 # Deploy on Kubernetes (k3s and friends)
 
+> Want `helm install`, Argo CD or Flux, with secrets generated and Garage provisioned for
+> you? Use the **Helm chart** in [`../helm/`](../helm/README.md), generated from the same
+> model. This base is the plain-manifest alternative: clone, add a `.env`, `kubectl apply -k`.
+
 The same stack `deploy/docker-compose.yml` runs — CouchDB, Garage (S3), Fossil, Meilisearch,
 their three admin UIs, and the app — as a **kustomize base**, for a single-node k3s
 cluster or any Kubernetes with a default StorageClass.

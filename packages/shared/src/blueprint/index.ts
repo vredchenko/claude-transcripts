@@ -3,6 +3,7 @@ export * from "./build";
 export * from "./cli";
 export * from "./cli-project";
 export * from "./env";
+export * from "./helm";
 export * from "./hooks";
 export * from "./k8s";
 export * from "./project";
