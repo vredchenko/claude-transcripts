@@ -1,0 +1,79 @@
+# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-helm.ts.
+# Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: app
+      app.kubernetes.io/part-of: claude-transcripts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: app
+        app.kubernetes.io/part-of: claude-transcripts
+      annotations:
+        checksum/env: {{ list .Values.env .Values.existingSecret | toJson | sha256sum }}
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.images.app | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          envFrom:
+            - secretRef:
+                name: claude-transcripts-s3
+                optional: true
+            - secretRef:
+                name: {{ include "claude-transcripts.envSecret" . }}
+          env:
+            - name: WEBAPI_HOST
+              value: 0.0.0.0
+            - name: WEBAPI_PORT
+              value: "7650"
+            - name: COUCHDB_URL
+              value: http://couchdb:5984
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: MEILI_HOST
+              value: http://meilisearch:7700
+            - name: FOSSIL_URL
+              value: http://fossil:8080
+          ports:
+            - name: http
+              containerPort: 7650
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 7650
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          {{- with .Values.app.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/part-of: claude-transcripts
+    {{- include "claude-transcripts.releaseLabels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/part-of: claude-transcripts
+  ports:
+    - name: http
+      port: 7650
+      targetPort: 7650
