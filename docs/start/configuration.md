@@ -127,7 +127,9 @@ not start without an admin ([ADR 0020](../design/decisions/0020-bundled-services
 
 Not verified end to end. Create the bucket and key yourself (`bootstrap:garage` only
 targets the bundled Garage; the app never creates buckets), and a CouchDB path prefix
-is untested.
+is untested. For a Garage that isn't on this machine's loopback, `GARAGE_ADMIN_URL`
+(its admin API's full URL) lets `claude-transcripts provision` create the bucket and
+key there. It wins over `GARAGE_ADMIN_PORT`, as `COUCHDB_URL` does for CouchDB.
 
 ### An external Meilisearch
 

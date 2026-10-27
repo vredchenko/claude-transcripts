@@ -88,3 +88,36 @@ jobs:
         run: |
           set -euo pipefail
           for t in ${{ steps.tags.outputs.list }}; do docker push "$t"; done
+
+  # The Helm chart (deploy/helm/claude-transcripts), on a release only: packaged and pushed
+  # to GHCR as an OCI artefact once the app image it points at exists. Its version and
+  # appVersion are the release's (release.ts stamps them). Install with:
+  #   helm install claude-transcripts oci://ghcr.io/<owner>/charts/claude-transcripts --version X.Y.Z
+  chart:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+
+      - name: Check the chart is this release's
+        run: |
+          set -euo pipefail
+          want="${GITHUB_REF_NAME#v}"
+          got="$(helm show chart deploy/helm/claude-transcripts | sed -n 's/^version: //p')"
+          if [ "$got" != "$want" ]; then
+            echo "::error::chart is $got, the tag is $want — run scripts/release.ts $want before tagging"
+            exit 1
+          fi
+
+      - name: Package and push
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "$GH_ACTOR" --password-stdin
+          helm package deploy/helm/claude-transcripts -d out
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          helm push out/claude-transcripts-*.tgz "oci://ghcr.io/$OWNER/charts"

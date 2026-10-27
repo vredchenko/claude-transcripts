@@ -14,7 +14,9 @@ git tag v0.4.0 && git push origin v0.4.0 # from main, once merged
 
 `release.ts` writes the version into the root and every `packages/*/package.json`,
 `hooks/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, and re-runs
-`gen:k8s` (the k8s base pins the app image to it). The tag is what CI acts on.
+`gen:k8s` (the k8s base pins the app image to it) and `gen:helm` (the chart's version
+and appVersion are the release). The tag is what CI acts on; the chart job refuses to
+publish a chart whose version isn't the tag's.
 
 ## Choosing the version
 
@@ -31,6 +33,7 @@ git tag v0.4.0 && git push origin v0.4.0 # from main, once merged
 | Artifact | Where | Workflow |
 |----------|-------|----------|
 | App image `claude-transcripts-app` (webapi + webui + docs + CLI) | `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
+| Helm chart `claude-transcripts` | `oci://ghcr.io/<owner>/charts/claude-transcripts` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Mirrored backing images (CouchDB, Garage, Meilisearch, admin UIs) | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
 | CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
 | `@claude-transcripts/cli` on npm (needs Bun at runtime) | npmjs.org | `release-cli.yml`, skipped with a warning until `NPM_TOKEN` is set |
@@ -60,7 +63,7 @@ severity, so a base-image CVE can block a merge build too.
 Images are pushed with the built-in `GITHUB_TOKEN`; no secret is needed.
 
 1. After the first publish, make each GHCR package public (package page → Package
-   settings → Change visibility). Workflow permissions (Settings → Actions → General)
+   settings → Change visibility), the `charts/claude-transcripts` chart included. Workflow permissions (Settings → Actions → General)
    must allow read/write.
 2. For npm: create the `claude-transcripts` org on npmjs, create an Automation access
    token and store it as the repo secret `NPM_TOKEN`.
