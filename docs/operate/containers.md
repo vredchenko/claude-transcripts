@@ -16,6 +16,9 @@ reference at `/api/docs`, these docs at `/docs`, and the CLI binary at `/cli/dow
 - Listens on 7650 inside the container. Published by `publish-image.yml`
   ([releasing.md](releasing.md#app-image-tags)).
 
+What every artefact (images, compose, Kubernetes, CLI, plugin) carries is tabled in
+[distributions.md](../reference/distributions.md).
+
 ## One Compose stack, two uses
 
 `deploy/docker-compose.yml` is generated from the blueprint (`bun run gen:compose`).
