@@ -97,3 +97,47 @@ describe("Meili.pruneTasks", () => {
     }
   });
 });
+
+describe("Meili.federatedSearch", () => {
+  it("sends one query per index, with paging on the federation rather than the queries", async () => {
+    let body: any;
+    let url = "";
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (u: string, init: RequestInit) => {
+      url = String(u);
+      body = JSON.parse(String(init.body));
+      return new Response(
+        JSON.stringify({
+          hits: [{ id: "t1", _federation: { indexUid: "a" } }],
+          estimatedTotalHits: 9,
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    let res: Awaited<ReturnType<Meili["federatedSearch"]>>;
+    try {
+      const meili = new Meili({ host: "http://meili.test", enabled: true });
+      res = await meili.federatedSearch(["a", "b"], "needle", {
+        limit: 5,
+        offset: 10,
+        filter: ['cwd = "/p"'],
+        attributesToHighlight: ["text"],
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    expect(url).toBe("http://meili.test/multi-search");
+    // Meilisearch rejects per-query limit/offset in a federated search.
+    expect(body.federation).toEqual({ limit: 5, offset: 10 });
+    expect(body.queries.map((q: any) => q.indexUid)).toEqual(["a", "b"]);
+    for (const q of body.queries) {
+      expect(q.q).toBe("needle");
+      expect(q.filter).toEqual(['cwd = "/p"']);
+      expect(q.limit).toBeUndefined();
+      expect(q.offset).toBeUndefined();
+    }
+    expect(res.estimatedTotalHits).toBe(9);
+    expect(res.hits.length).toBe(1);
+  });
+});

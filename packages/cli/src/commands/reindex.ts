@@ -9,7 +9,8 @@
  * CouchDB — is invisible to search until it's rebuilt, and a doc deleted from CouchDB
  * lingers in the index. This is the operation that makes search match the store.
  *
- * It clears each index first, so it drops stale entries too, and it waits for
+ * Each index is rebuilt beside the live one and swapped in, so it drops stale entries
+ * without search going blank in the meantime, and it waits for
  * Meilisearch's asynchronous validation — a rejected batch is reported, not silently
  * swallowed the way the ingest hot path has to swallow it.
  */
@@ -35,14 +36,19 @@ export async function runReindex(argv: string[]): Promise<number> {
   }
 
   console.log(`  sessions  ${num(res.sessions.indexed)} / ${num(res.sessions.scanned)} indexed`);
-  console.log(`  turns     ${num(res.turns.indexed)} / ${num(res.turns.scanned)} indexed`);
+  console.log(
+    `  turns     ${num(res.turns.indexed)} / ${num(res.turns.scanned)} indexed (archive)`,
+  );
+  console.log(
+    `            ${num(res.liveTurns.indexed)} / ${num(res.liveTurns.scanned)} indexed (live)`,
+  );
 
   if (res.failures.length) {
     console.error("\nreindex: Meilisearch rejected part of the rebuild:");
     for (const f of res.failures) console.error(`  ! ${f}`);
     return 1;
   }
-  if (res.turns.scanned === 0) {
+  if (res.turns.scanned + res.liveTurns.scanned === 0) {
     console.log(
       "\nreindex: no turns to index — content search needs full-content chunks " +
         "(`features.couchFullContentChunks`); byte-range-only chunks carry no text.",

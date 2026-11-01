@@ -38,7 +38,8 @@ The committed template:
   "meilisearch": {
     "indexes": {
       "sessions": "claude-transcripts-sessions",
-      "turns":    "claude-transcripts-turns"
+      "turns":     "claude-transcripts-turns",
+      "liveTurns": "claude-transcripts-live-turns"
     }
   },
   "fossil": { "repositories": { "sessions": "claude-transcripts-sessions" } },
@@ -73,9 +74,11 @@ The committed template:
 | `system.sessions.liveWindowMs` | A session with no `SessionEnd` counts as `running` for this long after its last event (24 h), then `incomplete`. A recency heuristic; there is no heartbeat. |
 | `system.sessions.reconcile` | The webapi's sweep that finalises sessions which never fired `SessionEnd` ([tools.md](../operate/tools.md#reconcile)): every `intervalMs` (1 h) it runs `claude-transcripts reconcile` on up to `batchSize` (50) sessions that read as `incomplete`. `follower: false` turns it off; `reconcile` by hand still works. Needs the CLI next to the webapi: the app image ships it (`CT_CLI_BIN`), a checkout uses the workspace's. |
 | `system.sessions.idleThresholdMs` | Gaps between events longer than this (5 min) don't count towards a session's active time. |
-| `system.search.flushIntervalMs` | Changes reach the search index in batches, at most this far (3 min) behind; a live session that ends is flushed at once. Shorter is fresher search and more Meilisearch disk writes; each flush costs about the same however much it carries. |
+| `system.search.flushIntervalMs` | Changes reach search in batches, at most this far (20 s) behind; a live session that ends is flushed at once. A flush writes only the small indexes — session metadata and the live turns — so it can be frequent ([ADR 0032](../design/decisions/0032-live-and-archive-turn-indexes.md)). |
+| `system.search.archiveIntervalMs` | How often ended sessions' turns move from the live index into the archive (15 min). Each move is one write to the large archive index, which is where Meilisearch's disk cost lives; ended sessions stay searchable in the live index until then. |
+| `system.search.liveRebuildIntervalMs` | How often the live turns index is rebuilt from CouchDB (1 h), as a backstop for rows a failed flush dropped. It's small, so this is cheap. |
 | `system.search.taskRetentionMs` | Finished Meilisearch tasks older than this (1 h) are pruned from its task queue, so it doesn't grow without bound. |
-| `couchdb.databases`, `s3.buckets`, `meilisearch.indexes`, `fossil.repositories` | Keyed maps: code refers to a store by logical key (`sessions`, `appLogs`, `turns`), never by its deployed name. The `claude-transcripts-` prefix keeps them from colliding with anything else on a shared server. Fossil repository names must be letters, digits, `-` and `_`; the Fossil container creates each named repository on start, and the default `sessions` entry is always kept (like the Meilisearch indexes). |
+| `couchdb.databases`, `s3.buckets`, `meilisearch.indexes`, `fossil.repositories` | Keyed maps: code refers to a store by logical key (`sessions`, `appLogs`, `turns`, `liveTurns`), never by its deployed name. The `claude-transcripts-` prefix keeps them from colliding with anything else on a shared server. Fossil repository names must be letters, digits, `-` and `_`; the Fossil container creates each named repository on start, and the default `sessions` entry is always kept (like the Meilisearch indexes). |
 | `features.s3Blobs` | Upload the transcript and a `summary.json` copy to S3. Off: no byte-exact transcript is kept anywhere; CouchDB still has the pruned per-turn content if full-content chunks are on. |
 | `features.midFlightChunking` | Tail the transcript into CouchDB `chunk` docs during the session. |
 | `features.couchFullContentChunks` | Put the parsed turns in those chunks ([ADR 0027](../design/decisions/0027-full-content-chunks-in-couchdb.md)). Off: a live session's transcript can't be read until it ends, the speaker-split views are empty, and conversation content isn't searchable. |
@@ -132,10 +135,11 @@ is untested.
 ### An external Meilisearch
 
 Read [ADR 0028](../design/decisions/0028-external-vs-bundled-meilisearch.md) first.
-The `turns` index holds conversation text, so an external Meilisearch is the one
+The turn indexes hold conversation text, so an external Meilisearch is the one
 configuration where recorded content leaves the machine. And Meilisearch is a derived
-index the app owns: `reindex` clears an index before refilling it, which is safe only
-because the index names are ours. If you rename them, keep them distinct from anything
+index the app owns: `reindex` builds each index beside the real one (`<name>-rebuild`)
+and swaps them, which is safe only because the index names are ours. Federated search
+needs Meilisearch 1.10 or later. If you rename them, keep them distinct from anything
 else on that engine.
 
 Search is otherwise local: the webapi follows CouchDB's change feed and writes to

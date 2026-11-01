@@ -49,12 +49,20 @@ export interface AppConfigFile {
       reconcile?: { follower?: boolean; intervalMs?: number; batchSize?: number };
     };
     /**
-     * Search-indexing tunables. `flushIntervalMs` is how long change-feed updates are
-     * buffered before going to Meilisearch as one update per index — the trade between
-     * search freshness and Meilisearch's disk writes. `taskRetentionMs` is how long
-     * finished Meilisearch tasks are kept before being pruned. Both optional.
+     * Search-indexing tunables (ADR 0032). `flushIntervalMs` is how long change-feed
+     * updates are buffered before going to the sessions and live turns indexes as one
+     * update each. `archiveIntervalMs` is how often ended sessions' turns move into the
+     * large archive index — the trade between its disk writes and how long an ended
+     * session sits in the live index. `liveRebuildIntervalMs` is how often the live
+     * index is rebuilt from CouchDB as a backstop. `taskRetentionMs` is how long
+     * finished Meilisearch tasks are kept before being pruned. All optional.
      */
-    search?: { flushIntervalMs?: number; taskRetentionMs?: number };
+    search?: {
+      flushIntervalMs?: number;
+      archiveIntervalMs?: number;
+      liveRebuildIntervalMs?: number;
+      taskRetentionMs?: number;
+    };
   };
   /** logical key → CouchDB database name (multi-database by design) */
   couchdb: { databases: Record<string, string> };

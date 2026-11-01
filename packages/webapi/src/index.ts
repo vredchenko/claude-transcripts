@@ -10,6 +10,8 @@ import { startChangesFollower } from "./storage/changes-follower";
 import { makeCouch } from "./storage/couch";
 import { ensureCouchDbs } from "./storage/ensure";
 import {
+  LIVE_TURNS_INDEX_KEY,
+  LIVE_TURNS_INDEX_SETTINGS,
   Meili,
   SESSIONS_INDEX_KEY,
   SESSIONS_INDEX_SETTINGS,
@@ -49,6 +51,9 @@ await meili
   .ensureIndex(indexName(config, SESSIONS_INDEX_KEY), SESSIONS_INDEX_SETTINGS)
   .catch(() => {});
 await meili.ensureIndex(indexName(config, TURNS_INDEX_KEY), TURNS_INDEX_SETTINGS).catch(() => {});
+await meili
+  .ensureIndex(indexName(config, LIVE_TURNS_INDEX_KEY), LIVE_TURNS_INDEX_SETTINGS)
+  .catch(() => {});
 
 // Warm the session index. Deliberately not awaited: the full grouped query is the
 // slow thing this index exists to stop doing, and blocking startup on it would just

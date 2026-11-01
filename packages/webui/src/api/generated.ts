@@ -221,6 +221,7 @@ export interface ReindexResult {
   enabled: boolean;
   sessions: IndexCounts;
   turns: IndexCounts;
+  liveTurns: IndexCounts;
   failures: string[];
 }
 

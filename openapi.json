@@ -502,6 +502,9 @@
           "turns": {
             "$ref": "#/components/schemas/IndexCounts"
           },
+          "liveTurns": {
+            "$ref": "#/components/schemas/IndexCounts"
+          },
           "failures": {
             "type": "array",
             "items": {
@@ -509,7 +512,7 @@
             }
           }
         },
-        "required": ["enabled", "sessions", "turns", "failures"]
+        "required": ["enabled", "sessions", "turns", "liveTurns", "failures"]
       },
       "IndexCounts": {
         "type": "object",

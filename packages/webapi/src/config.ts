@@ -63,7 +63,12 @@ export interface Config {
       idleThresholdMs?: number;
       reconcile?: { follower?: boolean; intervalMs?: number; batchSize?: number };
     };
-    search?: { flushIntervalMs?: number; taskRetentionMs?: number };
+    search?: {
+      flushIntervalMs?: number;
+      archiveIntervalMs?: number;
+      liveRebuildIntervalMs?: number;
+      taskRetentionMs?: number;
+    };
   };
   meili: {
     host: string;
@@ -124,6 +129,7 @@ export function loadConfig(): Config {
       indexes: {
         sessions: "claude-transcripts-sessions",
         turns: "claude-transcripts-turns",
+        liveTurns: "claude-transcripts-live-turns",
         ...(appConfig.meilisearch?.indexes ?? {}),
       },
     },

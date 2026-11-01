@@ -13,7 +13,7 @@ Lightweight records of non-obvious decisions. See
 | [0006](0006-no-openapi-client-codegen-shared-types.md) | Webui consumes shared workspace types directly; no OpenAPI client codegen | Superseded by 0019 |
 | [0007](0007-couchdb-primary-store.md) | CouchDB as the primary store | Accepted |
 | [0008](0008-garage-s3-object-store.md) | Garage as the S3 object store | Accepted |
-| [0009](0009-meilisearch-search.md) | Meilisearch for search (Phase 2) | Accepted |
+| [0009](0009-meilisearch-search.md) | Meilisearch for search (Phase 2) | Accepted (amended by 0032) |
 | [0010](0010-claude-code-specific-scope.md) | Claude-Code-specific scope (not a generic agent-session logger) | Accepted |
 | [0011](0011-read-couch-attachments-over-http.md) | Read CouchDB attachments over HTTP, not nano's `attachment.get` | Superseded by 0014 |
 | [0012](0012-github-actions-and-ghcr-for-releases.md) | GitHub Actions + GHCR for releases | Accepted (amended 2026-09-30) |
@@ -36,3 +36,4 @@ Lightweight records of non-obvious decisions. See
 | [0029](0029-recall-policy-config-driven-session-start.md) | The recall policy is config-driven and injected at session start | Accepted |
 | [0030](0030-kubernetes-deploy-generated-from-the-model.md) | Kubernetes deploy, generated from the app model | Accepted |
 | [0031](0031-fossil-as-bundled-infrastructure.md) | Fossil as bundled infrastructure, built from source | Accepted (read path only) |
+| [0032](0032-live-and-archive-turn-indexes.md) | Live and archive turn indexes, searched as one | Accepted |

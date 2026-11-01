@@ -132,17 +132,36 @@ describe("readCheckpoint", () => {
  * A fake app context for the search half: Meilisearch and the checkpoint store share
  * one call log, so a test can assert the *order* of index and checkpoint writes.
  * `hold()` parks the next index call until the returned release is called.
+ *
+ * Sessions are running unless listed in `ended`; `chunks` is what CouchDB holds per
+ * session, `held` is what the live index reports holding, and `failArchive` makes
+ * Meilisearch reject archive writes.
  */
-function fakeSearch() {
+function fakeSearch(
+  opts: {
+    ended?: string[];
+    chunks?: Record<string, any[]>;
+    held?: string[];
+    failArchive?: boolean;
+  } = {},
+) {
   const log: string[] = [];
   const { db: store } = fakeStore();
   let gate: Promise<void> | null = null;
   const feed = new EventEmitter();
+  const ended = new Set(opts.ended ?? []);
   const db: any = {
     ...store,
     async insert(doc: any, docName?: string) {
       log.push(`checkpoint ${doc.seq}`);
       return store.insert(doc, docName);
+    },
+    async view(design: string, name: string, params: any) {
+      if (design === "chunks" && name === "by_session") {
+        const id = params.startkey[0];
+        return { rows: (opts.chunks?.[id] ?? []).map((doc) => ({ doc })) };
+      }
+      throw new Error(`unexpected view ${design}/${name}`);
     },
     changesReader: {
       start: () => feed,
@@ -152,15 +171,24 @@ function fakeSearch() {
       },
     },
   };
+  const agg = (id: string) => ({
+    last: new Date().toISOString(),
+    events: 1,
+    id,
+    ...(ended.has(id) ? { summary: { session_id: id } } : {}),
+  });
   const ctx: any = {
     config: {
       system: {},
-      meili: { indexes: { sessions: "x-sessions", turns: "x-turns" } },
+      meili: {
+        indexes: { sessions: "x-sessions", turns: "x-turns", liveTurns: "x-live" },
+      },
     },
     couch: { db: () => db },
     sessionIndex: {
       ready: true,
-      get: (id: string) => ({ last: "2026-10-24T00:00:00.000Z", events: 1, id }),
+      get: agg,
+      rows: () => [],
       refresh: async () => {},
     },
     meili: {
@@ -172,7 +200,26 @@ function fakeSearch() {
           await g;
         }
         log.push(`index ${uid} ${docs.map((d) => d.id).join(",")}`);
-        return 1;
+        return uid === "x-turns" && opts.failArchive ? 99 : 1;
+      },
+      async taskFailures(uids: number[]) {
+        return { indexed: 0, failures: uids.includes(99) ? ["rejected"] : [] };
+      },
+      async deleteDocs(uid: string, target: any) {
+        log.push(`delete ${uid} ${target.filter}`);
+        return 2;
+      },
+      async deleteIndex() {
+        return 3;
+      },
+      async ensureIndex() {},
+      async swapIndexes(a: string, b: string) {
+        log.push(`swap ${a} ${b}`);
+        return 4;
+      },
+      async facets(uid: string) {
+        log.push(`facets ${uid}`);
+        return { sessionId: opts.held ?? [] };
       },
       async pruneTasks(uids: string[]) {
         log.push(`prune ${uids.join(",")}`);
@@ -187,7 +234,7 @@ function fakeSearch() {
     });
     return release;
   };
-  return { ctx, db, log, feed, hold };
+  return { ctx, db, log, feed, hold, ended };
 }
 
 const chunk = (session_id: string, byte_start: number) => ({
@@ -197,11 +244,13 @@ const chunk = (session_id: string, byte_start: number) => ({
   entries: [{ role: "user", text: "hi" }],
 });
 
+const turn = (id: string, sessionId = "s1") => ({ id, sessionId });
+
 describe("search flush", () => {
   test("indexes once per index, then checkpoints the seq it covered", async () => {
     const { ctx, db, log } = fakeSearch();
     const { buffer, flush } = createSearchFlusher(ctx, db);
-    buffer.addTurns([{ id: "t1" }, { id: "t2" }]);
+    buffer.addTurns([turn("t1"), turn("t2")]);
     buffer.touch("s1");
     buffer.advance("9-a");
 
@@ -209,30 +258,47 @@ describe("search flush", () => {
 
     expect(log).toEqual([
       "index x-sessions s1",
-      "index x-turns t1,t2",
+      "index x-live t1,t2",
       "checkpoint 9-a",
-      "prune x-sessions,x-turns",
+      "prune x-sessions,x-sessions-rebuild,x-turns,x-turns-rebuild,x-live,x-live-rebuild",
+    ]);
+  });
+
+  test("an ended session's turns never go to an index on flush — they wait for promotion", async () => {
+    const { ctx, db, log } = fakeSearch({ ended: ["old"] });
+    const { buffer, flush } = createSearchFlusher(ctx, db);
+    buffer.addTurns([turn("run", "s1"), turn("late", "old")]);
+    buffer.addSummary("s2", { id: "s2" });
+    buffer.addTurns([turn("final", "s2")]);
+
+    await flush();
+
+    // Neither the backfilled/late turn nor the one whose summary arrived in the same
+    // batch touches the archive here: the archive is written only by promotion.
+    expect(log.filter((l) => l.startsWith("index"))).toEqual([
+      "index x-sessions s2",
+      "index x-live run",
     ]);
   });
 
   test("a flush asked for mid-flush runs after it, carrying the docs that arrived", async () => {
     const { ctx, db, log, hold } = fakeSearch();
     const { buffer, flush } = createSearchFlusher(ctx, db);
-    buffer.addTurns([{ id: "early" }]);
+    buffer.addTurns([turn("early")]);
     buffer.advance("1-a");
     const release = hold();
     const first = flush();
 
-    buffer.addTurns([{ id: "late" }]);
+    buffer.addTurns([turn("late")]);
     buffer.advance("2-b");
     const second = flush();
     release();
     await Promise.all([first, second]);
 
     expect(log.filter((l) => !l.startsWith("prune"))).toEqual([
-      "index x-turns early",
+      "index x-live early",
       "checkpoint 1-a",
-      "index x-turns late",
+      "index x-live late",
       "checkpoint 2-b",
     ]);
   });
@@ -246,11 +312,84 @@ describe("search flush", () => {
   });
 });
 
+describe("search maintenance", () => {
+  test("promotes an ended session: archive from CouchDB first, then out of live", async () => {
+    const { ctx, db, log } = fakeSearch({ ended: ["s1"], chunks: { s1: [chunk("s1", 0)] } });
+    const { buffer, flush, maintain } = createSearchFlusher(ctx, db);
+    buffer.addSummary("s1", { id: "s1" });
+    await flush();
+    log.length = 0;
+
+    await maintain();
+
+    expect(log).toEqual([
+      "facets x-live",
+      "index x-turns s1_0_0",
+      'delete x-live sessionId IN ["s1"]',
+      // The first pass after boot also rebuilds the live index, by swap.
+      "swap x-live x-live-rebuild",
+    ]);
+  });
+
+  test("finds ended sessions the live index still holds, e.g. after a restart", async () => {
+    const { ctx, db, log } = fakeSearch({
+      ended: ["gone"],
+      held: ["gone", "running"],
+      chunks: { gone: [chunk("gone", 5)] },
+    });
+    const { maintain } = createSearchFlusher(ctx, db);
+
+    await maintain();
+
+    expect(log).toEqual([
+      "facets x-live",
+      "index x-turns gone_5_0",
+      'delete x-live sessionId IN ["gone"]',
+      "swap x-live x-live-rebuild",
+    ]);
+  });
+
+  test("an archive write that fails leaves the session live, and is retried", async () => {
+    const { ctx, db, log } = fakeSearch({
+      ended: ["s1"],
+      held: [],
+      chunks: { s1: [chunk("s1", 0)] },
+      failArchive: true,
+    });
+    const { buffer, flush, maintain } = createSearchFlusher(ctx, db);
+    buffer.addSummary("s1", { id: "s1" });
+    await flush();
+    log.length = 0;
+
+    await maintain();
+    expect(log.some((l) => l.startsWith("delete"))).toBe(false);
+
+    log.length = 0;
+    await maintain();
+    expect(log).toContain("index x-turns s1_0_0");
+  });
+
+  test("queues behind a flush instead of overlapping it", async () => {
+    const { ctx, db, log, hold } = fakeSearch({ ended: ["s1"], chunks: { s1: [chunk("s1", 0)] } });
+    const { buffer, flush, maintain } = createSearchFlusher(ctx, db);
+    buffer.addTurns([turn("t1", "s9")]);
+    buffer.addSummary("s1", { id: "s1" });
+    const release = hold();
+    const first = flush();
+    const second = maintain();
+    release();
+    await Promise.all([first, second]);
+
+    const order = log.filter((l) => !l.startsWith("prune"));
+    expect(order.indexOf("index x-live t1")).toBeLessThan(order.indexOf("facets x-live"));
+  });
+});
+
 describe("startChangesFollower", () => {
   const nextTick = () => new Promise((r) => setTimeout(r, 0));
 
   test("a live session's end flushes at once; a running one waits for the interval", async () => {
-    const { ctx, log, feed } = fakeSearch();
+    const { ctx, log, feed, ended } = fakeSearch();
     const follower = startChangesFollower(ctx);
     await nextTick(); // let it read the checkpoint and start the feed
 
@@ -258,13 +397,11 @@ describe("startChangesFollower", () => {
     await nextTick();
     expect(log).toEqual([]); // buffered, not sent
 
+    ended.add("s1");
     feed.emit("batch", [{ seq: "2-b", doc: { type: "summary", session_id: "s1" } }]);
     await nextTick();
-    expect(log.slice(0, 3)).toEqual([
-      "index x-sessions s1",
-      "index x-turns s1_0_0",
-      "checkpoint 2-b",
-    ]);
+    // The session row is written at once; its turns wait for promotion.
+    expect(log.slice(0, 2)).toEqual(["index x-sessions s1", "checkpoint 2-b"]);
     await follower.stop();
   });
 
@@ -277,6 +414,6 @@ describe("startChangesFollower", () => {
     await nextTick();
     await follower.stop();
 
-    expect(log.slice(0, 3)).toEqual(["feed stopped", "index x-turns s2_10_0", "checkpoint 3-c"]);
+    expect(log.slice(0, 3)).toEqual(["feed stopped", "index x-live s2_10_0", "checkpoint 3-c"]);
   });
 });

@@ -18,6 +18,49 @@ export interface IndexSettings {
   searchableAttributes?: string[];
   filterableAttributes?: string[];
   sortableAttributes?: string[];
+  /**
+   * How many distinct values a facet query returns. Meilisearch's default is 100; the
+   * live turns index is faceted on `sessionId` to list the sessions it holds, so it
+   * needs headroom past that.
+   */
+  maxValuesPerFacet?: number;
+}
+
+/** The task uid out of a Meilisearch `202 Accepted` body, or null. */
+async function taskUidOf(res: Response | null): Promise<number | null> {
+  if (!res?.ok) return null;
+  try {
+    const json = (await res.json()) as { taskUid?: number };
+    return typeof json.taskUid === "number" ? json.taskUid : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Options shared by single-index and federated search queries. */
+export interface QueryOptions {
+  filter?: string[];
+  attributesToCrop?: string[];
+  cropLength?: number;
+  attributesToHighlight?: string[];
+}
+
+/** The body fields a query's options become, minus paging. */
+function queryBody(q: string, opts: QueryOptions): Record<string, unknown> {
+  const body: Record<string, unknown> = { q };
+  if (opts.filter?.length) body.filter = opts.filter;
+  if (opts.attributesToCrop) body.attributesToCrop = opts.attributesToCrop;
+  if (opts.cropLength) body.cropLength = opts.cropLength;
+  if (opts.attributesToHighlight) {
+    body.attributesToHighlight = opts.attributesToHighlight;
+    // Private-use delimiters rather than Meilisearch's `<em>` default. A snippet is
+    // rendered as *text* by every consumer, and transcripts contain arbitrary
+    // markup — emitting HTML here would mean either escaping it back out or
+    // rendering attacker-controlled tags. See `shared/src/highlight.ts`.
+    body.highlightPreTag = HIGHLIGHT_PRE;
+    body.highlightPostTag = HIGHLIGHT_POST;
+  }
+  return body;
 }
 
 export class Meili {
@@ -54,7 +97,24 @@ export class Meili {
       searchableAttributes: settings.searchableAttributes,
       filterableAttributes: settings.filterableAttributes,
       sortableAttributes: settings.sortableAttributes,
+      ...(settings.maxValuesPerFacet
+        ? { faceting: { maxValuesPerFacet: settings.maxValuesPerFacet } }
+        : {}),
     });
+  }
+
+  /** Delete an index outright. Best-effort; a missing index is a failed task, not an error. */
+  async deleteIndex(uid: string): Promise<number | null> {
+    return taskUidOf(await this.req("DELETE", `/indexes/${uid}`));
+  }
+
+  /**
+   * Atomically exchange two indexes' contents. Both must exist. This is what lets a
+   * rebuild fill a side index and then trade places with the one being searched,
+   * rather than clearing it and leaving search empty until the refill lands.
+   */
+  async swapIndexes(a: string, b: string): Promise<number | null> {
+    return taskUidOf(await this.req("POST", "/swap-indexes", [{ indexes: [a, b] }]));
   }
 
   /**
@@ -66,26 +126,7 @@ export class Meili {
    */
   async index(uid: string, docs: Record<string, unknown>[]): Promise<number | null> {
     if (!docs.length) return null;
-    const res = await this.req("POST", `/indexes/${uid}/documents`, docs);
-    if (!res?.ok) return null;
-    try {
-      const json = (await res.json()) as { taskUid?: number };
-      return typeof json.taskUid === "number" ? json.taskUid : null;
-    } catch {
-      return null;
-    }
-  }
-
-  /** Delete every document in an index, so a rebuild starts from empty. Best-effort. */
-  async clear(uid: string): Promise<number | null> {
-    const res = await this.req("DELETE", `/indexes/${uid}/documents`);
-    if (!res?.ok) return null;
-    try {
-      const json = (await res.json()) as { taskUid?: number };
-      return typeof json.taskUid === "number" ? json.taskUid : null;
-    } catch {
-      return null;
-    }
+    return taskUidOf(await this.req("POST", `/indexes/${uid}/documents`, docs));
   }
 
   /**
@@ -138,21 +179,12 @@ export class Meili {
       indexUids: indexUids.join(","),
       beforeFinishedAt: new Date(Date.now() - olderThanMs).toISOString(),
     });
-    const res = await this.req("DELETE", `/tasks?${params}`);
-    if (!res?.ok) return null;
-    try {
-      const json = (await res.json()) as { taskUid?: number };
-      return typeof json.taskUid === "number" ? json.taskUid : null;
-    } catch {
-      return null;
-    }
+    return taskUidOf(await this.req("DELETE", `/tasks?${params}`));
   }
 
-  /** Search an index; returns the hits array (empty on any failure). Cropping +
-   *  highlighting (for content snippets) are opt-in and land in each hit's
-   *  `_formatted`. */
   /**
-   * Search one index.
+   * Search one index. Cropping + highlighting (for content snippets) are opt-in and
+   * land in each hit's `_formatted`; any failure yields no hits.
    *
    * Returns the estimated total alongside the page, because a results page can't
    * offer paging without knowing whether there is a next page. Meilisearch's count is
@@ -162,30 +194,43 @@ export class Meili {
   async search(
     uid: string,
     q: string,
-    opts: {
-      limit?: number;
-      offset?: number;
-      filter?: string[];
-      attributesToCrop?: string[];
-      cropLength?: number;
-      attributesToHighlight?: string[];
-    } = {},
+    opts: QueryOptions & { limit?: number; offset?: number } = {},
   ): Promise<{ hits: Record<string, unknown>[]; estimatedTotalHits: number }> {
-    const body: Record<string, unknown> = { q, limit: opts.limit ?? 20 };
+    const body = { ...queryBody(q, opts), limit: opts.limit ?? 20 } as Record<string, unknown>;
     if (opts.offset) body.offset = opts.offset;
-    if (opts.filter?.length) body.filter = opts.filter;
-    if (opts.attributesToCrop) body.attributesToCrop = opts.attributesToCrop;
-    if (opts.cropLength) body.cropLength = opts.cropLength;
-    if (opts.attributesToHighlight) {
-      body.attributesToHighlight = opts.attributesToHighlight;
-      // Private-use delimiters rather than Meilisearch's `<em>` default. A snippet is
-      // rendered as *text* by every consumer, and transcripts contain arbitrary
-      // markup — emitting HTML here would mean either escaping it back out or
-      // rendering attacker-controlled tags. See `shared/src/highlight.ts`.
-      body.highlightPreTag = HIGHLIGHT_PRE;
-      body.highlightPostTag = HIGHLIGHT_POST;
-    }
     const res = await this.req("POST", `/indexes/${uid}/search`, body);
+    if (!res?.ok) return { hits: [], estimatedTotalHits: 0 };
+    try {
+      const json = (await res.json()) as {
+        hits?: Record<string, unknown>[];
+        estimatedTotalHits?: number;
+      };
+      const hits = json.hits ?? [];
+      return { hits, estimatedTotalHits: json.estimatedTotalHits ?? hits.length };
+    } catch {
+      return { hits: [], estimatedTotalHits: 0 };
+    }
+  }
+
+  /**
+   * Search several indexes as one: Meilisearch's federated multi-search (v1.10+) runs
+   * the same query on each, ranks every hit on one scale and pages across the merged
+   * list. That is what lets one logical corpus live in more than one index — the turn
+   * archive and the live turns — without the caller seeing the seam.
+   *
+   * The indexes must share ranking settings for the merged order to mean anything.
+   * Each hit carries `_federation.indexUid`. Any failure yields no hits.
+   */
+  async federatedSearch(
+    uids: string[],
+    q: string,
+    opts: QueryOptions & { limit?: number; offset?: number } = {},
+  ): Promise<{ hits: Record<string, unknown>[]; estimatedTotalHits: number }> {
+    const base = queryBody(q, opts);
+    const res = await this.req("POST", "/multi-search", {
+      federation: { limit: opts.limit ?? 20, offset: opts.offset ?? 0 },
+      queries: uids.map((indexUid) => ({ ...base, indexUid })),
+    });
     if (!res?.ok) return { hits: [], estimatedTotalHits: 0 };
     try {
       const json = (await res.json()) as {
@@ -220,13 +265,7 @@ export class Meili {
       : target.ids?.length
         ? await this.req("POST", `/indexes/${uid}/documents/delete-batch`, target.ids)
         : null;
-    if (!res?.ok) return null;
-    try {
-      const json = (await res.json()) as { taskUid?: number };
-      return typeof json.taskUid === "number" ? json.taskUid : null;
-    } catch {
-      return null;
-    }
+    return taskUidOf(res);
   }
 
   /**
@@ -306,14 +345,36 @@ export function toSessionSearchDoc(doc: any): Record<string, unknown> {
   };
 }
 
-/** The Meilisearch index holding one document per conversation turn (content search). */
+/**
+ * Conversation turns live in two indexes, split by whether their session is over
+ * (ADR 0032). Meilisearch's cost per update grows with the size of the index it lands
+ * in (#231), so the large, settled corpus goes in an archive that is written rarely,
+ * and the turns still arriving go in a small live index that is cheap to write often.
+ * Search queries both as one ({@link Meili.federatedSearch}).
+ *
+ * The archive: every turn of every ended session. Its config key stays `turns`, so a
+ * deployment upgrading keeps its existing index as the archive.
+ */
 export const TURNS_INDEX_KEY = "turns";
+
+/** The live turns index: turns of sessions that are still running. */
+export const LIVE_TURNS_INDEX_KEY = "liveTurns";
 
 export const TURNS_INDEX_SETTINGS: IndexSettings = {
   primaryKey: "id",
   searchableAttributes: ["text"],
   filterableAttributes: ["role", "sessionId", "cwd"],
   sortableAttributes: ["timestamp"],
+};
+
+/**
+ * The live index's settings: the archive's, so federated ranking compares like with
+ * like, plus room to facet on `sessionId` — that facet is how the maintenance pass
+ * learns which sessions the live index still holds.
+ */
+export const LIVE_TURNS_INDEX_SETTINGS: IndexSettings = {
+  ...TURNS_INDEX_SETTINGS,
+  maxValuesPerFacet: 10_000,
 };
 
 /**

@@ -92,23 +92,32 @@ exists, computes it with `sumTranscriptTokens`.
 
 ### Search
 
-Two Meilisearch indexes named in `meilisearch.indexes`: sessions (metadata, one doc per
-session) and turns (one doc per user, assistant or tool-result turn; other transcript
-lines aren't indexed). They are derived from CouchDB and kept current two ways:
+Three Meilisearch indexes named in `meilisearch.indexes`: sessions (metadata, one doc per
+session), and turns split in two — `liveTurns` for running sessions and `turns`, the
+archive, for ended ones ([ADR 0032](../design/decisions/0032-live-and-archive-turn-indexes.md)).
+A turn doc is one user, assistant or tool-result turn; other transcript lines aren't
+indexed. `GET /api/search` queries both turn indexes as one federated search
+(Meilisearch 1.10+). All three are derived from CouchDB and kept current two ways:
 
 - the `_changes` follower indexes every write, whether it came through the ingest
   routes or from the hook. It buffers changes and flushes every
-  `system.search.flushIntervalMs` (3 min), one update per index, because Meilisearch's
-  disk cost is per update rather than per document. It flushes early when a live
-  session ends (so an ended session is searchable at once) or when 2000 rows are
-  buffered. Backfilled summaries don't trigger an early flush. It checkpoints in the
-  local document `_local/search_checkpoint` (local docs don't appear in `_changes`, so
-  the checkpoint can't wake the follower) only after a flush, so a crash replays
-  whatever was buffered. A flush that fails is logged and its rows are dropped; the
-  checkpoint still moves past them. On first run the follower starts at "now";
-- `POST /api/search/reindex` (`claude-transcripts reindex`) clears and rebuilds, for
-  history that predates search, renamed indexes, deletes and failed flushes. Unlike the
-  follower it waits on Meilisearch's tasks and reports failures.
+  `system.search.flushIntervalMs` (20 s), one update each to the sessions and live
+  turns indexes — never the archive. It flushes early when a live session ends or when
+  2000 rows are buffered. It checkpoints in the local document
+  `_local/search_checkpoint` (local docs don't appear in `_changes`, so the checkpoint
+  can't wake the follower) only after a flush, so a crash replays whatever was
+  buffered. A flush that fails is logged and its rows are dropped; the checkpoint still
+  moves past them. On first run the follower starts at "now".
+  Every `system.search.archiveIntervalMs` (15 min) a maintenance pass promotes the
+  sessions that ended (any summary: live, reconcile or backfill) or went quiet past the
+  live window: their turns are read from CouchDB, added to the archive, and deleted from
+  the live index once Meilisearch confirms the add. The pass also checks which sessions
+  the live index holds, so a promotion lost to a restart is picked up, and rebuilds the
+  live index from CouchDB every `system.search.liveRebuildIntervalMs` (1 h);
+- `POST /api/search/reindex` (`claude-transcripts reindex`) rebuilds all three, for
+  history that predates search, renamed indexes, deletes and failed flushes. Each index
+  is filled under `<name>-rebuild` and swapped in, so search keeps answering meanwhile.
+  Unlike the follower it waits on Meilisearch's tasks and reports failures.
 
 `DELETE /api/ingest/{id}` also removes the session's search entries, directly: the
 follower handles upserts only.
