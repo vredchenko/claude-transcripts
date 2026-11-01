@@ -3,7 +3,8 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { indexName } from "../config";
 import type { AppContext } from "../context";
 import {
-  type IndexSettings,
+  LIVE_TURNS_INDEX_KEY,
+  LIVE_TURNS_INDEX_SETTINGS,
   SESSIONS_INDEX_KEY,
   SESSIONS_INDEX_SETTINGS,
   TURNS_INDEX_KEY,
@@ -12,12 +13,10 @@ import {
   toSessionSearchDoc,
   toTurnSearchDocs,
 } from "../storage/meili";
+import { liveClassifier, rebuildIndex } from "../storage/turn-tiers";
 import { validationHook } from "./validation";
 
 const ErrorSchema = z.object({ error: z.string() }).openapi("ApiError");
-
-/** Documents per Meilisearch request — keeps a big rebuild off one huge payload. */
-const BATCH = 1000;
 
 /**
  * Words of context Meilisearch crops a snippet to, centred on the match.
@@ -36,27 +35,6 @@ const SNIPPET_WORDS = 90;
  * nothing they can't already see.
  */
 const SESSION_HIGHLIGHT_ATTRS = ["cwd", "model", "hostname", "endReason", "tools"];
-
-/**
- * Clear an index and re-add `docs` in batches, waiting for Meilisearch's async
- * validation so the caller learns what actually landed.
- */
-async function rebuild(
-  ctx: AppContext,
-  uid: string,
-  settings: IndexSettings,
-  docs: Record<string, unknown>[],
-): Promise<{ indexed: number; failures: string[] }> {
-  await ctx.meili.ensureIndex(uid, settings);
-  const tasks: number[] = [];
-  const cleared = await ctx.meili.clear(uid);
-  if (cleared !== null) tasks.push(cleared);
-  for (let i = 0; i < docs.length; i += BATCH) {
-    const task = await ctx.meili.index(uid, docs.slice(i, i + BATCH));
-    if (task !== null) tasks.push(task);
-  }
-  return ctx.meili.taskFailures(tasks);
-}
 
 /**
  * Which of a session's fields the query actually hit, read back out of Meilisearch's
@@ -153,7 +131,10 @@ const ReindexResultSchema = z
   .object({
     enabled: z.boolean(),
     sessions: IndexCountsSchema,
+    /** The turn archive: every turn of every ended session. */
     turns: IndexCountsSchema,
+    /** The live turns index: turns of sessions still running. */
+    liveTurns: IndexCountsSchema,
     /** Distinct Meilisearch task errors, if any — empty on a clean rebuild. */
     failures: z.array(z.string()),
   })
@@ -265,14 +246,20 @@ export function searchRoutes(ctx: AppContext) {
         // query touched one of these fields, and the reader can't tell which.
         attributesToHighlight: SESSION_HIGHLIGHT_ATTRS,
       }),
-      ctx.meili.search(indexName(ctx.config, TURNS_INDEX_KEY), q, {
-        limit,
-        offset,
-        filter: turnFilter,
-        attributesToCrop: ["text"],
-        cropLength: SNIPPET_WORDS,
-        attributesToHighlight: ["text"],
-      }),
+      // Turns live in two indexes — the archive and the live sessions' — searched as
+      // one, ranked on one scale and paged across both (ADR 0032).
+      ctx.meili.federatedSearch(
+        [indexName(ctx.config, TURNS_INDEX_KEY), indexName(ctx.config, LIVE_TURNS_INDEX_KEY)],
+        q,
+        {
+          limit,
+          offset,
+          filter: turnFilter,
+          attributesToCrop: ["text"],
+          cropLength: SNIPPET_WORDS,
+          attributesToHighlight: ["text"],
+        },
+      ),
       // Facets describe the whole corpus, not this page — they're what the filter
       // controls offer, so they must not shrink as the user filters.
       ctx.meili.facets(indexName(ctx.config, SESSIONS_INDEX_KEY), [
@@ -286,7 +273,15 @@ export function searchRoutes(ctx: AppContext) {
     // Prefer Meili's cropped + marked `_formatted.text` snippet; fall back to the raw
     // text. The marks are private-use delimiters, not markup — see
     // `shared/src/highlight.ts` for why, and for the readers that turn them into spans.
-    const turns = turnRes.hits.map((h: any) => ({
+    // A session being promoted is briefly in both turn indexes; show each turn once.
+    const seen = new Set<string>();
+    const turnHits = turnRes.hits.filter((h: any) => {
+      const id = String(h.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    const turns = turnHits.map((h: any) => ({
       sessionId: h.sessionId,
       role: h.role ?? "other",
       snippet: h._formatted?.text ?? h.text ?? "",
@@ -317,7 +312,7 @@ export function searchRoutes(ctx: AppContext) {
   });
 
   /**
-   * Rebuild both search indexes from CouchDB.
+   * Rebuild every search index from CouchDB.
    *
    * The indexes are **derived** state, populated as a side effect of writes through
    * `/api/ingest/*`. Anything already in CouchDB — history adopted before search
@@ -325,8 +320,11 @@ export function searchRoutes(ctx: AppContext) {
    * invisible to search until it is rebuilt, and a document deleted from CouchDB stays
    * in the index. This is the one operation that makes the indexes match the store.
    *
-   * It clears first, so it also drops stale entries; searches return nothing for the
-   * (brief) window until the rebuild lands. Unlike the ingest hot path it *waits* for
+   * Each index is built beside the real one and swapped in, so stale entries go and
+   * search keeps answering from the old contents until the new ones land. Turns are
+   * split as the follower splits them: ended sessions to the archive, running ones to
+   * the live index (ADR 0032). It doesn't pause the follower, so a flush racing it
+   * can lose a few live rows; the next live rebuild restores them. Unlike the ingest hot path it *waits* for
    * Meilisearch's async validation and reports failures, rather than assuming a `202`
    * meant success.
    */
@@ -336,6 +334,7 @@ export function searchRoutes(ctx: AppContext) {
         enabled: false,
         sessions: { scanned: 0, indexed: 0 },
         turns: { scanned: 0, indexed: 0 },
+        liveTurns: { scanned: 0, indexed: 0 },
         failures: [],
       });
     }
@@ -359,7 +358,9 @@ export function searchRoutes(ctx: AppContext) {
     // path, the thing you run when you suspect a reader has drifted. Rebuilding one
     // cache from another would make it unable to detect the drift it exists to fix.
     const aggregate = await db.view("session_index", "aggregate", { group: true, reduce: true });
+    const aggs = new Map<string, any>();
     for (const row of aggregate.rows as any[]) {
+      if (row?.value) aggs.set(String(row.key), row.value);
       const agg = row?.value;
       if (!agg || agg.summary) continue;
       // Guard against rows a stray doc could conjure: a real session has events.
@@ -369,21 +370,42 @@ export function searchRoutes(ctx: AppContext) {
 
     // Turns: every full-content `chunk` doc. Byte-range-only chunks project to nothing.
     const chunks = await db.view("chunks", "by_session", { include_docs: true });
-    const turnDocs = (chunks.rows as any[])
-      .map((r) => r.doc)
-      .filter((d) => d?.type === "chunk")
-      .flatMap((d) => toTurnSearchDocs(d));
+    const isLive = liveClassifier(ctx, aggs);
+    const archiveDocs: Record<string, unknown>[] = [];
+    const liveDocs: Record<string, unknown>[] = [];
+    for (const r of chunks.rows as any[]) {
+      if (r.doc?.type !== "chunk") continue;
+      const rows = toTurnSearchDocs(r.doc);
+      (isLive(String(r.doc.session_id)) ? liveDocs : archiveDocs).push(...rows);
+    }
 
-    const [sessions, turns] = await Promise.all([
-      rebuild(ctx, indexName(ctx.config, SESSIONS_INDEX_KEY), SESSIONS_INDEX_SETTINGS, sessionDocs),
-      rebuild(ctx, indexName(ctx.config, TURNS_INDEX_KEY), TURNS_INDEX_SETTINGS, turnDocs),
+    const [sessions, turns, liveTurns] = await Promise.all([
+      rebuildIndex(
+        ctx.meili,
+        indexName(ctx.config, SESSIONS_INDEX_KEY),
+        SESSIONS_INDEX_SETTINGS,
+        sessionDocs,
+      ),
+      rebuildIndex(
+        ctx.meili,
+        indexName(ctx.config, TURNS_INDEX_KEY),
+        TURNS_INDEX_SETTINGS,
+        archiveDocs,
+      ),
+      rebuildIndex(
+        ctx.meili,
+        indexName(ctx.config, LIVE_TURNS_INDEX_KEY),
+        LIVE_TURNS_INDEX_SETTINGS,
+        liveDocs,
+      ),
     ]);
 
     return c.json({
       enabled: true,
       sessions: { scanned: sessionDocs.length, indexed: sessions.indexed },
-      turns: { scanned: turnDocs.length, indexed: turns.indexed },
-      failures: [...new Set([...sessions.failures, ...turns.failures])],
+      turns: { scanned: archiveDocs.length, indexed: turns.indexed },
+      liveTurns: { scanned: liveDocs.length, indexed: liveTurns.indexed },
+      failures: [...new Set([...sessions.failures, ...turns.failures, ...liveTurns.failures])],
     });
   });
 

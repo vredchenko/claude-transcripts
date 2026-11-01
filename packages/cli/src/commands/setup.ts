@@ -255,7 +255,7 @@ async function reportSearch(): Promise<void> {
       return;
     }
     console.log(
-      `  ✓ search indexed ${res.sessions.indexed} session(s), ${res.turns.indexed} turn(s)`,
+      `  ✓ search indexed ${res.sessions.indexed} session(s), ${res.turns.indexed + res.liveTurns.indexed} turn(s)`,
     );
   } catch {
     console.log("  – search not indexed (webapi unreachable) — run `claude-transcripts reindex`");

@@ -142,7 +142,9 @@ async function setUpSearch(webapiUrl: string): Promise<void> {
       console.log("  – search is off (features.meilisearch false, or MEILI_HOST unset)");
       return;
     }
-    console.log(`  ✓ indexed ${res.sessions.indexed} session(s), ${res.turns.indexed} turn(s)`);
+    console.log(
+      `  ✓ indexed ${res.sessions.indexed} session(s), ${res.turns.indexed + res.liveTurns.indexed} turn(s)`,
+    );
     if (res.failures.length) {
       for (const f of res.failures.slice(0, 3)) console.log(`  ! ${f}`);
     }

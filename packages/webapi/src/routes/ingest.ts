@@ -1,7 +1,12 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, indexName } from "../config";
 import type { AppContext } from "../context";
-import { SESSIONS_INDEX_KEY, searchDocId, TURNS_INDEX_KEY } from "../storage/meili";
+import {
+  LIVE_TURNS_INDEX_KEY,
+  SESSIONS_INDEX_KEY,
+  searchDocId,
+  TURNS_INDEX_KEY,
+} from "../storage/meili";
 import { validationHook } from "./validation";
 
 /**
@@ -333,9 +338,11 @@ export function ingestRoutes(ctx: AppContext) {
       ctx.meili.deleteDocs(indexName(ctx.config, SESSIONS_INDEX_KEY), {
         ids: [searchDocId(id)],
       }),
-      ctx.meili.deleteDocs(indexName(ctx.config, TURNS_INDEX_KEY), {
-        filter: `sessionId = ${JSON.stringify(id)}`,
-      }),
+      ...[TURNS_INDEX_KEY, LIVE_TURNS_INDEX_KEY].map((key) =>
+        ctx.meili.deleteDocs(indexName(ctx.config, key), {
+          filter: `sessionId = ${JSON.stringify(id)}`,
+        }),
+      ),
     ]);
 
     // The transcript blob is not derived, so it goes only when asked for.

@@ -358,7 +358,7 @@ export async function runImport(argv: string[]): Promise<number> {
     const res = await postJson("/api/search/reindex", {});
     console.log(
       res.enabled
-        ? `${num(res.sessions?.indexed ?? 0)} sessions, ${num(res.turns?.indexed ?? 0)} turns`
+        ? `${num(res.sessions?.indexed ?? 0)} sessions, ${num((res.turns?.indexed ?? 0) + (res.liveTurns?.indexed ?? 0))} turns`
         : "disabled",
     );
   } catch (err) {

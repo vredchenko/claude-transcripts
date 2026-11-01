@@ -19,9 +19,11 @@
  * runs the `reconcile-session` sweep too (`reconcile-sweep.ts`): one feed, and the one
  * place that already knows.
  *
- * Search updates are buffered and flushed every few minutes rather than sent per batch:
+ * Search updates are buffered and flushed every few seconds rather than sent per batch:
  * Meilisearch pays per update, not per document, and a live session is a stream of
  * one-document batches (#231). The session index, which is in memory, stays per batch.
+ * Turns go to a small live index; a session's turns move to the large archive index
+ * once it ends, on a much slower clock (ADR 0032).
  *
  * Scope, deliberately: **upserts only**. Docs here are append-only by invariant
  * ([ADR 0016]), so deletion is an out-of-band admin action; `POST /api/search/reindex`
@@ -32,6 +34,8 @@
 import { indexName } from "../config";
 import type { AppContext } from "../context";
 import {
+  LIVE_TURNS_INDEX_KEY,
+  LIVE_TURNS_INDEX_SETTINGS,
   SESSIONS_INDEX_KEY,
   TURNS_INDEX_KEY,
   toRunningSessionSearchDoc,
@@ -40,6 +44,15 @@ import {
 } from "./meili";
 import { startReconcileSweep } from "./reconcile-sweep";
 import { type SearchBatch, SearchBuffer } from "./search-buffer";
+import {
+  INDEX_BATCH,
+  liveClassifier,
+  loadSessionTurns,
+  rebuildIndex,
+  rebuildIndexName,
+  sessionAggregates,
+  sessionFilter,
+} from "./turn-tiers";
 
 /**
  * Doc id of the resume point, so a restart doesn't replay the whole feed.
@@ -150,13 +163,32 @@ export async function writeCheckpoint(db: CheckpointStore, seq: string): Promise
 /**
  * How long changes wait before reaching Meilisearch. Each flush is one update per
  * index however many docs it carries, and Meilisearch's disk cost is per update (#231)
- * — so this is the knob trading search freshness for write volume. Overridable via
- * `system.search.flushIntervalMs`.
+ * — but a flush now writes only the small indexes (sessions, live turns), so it can
+ * run often. Overridable via `system.search.flushIntervalMs`.
  */
-export const DEFAULT_SEARCH_FLUSH_INTERVAL_MS = 3 * 60 * 1000;
+export const DEFAULT_SEARCH_FLUSH_INTERVAL_MS = 20 * 1000;
+
+/**
+ * How often ended sessions are promoted from the live turns index into the archive.
+ * Every promotion is one update to the large index, so they are batched on this much
+ * slower clock. Ended sessions stay searchable in the live index until then.
+ * Overridable via `system.search.archiveIntervalMs`.
+ */
+export const DEFAULT_ARCHIVE_INTERVAL_MS = 15 * 60 * 1000;
+
+/**
+ * How often the live turns index is rebuilt from CouchDB, as a backstop against rows a
+ * failed flush dropped. It is small, so this is cheap. Runs as part of a maintenance
+ * pass, so it happens at most that often. Overridable via
+ * `system.search.liveRebuildIntervalMs`.
+ */
+export const DEFAULT_LIVE_REBUILD_INTERVAL_MS = 60 * 60 * 1000;
 
 /** Flush early past this many buffered rows, so a bulk write can't pile up unbounded. */
 const MAX_BUFFERED_ROWS = 2000;
+
+/** Sessions per promotion request, so one filter or payload stays a sane size. */
+const PROMOTE_BATCH = 100;
 
 /**
  * Finished Meilisearch tasks older than this are pruned, at most once per this period.
@@ -189,7 +221,9 @@ export function bufferForSearch(buffer: SearchBuffer, docs: any[]): void {
 }
 
 /**
- * Write one buffered batch to Meilisearch: at most one update per index.
+ * Write one buffered batch to Meilisearch: at most one update to the sessions index
+ * and one to the live turns index. Never the archive — sessions that belong there are
+ * added to `promote` instead, for the next maintenance pass.
  *
  * Running sessions are projected here rather than when their events arrived, so a
  * session that moved forty times since the last flush costs one row, built from its
@@ -199,31 +233,76 @@ export function bufferForSearch(buffer: SearchBuffer, docs: any[]): void {
  * add-or-replace would let a sparse event-shaped row overwrite the complete
  * record an ended session already has.
  */
-async function flushSearch(ctx: AppContext, db: any, batch: SearchBatch): Promise<void> {
+async function flushSearch(
+  ctx: AppContext,
+  db: any,
+  batch: SearchBatch,
+  promote: Set<string>,
+): Promise<void> {
+  const turnSessions = new Set<string>();
+  for (const row of batch.turns.values()) turnSessions.add(String(row.sessionId));
+  // The session index is patched from every batch as it arrives, so when it is warm
+  // the rollups are already in memory and this costs no round trip at all.
+  const aggs = await sessionAggregates(ctx, db, [...new Set([...batch.running, ...turnSessions])]);
+
   const sessionDocs = [...batch.summaries.values()];
-  if (batch.running.length) {
-    // The session index is patched from every batch as it arrives, so when it is warm
-    // the rollups are already in memory and this costs no round trip at all.
-    const rows = ctx.sessionIndex.ready
-      ? batch.running.map((key) => ({ key, value: ctx.sessionIndex.get(key) }))
-      : (
-          await db.view("session_index", "aggregate", {
-            group: true,
-            reduce: true,
-            keys: batch.running,
-          })
-        ).rows;
-    for (const row of rows as any[]) {
-      // A summary flushed in an earlier batch shows up here as `value.summary`.
-      if (!row?.value || row.value.summary) continue;
-      sessionDocs.push(toRunningSessionSearchDoc(String(row.key), row.value));
-    }
+  for (const id of batch.running) {
+    const agg = aggs.get(id);
+    // A summary flushed in an earlier batch shows up here as `agg.summary`.
+    if (!agg || agg.summary) continue;
+    sessionDocs.push(toRunningSessionSearchDoc(id, agg));
   }
+
+  // An ended session's turns go to the archive, which promotion reads from CouchDB —
+  // so they are not written anywhere here. That also keeps a backfill, which writes
+  // thousands of ended sessions at once, out of the live index entirely.
+  const isLive = liveClassifier(ctx, aggs);
+  const liveTurns: Record<string, unknown>[] = [];
+  for (const row of batch.turns.values()) {
+    const id = String(row.sessionId);
+    if (!batch.summaries.has(id) && isLive(id)) liveTurns.push(row);
+    else promote.add(id);
+  }
+  for (const id of batch.summaries.keys()) promote.add(id);
 
   if (sessionDocs.length)
     await ctx.meili.index(indexName(ctx.config, SESSIONS_INDEX_KEY), sessionDocs);
-  if (batch.turns.size)
-    await ctx.meili.index(indexName(ctx.config, TURNS_INDEX_KEY), [...batch.turns.values()]);
+  if (liveTurns.length)
+    await ctx.meili.index(indexName(ctx.config, LIVE_TURNS_INDEX_KEY), liveTurns);
+}
+
+/**
+ * Move these sessions' turns from the live index into the archive: add them to the
+ * archive from CouchDB, wait until Meilisearch confirms, then delete them from live.
+ *
+ * In that order on purpose. The other way round leaves a window in which the session
+ * can't be found at all; this way the worst case is a moment in both indexes, which
+ * search de-duplicates by turn id. A batch the archive rejects stays where it is and
+ * is retried next pass. Returns the sessions that could not be promoted.
+ */
+async function promoteSessions(ctx: AppContext, db: any, ids: string[]): Promise<string[]> {
+  const archive = indexName(ctx.config, TURNS_INDEX_KEY);
+  const live = indexName(ctx.config, LIVE_TURNS_INDEX_KEY);
+  const failed: string[] = [];
+  for (let i = 0; i < ids.length; i += PROMOTE_BATCH) {
+    const group = ids.slice(i, i + PROMOTE_BATCH);
+    try {
+      const turns = await loadSessionTurns(db, group);
+      const tasks: number[] = [];
+      for (let j = 0; j < turns.length; j += INDEX_BATCH) {
+        const task = await ctx.meili.index(archive, turns.slice(j, j + INDEX_BATCH));
+        if (task === null) throw new Error("Meilisearch did not accept the archive batch");
+        tasks.push(task);
+      }
+      const { failures } = await ctx.meili.taskFailures(tasks);
+      if (failures.length) throw new Error(failures.join("; "));
+      await ctx.meili.deleteDocs(live, { filter: sessionFilter(group) });
+    } catch (err) {
+      console.error(`[changes] promoting ${group.length} session(s) failed (will retry):`, err);
+      failed.push(...group);
+    }
+  }
+  return failed;
 }
 
 /**
@@ -237,12 +316,29 @@ export interface SearchFlusher {
   buffer: SearchBuffer;
   /** Index what is buffered, then checkpoint. Resolves once both are done. */
   flush(): Promise<void>;
+  /**
+   * The slow pass: promote ended sessions into the archive and, when due, rebuild the
+   * live index. Queued with flushes, never alongside one.
+   */
+  maintain(): Promise<void>;
+}
+
+/** Every index name this deployment owns, side indexes included — for task pruning. */
+function ownedIndexes(ctx: AppContext): string[] {
+  return [SESSIONS_INDEX_KEY, TURNS_INDEX_KEY, LIVE_TURNS_INDEX_KEY]
+    .map((key) => indexName(ctx.config, key))
+    .flatMap((uid) => [uid, rebuildIndexName(uid)]);
 }
 
 /**
- * The buffer and the flush that drains it, split out of the follower so the ordering
- * it promises — index, then checkpoint; a flush asked for mid-flush runs after it —
- * can be tested without a change feed.
+ * The buffer and the work that drains it, split out of the follower so the ordering
+ * it promises — index, then checkpoint; one Meilisearch job at a time, in the order
+ * asked — can be tested without a change feed.
+ *
+ * Everything goes through one queue. A live rebuild that overlapped a flush could swap
+ * out an index the flush had just written to, and a promotion that overlapped one
+ * could delete live turns the flush had just added; serialising them makes both
+ * impossible rather than unlikely.
  */
 export function createSearchFlusher(
   ctx: AppContext,
@@ -250,10 +346,30 @@ export function createSearchFlusher(
   taskRetentionMs = ctx.config.system.search?.taskRetentionMs ?? DEFAULT_TASK_RETENTION_MS,
 ): SearchFlusher {
   const buffer = new SearchBuffer();
-  let flushing: Promise<void> | null = null;
-  // Zero, so the first flush after boot prunes: that clears whatever queue built up
-  // before this instance started, rather than an hour later.
+  const liveRebuildMs =
+    ctx.config.system.search?.liveRebuildIntervalMs ?? DEFAULT_LIVE_REBUILD_INTERVAL_MS;
+  /** Sessions whose turns belong in the archive and haven't been moved yet. */
+  const promote = new Set<string>();
+  let queue: Promise<void> | null = null;
+  // Zero, so the first pass after boot prunes and rebuilds: that clears whatever queue
+  // built up before this instance started, and whatever the live index drifted into.
   let lastPrune = 0;
+  let lastLiveRebuild = 0;
+
+  /**
+   * Run `job` once everything queued before it is done. On an idle queue it starts
+   * synchronously, so a flush takes its batch the moment it is asked for — the docs
+   * the caller just buffered — rather than a tick later.
+   */
+  const enqueue = (job: () => Promise<void>): Promise<void> => {
+    const run = queue ? queue.then(job) : job();
+    const tail = run.catch(() => {});
+    queue = tail;
+    void tail.then(() => {
+      if (queue === tail) queue = null;
+    });
+    return run;
+  };
 
   /**
    * The checkpoint waits for the flush on purpose: advancing it per batch while the
@@ -261,43 +377,80 @@ export function createSearchFlusher(
    * time. A flush asked for while one is running queues behind it rather than joining
    * it: the running one took its batch before the caller's docs arrived, so joining
    * would leave them for the next interval.
+   *
+   * The checkpoint does *not* wait for promotion: an ended session left in the live
+   * index by a restart is still searchable, and the next maintenance pass finds it.
    */
-  const flush = (): Promise<void> => {
-    if (flushing) return flushing.then(flush);
-    flushing = (async () => {
+  const flush = (): Promise<void> =>
+    enqueue(async () => {
       const batch = buffer.take();
       try {
-        await flushSearch(ctx, db, batch);
+        await flushSearch(ctx, db, batch, promote);
       } catch (err) {
         // The rows are dropped, not retried, and the checkpoint still advances past
-        // them: the periodic reload and `POST /api/search/reindex` are the
+        // them: the live rebuild and `POST /api/search/reindex` are the
         // reconciliation paths, as they were when a per-batch index failed.
         console.error("[changes] flushing search updates failed (continuing):", err);
       }
       if (batch.seq) await writeCheckpoint(db, batch.seq);
       if (Date.now() - lastPrune >= taskRetentionMs) {
         lastPrune = Date.now();
-        await ctx.meili.pruneTasks(
-          [SESSIONS_INDEX_KEY, TURNS_INDEX_KEY].map((key) => indexName(ctx.config, key)),
-          taskRetentionMs,
-        );
+        await ctx.meili.pruneTasks(ownedIndexes(ctx), taskRetentionMs);
       }
-    })().finally(() => {
-      flushing = null;
     });
-    return flushing;
-  };
 
-  return { buffer, flush };
+  const maintain = (): Promise<void> =>
+    enqueue(async () => {
+      try {
+        // Which sessions does the live index hold that no longer belong there? This
+        // is what recovers promotions lost to a restart, and it settles sessions that
+        // went quiet without ending.
+        const liveUid = indexName(ctx.config, LIVE_TURNS_INDEX_KEY);
+        const held = (await ctx.meili.facets(liveUid, ["sessionId"])).sessionId ?? [];
+        const heldAggs = await sessionAggregates(ctx, db, held);
+        const heldLive = liveClassifier(ctx, heldAggs);
+        for (const id of held) if (!heldLive(id)) promote.add(id);
+
+        const ids = [...promote];
+        promote.clear();
+        const failed = await promoteSessions(ctx, db, ids);
+        for (const id of failed) promote.add(id);
+
+        // The rebuild needs the full session list, which only a warm index has.
+        if (ctx.sessionIndex.ready && Date.now() - lastLiveRebuild >= liveRebuildMs) {
+          lastLiveRebuild = Date.now();
+          const all = new Map(ctx.sessionIndex.rows().map((r) => [r.key, r.value] as const));
+          const isLive = liveClassifier(ctx, all);
+          // Sessions still waiting on promotion stay in the live index until it lands.
+          const keep = [...all.keys()].filter((id) => isLive(id) || promote.has(id));
+          const turns = await loadSessionTurns(db, keep);
+          const { failures } = await rebuildIndex(
+            ctx.meili,
+            liveUid,
+            LIVE_TURNS_INDEX_SETTINGS,
+            turns,
+          );
+          if (failures.length)
+            console.error("[changes] rebuilding the live turns index failed:", failures);
+        }
+      } catch (err) {
+        console.error("[changes] search maintenance failed (continuing):", err);
+      }
+    });
+
+  return { buffer, flush, maintain };
 }
 
 export function startChangesFollower(ctx: AppContext): ChangesFollower {
   const db = ctx.couch.db("sessions") as any;
   const flushIntervalMs =
     ctx.config.system.search?.flushIntervalMs ?? DEFAULT_SEARCH_FLUSH_INTERVAL_MS;
-  const { buffer, flush } = createSearchFlusher(ctx, db);
+  const archiveIntervalMs =
+    ctx.config.system.search?.archiveIntervalMs ?? DEFAULT_ARCHIVE_INTERVAL_MS;
+  const { buffer, flush, maintain } = createSearchFlusher(ctx, db);
   let stopped = false;
   let timer: ReturnType<typeof setInterval> | undefined;
+  let maintenance: ReturnType<typeof setInterval> | undefined;
   // The follower keeps the session index current, which is what tells it which
   // sessions went quiet without ending — so it is also what finalises them.
   const reconcile = startReconcileSweep(ctx);
@@ -308,8 +461,10 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
 
     if (ctx.meili.enabled) {
       timer = setInterval(() => void flush(), flushIntervalMs);
+      maintenance = setInterval(() => void maintain(), archiveIntervalMs);
       // Never the thing holding the process open.
       timer.unref?.();
+      maintenance.unref?.();
     }
 
     // `wait: true` holds the next request until we've handled the current batch, so a
@@ -366,6 +521,7 @@ export function startChangesFollower(ctx: AppContext): ChangesFollower {
     async stop() {
       stopped = true;
       if (timer) clearInterval(timer);
+      if (maintenance) clearInterval(maintenance);
       reconcile?.stop();
       try {
         db.changesReader.stop();

@@ -93,3 +93,6 @@ The exception is an external Meilisearch, which
 private: the `turns` index holds conversation text, so pointing `MEILI_HOST` at another
 host is the one configuration in which recorded content leaves the machine. The bundled
 instance stays the default for that reason.
+
+Turns have since been split into a live index and an archive, searched as one, so that
+frequent writes land on a small index ([ADR 0032](0032-live-and-archive-turn-indexes.md)).

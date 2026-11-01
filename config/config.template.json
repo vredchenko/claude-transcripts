@@ -11,7 +11,12 @@
       "idleThresholdMs": 300000,
       "reconcile": { "follower": true, "intervalMs": 3600000, "batchSize": 50 }
     },
-    "search": { "flushIntervalMs": 180000, "taskRetentionMs": 3600000 }
+    "search": {
+      "flushIntervalMs": 20000,
+      "archiveIntervalMs": 900000,
+      "liveRebuildIntervalMs": 3600000,
+      "taskRetentionMs": 3600000
+    }
   },
   "couchdb": {
     "databases": {
@@ -27,7 +32,8 @@
   "meilisearch": {
     "indexes": {
       "sessions": "claude-transcripts-sessions",
-      "turns": "claude-transcripts-turns"
+      "turns": "claude-transcripts-turns",
+      "liveTurns": "claude-transcripts-live-turns"
     }
   },
   "fossil": {
