@@ -33,6 +33,11 @@ the other two rather than rebuilding what they contain. Set `APP_IMAGE` to a pub
 app image to skip building one. That is what a release does: it assembles the omnibus
 from the app image it has just scanned and pushed.
 
+Building needs Docker with BuildKit and `buildx` (Docker Desktop, or Docker Engine with
+the buildx plugin). Podman and buildah can't build it: they have no `buildx bake` and
+don't support `ADD --checksum` or `ADD <git-url>`. The same is true of
+`deploy/fossil/Dockerfile`. Running a published image works with either.
+
 Then open `http://127.0.0.1:7650/app/`. First boot takes a minute or so while CouchDB
 starts and Garage gets its layout; `docker ps` shows `healthy` when it's done.
 
@@ -57,6 +62,12 @@ choice. Publish the ones you want:
 ```bash
 docker run -d -p 127.0.0.1:7650-7658:7650-7658 -v ct-omnibus:/data claude-transcripts-omnibus:local
 ```
+
+Keep `127.0.0.1` on 7654 and 7655 in particular. The Garage admin API takes the admin
+token, and the Garage web UI has no login of its own but holds that token, so anyone who
+can reach 7655 has full control of Garage. To expose the web UI beyond localhost, give it
+a login with `AUTH_USER_PASS` (garage-webui's `user:bcrypt-hash` format) or put it behind
+an authenticating proxy.
 
 Also inside:
 
@@ -161,3 +172,5 @@ The same versions, with three changes, all made so the image passes the release 
 - Every component upgrades with the image, in lockstep.
 - One memory budget, no per-service limits.
 - A bigger image than any single component.
+- Only CouchDB drops to its own user. Fossil, Garage, the Garage web UI and Meilisearch
+  run as root inside the container.

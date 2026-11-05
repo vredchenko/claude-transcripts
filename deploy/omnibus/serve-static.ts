@@ -19,7 +19,12 @@ Bun.serve({
   port: Number(port),
   async fetch(req) {
     // normalize() resolves `..` against "/", so a request can't climb out of root.
-    const path = normalize(decodeURIComponent(new URL(req.url).pathname));
+    let path: string;
+    try {
+      path = normalize(decodeURIComponent(new URL(req.url).pathname));
+    } catch {
+      return new Response("bad request", { status: 400 }); // a malformed % escape
+    }
     const file = Bun.file(join(root, path));
     if (path !== "/" && (await file.exists())) return new Response(file);
     return new Response(Bun.file(join(root, "index.html")), {

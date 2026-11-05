@@ -130,7 +130,10 @@ RUN set -eu; \
 # built on, so the app's bun binary runs on it unchanged.
 FROM ${COUCHDB_IMAGE} AS runtime
 # The GitHub CLI's apt repo: its own keyring, signed-by scoped to that one source.
-ADD https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli.gpg
+# Checksummed like every other fetch here; if GitHub rotates the key, the build fails
+# loudly and this pin is updated deliberately.
+ADD --checksum=sha256:6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b \
+    https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli.gpg
 RUN set -eux; \
   chmod 644 /etc/apt/keyrings/githubcli.gpg; \
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" \
@@ -163,7 +166,9 @@ COPY deploy/omnibus/rootfs/ /
 # ── the source repo: a fetch-only clone ────────────────────────────────────────
 # Cloned by BuildKit at build time and fetched again on every boot (best-effort). Push
 # is disabled twice over: the remote has no push URL, and a system-wide pre-push hook
-# refuses any push from any repository in the container.
+# refuses any push from any repository in the container. A release passes its own tag
+# as OMNIBUS_GIT_REF (and its repository as OMNIBUS_GIT_URL), so the clone is the
+# source of the image it ships in; a tag stays a detached checkout.
 ARG OMNIBUS_GIT_URL=https://github.com/vredchenko/claude-transcripts.git
 ARG OMNIBUS_GIT_REF=main
 ADD --keep-git-dir=true ${OMNIBUS_GIT_URL}#${OMNIBUS_GIT_REF} /workspace/claude-transcripts
@@ -174,7 +179,9 @@ RUN set -eu; \
   git remote remove origin 2>/dev/null || true; \
   git remote add origin "${OMNIBUS_GIT_URL}"; \
   git remote set-url --push origin "push-disabled-in-omnibus"; \
-  git checkout -q -B "${OMNIBUS_GIT_REF}" 2>/dev/null || true
+  if ! git show-ref -q --verify "refs/tags/${OMNIBUS_GIT_REF}"; then \
+    git checkout -q -B "${OMNIBUS_GIT_REF}" 2>/dev/null || true; \
+  fi
 
 # ── run ────────────────────────────────────────────────────────────────────────
 ENV PATH=/opt/omnibus/bin:/command:$PATH \
