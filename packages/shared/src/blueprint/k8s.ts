@@ -150,6 +150,20 @@ export function k8sImageRef(s: ServiceDef, releaseVersion: string): string {
   return `${RELEASE_IMAGE_NS}/claude-transcripts-${img.name}:${k8sReleaseTag(releaseVersion)}`;
 }
 
+/**
+ * A workload's image in the project's own registry: every service under its
+ * `claude-transcripts-<name>` name in {@link RELEASE_IMAGE_NS}. Backing services there
+ * are mirrored (or built) from their pinned upstream on every release
+ * (mirror-images.yml, ADR 0024), at the same tag; the app is at the release tag. The
+ * Helm chart defaults to these, so an install pulls only from the project's registry.
+ */
+export function projectImageRef(s: ServiceDef, releaseVersion: string): string {
+  const img = s.image;
+  if (!img) throw new Error(`service ${s.key} has no image`);
+  const tag = img.upstream || img.build ? img.defaultTag : k8sReleaseTag(releaseVersion);
+  return `${RELEASE_IMAGE_NS}/claude-transcripts-${img.name}:${tag}`;
+}
+
 function containerEnv(s: ServiceDef): Array<Record<string, unknown>> {
   return Object.entries(s.containerEnv ?? {}).map(([name, raw]) => {
     const parsed = parseEnvValue(raw);

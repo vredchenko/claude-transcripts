@@ -2,15 +2,16 @@
 # Do NOT edit by hand — run `bun run gen:helm` to regenerate, and change the blueprint
 # (packages/shared/src/blueprint/services.ts, helm.ts) instead. See deploy/helm/README.md.
 
-# Every image the chart runs. Backing services at their pinned upstream refs, ours at
-# this release. Point any of them at a mirror (ADR 0024).
+# Every image the chart runs, from the project's registry: the backing services are
+# mirrored there from their pinned upstream refs on every release (ADR 0024), the app
+# is at this release. Point any of them at your own mirror, or at upstream.
 images:
-  couchdb: couchdb:3
-  garage: dxflrs/garage:v2.3.0
-  garageUi: khairul169/garage-webui:1.1.0
+  couchdb: ghcr.io/vredchenko/claude-transcripts-couchdb:3
+  garage: ghcr.io/vredchenko/claude-transcripts-garage:v2.3.0
+  garageUi: ghcr.io/vredchenko/claude-transcripts-garage-ui:1.1.0
   fossil: ghcr.io/vredchenko/claude-transcripts-fossil:2.28
-  meilisearch: getmeili/meilisearch:v1.10
-  meilisearchUi: riccoxie/meilisearch-ui:v0.14.1
+  meilisearch: ghcr.io/vredchenko/claude-transcripts-meilisearch:v1.10
+  meilisearchUi: ghcr.io/vredchenko/claude-transcripts-meilisearch-ui:v0.14.1
   app: ghcr.io/vredchenko/claude-transcripts-app:v0.8.0
 imagePullPolicy: IfNotPresent
 # One ReadWriteOnce volume per data directory. Empty storageClass: the cluster

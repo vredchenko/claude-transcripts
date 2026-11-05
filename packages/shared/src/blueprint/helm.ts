@@ -2,9 +2,9 @@ import {
   K8S_ENV_SECRET,
   K8S_PART_OF,
   type KubernetesObject,
-  k8sImageRef,
   k8sSecretKeys,
   k8sWorkloadServices,
+  projectImageRef,
   toKubernetesObjects,
 } from "./k8s";
 import type { AppBlueprint, ServiceDef } from "./types";
@@ -141,7 +141,7 @@ export function toHelmChart(model: AppBlueprint, opts: HelmChartOptions): HelmCh
 
   // ── values ───────────────────────────────────────────────────────────────────
   const images: Record<string, string> = {};
-  for (const s of services) images[helmValuesKey(s.key)] = k8sImageRef(s, opts.releaseVersion);
+  for (const s of services) images[helmValuesKey(s.key)] = projectImageRef(s, opts.releaseVersion);
   const values: Record<string, unknown> = {
     images,
     imagePullPolicy: "IfNotPresent",
@@ -158,8 +158,9 @@ export function toHelmChart(model: AppBlueprint, opts: HelmChartOptions): HelmCh
   }
   const valuesComments: Record<string, string> = {
     images:
-      " Every image the chart runs. Backing services at their pinned upstream refs, ours at\n" +
-      " this release. Point any of them at a mirror (ADR 0024).",
+      " Every image the chart runs, from the project's registry: the backing services are\n" +
+      " mirrored there from their pinned upstream refs on every release (ADR 0024), the app\n" +
+      " is at this release. Point any of them at your own mirror, or at upstream.",
     persistence:
       " One ReadWriteOnce volume per data directory. Empty storageClass: the cluster\n" +
       " default (k3s: local-path). keep: the volumes survive `helm uninstall`.",

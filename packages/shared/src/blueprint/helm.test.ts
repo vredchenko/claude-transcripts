@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { stringify } from "yaml";
 import { buildAppBlueprint } from "./build";
 import { HELM_GENERATED_SECRETS, HELM_S3_SECRET, helmValuesKey, toHelmChart } from "./helm";
-import { k8sImageRef, k8sSecretKeys, k8sWorkloadServices } from "./k8s";
+import { k8sImageRef, k8sSecretKeys, k8sWorkloadServices, projectImageRef } from "./k8s";
+import { RELEASE_IMAGE_NS } from "./services";
 import type { AppConfigFile } from "./types";
 
 const CONFIG: AppConfigFile = {
@@ -44,10 +45,14 @@ describe("helm chart", () => {
     }
   });
 
-  test("images default to the kustomize base's refs", () => {
+  test("images default to the project's registry, at the base's tags", () => {
     const images = chart.values.images as Record<string, string>;
     for (const s of k8sWorkloadServices(model)) {
-      expect(images[helmValuesKey(s.key)]).toBe(k8sImageRef(s, "1.2.3"));
+      const ref = images[helmValuesKey(s.key)] ?? "";
+      expect(ref).toBe(projectImageRef(s, "1.2.3"));
+      expect(ref.startsWith(`${RELEASE_IMAGE_NS}/claude-transcripts-`)).toBe(true);
+      // Same tag as the base runs, so the chart and the base pin one version.
+      expect(ref.split(":").pop()).toBe(k8sImageRef(s, "1.2.3").split(":").pop());
       expect(rendered[`${s.key}.yaml`]).toContain(
         `image: {{ .Values.images.${helmValuesKey(s.key)} | quote }}`,
       );
