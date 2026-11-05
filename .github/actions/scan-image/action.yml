@@ -1,0 +1,41 @@
+name: scan-image
+description: >
+  The project's image scan gate, the same for every image it publishes: grype and
+  trivy, failing on HIGH or CRITICAL findings that have a fix. Takes a local image (in
+  the runner's Docker) or, with `registry: true`, one pulled straight from its registry.
+inputs:
+  image:
+    description: Image reference to scan.
+    required: true
+  registry:
+    description: Scan the reference from its registry rather than the local Docker daemon.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Install grype + trivy
+      shell: bash
+      run: |
+        set -euo pipefail
+        command -v grype >/dev/null || curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        command -v trivy >/dev/null || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Scan with grype (fail on HIGH+)
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        REGISTRY: ${{ inputs.registry }}
+      run: |
+        set -euo pipefail
+        src="$IMAGE"; [ "$REGISTRY" = true ] && src="registry:$IMAGE"
+        grype "$src" --fail-on high --only-fixed
+
+    - name: Scan with trivy (fail on HIGH/CRITICAL)
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        REGISTRY: ${{ inputs.registry }}
+      run: |
+        set -euo pipefail
+        src=(); [ "$REGISTRY" = true ] && src=(--image-src remote)
+        trivy image "${src[@]}" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE"

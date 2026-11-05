@@ -182,13 +182,14 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     images: built.map((s) => s.image?.name ?? s.key),
     publishedAt: "ghcr.io/<owner>/claude-transcripts-<service>",
     builtBy: [
+      "deploy/couchdb/Dockerfile",
       "deploy/fossil/Dockerfile",
       "deploy/garage-ui/Dockerfile",
       "scripts/mirror-images.ts",
       ".github/workflows/mirror-images.yml",
     ],
     platforms: "linux/amd64",
-    note: "For software that publishes no image (Fossil), or whose image fails the scan gate (the Garage web UI, rebuilt from the same release with a current Go). `--upstream` and `install` build Fossil locally and pull the upstream Garage web UI.",
+    note: "For software that publishes no image (Fossil), or whose image fails the scan gate: CouchDB without its unused Nouveau service, and the Garage web UI rebuilt from the same release with a current Go. `--upstream` and `install` build Fossil locally and pull the other two from upstream.",
   },
   {
     key: "cli-binaries",

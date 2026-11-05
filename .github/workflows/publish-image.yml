@@ -75,17 +75,10 @@ jobs:
           for t in ${{ steps.tags.outputs.list }}; do TAG_ARGS="$TAG_ARGS -t $t"; done
           docker build $TAG_ARGS --build-arg CT_VERSION="${{ steps.tags.outputs.version }}" .
 
-      - name: Install grype + trivy
-        run: |
-          set -euo pipefail
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Scan with grype (fail on HIGH+)
-        run: grype "${{ steps.tags.outputs.scan }}" --fail-on high --only-fixed
-
-      - name: Scan with trivy (fail on HIGH/CRITICAL)
-        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${{ steps.tags.outputs.scan }}"
+      - name: Scan with the project's gate (grype + trivy, fixed HIGH/CRITICAL)
+        uses: ./.github/actions/scan-image
+        with:
+          image: ${{ steps.tags.outputs.scan }}
 
       - name: Push image
         run: |
@@ -143,17 +136,10 @@ jobs:
       - name: Smoke test
         run: bun run scripts/smoke-omnibus.ts "${{ steps.tags.outputs.local }}"
 
-      - name: Install grype + trivy
-        run: |
-          set -euo pipefail
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Scan with grype (fail on HIGH+)
-        run: grype "${{ steps.tags.outputs.local }}" --fail-on high --only-fixed
-
-      - name: Scan with trivy (fail on HIGH/CRITICAL)
-        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${{ steps.tags.outputs.local }}"
+      - name: Scan with the project's gate (grype + trivy, fixed HIGH/CRITICAL)
+        uses: ./.github/actions/scan-image
+        with:
+          image: ${{ steps.tags.outputs.local }}
 
       - name: Push image
         run: |
