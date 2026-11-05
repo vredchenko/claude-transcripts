@@ -4,7 +4,13 @@
  * under the `claude-transcripts-*` names the compose stack pulls (ADR 0024).
  * Dev-only tooling.
  *
- *   IMAGE_NS=<registry>/<org> bun run scripts/mirror-images.ts
+ *   IMAGE_NS=<registry>/<org> bun run scripts/mirror-images.ts   # mirror + build + push all
+ *   bun run scripts/mirror-images.ts --plan                     # the plan, as JSON
+ *
+ * CI (mirror-images.yml) uses `--plan` to run one job per image, each scanned by the
+ * project's gate (.github/actions/scan-image) BEFORE it is pushed, so an image that
+ * fails never reaches the registry under its tag. Run without flags, this script
+ * publishes without scanning: it is the by-hand path, for a registry you check yourself.
  *
  * The image list is a PROJECTION of the blueprint (toMirrorPlan) — the blueprint's
  * SERVICES is the one place image names and tags are declared, so this script can't
@@ -36,7 +42,29 @@ const MODEL = buildAppBlueprint(loadConfigFile(ROOT), process.env);
 const IMAGES = toMirrorPlan(MODEL);
 const BUILDS = toImageBuildPlan(MODEL);
 
+/** One entry per published backing image: copied from upstream, or built from deploy/. */
+export type PlanEntry =
+  | { kind: "mirror"; dest: string; upstream: string }
+  | { kind: "build"; dest: string; context: string };
+
+function plan(): PlanEntry[] {
+  return [
+    ...IMAGES.map((i): PlanEntry => ({ kind: "mirror", dest: i.dest, upstream: i.upstream })),
+    ...BUILDS.map(
+      (b): PlanEntry => ({
+        kind: "build",
+        dest: b.dest,
+        context: `deploy/${b.context.replace(/^\.\//, "")}`,
+      }),
+    ),
+  ];
+}
+
 async function main() {
+  if (process.argv.includes("--plan")) {
+    console.log(JSON.stringify(plan()));
+    return;
+  }
   if (!NS) throw new Error("IMAGE_NS is required (e.g. ghcr.io/OWNER)");
   for (const { upstream, dest } of IMAGES) {
     const target = `${NS}/${dest}`;

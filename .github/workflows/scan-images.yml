@@ -1,0 +1,74 @@
+name: scan-images
+# Re-scan every image the project has published, weekly. Images are scanned when they
+# are published (publish-image.yml, mirror-images.yml), but their pins don't move between
+# releases while advisories keep landing, so a clean image goes stale quietly. This runs
+# the same gate (.github/actions/scan-image) against what's in the registry now and fails
+# the run, which notifies, when an image has picked up a fixed HIGH/CRITICAL finding.
+# The fix is a release, or a mirror-images run once the upstream pin is bumped.
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.plan.outputs.images }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      # The backing images from the blueprint, plus the app and the omnibus at `latest`.
+      - id: plan
+        run: |
+          set -euo pipefail
+          NS="ghcr.io/${{ github.repository_owner }}"
+          images=$(bun run scripts/mirror-images.ts --plan | NS="$NS" python3 -c '
+          import json, os, sys
+          ns = os.environ["NS"]
+          refs = [ns + "/" + e["dest"] for e in json.load(sys.stdin)]
+          refs += [ns + "/claude-transcripts-app:latest", ns + "/claude-transcripts-omnibus:latest"]
+          print(json.dumps(refs))')
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.images) }}
+    name: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Not every image exists yet on a fresh fork (the omnibus is published by the
+      # first release that has it). Skip what isn't there rather than fail on it.
+      - name: Published?
+        id: exists
+        run: |
+          if docker buildx imagetools inspect "${{ matrix.image }}" >/dev/null 2>&1; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::${{ matrix.image }} isn't published; skipping"
+          fi
+
+      - name: Scan
+        if: steps.exists.outputs.yes == 'true'
+        uses: ./.github/actions/scan-image
+        with:
+          image: ${{ matrix.image }}
+          registry: "true"

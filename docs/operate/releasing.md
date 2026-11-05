@@ -35,7 +35,7 @@ publish a chart whose version isn't the tag's.
 | App image `claude-transcripts-app` (webapi + webui + docs + CLI) | `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Omnibus image `claude-transcripts-omnibus` (the whole stack, one container) | `ghcr.io/<owner>/claude-transcripts-omnibus` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Helm chart `claude-transcripts` | `oci://ghcr.io/<owner>/charts/claude-transcripts` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
-| Backing images: CouchDB, Garage, Meilisearch and the Meilisearch UI mirrored (every platform upstream publishes); Fossil and the Garage web UI built from source | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
+| Backing images: Garage, Meilisearch and the Meilisearch UI mirrored (every platform upstream publishes); CouchDB, the Garage web UI and Fossil built from source. Each passes the scan gate before it is pushed | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
 | CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
 | `@claude-transcripts/cli` on npm (needs Bun at runtime) | npmjs.org | `release-cli.yml`, skipped with a warning until `NPM_TOKEN` is set |
 
@@ -61,6 +61,16 @@ manual `release-cli` run uploads the binaries as workflow artifacts without publ
 version, or to `main` for an unreleased CLI, and warns if the running app reports a
 different version. Every build is scanned with grype and trivy and fails on HIGH
 severity, so a base-image CVE can block a merge build too.
+
+### The scan gate
+
+Every image the project publishes passes the same gate,
+[`.github/actions/scan-image`](../../.github/actions/scan-image/action.yml): grype and
+trivy, failing on HIGH or CRITICAL findings that have a fix. That covers the app image and
+the omnibus (`publish-image.yml`) and each backing image (`mirror-images.yml`, which scans
+an upstream image before copying it and a build before pushing it, so nothing that fails
+reaches the registry under its tag). `scan-images.yml` re-runs the gate every Monday
+against what is published, since pinned images pick up advisories between releases.
 
 ### Omnibus image tags
 

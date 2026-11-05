@@ -44,7 +44,16 @@ export const SERVICES: ServiceDef[] = [
     key: "couchdb",
     name: "CouchDB",
     role: "backing",
-    image: { name: "couchdb", tagEnv: "COUCHDB_TAG", defaultTag: "3", upstream: "couchdb" },
+    image: {
+      name: "couchdb",
+      tagEnv: "COUCHDB_TAG",
+      // Must equal COUCHDB_VERSION in deploy/couchdb/Dockerfile (a test holds them).
+      defaultTag: "3",
+      upstream: "couchdb",
+      // Rebuilt on the upstream image without Nouveau (its unused Java search service,
+      // which fails the scan gate) and with OS packages upgraded. --upstream pulls couchdb.
+      build: { context: "./couchdb" },
+    },
     ports: [
       { internal: 5984, hostEnv: "COUCHDB_PORT", defaultHost: 7652, label: "HTTP API + Fauxton" },
     ],

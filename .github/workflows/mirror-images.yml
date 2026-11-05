@@ -1,11 +1,18 @@
 name: mirror-images
-# Mirror the pinned third-party backing-service images (CouchDB, Garage, Meilisearch
-# + their admin UIs) into this repo's GitHub Container Registry namespace, under the
-# claude-transcripts-* names the compose stack pulls (ADR 0024) — and build the ones
-# that publish no image (Fossil, deploy/fossil/) or whose image fails the scan gate (the
-# Garage web UI, deploy/garage-ui/). Run it on demand, or
-# automatically on a version tag. Then set IMAGE_NS=ghcr.io/<owner> and the stack
-# pulls ONLY from your registry — no dependency on external/unverified upstreams.
+# Publish the backing-service images (CouchDB, Garage, Meilisearch, Fossil and the
+# admin UIs) into this repo's GitHub Container Registry namespace, under the
+# claude-transcripts-* names the compose stack, the k8s base and the Helm chart pull
+# (ADR 0024). Each is either copied from its pinned upstream (every platform upstream
+# publishes) or built here from deploy/<service>/ (Fossil has no upstream image; the
+# CouchDB and Garage web UI upstream images fail the scan gate as published).
+#
+# Every image goes through the project's scan gate (.github/actions/scan-image: grype +
+# trivy, failing on fixed HIGH/CRITICAL) BEFORE it is pushed, the same gate the app and
+# omnibus images pass, so an image that fails never reaches the registry under its tag.
+# The list comes from the blueprint (scripts/mirror-images.ts --plan): one job per image.
+#
+# Runs on demand, or on a version tag. Then set IMAGE_NS=ghcr.io/<owner> and the stack
+# pulls ONLY from your registry.
 on:
   workflow_dispatch:
   push:
@@ -16,17 +23,32 @@ permissions:
   packages: write # push to GHCR
 
 jobs:
-  mirror:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.plan.outputs.images }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      # The script imports the dependency-free app model by path, so no install.
+      - id: plan
+        run: echo "images=$(bun run scripts/mirror-images.ts --plan)" >> "$GITHUB_OUTPUT"
 
-      # The script itself needs no dependencies (it imports the dependency-free app
-      # model by path), but install anyway so it keeps working if that changes.
-      - run: bun install --frozen-lockfile
+  image:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one failing image shouldn't stop the others publishing
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.images) }}
+    name: ${{ matrix.dest }}
+    env:
+      # GHCR paths must be lowercase; repository_owner is the login (already lc).
+      TARGET: ghcr.io/${{ github.repository_owner }}/${{ matrix.dest }}
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -35,8 +57,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Mirror (and build) backing images → GHCR
-        run: bun run scripts/mirror-images.ts
-        env:
-          # GHCR paths must be lowercase; repository_owner is the login (already lc).
-          IMAGE_NS: ghcr.io/${{ github.repository_owner }}
+      # ── built here: build locally, scan the local image, then push ──────────────
+      - name: Build
+        if: matrix.kind == 'build'
+        run: docker build -t "$TARGET" "${{ matrix.context }}"
+
+      - name: Scan the build
+        if: matrix.kind == 'build'
+        uses: ./.github/actions/scan-image
+        with:
+          image: ${{ env.TARGET }}
+
+      - name: Push the build
+        if: matrix.kind == 'build'
+        run: docker push "$TARGET"
+
+      # ── mirrored: scan the upstream ref in its registry, then copy it ────────────
+      - name: Scan upstream
+        if: matrix.kind == 'mirror'
+        uses: ./.github/actions/scan-image
+        with:
+          image: ${{ matrix.upstream }}
+          registry: "true"
+
+      # Registry to registry, the whole multi-arch index (not just the runner's platform).
+      - name: Copy to GHCR
+        if: matrix.kind == 'mirror'
+        run: docker buildx imagetools create --tag "$TARGET" "${{ matrix.upstream }}"

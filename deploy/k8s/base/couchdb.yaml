@@ -42,7 +42,7 @@ spec:
     spec:
       containers:
         - name: couchdb
-          image: couchdb:3
+          image: ghcr.io/vredchenko/claude-transcripts-couchdb:3
           imagePullPolicy: IfNotPresent
           env:
             - name: COUCHDB_USER
