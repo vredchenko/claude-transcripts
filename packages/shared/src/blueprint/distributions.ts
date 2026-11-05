@@ -88,7 +88,7 @@ function deployed(roles: string[]): ComponentKey[] {
   return out;
 }
 
-const mirrored = SERVICES.filter((s) => s.image?.upstream);
+const mirrored = SERVICES.filter((s) => s.image?.upstream && !s.image.build);
 const built = SERVICES.filter((s) => s.image?.build);
 const backing = deployed(["backing", "admin-ui"]);
 
@@ -103,6 +103,23 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     builtBy: ["Dockerfile", ".github/workflows/publish-image.yml"],
     platforms: "linux/amd64",
     note: "webapi serving the webui (/app), docs (/docs) and the CLI binary (/cli/download). Release tags, plus `main`.",
+  },
+  {
+    key: "omnibus",
+    title: "Omnibus image",
+    kind: "image",
+    // Everything: the app's parts, every backing service and admin UI, and the plugin
+    // (as a download at /downloads/, beside the CLI for every platform).
+    contains: COMPONENTS.map((c) => c.key),
+    publishedAt: "ghcr.io/<owner>/claude-transcripts-omnibus",
+    builtBy: [
+      "deploy/omnibus/Dockerfile",
+      "deploy/omnibus/docker-bake.hcl",
+      ".github/workflows/omnibus.yml",
+      ".github/workflows/publish-image.yml",
+    ],
+    platforms: "linux/amd64",
+    note: "The whole stack in one container under s6-overlay: one `docker run`, one /data volume, one published port (7650). Assembled from the released app image. Release tags only.",
   },
   {
     key: "compose",
@@ -154,8 +171,8 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     images: mirrored.map((s) => s.image?.name ?? s.key),
     publishedAt: "ghcr.io/<owner>/claude-transcripts-<service>",
     builtBy: ["scripts/mirror-images.ts", ".github/workflows/mirror-images.yml"],
-    platforms: "linux/amd64 (the runner's platform, pulled and re-pushed)",
-    note: "Upstream images re-tagged under the project's names, so the stack can pull only from your registry (ADR 0024).",
+    platforms: "every platform upstream publishes (the multi-arch index is copied as is)",
+    note: "Upstream images copied under the project's names, so the stack can pull only from your registry (ADR 0024).",
   },
   {
     key: "built-images",
@@ -166,11 +183,12 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     publishedAt: "ghcr.io/<owner>/claude-transcripts-<service>",
     builtBy: [
       "deploy/fossil/Dockerfile",
+      "deploy/garage-ui/Dockerfile",
       "scripts/mirror-images.ts",
       ".github/workflows/mirror-images.yml",
     ],
     platforms: "linux/amd64",
-    note: "For software that publishes no image. `--upstream` and `install` build it locally instead.",
+    note: "For software that publishes no image (Fossil), or whose image fails the scan gate (the Garage web UI, rebuilt from the same release with a current Go). `--upstream` and `install` build Fossil locally and pull the upstream Garage web UI.",
   },
   {
     key: "cli-binaries",
