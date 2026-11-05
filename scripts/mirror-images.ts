@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Mirror the pinned third-party backing-service images into the GitHub Container Registry (GHCR)
+ * Mirror the pinned third-party backing-service images (every platform each publishes) into the GitHub Container Registry (GHCR)
  * under the `claude-transcripts-*` names the compose stack pulls (ADR 0024).
  * Dev-only tooling.
  *
@@ -10,8 +10,9 @@
  * SERVICES is the one place image names and tags are declared, so this script can't
  * drift from what the compose stack actually pulls. Add a backing service there.
  *
- * Backing software that publishes source but no image (Fossil) can't be mirrored, so
- * it is built here from its in-repo Dockerfile (toImageBuildPlan) and pushed under the
+ * Backing software that publishes source but no image (Fossil) can't be mirrored, and
+ * one whose image fails the scan gate (the Garage web UI) shouldn't be, so those are
+ * built here from their in-repo Dockerfiles (toImageBuildPlan) and pushed under the
  * same naming — to a consumer of the registry, a built image and a mirrored one look
  * alike.
  *
@@ -40,9 +41,9 @@ async function main() {
   for (const { upstream, dest } of IMAGES) {
     const target = `${NS}/${dest}`;
     console.log(`[mirror] ${upstream} → ${target}`);
-    await $`docker pull ${upstream}`;
-    await $`docker tag ${upstream} ${target}`;
-    await $`docker push ${target}`;
+    // Registry to registry, the whole multi-arch index: a pull/tag/push would copy only
+    // the runner's platform, leaving the mirror amd64-only while upstream isn't.
+    await $`docker buildx imagetools create --tag ${target} ${upstream}`;
   }
   for (const { context, dest } of BUILDS) {
     const target = `${NS}/${dest}`;

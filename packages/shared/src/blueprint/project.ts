@@ -135,7 +135,8 @@ export function toComposeOverrideObject(model: AppBlueprint) {
 export function toMirrorPlan(model: AppBlueprint): Array<{ upstream: string; dest: string }> {
   const plan: Array<{ upstream: string; dest: string }> = [];
   for (const s of model.services) {
-    if (!s.image?.upstream) continue;
+    // A rebuilt image (upstream + build) is published from our build, not mirrored.
+    if (!s.image?.upstream || s.image.build) continue;
     plan.push({
       upstream: `${s.image.upstream}:${s.image.defaultTag}`,
       dest: `claude-transcripts-${s.image.name}:${s.image.defaultTag}`,

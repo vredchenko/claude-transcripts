@@ -2,7 +2,8 @@ name: mirror-images
 # Mirror the pinned third-party backing-service images (CouchDB, Garage, Meilisearch
 # + their admin UIs) into this repo's GitHub Container Registry namespace, under the
 # claude-transcripts-* names the compose stack pulls (ADR 0024) — and build the ones
-# that publish no image (Fossil, from deploy/fossil/Dockerfile). Run it on demand, or
+# that publish no image (Fossil, deploy/fossil/) or whose image fails the scan gate (the
+# Garage web UI, deploy/garage-ui/). Run it on demand, or
 # automatically on a version tag. Then set IMAGE_NS=ghcr.io/<owner> and the stack
 # pulls ONLY from your registry — no dependency on external/unverified upstreams.
 on:

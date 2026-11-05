@@ -100,7 +100,8 @@ describe("Kubernetes projection", () => {
     expect(app).toEndWith(`/claude-transcripts-app:v${RELEASE}`);
     for (const s of k8sWorkloadServices(model)) {
       const image = container(named("Deployment", s.key)).image as string;
-      if (s.image?.upstream) expect(image).toBe(`${s.image.upstream}:${s.image.defaultTag}`);
+      if (s.image?.upstream && !s.image.build)
+        expect(image).toBe(`${s.image.upstream}:${s.image.defaultTag}`);
       expect(image).toMatch(/:[^/:]+$/); // an explicit tag
       expect(image).not.toContain("${");
       expect(image.endsWith(":latest")).toBe(false);
