@@ -24,7 +24,6 @@ deploy
 Dockerfile
 .dockerignore
 .github
-.forgejo
 # The Claude Code hook is installed separately as a plugin — not part of the
 # webapi/webui runtime image. (The directory is `hooks/`; the old singular name
 # matched nothing, so it was being uploaded with the build context.)
