@@ -52,7 +52,7 @@ describe("distributions", () => {
 
   test("the deploy definitions run every backing service", () => {
     const backing = SERVICES.filter((s) => s.role === "backing").map((s) => s.key);
-    for (const key of ["compose", "kustomize"]) {
+    for (const key of ["compose", "kustomize", "helm"]) {
       const runs: string[] = DISTRIBUTIONS.find((x) => x.key === key)?.contains ?? [];
       for (const b of backing) expect(runs).toContain(b);
     }

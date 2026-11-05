@@ -52,7 +52,7 @@ The ones you're most likely to set; `values.yaml` has them all.
 
 | Value | Default | |
 |-------|---------|---|
-| `images.<service>` | pinned upstream refs; ours at this release | Point any image at a mirror |
+| `images.<service>` | `ghcr.io/vredchenko/claude-transcripts-<service>`: the project's registry, backing services at their pinned tags, the app at this release | Point any image at your own mirror (`mirror-images.yml` fills one) or at its upstream ref |
 | `<service>.enabled` | `true` | Everything but `app` and `couchdb` can be turned off |
 | `<service>.resources` | `{}` | Requests and limits per service |
 | `persistence.storageClass` | cluster default | k3s: `local-path` |

@@ -132,6 +132,21 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     note: "`kubectl apply -k`; pinned upstream images, the app at the checkout's release tag. ClusterIP only: exposing it is an overlay's call.",
   },
   {
+    key: "helm",
+    title: "Helm chart",
+    kind: "kubernetes",
+    contains: deployed(["backing", "admin-ui", "app"]),
+    publishedAt: "oci://ghcr.io/<owner>/charts/claude-transcripts",
+    builtBy: [
+      "scripts/gen-helm.ts",
+      "deploy/helm/claude-transcripts/Chart.yaml",
+      ".github/workflows/chart.yml",
+      ".github/workflows/publish-image.yml",
+    ],
+    platforms: "whatever its images support",
+    note: "`helm install`, Argo CD or Flux. Generated from the same objects as the kustomize base; pulls every image from the project's registry, generates secrets on install and keeps them on upgrade, and provisions Garage with a hook Job. Release tags only.",
+  },
+  {
     key: "mirrored-images",
     title: "Mirrored backing images",
     kind: "image",
