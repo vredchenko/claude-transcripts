@@ -12,7 +12,7 @@ images:
   fossil: ghcr.io/vredchenko/claude-transcripts-fossil:2.28
   meilisearch: ghcr.io/vredchenko/claude-transcripts-meilisearch:v1.10
   meilisearchUi: ghcr.io/vredchenko/claude-transcripts-meilisearch-ui:v0.14.1
-  app: ghcr.io/vredchenko/claude-transcripts-app:v0.8.0
+  app: ghcr.io/vredchenko/claude-transcripts-app:v0.9.0
 imagePullPolicy: IfNotPresent
 # One ReadWriteOnce volume per data directory. Empty storageClass: the cluster
 # default (k3s: local-path). keep: the volumes survive `helm uninstall`.
