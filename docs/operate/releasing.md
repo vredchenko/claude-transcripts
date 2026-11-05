@@ -35,7 +35,7 @@ publish a chart whose version isn't the tag's.
 | App image `claude-transcripts-app` (webapi + webui + docs + CLI) | `ghcr.io/<owner>/claude-transcripts-app` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Omnibus image `claude-transcripts-omnibus` (the whole stack, one container) | `ghcr.io/<owner>/claude-transcripts-omnibus` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Helm chart `claude-transcripts` | `oci://ghcr.io/<owner>/charts/claude-transcripts` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
-| Backing images: Garage, Meilisearch and the Meilisearch UI mirrored (every platform upstream publishes); CouchDB, the Garage web UI and Fossil built from source. Each passes the scan gate before it is pushed | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
+| Backing images: Garage mirrored (every platform upstream publishes); CouchDB, Meilisearch, the Garage web UI, the Meilisearch UI and Fossil built here. Each passes the scan gate before it is pushed | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
 | CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
 | `@claude-transcripts/cli` on npm (needs Bun at runtime) | npmjs.org | `release-cli.yml`, skipped with a warning until `NPM_TOKEN` is set |
 

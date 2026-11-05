@@ -160,8 +160,12 @@ export const SERVICES: ServiceDef[] = [
     image: {
       name: "meilisearch",
       tagEnv: "MEILI_TAG",
+      // Must equal MEILI_VERSION in deploy/meilisearch/Dockerfile (a test holds them).
       defaultTag: "v1.10",
       upstream: "getmeili/meilisearch",
+      // Rebuilt on the upstream image with its Alpine packages upgraded: the v1.10
+      // image dates from 2024 and its OpenSSL/curl/musl fail the scan gate.
+      build: { context: "./meilisearch" },
     },
     ports: [{ internal: 7700, hostEnv: "MEILI_PORT", defaultHost: 7656 }],
     adminUiServiceKey: "meilisearch",
@@ -179,8 +183,12 @@ export const SERVICES: ServiceDef[] = [
       tagEnv: "MEILI_UI_TAG",
       // Pinned like every other backing image: `latest` would make the mirrored
       // copy — and so the stack — irreproducible from one release to the next.
+      // Must equal MEILI_UI_VERSION in deploy/meilisearch-ui/Dockerfile (a test holds them).
       defaultTag: "v0.14.1",
       upstream: "riccoxie/meilisearch-ui",
+      // Rebuilt as static files behind nginx: upstream ships a whole Node build image
+      // (it runs vite on every start), which fails the scan gate many times over.
+      build: { context: "./meilisearch-ui" },
     },
     ports: [{ internal: 24900, hostEnv: "MEILI_UI_PORT", defaultHost: 7657 }],
     adminUiServiceKey: "meilisearchUi",
