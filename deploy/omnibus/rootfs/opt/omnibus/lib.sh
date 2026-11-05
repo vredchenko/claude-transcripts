@@ -4,6 +4,8 @@
 # Variables passed to `docker run` are already here; the init writes the rest.
 ENVDIR=/run/s6/container_environment
 SECRETS=/data/secrets
+# Present (for this boot only: /run is a tmpfs) when the Garage bootstrap failed.
+GARAGE_DEGRADED=/run/omnibus/garage-degraded
 
 log() { printf '[omnibus] %s\n' "$*"; }
 

@@ -18,6 +18,16 @@ variable "APP_IMAGE" {
   default = ""
 }
 
+# The fetch-only source clone inside the image (see the Dockerfile). A release sets
+# both to its own repository and tag.
+variable "OMNIBUS_GIT_URL" {
+  default = "https://github.com/vredchenko/claude-transcripts.git"
+}
+
+variable "OMNIBUS_GIT_REF" {
+  default = "main"
+}
+
 variable "OMNIBUS_TAG" {
   default = "claude-transcripts-omnibus:local"
 }
@@ -57,8 +67,10 @@ target "omnibus" {
   context    = "."
   dockerfile = "deploy/omnibus/Dockerfile"
   args = {
-    APP_IMAGE    = "app-src"
-    FOSSIL_IMAGE = "fossil-src"
+    APP_IMAGE       = "app-src"
+    FOSSIL_IMAGE    = "fossil-src"
+    OMNIBUS_GIT_URL = OMNIBUS_GIT_URL
+    OMNIBUS_GIT_REF = OMNIBUS_GIT_REF
   }
   contexts = {
     app-src    = APP_IMAGE == "" ? "target:app" : "docker-image://${APP_IMAGE}"

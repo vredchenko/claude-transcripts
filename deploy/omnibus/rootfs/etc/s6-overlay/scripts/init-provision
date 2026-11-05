@@ -25,7 +25,11 @@ for db in _users _replicator; do
 done
 
 # Garage: layout, bucket, app key — the dev stack's own bootstrap, writing to s3.env.
-# Object storage is optional (Tier 1), so a failure here is reported, not fatal.
+# Object storage is optional (Tier 1), so a failure here is reported, not fatal: the
+# marker tells omnibus-health to stop counting Garage as core for this boot (its
+# /health stays 503 without a layout, which would otherwise leave the container
+# unhealthy for good).
+rm -f "$GARAGE_DEGRADED"
 if (cd /app && GARAGE_ADMIN_PORT="$GARAGE_ADMIN_PORT" bun run scripts/bootstrap-garage.ts); then
   while IFS='=' read -r key value; do
     case "$key" in S3_ACCESS_KEY | S3_SECRET_KEY) [ -n "$value" ] && setenv_default "$key" "$value" ;; esac
@@ -33,4 +37,5 @@ if (cd /app && GARAGE_ADMIN_PORT="$GARAGE_ADMIN_PORT" bun run scripts/bootstrap-
   setenv_default S3_ENDPOINT "http://$h:$GARAGE_S3_PORT"
 else
   log "garage bootstrap failed — the app will run without object storage"
+  touch "$GARAGE_DEGRADED"
 fi

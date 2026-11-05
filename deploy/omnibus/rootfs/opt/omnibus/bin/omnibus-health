@@ -10,7 +10,10 @@ check() { # check <name> <core|extra> <url> [expected body fragment]
 }
 check webapi core "http://127.0.0.1:$WEBAPI_PORT/health" '"ok":true'
 check couchdb core "http://$h:$COUCHDB_PORT/_up"
-check garage core "http://$h:$GARAGE_ADMIN_PORT/health"
+# Garage is core unless its bootstrap failed this boot (init-provision): then the app
+# runs without object storage and Garage's state is reported, not held against it.
+garage_tier=core; [ -e "$GARAGE_DEGRADED" ] && garage_tier=extra
+check garage "$garage_tier" "http://$h:$GARAGE_ADMIN_PORT/health"
 check meilisearch core "http://$h:$MEILI_PORT/health"
 check fossil core "http://$h:$FOSSIL_PORT/"
 check garage-ui extra "http://$h:$GARAGE_WEBUI_PORT/"

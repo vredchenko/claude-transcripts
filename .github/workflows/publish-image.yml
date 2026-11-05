@@ -130,6 +130,9 @@ jobs:
         env:
           CACHE: gha
           APP_IMAGE: ${{ needs.build.outputs.image }}
+          # The source clone inside the image is this release, not main.
+          OMNIBUS_GIT_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          OMNIBUS_GIT_REF: ${{ github.ref_name }}
           OMNIBUS_TAG: ${{ steps.tags.outputs.local }}
         with:
           source: .
