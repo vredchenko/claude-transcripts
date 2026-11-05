@@ -58,6 +58,11 @@ describe("distributions", () => {
     }
   });
 
+  test("the omnibus carries every component", () => {
+    const omnibus = DISTRIBUTIONS.find((d) => d.key === "omnibus");
+    expect(omnibus?.contains.sort()).toEqual(COMPONENTS.map((c) => c.key).sort());
+  });
+
   test("placeholders survive Markdown", () => {
     const doc = toDistributionsDoc();
     expect(doc).toContain("ghcr.io/&lt;owner&gt;/claude-transcripts-app");
