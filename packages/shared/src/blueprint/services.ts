@@ -97,8 +97,12 @@ export const SERVICES: ServiceDef[] = [
     image: {
       name: "garage-ui",
       tagEnv: "GARAGE_UI_TAG",
+      // Must equal GARAGE_UI_VERSION in deploy/garage-ui/Dockerfile (a test holds them).
       defaultTag: "1.1.0",
       upstream: "khairul169/garage-webui",
+      // Rebuilt from that release's source with a current Go: the published binary's
+      // Go 1.23 stdlib and x/crypto fail the scan gate. The registry carries the rebuild.
+      build: { context: "./garage-ui" },
     },
     ports: [{ internal: 3909, hostEnv: "GARAGE_WEBUI_PORT", defaultHost: 7655 }],
     adminUiServiceKey: "garageWebui",

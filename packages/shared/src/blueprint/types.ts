@@ -123,6 +123,12 @@ export interface ImageRef {
    * user installs ship it, and the upstream override builds it there, so `--upstream`
    * still needs no registry. The registry path publishes it under the same
    * `claude-transcripts-<name>:<defaultTag>` name a mirrored image would get.
+   *
+   * Set together with `upstream`, it means the upstream image exists but we publish
+   * our own rebuild of the same release instead (the Garage web UI, whose published
+   * binary fails the scan gate). The registry, the Kubernetes base and the omnibus
+   * get the rebuild; the upstream override keeps pulling `upstream`, so a fresh clone
+   * or `install` doesn't have to compile it.
    */
   build?: { context: string };
 }

@@ -155,12 +155,11 @@ prints every service's state; the `HEALTHCHECK` runs the same script.
 
 ## What differs from the compose stack
 
-The same versions, with three changes, all made so the image passes the release scan
-(grype and trivy, failing on fixed HIGH and CRITICAL findings):
+The same versions and the same Garage web UI build the registry stack runs
+(`deploy/garage-ui/`, rebuilt from its release source with a current Go, since the
+upstream image's binary fails the scan). Two changes, both made so the image passes the
+release scan (grype and trivy, failing on fixed HIGH and CRITICAL findings):
 
-- **Garage web UI** is rebuilt from its release source with a current Go and
-  `golang.org/x/crypto` raised to its fixed version. The published image's binary
-  carries the advisories of the Go 1.23 it was built with.
 - **CouchDB's Nouveau** (its optional Java search service) is removed. It is never
   enabled here; Meilisearch does search.
 - **Meilisearch** is its glibc release binary, since the upstream image's is linked

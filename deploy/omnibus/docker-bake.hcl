@@ -1,12 +1,13 @@
-# The omnibus as one BuildKit graph: the app image, the Fossil image and the omnibus
-# itself, built together so the components build in parallel and share one layer cache.
+# The omnibus as one BuildKit graph: the app image, the Fossil image, the rebuilt Garage
+# web UI and the omnibus itself, built together so the components build in parallel and share one layer cache.
 #
 #   docker buildx bake -f deploy/omnibus/docker-bake.hcl --load omnibus   # what omnibus:build runs
 #   APP_IMAGE=ghcr.io/OWNER/claude-transcripts-app:v1.2.3 docker buildx bake ...
 #
-# The omnibus Dockerfile takes its components as APP_IMAGE / FOSSIL_IMAGE. Here they
-# name build contexts rather than registry images: "app-src" is the root Dockerfile's
-# build, "fossil-src" deploy/fossil's. Set APP_IMAGE to assemble from a published app
+# The omnibus Dockerfile takes its components as APP_IMAGE / FOSSIL_IMAGE /
+# GARAGE_UI_IMAGE. Here they name build contexts rather than registry images: "app-src"
+# is the root Dockerfile's build, "fossil-src" deploy/fossil's, "garage-ui-src"
+# deploy/garage-ui's. Set APP_IMAGE to assemble from a published app
 # image instead of building one (the release does: it reuses the image it just scanned
 # and pushed).
 
@@ -63,18 +64,26 @@ target "fossil" {
   cache-to   = cache_to("fossil")
 }
 
+target "garage-ui" {
+  context    = "deploy/garage-ui"
+  cache-from = cache_from("garage-ui")
+  cache-to   = cache_to("garage-ui")
+}
+
 target "omnibus" {
   context    = "."
   dockerfile = "deploy/omnibus/Dockerfile"
   args = {
     APP_IMAGE       = "app-src"
     FOSSIL_IMAGE    = "fossil-src"
+    GARAGE_UI_IMAGE = "garage-ui-src"
     OMNIBUS_GIT_URL = OMNIBUS_GIT_URL
     OMNIBUS_GIT_REF = OMNIBUS_GIT_REF
   }
   contexts = {
-    app-src    = APP_IMAGE == "" ? "target:app" : "docker-image://${APP_IMAGE}"
-    fossil-src = "target:fossil"
+    app-src       = APP_IMAGE == "" ? "target:app" : "docker-image://${APP_IMAGE}"
+    fossil-src    = "target:fossil"
+    garage-ui-src = "target:garage-ui"
   }
   tags       = [OMNIBUS_TAG]
   cache-from = cache_from("omnibus")

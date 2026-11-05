@@ -38,8 +38,15 @@ describe("built images", () => {
     expect(built.map((s) => s.key)).toContain("fossil");
   });
 
-  test("an image is either mirrored or built, never both", () => {
-    for (const s of built) expect(s.image?.upstream).toBeUndefined();
+  test("the garage web UI is rebuilt rather than mirrored", () => {
+    const ui = SERVICES.find((s) => s.key === "garage-ui");
+    expect(ui?.image?.build?.context).toBe("./garage-ui");
+    expect(toMirrorPlan(model).map((p) => p.dest)).not.toContainEqual(
+      expect.stringContaining("garage-ui"),
+    );
+    // The upstream override still pulls the upstream image: no local Go + pnpm build.
+    const override = toComposeOverrideObject(model).services["garage-ui"] as { image: string };
+    expect(override.image).toStartWith("khairul169/garage-webui:");
   });
 
   for (const s of built) {

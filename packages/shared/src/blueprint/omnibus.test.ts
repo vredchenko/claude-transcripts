@@ -34,8 +34,8 @@ describe("omnibus pins", () => {
     });
   }
 
-  test("garage-webui is rebuilt from the release the blueprint's tag names", () => {
-    expect(arg("GARAGE_UI_VERSION")).toBe(tag("garage-ui"));
+  test("the default Garage web UI image is the local rebuild of the blueprint's version", () => {
+    expect(arg("GARAGE_UI_IMAGE")).toBe(`claude-transcripts-garage-ui:${tag("garage-ui")}-local`);
   });
 
   test("Meilisearch is a release of the series the blueprint's tag names", () => {

@@ -36,7 +36,10 @@ Images: the base file pulls from `${IMAGE_NS}`, your mirror in GHCR
 ([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md));
 `docker-compose.upstream.yml` (`--upstream`, and what `install` uses) swaps in the
 public upstream images — and builds Fossil, which publishes none, from
-`deploy/fossil/Dockerfile`; `docker-compose.build.yml` (`--build`) builds the app from
+`deploy/fossil/Dockerfile`. The mirror isn't only copies: two images in it are built
+here. Fossil has no upstream image, and the Garage web UI's upstream image fails the scan
+gate, so the registry carries a rebuild of the same release (`deploy/garage-ui/`);
+`--upstream` still pulls the upstream Garage web UI; `docker-compose.build.yml` (`--build`) builds the app from
 the checkout.
 
 ## Other topologies
@@ -54,7 +57,8 @@ the checkout.
   at your own CouchDB, S3 and Meilisearch
   ([configuration.md](../start/configuration.md#backend-topology--bundled-or-external)).
 
-Planned, not built: maintained base images (pinned Bun runtime, a Claude Code runtime,
-our own builds of the backing services). Fossil is the one backing service already
-built here, because it has no upstream image
-([ADR 0031](../design/decisions/0031-fossil-as-bundled-infrastructure.md)).
+Planned, not built: maintained base images (a pinned Bun runtime, a Claude Code
+runtime). Two backing images are already built here rather than mirrored: Fossil,
+because it has no upstream image
+([ADR 0031](../design/decisions/0031-fossil-as-bundled-infrastructure.md)), and the
+Garage web UI, because its upstream image fails the scan gate.
