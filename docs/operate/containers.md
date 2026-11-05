@@ -36,11 +36,13 @@ Images: the base file pulls from `${IMAGE_NS}`, your mirror in GHCR
 ([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md));
 `docker-compose.upstream.yml` (`--upstream`, and what `install` uses) swaps in the
 public upstream images — and builds Fossil, which publishes none, from
-`deploy/fossil/Dockerfile`. The mirror isn't only copies: three images in it are built
-here. Fossil has no upstream image. The CouchDB and Garage web UI upstream images fail the
-scan gate, so the registry carries our own: CouchDB without its unused Nouveau service
-(`deploy/couchdb/`) and a rebuild of the same Garage web UI release (`deploy/garage-ui/`).
-`--upstream` still pulls both upstream images. Every image passes the scan gate before
+`deploy/fossil/Dockerfile`. Only Garage is a straight copy; the rest are
+built here. Fossil has no upstream image. The other upstream images fail the scan gate as
+published, so the registry carries our own: CouchDB without its unused Nouveau service
+(`deploy/couchdb/`), Meilisearch with its Alpine packages upgraded (`deploy/meilisearch/`),
+a rebuild of the same Garage web UI release (`deploy/garage-ui/`), and the Meilisearch UI
+as static files behind nginx (`deploy/meilisearch-ui/`). `--upstream` still pulls the
+upstream images. Every image passes the scan gate before
 it is pushed ([releasing.md](releasing.md#the-scan-gate)); `docker-compose.build.yml` (`--build`) builds the app from
 the checkout.
 
@@ -60,7 +62,7 @@ the checkout.
   ([configuration.md](../start/configuration.md#backend-topology--bundled-or-external)).
 
 Planned, not built: maintained base images (a pinned Bun runtime, a Claude Code
-runtime). Three backing images are already built here rather than mirrored: Fossil,
-because it has no upstream image
-([ADR 0031](../design/decisions/0031-fossil-as-bundled-infrastructure.md)), and CouchDB
-and the Garage web UI, because their upstream images fail the scan gate.
+runtime). Every backing image but Garage is already built here rather than mirrored:
+Fossil because it has no upstream image
+([ADR 0031](../design/decisions/0031-fossil-as-bundled-infrastructure.md)), the rest because
+their upstream images fail the scan gate.
