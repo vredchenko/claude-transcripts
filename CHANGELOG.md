@@ -6,6 +6,64 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-11-05
+
+A minor release about shipping. The stack now comes as one omnibus container and as
+a Helm chart, and every image it runs comes from the project's own registry. Search
+keeps running sessions in a small index of their own. **Upgrading:** run
+`claude-transcripts reindex` once, so the turns of sessions running at upgrade time
+move to the right index (see below).
+
+### Added
+
+- **Omnibus image** `ghcr.io/<owner>/claude-transcripts-omnibus`: CouchDB, Garage
+  and its web UI, Meilisearch and its UI, Fossil and the app in one container under
+  s6-overlay. It takes one `docker run`, one `/data` volume and one published port
+  (7650) ([#257], [docs](docs/operate/omnibus.md)).
+  - Secrets are generated on first boot and kept in `/data/secrets`. Provisioning is
+    idempotent and runs on every boot.
+  - `/downloads/` serves the CLI for Linux and macOS (x64 and arm64), each with a
+    `.sha256`, plus the plugin bundle.
+  - Assembled from the released app image, smoke-tested on two boots of the same
+    volume, and held to the same grype and trivy gate. Release tags only, amd64.
+- **Helm chart** `oci://ghcr.io/<owner>/charts/claude-transcripts`, generated from
+  the same objects as the kustomize base. It works with `helm install`, Argo CD and
+  Flux ([#264], [README](deploy/helm/README.md)).
+  - Secrets are generated on install and kept on upgrade, or taken from your own
+    Secret (`existingSecret`).
+  - A post-install/upgrade Job runs `claude-transcripts provision` and keeps the
+    minted S3 key in a Secret the chart never renders.
+  - Every image defaults to the project's registry.
+  - PVCs survive `helm uninstall`. An Ingress is optional.
+  - `provision` accepts `GARAGE_ADMIN_URL` for a Garage that isn't on loopback.
+- **Our own Garage web UI image.** `claude-transcripts-garage-ui` is rebuilt from the
+  release source with a current Go and `golang.org/x/crypto`. The upstream binary
+  carried 39 fixed HIGH/CRITICAL findings. The compose stack, the kustomize base, the
+  chart and the omnibus all run the rebuild. `--upstream` and `install` still pull
+  upstream ([#265]).
+- **Distribution matrix** (`docs/reference/distributions.md`): every artefact against
+  the components it carries, generated from the blueprint ([#261]).
+
+### Changed
+
+- **Search splits turns into a live index and an archive, searched as one** ([#263],
+  [ADR 0032](docs/design/decisions/0032-live-and-archive-turn-indexes.md)).
+  - Running sessions' turns go to a small `liveTurns` index, which is flushed every
+    20 s.
+  - Ended sessions move to the `turns` archive every 15 minutes.
+  - Search runs one federated query over both indexes (Meilisearch 1.10+).
+  - `reindex` rebuilds into side indexes and swaps them in, so search keeps
+    answering during a rebuild.
+  - New config keys (`archiveIntervalMs`, `liveRebuildIntervalMs`) have defaults.
+- **The image mirror copies every platform** each upstream publishes (registry to
+  registry), not only amd64 ([#265]).
+
+### Upgrading
+
+Run `claude-transcripts reindex` once. Until you do, turns of sessions that were
+running at upgrade time stay in the archive. Search shows them only once, but nothing
+removes them.
+
 ## [0.8.0] — 2026-10-26
 
 A minor release. Sessions that never ended are finalised automatically, every session
@@ -1938,6 +1996,12 @@ of them had ever executed:
 [#256]: https://github.com/vredchenko/claude-transcripts/pull/256
 [#258]: https://github.com/vredchenko/claude-transcripts/pull/258
 [#259]: https://github.com/vredchenko/claude-transcripts/pull/259
+[#257]: https://github.com/vredchenko/claude-transcripts/pull/257
+[#261]: https://github.com/vredchenko/claude-transcripts/pull/261
+[#263]: https://github.com/vredchenko/claude-transcripts/pull/263
+[#264]: https://github.com/vredchenko/claude-transcripts/pull/264
+[#265]: https://github.com/vredchenko/claude-transcripts/pull/265
+[0.9.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.9.0
 [0.8.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.8.0
 [0.7.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.2
 [0.7.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.1
