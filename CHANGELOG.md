@@ -43,6 +43,21 @@ move to the right index (see below).
   upstream ([#265]).
 - **Distribution matrix** (`docs/reference/distributions.md`): every artefact against
   the components it carries, generated from the blueprint ([#261]).
+- **Every backing image passes the scan gate before it is published** ([#269]).
+  - The gate is one action, `.github/actions/scan-image` (grype and trivy, failing on
+    fixed HIGH/CRITICAL), used for the app, the omnibus and the backing images.
+  - `mirror-images` scans an upstream image before copying it and a build before
+    pushing it, so nothing that fails reaches the registry under its tag.
+  - `scan-images` re-scans everything published every Monday.
+- **Our own CouchDB, Meilisearch and Meilisearch UI images.** As published upstream,
+  all three fail the gate ([#269]).
+  - CouchDB drops Nouveau, its unused Java search service, and upgrades its OS
+    packages.
+  - Meilisearch v1.10 has its 2024 Alpine packages upgraded.
+  - The Meilisearch UI is built once and served as static files from unprivileged
+    nginx, instead of a Node build image that runs vite on every start.
+  - Garage is now the only image mirrored as is. `--upstream` and `install` still pull
+    the upstream images.
 
 ### Changed
 
@@ -57,6 +72,14 @@ move to the right index (see below).
   - New config keys (`archiveIntervalMs`, `liveRebuildIntervalMs`) have defaults.
 - **The image mirror copies every platform** each upstream publishes (registry to
   registry), not only amd64 ([#265]).
+
+### Fixed
+
+- **Garage starts on hosts with IPv6 disabled.** `deploy/garage.toml` bound `[::]`,
+  which panics on a kernel booted with `ipv6.disable=1`. It binds `0.0.0.0` now; the
+  file says how to switch back on an IPv6-only network ([#267]).
+- `follow-redirects` 1.16.2 (GHSA-mrwp-f3q8-3g9p, HIGH) and `qs` 6.17.1, so the app
+  image passes the scan gate again ([#270]).
 
 ### Upgrading
 
@@ -2001,6 +2024,9 @@ of them had ever executed:
 [#263]: https://github.com/vredchenko/claude-transcripts/pull/263
 [#264]: https://github.com/vredchenko/claude-transcripts/pull/264
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
+[#267]: https://github.com/vredchenko/claude-transcripts/pull/267
+[#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#270]: https://github.com/vredchenko/claude-transcripts/pull/270
 [0.9.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.9.0
 [0.8.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.8.0
 [0.7.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.2
