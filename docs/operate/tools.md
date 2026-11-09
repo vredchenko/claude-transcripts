@@ -28,8 +28,30 @@ Timestamps are the transcript's own, never the time of the backfill. `--host` an
 `--actor` set attribution. Token usage is computed with the same
 `sumTranscriptTokens` the hook uses, so counts match a live recording.
 
-Not captured yet: subagent sub-transcripts. The run reports how many sessions have
-them.
+### Subagents
+
+Subagents are recorded the way the live hook records them: a `SubagentStart` and a
+`SubagentStop` marker each (`agent_id`, and `agent_type` when known), plus a
+`PostToolUse` / `PostToolUseFailure` marker for every tool call made inside one, counted
+into the summary's `tool_counts`. Backfill finds them in every layout Claude Code has
+used: `<session>/subagents/agent-<id>.jsonl` (with its `.meta.json`),
+`agent-<id>.jsonl` beside the session files, and `isSidechain` lines inside the session
+transcript itself. An `agent-*.jsonl` file is never adopted as a session of its own.
+
+What a transcript can't give back:
+
+- marker times are the subagent's first and last transcript line, not the moments the
+  hooks fired;
+- a `SubagentStop` is written for every subagent found, since a transcript doesn't say
+  whether it finished or was cut off;
+- `agent_type` is left out when neither the meta file nor the spawning tool call names
+  it;
+- sidechain lines with no agent id (older Claude Code) get no markers, because there is
+  no `agent_id` to give them. The run says how many there were.
+
+A subagent's own transcript file is not uploaded or chunked; the live hook doesn't store
+it either. Sidechain lines inside the session transcript are part of it, so they are.
+Sessions adopted by an older CLI have no subagent markers; `--force` rebuilds them.
 
 ## Re-running
 
