@@ -1,3 +1,4 @@
+import { ChunkDocSchema, EventDocSchema, SummaryDocSchema } from "@claude-transcripts/shared/docs";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, indexName } from "../config";
 import type { AppContext } from "../context";
@@ -21,91 +22,13 @@ import { validationHook } from "./validation";
  *   PUT    /api/ingest/{id}/transcript  store the transcript blob in S3 (ADR 0014)
  *   DELETE /api/ingest/{id}             drop a session's derived docs, to re-ingest it
  *
- * TODO(#6): promote these doc schemas to a shared @claude-transcripts/shared module (with the
- * hook) so the hook, webapi, and CLI validate against ONE definition.
+ * The doc schemas are shared (`@claude-transcripts/shared/docs`), so the CLI that builds
+ * these docs is typed by the same definition this route validates against.
  */
 
-// ── Doc schemas (validation-on-write; snake_case stored shape) ──────────────────
-
-const TokenUsageSchema = z.object({
-  input: z.number(),
-  output: z.number(),
-  cacheCreation: z.number(),
-  cacheRead: z.number(),
-  total: z.number(),
-  messages: z.number(),
-});
-
-const SummaryDocSchema = z
-  .object({
-    _id: z.string(),
-    type: z.literal("summary"),
-    event: z.literal("SessionEnd"),
-    session_id: z.string(),
-    timestamp: z.string(),
-    hostname: z.string(),
-    cwd: z.string(),
-    model: z.string().optional(),
-    end_reason: z.string(),
-    event_count: z.number(),
-    prompt_count: z.number(),
-    error_count: z.number(),
-    tool_counts: z.record(z.string(), z.number()),
-    transcript_bytes: z.number(),
-    // Optional for `reconcile`: a session that never ended has no transcript in S3 to
-    // count tokens from, and a zero would read as a measurement.
-    token_usage: TokenUsageSchema.optional(),
-    // Provenance: "live" (hook) | "backfill" (adopted from fs) | "reconcile" (finalised
-    // after the fact). Kept open (string) so it's not brittle as sources evolve.
-    source: z.string().optional(),
-    backfilled_at: z.string().optional(),
-    actor: z.string().optional(),
-  })
-  .passthrough();
-
-const EventDocSchema = z
-  .object({
-    type: z.literal("event"),
-    event: z.string(),
-    session_id: z.string(),
-    timestamp: z.string(),
-    hostname: z.string(),
-    cwd: z.string(),
-  })
-  .passthrough(); // event-specific marker fields
+// ── Bodies (validation-on-write; the doc schemas themselves are shared) ─────────
 
 const EventsBodySchema = z.object({ docs: z.array(EventDocSchema) });
-
-// A parsed transcript turn embedded in a full-content chunk (ADR 0027). Present
-// only when `couchFullContentChunks` is on; kept permissive as the shape evolves.
-const ChunkEntrySchema = z
-  .object({
-    role: z.enum(["user", "assistant", "tool_result", "system", "other"]),
-    timestamp: z.string().optional(),
-    text: z.string().optional(),
-    toolUses: z.array(z.object({ name: z.string(), id: z.string().optional() })).optional(),
-    toolUseId: z.string().optional(),
-    isError: z.boolean().optional(),
-    isSidechain: z.boolean().optional(),
-  })
-  .passthrough();
-
-const ChunkDocSchema = z
-  .object({
-    _id: z.string(),
-    type: z.literal("chunk"),
-    session_id: z.string(),
-    byte_start: z.number(),
-    byte_end: z.number(),
-    entry_count: z.number(),
-    timestamp: z.string(),
-    hostname: z.string(),
-    cwd: z.string(),
-    schema_version: z.number(),
-    entries: z.array(ChunkEntrySchema).optional(),
-  })
-  .passthrough();
-
 const ChunksBodySchema = z.object({ docs: z.array(ChunkDocSchema) });
 
 const ResultSchema = z.object({

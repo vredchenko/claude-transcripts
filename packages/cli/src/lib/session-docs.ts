@@ -1,9 +1,8 @@
 /**
  * Build the CouchDB docs an ingest writes, in **schema parity with the hook**
- * (docs/reference/couchdb.md). For now these shapes live here; once
- * the hook's write path lands they should be promoted to a shared
- * `@claude-transcripts/shared` doc-schema module (with zod validators) so the hook, the
- * webapi, and the CLI share one definition. TODO(#6): promote + validate.
+ * (docs/reference/couchdb.md). The doc shapes are the shared schemas'
+ * (`@claude-transcripts/shared/docs`) — the ones `/api/ingest/*` validates against —
+ * narrowed here only where this writer is stricter than the gateway.
  */
 import {
   buildChunkEntries,
@@ -12,6 +11,11 @@ import {
   sliceIntoChunks,
   sumTranscriptTokens,
 } from "@claude-transcripts/shared";
+import type {
+  ChunkDoc as ChunkDocShape,
+  EventDoc as EventDocShape,
+  SummaryDoc as SummaryDocShape,
+} from "@claude-transcripts/shared/docs";
 import type { SessionSummary } from "../api/generated";
 import { parseEntries, type SessionFacts } from "./transcript";
 
@@ -21,32 +25,12 @@ import { parseEntries, type SessionFacts } from "./transcript";
 export type IngestSource = "backfill" | "doctor" | "reconcile";
 
 /** A `summary:<id>` doc — the session rollup the hook writes at SessionEnd. */
-export interface SummaryDoc {
-  _id: string;
-  type: "summary";
-  event: "SessionEnd";
-  session_id: string;
-  timestamp: string;
-  hostname: string;
-  cwd: string;
-  model?: string;
-  end_reason: string;
-  event_count: number;
-  prompt_count: number;
-  error_count: number;
-  tool_counts: Record<string, number>;
-  transcript_bytes: number;
-  /** Absent only on a `reconcile` summary with no S3 transcript to count from. */
-  token_usage?: SessionFacts["tokenUsage"];
+export type SummaryDoc = SummaryDocShape & {
+  /** Always set by this writer (the schema leaves it open). */
   source: IngestSource;
-  /** when the backfill ran (provenance) — distinct from `timestamp`, which is the
-   *  session's real end time, so history never reads as created-at-backfill. */
-  backfilled_at?: string;
   /** when `reconcile` finalised it — `timestamp` stays the session's last activity. */
   reconciled_at?: string;
-  /** optional attribution (backfill --host/--actor) */
-  actor?: string;
-}
+};
 
 export function buildSummaryDoc(
   facts: SessionFacts,
@@ -118,21 +102,11 @@ export function buildReconciledSummary(
 }
 
 /** A `chunk:<id>:<byte_start>` doc — a byte-faithful slice of the transcript. */
-export interface ChunkDoc {
-  _id: string;
-  type: "chunk";
-  session_id: string;
-  byte_start: number;
-  byte_end: number;
-  entry_count: number;
-  timestamp: string;
-  hostname: string;
-  cwd: string;
-  schema_version: number;
+export type ChunkDoc = ChunkDocShape & {
   source: IngestSource;
   /** Parsed per-turn content (ADR 0027) — present only for full-content chunks. */
   entries?: ChunkEntry[];
-}
+};
 
 /**
  * Reconstruct `chunk` docs from a transcript (backfill), so an adopted session is
@@ -175,15 +149,7 @@ export function buildChunkDocs(
 }
 
 /** A per-event marker doc — what the live hook appends per hook event. */
-export interface EventDoc {
-  type: "event";
-  event: string;
-  session_id: string;
-  timestamp: string;
-  hostname: string;
-  cwd: string;
-  [k: string]: unknown;
-}
+export type EventDoc = EventDocShape;
 
 /** Marker previews are short by design — full content lives in chunks/S3. */
 const PREVIEW_LIMIT = 200;
