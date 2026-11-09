@@ -17,7 +17,7 @@ import type {
   SummaryDoc as SummaryDocShape,
 } from "@claude-transcripts/shared/docs";
 import type { SessionSummary } from "../api/generated";
-import { parseEntries, type SessionFacts } from "./transcript";
+import { isUserPrompt, parseEntries, type SessionFacts } from "./transcript";
 
 /** Provenance of an ingested doc — distinguishes adopted history (`backfill`) and
  *  the `doctor` smoke-test's synthetic session from live logging (the hook writes
@@ -213,16 +213,14 @@ export function buildEventDocs(
 
   for (const e of entries) {
     const content = e.message?.content;
-    if (e.type === "user" && e.isSidechain !== true) {
+    if (isUserPrompt(e)) {
       const text = blockText(content, "text");
-      if (text.trim()) {
-        docs.push(
-          mk("UserPromptSubmit", e.timestamp, {
-            prompt_length: text.length,
-            prompt_preview: clip(text),
-          }),
-        );
-      }
+      docs.push(
+        mk("UserPromptSubmit", e.timestamp, {
+          prompt_length: text.length,
+          prompt_preview: clip(text),
+        }),
+      );
     }
     if (e.type === "assistant" && Array.isArray(content)) {
       for (const item of content) {
