@@ -93,8 +93,14 @@ export interface Config {
  * is within this span reads as `running`/live, else `incomplete`/abandoned. There
  * is no live heartbeat, so this is a recency heuristic. Overridable via
  * `system.sessions.liveWindowMs` in config.
+ *
+ * Short on purpose. A session killed without `SessionEnd` (a closed lid, `kill -9`)
+ * reads as running for this long, and the reconcile sweep can't finalise it until it
+ * passes. Guessing too short costs little: a session that was only idle reads as
+ * `incomplete` until its next event, and if the sweep reconciled it meanwhile, that
+ * event reopens it (`reconciledThenResumed`).
  */
-export const DEFAULT_LIVE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
+export const DEFAULT_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2h
 
 export function loadConfig(): Config {
   return {
@@ -148,7 +154,7 @@ export function loadConfig(): Config {
   };
 }
 
-/** The configured "live" activity window (ms), falling back to the 24h default. */
+/** The configured "live" activity window (ms), falling back to the 2h default. */
 export function liveWindowMs(config: Config): number {
   const v = config.system.sessions?.liveWindowMs;
   return typeof v === "number" && v > 0 ? v : DEFAULT_LIVE_WINDOW_MS;

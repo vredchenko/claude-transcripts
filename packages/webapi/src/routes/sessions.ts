@@ -216,7 +216,8 @@ function aggregateToSummary(
   nowMs: number,
   windowMs: number,
 ): SessionSummary {
-  if (agg.summary) {
+  const status = sessionStatus(agg, nowMs, windowMs);
+  if (agg.summary && status === "ended") {
     const s = agg.summary;
     const bytes = s.transcript_bytes ?? 0;
     return {
@@ -241,7 +242,6 @@ function aggregateToSummary(
     };
   }
 
-  const status = sessionStatus(agg, nowMs, windowMs);
   return {
     sessionId,
     timestamp: agg.first || agg.last || "",
@@ -316,16 +316,35 @@ function orderKey(s: SessionSummary): string {
 }
 
 /**
- * `ended` with a summary; otherwise `running` while its last activity is inside the
- * live window, `incomplete` past it. The one place that rule lives — the list, the
- * detail route and the follower's reconcile sweep all ask it.
+ * Has activity been recorded after a reconciled summary? `reconcile` finalises a session
+ * that went quiet without `SessionEnd`, but going quiet is all the evidence there is —
+ * there's no heartbeat — so the session may only have been idle. When it resumes, its
+ * new events are later than the summary, and the session is running again, not ended.
+ * Its own `SessionEnd`, when it comes, replaces the reconciled summary. A summary the
+ * hook wrote is final: events after it (a straggling flush) don't reopen the session.
+ */
+export function reconciledThenResumed(
+  summary: { source?: string; timestamp?: string } | null | undefined,
+  lastActivity: string | undefined,
+): boolean {
+  if (summary?.source !== "reconcile") return false;
+  const endMs = Date.parse(summary.timestamp ?? "");
+  const lastMs = Date.parse(lastActivity ?? "");
+  return !Number.isNaN(endMs) && !Number.isNaN(lastMs) && lastMs > endMs;
+}
+
+/**
+ * `ended` with a summary, unless the summary was reconciled and the session has since
+ * resumed ({@link reconciledThenResumed}); otherwise `running` while its last activity is
+ * inside the live window, `incomplete` past it. The one place that rule lives — the
+ * list, the detail route, the turn tiers and the follower's reconcile sweep all ask it.
  */
 export function sessionStatus(
   agg: SessionAggregate,
   nowMs: number,
   windowMs: number,
 ): SessionStatus {
-  if (agg.summary) return "ended";
+  if (agg.summary && !reconciledThenResumed(agg.summary, agg.last)) return "ended";
   const last = agg.last || agg.first || "";
   const lastMs = last ? Date.parse(last) : Number.NaN;
   return Number.isNaN(lastMs) || nowMs - lastMs > windowMs ? "incomplete" : "running";
@@ -659,11 +678,17 @@ export function sessionRoutes(ctx: AppContext) {
     // Ended sessions: read the summary doc directly (full fidelity), enriched with
     // the aggregate's start time for duration.
     let summary: SessionSummary;
+    let doc: any = null;
     try {
-      const doc = await db.get(`summary:${id}`);
-      summary = docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0);
+      doc = await db.get(`summary:${id}`);
     } catch {
-      // Not ended — fall back to the live aggregate (running / incomplete).
+      // No summary: not ended.
+    }
+    if (doc && !reconciledThenResumed(doc, agg?.last)) {
+      summary = docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0);
+    } else {
+      // Not ended, or resumed since it was reconciled — the live aggregate (running /
+      // incomplete).
       if (!agg) return c.json({ error: "Session not found" }, 404);
       summary = aggregateToSummary(id, agg, Date.now(), liveWindowMs(ctx.config));
     }
