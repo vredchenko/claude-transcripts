@@ -261,8 +261,12 @@ export type ChunkEntryRole = "user" | "assistant" | "tool_result" | "system" | "
  * One parsed transcript turn inside a content chunk — a pruned projection of a JSONL
  * entry. Ordering is (chunk.byte_start, array position); no global index is stored,
  * so it stays consistent between live flushes and backfill.
+ *
+ * A type alias, not an interface, so it is assignable to the passthrough
+ * `ChunkEntrySchema`'s inferred type (`@claude-transcripts/shared/docs`), which carries
+ * an index signature; an interface never gets the implicit one.
  */
-export interface ChunkEntry {
+export type ChunkEntry = {
   role: ChunkEntryRole;
   timestamp?: string;
   /** Flattened text: assistant/user text blocks, or a tool_result's text. */
@@ -287,7 +291,7 @@ export interface ChunkEntry {
    * Absent on real conversation turns, whose `role` already says everything.
    */
   kind?: string;
-}
+};
 
 /** Flatten a message/tool_result content field to text (`onlyType` filters items). */
 function flattenEntryText(content: any, onlyType?: string): string {
