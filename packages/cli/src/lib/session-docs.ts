@@ -166,9 +166,8 @@ const clip = (s: string): string => (s.length > PREVIEW_LIMIT ? s.slice(0, PREVI
  * `PostToolUseFailure` per tool call (classified by the matching tool_result's
  * `is_error`).
  *
- * TODO(backfill #6/#7): `SubagentStart`/`SubagentStop` markers from `isSidechain`
- * groups + Task/Agent tool calls (agent_id/agent_type) — sidechain grouping is
- * non-trivial; `facts.hasSidechains` flags their presence. Not emitted yet.
+ * `SubagentStart`/`SubagentStop` markers, and the tool markers of subagent lines kept
+ * in their own files, come from `buildSubagentEventDocs` (subagents.ts).
  */
 export function buildEventDocs(
   jsonl: string,
