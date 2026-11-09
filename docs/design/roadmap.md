@@ -15,7 +15,9 @@ Tier 1 (capture, browse, search, export/import, one-command install) is built. O
 - **Two spellings of an absent transcript field.** `chunks/entries_by_session` emits
   `toolUses: null`, the S3 path omits the field, so consumers handle both. Converging
   them needs a view migration.
-- **Subagent sub-transcripts** are not captured by `backfill` (#6).
+- **Subagent transcripts** — a subagent's own `agent-<id>.jsonl` is not stored, by the
+  hook (`SubagentStop`'s `agent_transcript_path` is unread) or by `backfill`; only its
+  markers are ([tools.md](../operate/tools.md#subagents)).
 - **`upgrade` command** — upgrading is a manual binary swap
   ([installation.md](../start/installation.md#upgrading)).
 - **Claude Code compatibility generator** — still a placeholder

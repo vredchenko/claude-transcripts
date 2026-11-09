@@ -45,8 +45,11 @@
  * is a downgrade rather than a redo, and the destructive half runs before anything is
  * written, so a mistake is not recoverable from here.
  *
- * Chunk-doc reconstruction and subagent sub-transcripts are still TODO (see the
- * NOTE at the end + docs/operate/tools.md).
+ * Subagents are recorded as the live hook records them (lib/subagents.ts): a
+ * `SubagentStart`/`SubagentStop` marker pair each, plus the tool markers and tool counts
+ * of calls made inside them. A subagent's own transcript file is not stored — the live
+ * hook does not store it either — and sidechain lines with no agent id get no markers,
+ * since `agent_id` cannot be filled in; the run says how many there were.
  */
 import { hostname } from "node:os";
 import { isConnectionError, unreachableHint, webapiReachable, webapiUrl } from "../api/http";
@@ -54,6 +57,12 @@ import { parseFlags, strOpt } from "../lib/args";
 import { defaultProjectsDir, discoverTranscripts, readTranscript } from "../lib/claude-fs";
 import { buildChunkDocs, buildEventDocs, buildSummaryDoc } from "../lib/session-docs";
 import { DryRunSink, type ExistingSession, makeSink } from "../lib/sink";
+import {
+  buildSubagentEventDocs,
+  loadSubagents,
+  reconstructSubagents,
+  withSubagentTools,
+} from "../lib/subagents";
 import { deriveSessionFacts } from "../lib/transcript";
 
 /**
@@ -197,7 +206,11 @@ export async function runBackfill(argv: string[]): Promise<number> {
   let failed = 0;
   /** Failures that never got an answer from the webapi — the ones a URL hint can fix. */
   let unreachable = 0;
-  let sidechains = 0;
+  /** Subagents given markers, and how many sessions they came from. */
+  let subagents = 0;
+  let subagentSessions = 0;
+  /** Sidechain lines with no agent id — kept in the transcript, but no markers. */
+  let unattributed = 0;
   let reprocessed = 0;
   let refusedLive = 0;
   let repaired = 0;
@@ -266,16 +279,25 @@ export async function runBackfill(argv: string[]): Promise<number> {
         reprocessed++;
       }
       const jsonl = await readTranscript(t.path);
-      const facts = deriveSessionFacts(jsonl, { hostname: host, sessionIdHint: t.sessionId });
-      if (facts.hasSidechains) sidechains++;
+      const sub = reconstructSubagents(jsonl, await loadSubagents(t.subagents));
+      const facts = withSubagentTools(
+        deriveSessionFacts(jsonl, { hostname: host, sessionIdHint: t.sessionId }),
+        sub,
+      );
 
       await sink.putSummary(buildSummaryDoc(facts, "backfill", { actor, backfilledAt }));
-      await sink.putEvents(buildEventDocs(jsonl, facts, "backfill"));
+      await sink.putEvents([
+        ...buildEventDocs(jsonl, facts, "backfill"),
+        ...buildSubagentEventDocs(sub, facts, "backfill"),
+      ]);
       await sink.putChunks(
         buildChunkDocs(jsonl, facts, "backfill", maxEntriesPerChunk, withContent),
       );
       await sink.putTranscript(t.sessionId, new TextEncoder().encode(jsonl));
       written++;
+      subagents += sub.agents.length;
+      if (sub.agents.length) subagentSessions++;
+      unattributed += sub.unattributed;
     } catch (err) {
       failed++;
       if (isConnectionError(err)) unreachable++;
@@ -307,8 +329,21 @@ export async function runBackfill(argv: string[]): Promise<number> {
   if (written || repaired) {
     console.log(
       "backfill: NOTE — summary + per-event markers + chunk docs reconstructed" +
-        `${sidechains ? `; subagent sub-transcripts (${sidechains} session(s) have them) still TODO` : ""}` +
+        `${subagents ? `; ${subagents} subagent(s) in ${subagentSessions} session(s) got SubagentStart/SubagentStop markers` : ""}` +
         " (see docs/operate/tools.md).",
+    );
+  }
+  if (subagents) {
+    console.log(
+      "backfill: a subagent's own transcript file is not stored (the live hook does not " +
+        "store it either); its tool calls are recorded as event markers.",
+    );
+  }
+  if (unattributed) {
+    console.warn(
+      `backfill: ${unattributed} subagent line(s) carry no agent id (older Claude Code) — ` +
+        "they stay in the transcript, but no SubagentStart/SubagentStop markers could be " +
+        "written for them.",
     );
   }
   if (reprocessed && !dryRun) {
