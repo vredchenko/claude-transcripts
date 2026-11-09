@@ -46,11 +46,25 @@ export interface SessionFacts {
   model?: string;
   startTimestamp?: string;
   endTimestamp?: string;
-  /** assistant+user turns — TODO: align with the hook's event-count semantics */
+  /**
+   * What the live hook's `event_count` would have reached for this transcript: one per
+   * hook payload that runs `update-counts` — `UserPromptSubmit`, `PostToolUse`,
+   * `PostToolUseFailure`, `SubagentStart`/`SubagentStop` and `StopFailure`
+   * (`SessionStart`, `Stop`, the compaction events and `SessionEnd` are recorded but
+   * not counted). From a transcript that is `promptCount` + one per answered tool call.
+   * Subagent lifecycle and `StopFailure` leave no reliable trace in the file and are
+   * not counted, so a backfilled count can read lower than a live one, never higher.
+   */
   eventCount: number;
+  /** Prompts the user submitted — what `UserPromptSubmit` fires for (see `isUserPrompt`). */
   promptCount: number;
-  /** TODO: count tool_result is_error / PostToolUseFailure-equivalents */
+  /**
+   * The `PostToolUseFailure` equivalents: tool results with `is_error: true` (failed,
+   * rejected or interrupted tool calls). `StopFailure` is not derivable, so not counted.
+   */
   errorCount: number;
+  /** Successful (`PostToolUse`) tool calls by tool name — failures are not counted here,
+   *  as in the hook's `tool_counts`. */
   toolCounts: Record<string, number>;
   tokenUsage: TokenUsage;
   transcriptBytes: number;
@@ -71,20 +85,39 @@ export function deriveSessionFacts(jsonl: string, opts: DeriveOpts = {}): Sessio
   const last = main[main.length - 1];
   const firstAssistant = main.find((e) => e.type === "assistant");
 
+  // A tool call fires a Post* hook only once its result is back, so tool calls are
+  // counted by their results: `is_error` ⇒ PostToolUseFailure, otherwise PostToolUse.
+  const results = new Map<string, boolean>(); // tool_use_id → is_error
+  for (const e of main) {
+    const content = e.message?.content;
+    if (e.type !== "user" || !Array.isArray(content)) continue;
+    for (const item of content) {
+      if (item?.type === "tool_result" && typeof item.tool_use_id === "string") {
+        results.set(item.tool_use_id, item.is_error === true);
+      }
+    }
+  }
+
   const toolCounts: Record<string, number> = {};
+  const seenToolUses = new Set<string>();
   let promptCount = 0;
+  let toolCalls = 0;
+  let errorCount = 0;
   for (const e of main) {
     const content = e.message?.content;
     if (e.type === "assistant" && Array.isArray(content)) {
       for (const item of content) {
-        if (item?.type === "tool_use" && typeof item.name === "string") {
-          toolCounts[item.name] = (toolCounts[item.name] ?? 0) + 1;
-        }
+        if (item?.type !== "tool_use" || typeof item.name !== "string") continue;
+        if (typeof item.id !== "string" || seenToolUses.has(item.id)) continue;
+        seenToolUses.add(item.id);
+        const isError = results.get(item.id);
+        if (isError === undefined) continue; // never answered — no Post* hook fired
+        toolCalls++;
+        if (isError) errorCount++;
+        else toolCounts[item.name] = (toolCounts[item.name] ?? 0) + 1;
       }
     }
-    if (e.type === "user" && e.isSidechain !== true && isRealPrompt(content)) {
-      promptCount++;
-    }
+    if (isUserPrompt(e)) promptCount++;
   }
 
   return {
@@ -96,9 +129,9 @@ export function deriveSessionFacts(jsonl: string, opts: DeriveOpts = {}): Sessio
     model: firstAssistant?.message?.model,
     startTimestamp: first?.timestamp,
     endTimestamp: last?.timestamp,
-    eventCount: main.length,
+    eventCount: promptCount + toolCalls,
     promptCount,
-    errorCount: 0,
+    errorCount,
     toolCounts,
     tokenUsage: sumTranscriptTokens(jsonl),
     transcriptBytes: new TextEncoder().encode(jsonl).length,
@@ -106,12 +139,27 @@ export function deriveSessionFacts(jsonl: string, opts: DeriveOpts = {}): Sessio
   };
 }
 
-/** A real user prompt (text), not a tool_result echoed back as a user turn. */
-function isRealPrompt(content: unknown): boolean {
-  if (typeof content === "string") return content.trim().length > 0;
-  if (Array.isArray(content)) {
-    // `any`: upstream-owned content items.
-    return content.some((c: any) => c?.type === "text");
-  }
-  return false;
+/**
+ * A prompt the user submitted — what fires `UserPromptSubmit`: a main-chain user turn
+ * carrying text. Not a tool_result echoed back as a user turn, a subagent's (sidechain)
+ * prompt, a line Claude Code injects itself (`isMeta`, the compaction summary), or the
+ * "[Request interrupted by user…]" marker it appends on an interrupt.
+ */
+export function isUserPrompt(e: TranscriptEntry): boolean {
+  if (e.type !== "user" || e.isSidechain === true) return false;
+  if (e.isMeta === true || e.isCompactSummary === true) return false;
+  const text = promptText(e.message?.content).trim();
+  return text.length > 0 && !INTERRUPT_MARKER.test(text);
+}
+
+const INTERRUPT_MARKER = /^\[Request interrupted by user[^\]]*\]$/;
+
+function promptText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  // `any`: upstream-owned content items.
+  return content
+    .filter((c: any) => c?.type === "text" && typeof c.text === "string")
+    .map((c: any) => c.text)
+    .join("");
 }
