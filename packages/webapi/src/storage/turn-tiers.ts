@@ -8,7 +8,8 @@
  * small on a deployment with the reconcile sweep switched off: a crashed session would
  * otherwise sit in it for good. A session that went quiet and then resumes is live
  * again; one resumed after its summary was written stays archived, and its new turns
- * join the archive on the next pass. Turn ids are stable, so moving a session twice
+ * join the archive on the next pass — unless that summary was only reconciled, in which
+ * case the session is running again and goes back to the live index. Turn ids are stable, so moving a session twice
  * replaces rather than duplicates.
  */
 import type { SessionAggregate } from "@claude-transcripts/shared";

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AppContext } from "../context";
-import { sessionRoutes } from "./sessions";
+import { reconciledThenResumed, sessionRoutes, sessionStatus } from "./sessions";
 
 type Key = unknown[];
 type Row = { key: Key; value: unknown };
@@ -133,6 +133,10 @@ describe("GET /sessions?status=", () => {
     { key: "running", value: agg(ago(1)) },
     { key: "incomplete", value: agg(ago(48)) },
   ];
+  const reconciled = (at: number, last: number) => ({
+    ...agg(ago(last), { event_count: 3, timestamp: ago(at), source: "reconcile" }),
+    first: ago(at + 1),
+  });
   const ctx = {
     couch: { db: () => ({ view: async () => ({ rows: [] }) }) },
     sessionIndex: { ready: true, rows: () => rows },
@@ -147,8 +151,62 @@ describe("GET /sessions?status=", () => {
     expect(body.totalCount).toBe(1);
   });
 
+  test("a reconciled session that resumed lists as running, not ended", async () => {
+    const app2 = sessionRoutes({
+      ...ctx,
+      sessionIndex: {
+        ready: true,
+        rows: () => [
+          { key: "resumed", value: reconciled(5, 0.1) },
+          { key: "finalised", value: reconciled(5, 5) },
+        ],
+      },
+    } as unknown as AppContext);
+    const res = await app2.fetch(new Request("http://localhost/sessions"));
+    const body = (await res.json()) as any;
+    const by = Object.fromEntries(body.sessions.map((s: any) => [s.sessionId, s]));
+    expect(by.resumed.status).toBe("running");
+    expect(by.resumed.endReason).toBe("running");
+    expect(by.finalised.status).toBe("ended");
+    expect(by.finalised.source).toBe("reconcile");
+  });
+
   test("rejects a status that doesn't exist", async () => {
     const res = await app.fetch(new Request("http://localhost/sessions?status=crashed"));
     expect(res.status).toBe(400);
+  });
+});
+
+describe("sessionStatus", () => {
+  const now = Date.parse("2026-11-09T12:00:00Z");
+  const ago = (h: number) => new Date(now - h * 3600_000).toISOString();
+  const window = 2 * 3600_000;
+  const agg = (last: string, summary: object | null = null) =>
+    ({ last, first: last, summary }) as any;
+
+  test("quiet past the window without SessionEnd reads as incomplete", () => {
+    // The #272 case: no SessionEnd, last event ~23.5h ago.
+    expect(sessionStatus(agg(ago(23.5)), now, window)).toBe("incomplete");
+    expect(sessionStatus(agg(ago(1)), now, window)).toBe("running");
+  });
+
+  test("a hook-written summary is final, even with later events", () => {
+    const s = { timestamp: ago(3), source: "live" };
+    expect(sessionStatus(agg(ago(1), s), now, window)).toBe("ended");
+  });
+
+  test("a reconciled summary holds until the session records more activity", () => {
+    const s = { timestamp: ago(5), source: "reconcile" };
+    expect(sessionStatus(agg(ago(5), s), now, window)).toBe("ended");
+    expect(sessionStatus(agg(ago(0.1), s), now, window)).toBe("running");
+    expect(sessionStatus(agg(ago(3), s), now, window)).toBe("incomplete");
+  });
+
+  test("reconciledThenResumed compares instants, not strings", () => {
+    const s = { timestamp: "2026-11-09T10:00:00Z", source: "reconcile" };
+    expect(reconciledThenResumed(s, "2026-11-09T10:00:00.000Z")).toBe(false);
+    expect(reconciledThenResumed(s, "2026-11-09T10:00:00.001Z")).toBe(true);
+    expect(reconciledThenResumed(s, "")).toBe(false);
+    expect(reconciledThenResumed(null, "2026-11-09T11:00:00Z")).toBe(false);
   });
 });

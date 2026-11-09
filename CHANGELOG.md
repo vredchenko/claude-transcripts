@@ -6,6 +6,20 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A session killed without `SessionEnd` no longer reads as `running` for a day.**
+  The default `system.sessions.liveWindowMs` drops from 24 h to 2 h, so a closed lid
+  or a `kill -9` shows as `incomplete` within two hours, and the reconcile sweep
+  finalises it soon after ([#272]). **Upgrading:** `config/config.json` copied from an
+  older template still says `86400000`; lower it to `7200000` to pick this up.
+- **A reconciled session that resumes reads as `running` again.** A session that was
+  only idle could be reconciled while it was quiet. Its next event now reopens it
+  until its own `SessionEnd` replaces the reconciled summary. A summary written by the
+  hook stays final.
+
 ## [0.9.0] — 2026-11-05
 
 A minor release about shipping. The stack now comes as one omnibus container and as
@@ -2026,6 +2040,7 @@ of them had ever executed:
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#272]: https://github.com/vredchenko/claude-transcripts/issues/272
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
 [0.9.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.9.0
 [0.8.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.8.0

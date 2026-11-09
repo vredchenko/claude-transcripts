@@ -70,8 +70,9 @@ Boot never waits for the stores, so the webapi comes up even when they are broke
 ### Session list
 
 Rows come from the `session_index/aggregate` view, one per `session_id`. A session with
-a `summary` doc is `ended`; otherwise `running` if its last event is within
-`system.sessions.liveWindowMs` (24 h), else `incomplete`. Filters (`cwd`, `model`,
+a `summary` doc is `ended` (unless the summary was reconciled and events have arrived
+since); otherwise `running` if its last event is within
+`system.sessions.liveWindowMs` (2 h), else `incomplete`. Filters (`cwd`, `model`,
 `hostname`, `source`, `status` exact; `from`/`to` by overlap) apply before paging, and
 `totalCount` is the filtered count. Each row carries `activeMs`: the session's span
 minus gaps longer than `idleThresholdMs`, from `session_index/event_times`.

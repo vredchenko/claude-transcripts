@@ -76,8 +76,9 @@ technologies: [database-choice.md](database-choice.md).
    the webapi's change follower runs `claude-transcripts reconcile` on it, which writes
    the missing summary from the recorded events ([tools.md](../operate/tools.md#reconcile)).
 
-Status is derived: `ended` once the summary exists, otherwise `running` within
-`system.sessions.liveWindowMs` (24 h) of its last activity and `incomplete` after.
+Status is derived: `ended` once the summary exists (unless it was reconciled and the
+session has recorded activity since), otherwise `running` within
+`system.sessions.liveWindowMs` (2 h) of its last activity and `incomplete` after.
 Active duration excludes gaps longer than `system.sessions.idleThresholdMs` (5 min).
 
 ## Tiers
