@@ -14,6 +14,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   the omnibus builds `gh` with, so its binary carries the current standard library's
   fixes ([#285]).
 
+### Changed
+
+- **Pull requests scan the omnibus image** with the same gate a release uses, so a
+  finding that would stop the release shows up on the PR instead of after the tag
+  ([#286]).
+
 ## [0.10.1] — 2026-11-13
 
 A patch release for the omnibus image, which 0.10.0 couldn't publish: it failed the
@@ -2100,6 +2106,7 @@ of them had ever executed:
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283
 [#282]: https://github.com/vredchenko/claude-transcripts/pull/282
