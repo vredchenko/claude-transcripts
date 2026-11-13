@@ -6,6 +6,14 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The Garage web UI is built with Go 1.27.4** (was 1.27.3), the same pinned Go image
+  the omnibus builds `gh` with, so its binary carries the current standard library's
+  fixes ([#285]).
+
 ## [0.10.1] — 2026-11-13
 
 A patch release for the omnibus image, which 0.10.0 couldn't publish: it failed the
@@ -2092,6 +2100,7 @@ of them had ever executed:
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283
 [#282]: https://github.com/vredchenko/claude-transcripts/pull/282
 [#272]: https://github.com/vredchenko/claude-transcripts/issues/272
