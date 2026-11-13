@@ -18,32 +18,449 @@ export const EMBEDDED_ASSETS = {
   compose: {
     path: "deploy/docker-compose.yml",
     source: "deploy/docker-compose.yml",
-    content: "# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose.ts.\n# Do NOT edit by hand — run `bun run gen:compose` to regenerate, and change the blueprint\n# (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.\n# See docs/operate/containers.md.\n#\n# Claude Transcripts — backing services + app.\n#\n#   Dev    : bun run scripts/stack.ts up          → backing services only.\n#                                                    Run webapi/webui/cli on the HOST.\n#   Deploy : bun run scripts/stack.ts up --app    → also runs the app container.\n#\n# The runner reads the repo-root .env — the SAME file the host-run webapi/webui use —\n# and passes it to compose, so ports, credentials and image refs are defined once and\n# stay coherent across host dev and the stack. App config (names, feature flags) lives\n# in config/: baked into the app image AND read by the host app.\n#\n# Images are PULLED from GHCR (${IMAGE_NS}); mirror/publish them with\n# scripts/mirror-images.ts (backing) and the publish-image workflow (app). The bundled\n# stack runs with NO AUTH for app access (ADR 0020), localhost only; Garage's internal\n# cluster secrets still come from .env. CouchDB 3 removed \"admin party\", so it ships a\n# fixed default admin (admin/admin) — override in .env for anything exposed.\n#\n# The app container pins WEBAPI_PORT=7650 (its INTERNAL port) because env_file would\n# otherwise hand it the host-side port and it would bind there, leaving nothing on the\n# port `ports:` publishes.\n#\n# State is bind-mounted to ./data/* (deploy/data, gitignored) so it lives in-repo and is\n# easy to inspect or wipe.\n\nname: claude-transcripts\nservices:\n  couchdb:\n    image: ${IMAGE_NS}/claude-transcripts-couchdb:${COUCHDB_TAG:-3}\n    container_name: claude-transcripts-couchdb\n    environment:\n      - COUCHDB_USER=${COUCHDB_USER:-admin}\n      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD:-admin}\n    ports:\n      - 127.0.0.1:${COUCHDB_PORT:-7652}:5984\n    volumes:\n      - ./data/couchdb:/opt/couchdb/data\n    healthcheck:\n      test:\n        - CMD\n        - curl\n        - -f\n        - http://localhost:5984/_up\n      interval: 30s\n      timeout: 10s\n      retries: 3\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\n  garage:\n    image: ${IMAGE_NS}/claude-transcripts-garage:${GARAGE_TAG:-v2.3.0}\n    container_name: claude-transcripts-garage\n    environment:\n      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}\n      - GARAGE_ADMIN_TOKEN=${GARAGE_ADMIN_TOKEN}\n      - GARAGE_METRICS_TOKEN=${GARAGE_METRICS_TOKEN}\n    ports:\n      - 127.0.0.1:${GARAGE_S3_PORT:-7653}:3900\n      - 127.0.0.1:${GARAGE_ADMIN_PORT:-7654}:3903\n    volumes:\n      - ./data/garage/meta:/var/lib/garage/meta\n      - ./data/garage/data:/var/lib/garage/data\n      - ./garage.toml:/etc/garage.toml:ro\n    healthcheck:\n      test:\n        - CMD\n        - /garage\n        - status\n      interval: 30s\n      timeout: 10s\n      retries: 3\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\n  garage-ui:\n    image: ${IMAGE_NS}/claude-transcripts-garage-ui:${GARAGE_UI_TAG:-1.1.0}\n    container_name: claude-transcripts-garage-ui\n    depends_on:\n      - garage\n    environment:\n      - API_BASE_URL=http://garage:3903\n      - API_ADMIN_KEY=${GARAGE_ADMIN_TOKEN}\n      - S3_ENDPOINT_URL=http://garage:3900\n      - S3_REGION=garage\n    ports:\n      - 127.0.0.1:${GARAGE_WEBUI_PORT:-7655}:3909\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\n  fossil:\n    image: ${IMAGE_NS}/claude-transcripts-fossil:${FOSSIL_TAG:-2.28}\n    container_name: claude-transcripts-fossil\n    environment:\n      - FOSSIL_REPOSITORIES=${FOSSIL_REPOSITORIES:-claude-transcripts-sessions}\n    ports:\n      - 127.0.0.1:${FOSSIL_PORT:-7658}:8080\n    volumes:\n      - ./data/fossil:/museum\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\n  meilisearch:\n    image: ${IMAGE_NS}/claude-transcripts-meilisearch:${MEILI_TAG:-v1.10}\n    container_name: claude-transcripts-meilisearch\n    environment:\n      - MEILI_ENV=development\n    ports:\n      - 127.0.0.1:${MEILI_PORT:-7656}:7700\n    volumes:\n      - ./data/meilisearch:/meili_data\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\n  meilisearch-ui:\n    image: ${IMAGE_NS}/claude-transcripts-meilisearch-ui:${MEILI_UI_TAG:-v0.14.1}\n    container_name: claude-transcripts-meilisearch-ui\n    depends_on:\n      - meilisearch\n    ports:\n      - 127.0.0.1:${MEILI_UI_PORT:-7657}:24900\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\n  app:\n    profiles:\n      - app\n    image: ${IMAGE_NS}/claude-transcripts-app:${APP_TAG:-latest}\n    container_name: claude-transcripts-app\n    depends_on:\n      - couchdb\n      - garage\n      - meilisearch\n      - fossil\n    env_file: ../.env\n    environment:\n      - WEBAPI_HOST=0.0.0.0\n      - WEBAPI_PORT=7650\n      - COUCHDB_URL=http://couchdb:5984\n      - S3_ENDPOINT=http://garage:3900\n      - MEILI_HOST=http://meilisearch:7700\n      - FOSSIL_URL=http://fossil:8080\n    ports:\n      - 127.0.0.1:${WEBAPI_PORT:-7650}:7650\n    restart: unless-stopped\n    networks:\n      - claude-transcripts\nnetworks:\n  claude-transcripts:\n    name: claude-transcripts-network\n    driver: bridge\n",
+    content: `# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose.ts.
+# Do NOT edit by hand — run \`bun run gen:compose\` to regenerate, and change the blueprint
+# (packages/shared/src/blueprint/services.ts) instead. Inline edits here are lost silently.
+# See docs/operate/containers.md.
+#
+# Claude Transcripts — backing services + app.
+#
+#   Dev    : bun run scripts/stack.ts up          → backing services only.
+#                                                    Run webapi/webui/cli on the HOST.
+#   Deploy : bun run scripts/stack.ts up --app    → also runs the app container.
+#
+# The runner reads the repo-root .env — the SAME file the host-run webapi/webui use —
+# and passes it to compose, so ports, credentials and image refs are defined once and
+# stay coherent across host dev and the stack. App config (names, feature flags) lives
+# in config/: baked into the app image AND read by the host app.
+#
+# Images are PULLED from GHCR (\${IMAGE_NS}); mirror/publish them with
+# scripts/mirror-images.ts (backing) and the publish-image workflow (app). The bundled
+# stack runs with NO AUTH for app access (ADR 0020), localhost only; Garage's internal
+# cluster secrets still come from .env. CouchDB 3 removed "admin party", so it ships a
+# fixed default admin (admin/admin) — override in .env for anything exposed.
+#
+# The app container pins WEBAPI_PORT=7650 (its INTERNAL port) because env_file would
+# otherwise hand it the host-side port and it would bind there, leaving nothing on the
+# port \`ports:\` publishes.
+#
+# State is bind-mounted to ./data/* (deploy/data, gitignored) so it lives in-repo and is
+# easy to inspect or wipe.
+
+name: claude-transcripts
+services:
+  couchdb:
+    image: \${IMAGE_NS}/claude-transcripts-couchdb:\${COUCHDB_TAG:-3}
+    container_name: claude-transcripts-couchdb
+    environment:
+      - COUCHDB_USER=\${COUCHDB_USER:-admin}
+      - COUCHDB_PASSWORD=\${COUCHDB_PASSWORD:-admin}
+    ports:
+      - 127.0.0.1:\${COUCHDB_PORT:-7652}:5984
+    volumes:
+      - ./data/couchdb:/opt/couchdb/data
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:5984/_up
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+  garage:
+    image: \${IMAGE_NS}/claude-transcripts-garage:\${GARAGE_TAG:-v2.3.0}
+    container_name: claude-transcripts-garage
+    environment:
+      - GARAGE_RPC_SECRET=\${GARAGE_RPC_SECRET}
+      - GARAGE_ADMIN_TOKEN=\${GARAGE_ADMIN_TOKEN}
+      - GARAGE_METRICS_TOKEN=\${GARAGE_METRICS_TOKEN}
+    ports:
+      - 127.0.0.1:\${GARAGE_S3_PORT:-7653}:3900
+      - 127.0.0.1:\${GARAGE_ADMIN_PORT:-7654}:3903
+    volumes:
+      - ./data/garage/meta:/var/lib/garage/meta
+      - ./data/garage/data:/var/lib/garage/data
+      - ./garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test:
+        - CMD
+        - /garage
+        - status
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+  garage-ui:
+    image: \${IMAGE_NS}/claude-transcripts-garage-ui:\${GARAGE_UI_TAG:-1.1.0}
+    container_name: claude-transcripts-garage-ui
+    depends_on:
+      - garage
+    environment:
+      - API_BASE_URL=http://garage:3903
+      - API_ADMIN_KEY=\${GARAGE_ADMIN_TOKEN}
+      - S3_ENDPOINT_URL=http://garage:3900
+      - S3_REGION=garage
+    ports:
+      - 127.0.0.1:\${GARAGE_WEBUI_PORT:-7655}:3909
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+  fossil:
+    image: \${IMAGE_NS}/claude-transcripts-fossil:\${FOSSIL_TAG:-2.28}
+    container_name: claude-transcripts-fossil
+    environment:
+      - FOSSIL_REPOSITORIES=\${FOSSIL_REPOSITORIES:-claude-transcripts-sessions}
+    ports:
+      - 127.0.0.1:\${FOSSIL_PORT:-7658}:8080
+    volumes:
+      - ./data/fossil:/museum
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+  meilisearch:
+    image: \${IMAGE_NS}/claude-transcripts-meilisearch:\${MEILI_TAG:-v1.10}
+    container_name: claude-transcripts-meilisearch
+    environment:
+      - MEILI_ENV=development
+    ports:
+      - 127.0.0.1:\${MEILI_PORT:-7656}:7700
+    volumes:
+      - ./data/meilisearch:/meili_data
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+  meilisearch-ui:
+    image: \${IMAGE_NS}/claude-transcripts-meilisearch-ui:\${MEILI_UI_TAG:-v0.14.1}
+    container_name: claude-transcripts-meilisearch-ui
+    depends_on:
+      - meilisearch
+    ports:
+      - 127.0.0.1:\${MEILI_UI_PORT:-7657}:24900
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+  app:
+    profiles:
+      - app
+    image: \${IMAGE_NS}/claude-transcripts-app:\${APP_TAG:-latest}
+    container_name: claude-transcripts-app
+    depends_on:
+      - couchdb
+      - garage
+      - meilisearch
+      - fossil
+    env_file: ../.env
+    environment:
+      - WEBAPI_HOST=0.0.0.0
+      - WEBAPI_PORT=7650
+      - COUCHDB_URL=http://couchdb:5984
+      - S3_ENDPOINT=http://garage:3900
+      - MEILI_HOST=http://meilisearch:7700
+      - FOSSIL_URL=http://fossil:8080
+    ports:
+      - 127.0.0.1:\${WEBAPI_PORT:-7650}:7650
+    restart: unless-stopped
+    networks:
+      - claude-transcripts
+networks:
+  claude-transcripts:
+    name: claude-transcripts-network
+    driver: bridge
+`,
   },
   composeUpstream: {
     path: "deploy/docker-compose.upstream.yml",
     source: "deploy/docker-compose.upstream.yml",
-    content: "# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose-override.ts.\n# Do NOT edit by hand — run `bun run gen:compose-override` to regenerate.\n#\n# Upstream-image dev override: pins each mirrored backing service to its canonical\n# public image so a fresh clone needs NO registry / mirror. Layer it over the\n# base compose (later -f wins):\n#\n#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.upstream.yml up\n#   bun run scripts/stack.ts up --upstream        # the runner does this for you\n#\n# Tags still come from .env (COUCHDB_TAG, GARAGE_TAG, …). Override an image here by\n# changing its `upstream` in packages/shared/src/blueprint/services.ts. The community\n# admin-UI images are best-effort; swap them if your registry differs.\n\nname: claude-transcripts\nservices:\n  couchdb:\n    image: couchdb:${COUCHDB_TAG:-3}\n  garage:\n    image: dxflrs/garage:${GARAGE_TAG:-v2.3.0}\n  garage-ui:\n    image: khairul169/garage-webui:${GARAGE_UI_TAG:-1.1.0}\n  fossil:\n    image: claude-transcripts-fossil:${FOSSIL_TAG:-2.28}-local\n    build:\n      context: ./fossil\n  meilisearch:\n    image: getmeili/meilisearch:${MEILI_TAG:-v1.10}\n  meilisearch-ui:\n    image: riccoxie/meilisearch-ui:${MEILI_UI_TAG:-v0.14.1}\n",
+    content: `# GENERATED from the blueprint (@claude-transcripts/shared) by scripts/gen-compose-override.ts.
+# Do NOT edit by hand — run \`bun run gen:compose-override\` to regenerate.
+#
+# Upstream-image dev override: pins each mirrored backing service to its canonical
+# public image so a fresh clone needs NO registry / mirror. Layer it over the
+# base compose (later -f wins):
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.upstream.yml up
+#   bun run scripts/stack.ts up --upstream        # the runner does this for you
+#
+# Tags still come from .env (COUCHDB_TAG, GARAGE_TAG, …). Override an image here by
+# changing its \`upstream\` in packages/shared/src/blueprint/services.ts. The community
+# admin-UI images are best-effort; swap them if your registry differs.
+
+name: claude-transcripts
+services:
+  couchdb:
+    image: couchdb:\${COUCHDB_TAG:-3}
+  garage:
+    image: dxflrs/garage:\${GARAGE_TAG:-v2.3.0}
+  garage-ui:
+    image: khairul169/garage-webui:\${GARAGE_UI_TAG:-1.1.0}
+  fossil:
+    image: claude-transcripts-fossil:\${FOSSIL_TAG:-2.28}-local
+    build:
+      context: ./fossil
+  meilisearch:
+    image: getmeili/meilisearch:\${MEILI_TAG:-v1.10}
+  meilisearch-ui:
+    image: riccoxie/meilisearch-ui:\${MEILI_UI_TAG:-v0.14.1}
+`,
   },
   garageToml: {
     path: "deploy/garage.toml",
     source: "deploy/garage.toml",
-    content: "# Garage (S3) — single-node config for the bundled stack. Mounted read-only at\n# /etc/garage.toml. Secret-free on purpose: rpc_secret / admin_token /\n# metrics_token are supplied via the GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN /\n# GARAGE_METRICS_TOKEN env vars (see docker-compose.yml + the repo .env), so this\n# file can live in git. Generate the secrets with: openssl rand -hex 32.\n\nmetadata_dir = \"/var/lib/garage/meta\"\ndata_dir = \"/var/lib/garage/data\"\ndb_engine = \"lmdb\"\n\nreplication_factor = 1\n\n# IPv4 wildcard binds, not \"[::]\". A \"[::]\" bind makes Garage panic at start on a host\n# whose kernel has IPv6 disabled (ipv6.disable=1), and inside a container or pod 0.0.0.0\n# already reaches everything the stack needs. On an IPv6-only network, change these\n# three to \"[::]:<port>\".\nrpc_bind_addr = \"0.0.0.0:3901\"\nrpc_public_addr = \"127.0.0.1:3901\"\n\n[s3_api]\ns3_region = \"garage\"\napi_bind_addr = \"0.0.0.0:3900\"\n\n[admin]\napi_bind_addr = \"0.0.0.0:3903\"\n",
+    content: `# Garage (S3) — single-node config for the bundled stack. Mounted read-only at
+# /etc/garage.toml. Secret-free on purpose: rpc_secret / admin_token /
+# metrics_token are supplied via the GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN /
+# GARAGE_METRICS_TOKEN env vars (see docker-compose.yml + the repo .env), so this
+# file can live in git. Generate the secrets with: openssl rand -hex 32.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+
+replication_factor = 1
+
+# IPv4 wildcard binds, not "[::]". A "[::]" bind makes Garage panic at start on a host
+# whose kernel has IPv6 disabled (ipv6.disable=1), and inside a container or pod 0.0.0.0
+# already reaches everything the stack needs. On an IPv6-only network, change these
+# three to "[::]:<port>".
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
+`,
   },
   fossilDockerfile: {
     path: "deploy/fossil/Dockerfile",
     source: "deploy/fossil/Dockerfile",
-    content: "# Fossil SCM — built from the official release source (https://fossil-scm.org).\n#\n# Fossil publishes no container image, only a Dockerfile in its source tree\n# (www/containers.md). This is that file's recipe, pinned to a release instead of\n# trunk and verified by checksum: a static, musl-linked binary on an empty base, so\n# the image holds Fossil and nothing else. Hand-maintained (NOT generated); its\n# version must equal the `fossil` service's `defaultTag` in\n# packages/shared/src/blueprint/services.ts — a test holds the two together.\n#\n# Build context is this directory, and only entrypoint.sh is COPY'd from it, so the\n# image builds the same from a repo checkout, a user install (which ships both files),\n# or CI.\n#\n# To bump: take the release's tarball link from https://fossil-scm.org/home/uv/download.html,\n# set FOSSIL_VERSION / FOSSIL_CHECKIN / FOSSIL_SHA256, and the blueprint's defaultTag.\n\n## ── build: a static Fossil binary ─────────────────────────────────────────\nFROM alpine:3.22 AS build\nRUN apk add --no-cache gcc make linux-headers musl-dev \\\n      openssl-dev openssl-libs-static zlib-dev zlib-static\nARG FOSSIL_VERSION=2.28\n# The release check-in (`fossil version` prints its prefix) and the sha256 of the\n# tarball fossil-scm.org serves for it.\nARG FOSSIL_CHECKIN=52445a27f116603d784ad753c6acd494e0b02aeaf8502ee0fee0aa30030f4c4e\nARG FOSSIL_SHA256=84c18824ca227e7602d2408b663c3747f754ad306ed5c73ddab959d6589538a6\nWORKDIR /fsl\nADD --checksum=sha256:${FOSSIL_SHA256} \\\n    https://fossil-scm.org/home/tarball/${FOSSIL_CHECKIN}/fossil-src-${FOSSIL_VERSION}.tar.gz \\\n    src.tar.gz\nRUN tar -xzf src.tar.gz --strip-components=1 \\\n  && ./configure --static --json CFLAGS='-Os -s' \\\n  && make -j\"$(nproc)\" \\\n  && ./fossil version | grep -q \"version ${FOSSIL_VERSION} \"\n\n## ── os: the few files a scratch image still needs ─────────────────────────\n# The musl variant: a static busybox, so the one binary runs on `scratch`.\nFROM busybox:1.37-musl AS os\nRUN mkdir -p /e /museum \\\n  && echo \"root:x:0:0:Admin:/:/false\" > /e/passwd \\\n  && echo \"root:x:0:root\" > /e/group\n\n## ── run ───────────────────────────────────────────────────────────────────\nFROM scratch\nCOPY --from=build --chmod=755 /fsl/fossil /bin/fossil\nCOPY --from=os /e/passwd /e/group /etc/\nCOPY --from=os --chmod=1777 /tmp /tmp/\nCOPY --from=os /museum /museum/\n# Only for the seed script (entrypoint.sh): one static binary, no applet links.\nCOPY --from=os /bin/busybox /bin/busybox\nCOPY --chmod=755 entrypoint.sh /bin/fossil-entrypoint\nENV PATH=/bin\nEXPOSE 8080/tcp\n# Runs as root, unlike upstream's image (a fixed UID 499). The repo lives on a\n# bind mount or volume created by whoever runs the stack, and a fixed UID can't write\n# to a directory it doesn't own. Fossil handles root itself: serving a repository\n# file owned by a non-root user, it chroots into the repo's directory and drops to\n# that user (`chown` the repo to opt in). See https://fossil-scm.org/home/help/server.\n# Seeds the repositories named in FOSSIL_REPOSITORIES (from `fossil.repositories` in\n# config/), then execs `fossil server` with CMD — see entrypoint.sh.\nENTRYPOINT [\"/bin/busybox\", \"sh\", \"/bin/fossil-entrypoint\"]\n# Serve the directory, not a file: every `<name>.fossil` in /museum is served at\n# /<name>/, and \"/\" lists them. Not upstream's `--create`, which makes a generic\n# repository with a generated admin login; ours are made by the seed.\n# --jsmode bundled: one JS file, fewer requests.\nCMD [\"--repolist\", \"--jsmode\", \"bundled\", \"/museum\"]\n",
+    content: `# Fossil SCM — built from the official release source (https://fossil-scm.org).
+#
+# Fossil publishes no container image, only a Dockerfile in its source tree
+# (www/containers.md). This is that file's recipe, pinned to a release instead of
+# trunk and verified by checksum: a static, musl-linked binary on an empty base, so
+# the image holds Fossil and nothing else. Hand-maintained (NOT generated); its
+# version must equal the \`fossil\` service's \`defaultTag\` in
+# packages/shared/src/blueprint/services.ts — a test holds the two together.
+#
+# Build context is this directory, and only entrypoint.sh is COPY'd from it, so the
+# image builds the same from a repo checkout, a user install (which ships both files),
+# or CI.
+#
+# To bump: take the release's tarball link from https://fossil-scm.org/home/uv/download.html,
+# set FOSSIL_VERSION / FOSSIL_CHECKIN / FOSSIL_SHA256, and the blueprint's defaultTag.
+
+## ── build: a static Fossil binary ─────────────────────────────────────────
+FROM alpine:3.22 AS build
+RUN apk add --no-cache gcc make linux-headers musl-dev \\
+      openssl-dev openssl-libs-static zlib-dev zlib-static
+ARG FOSSIL_VERSION=2.28
+# The release check-in (\`fossil version\` prints its prefix) and the sha256 of the
+# tarball fossil-scm.org serves for it.
+ARG FOSSIL_CHECKIN=52445a27f116603d784ad753c6acd494e0b02aeaf8502ee0fee0aa30030f4c4e
+ARG FOSSIL_SHA256=84c18824ca227e7602d2408b663c3747f754ad306ed5c73ddab959d6589538a6
+WORKDIR /fsl
+ADD --checksum=sha256:\${FOSSIL_SHA256} \\
+    https://fossil-scm.org/home/tarball/\${FOSSIL_CHECKIN}/fossil-src-\${FOSSIL_VERSION}.tar.gz \\
+    src.tar.gz
+RUN tar -xzf src.tar.gz --strip-components=1 \\
+  && ./configure --static --json CFLAGS='-Os -s' \\
+  && make -j"$(nproc)" \\
+  && ./fossil version | grep -q "version \${FOSSIL_VERSION} "
+
+## ── os: the few files a scratch image still needs ─────────────────────────
+# The musl variant: a static busybox, so the one binary runs on \`scratch\`.
+FROM busybox:1.37-musl AS os
+RUN mkdir -p /e /museum \\
+  && echo "root:x:0:0:Admin:/:/false" > /e/passwd \\
+  && echo "root:x:0:root" > /e/group
+
+## ── run ───────────────────────────────────────────────────────────────────
+FROM scratch
+COPY --from=build --chmod=755 /fsl/fossil /bin/fossil
+COPY --from=os /e/passwd /e/group /etc/
+COPY --from=os --chmod=1777 /tmp /tmp/
+COPY --from=os /museum /museum/
+# Only for the seed script (entrypoint.sh): one static binary, no applet links.
+COPY --from=os /bin/busybox /bin/busybox
+COPY --chmod=755 entrypoint.sh /bin/fossil-entrypoint
+ENV PATH=/bin
+EXPOSE 8080/tcp
+# Runs as root, unlike upstream's image (a fixed UID 499). The repo lives on a
+# bind mount or volume created by whoever runs the stack, and a fixed UID can't write
+# to a directory it doesn't own. Fossil handles root itself: serving a repository
+# file owned by a non-root user, it chroots into the repo's directory and drops to
+# that user (\`chown\` the repo to opt in). See https://fossil-scm.org/home/help/server.
+# Seeds the repositories named in FOSSIL_REPOSITORIES (from \`fossil.repositories\` in
+# config/), then execs \`fossil server\` with CMD — see entrypoint.sh.
+ENTRYPOINT ["/bin/busybox", "sh", "/bin/fossil-entrypoint"]
+# Serve the directory, not a file: every \`<name>.fossil\` in /museum is served at
+# /<name>/, and "/" lists them. Not upstream's \`--create\`, which makes a generic
+# repository with a generated admin login; ours are made by the seed.
+# --jsmode bundled: one JS file, fewer requests.
+CMD ["--repolist", "--jsmode", "bundled", "/museum"]
+`,
   },
   fossilEntrypoint: {
     path: "deploy/fossil/entrypoint.sh",
     source: "deploy/fossil/entrypoint.sh",
-    content: "#!/bin/sh\n# Seed, then serve. Run by busybox sh inside the Fossil image (deploy/fossil/Dockerfile).\n#\n# FOSSIL_REPOSITORIES names the repositories this instance owns, comma-separated —\n# projected from `fossil.repositories` in config/ (ADR 0031). Each one missing from\n# the data directory is created here, because Fossil has no HTTP call that creates a\n# repository: the seed has to run where the binary and the volume are. Existing\n# repositories are never touched, so a restart is a no-op.\n#\n# A seeded repository needs no login to READ: the built-in `nobody` user can browse,\n# clone and download (ADR 0020). It can't write. Fossil's JSON API takes parameters\n# from the query string, so with write capabilities a plain GET could change the\n# repository — and any web page the user visits can send one to a localhost port\n# (an <img> tag is enough). The admin user exists because Fossil requires one; its\n# generated password is discarded, and `fossil user password` sets one when needed.\n#\n# FOSSIL_MUSEUM and FOSSIL_BUSYBOX exist for the tests (entrypoint.test.ts); the image\n# uses the defaults.\nset -euf # -f: an entry like `*` must stay a (rejected) name, not glob the cwd\n\nmuseum=\"${FOSSIL_MUSEUM:-/museum}\"\nbb=\"${FOSSIL_BUSYBOX-/bin/busybox}\"\n\n# Read-only for anonymous visitors: check-out/browse (o), clone (g), wiki (j), tickets\n# (r), hyperlinks (h), zip/tarball downloads (z).\nNOBODY_CAPS=\"ghjorz\"\n\n# What a new repository holds beyond `fossil new` and its users. A placeholder: the\n# seed's contents (users and roles, wiki, ticket schema, tags, settings) are still to\n# be defined — https://github.com/vredchenko/claude-transcripts/issues/210. Runs once,\n# on the not-yet-served copy, so anything added here must only ever create.\nseed_content() {\n  : \"$1\"\n}\n\ntrim() {\n  s=\"$1\"\n  while :; do\n    case \"$s\" in\n      [[:space:]]*) s=\"${s#?}\" ;;\n      *[[:space:]]) s=\"${s%?}\" ;;\n      *) break ;;\n    esac\n  done\n  printf '%s' \"$s\"\n}\n\nIFS=','\nfor entry in ${FOSSIL_REPOSITORIES:-}; do\n  name=\"$(trim \"$entry\")\"\n  [ -n \"$name\" ] || continue\n  # The URL rules `fossil server` applies to a repository directory, so a name that\n  # can't be served is refused here rather than created and then unreachable.\n  case \"$name\" in\n    -* | *[!A-Za-z0-9_-]*)\n      echo \"fossil-seed: skipping '$name' (letters, digits, '-' and '_' only)\" >&2\n      continue\n      ;;\n  esac\n  repo=\"$museum/$name.fossil\"\n  [ -e \"$repo\" ] && continue\n  # Built under a name `--repolist` doesn't serve, then renamed: a seed interrupted\n  # half-way leaves no half-made repository to be served or skipped forever.\n  $bb rm -f \"$repo.new\"\n  fossil new --admin-user claude-transcripts --project-name \"$name\" \"$repo.new\" >/dev/null\n  fossil user capabilities nobody \"$NOBODY_CAPS\" -R \"$repo.new\" >/dev/null\n  seed_content \"$repo.new\"\n  $bb mv \"$repo.new\" \"$repo\"\n  echo \"fossil-seed: created $repo (anonymous read-only)\"\ndone\nunset IFS\n\nexec fossil server \"$@\"\n",
+    content: `#!/bin/sh
+# Seed, then serve. Run by busybox sh inside the Fossil image (deploy/fossil/Dockerfile).
+#
+# FOSSIL_REPOSITORIES names the repositories this instance owns, comma-separated —
+# projected from \`fossil.repositories\` in config/ (ADR 0031). Each one missing from
+# the data directory is created here, because Fossil has no HTTP call that creates a
+# repository: the seed has to run where the binary and the volume are. Existing
+# repositories are never touched, so a restart is a no-op.
+#
+# A seeded repository needs no login to READ: the built-in \`nobody\` user can browse,
+# clone and download (ADR 0020). It can't write. Fossil's JSON API takes parameters
+# from the query string, so with write capabilities a plain GET could change the
+# repository — and any web page the user visits can send one to a localhost port
+# (an <img> tag is enough). The admin user exists because Fossil requires one; its
+# generated password is discarded, and \`fossil user password\` sets one when needed.
+#
+# FOSSIL_MUSEUM and FOSSIL_BUSYBOX exist for the tests (entrypoint.test.ts); the image
+# uses the defaults.
+set -euf # -f: an entry like \`*\` must stay a (rejected) name, not glob the cwd
+
+museum="\${FOSSIL_MUSEUM:-/museum}"
+bb="\${FOSSIL_BUSYBOX-/bin/busybox}"
+
+# Read-only for anonymous visitors: check-out/browse (o), clone (g), wiki (j), tickets
+# (r), hyperlinks (h), zip/tarball downloads (z).
+NOBODY_CAPS="ghjorz"
+
+# What a new repository holds beyond \`fossil new\` and its users. A placeholder: the
+# seed's contents (users and roles, wiki, ticket schema, tags, settings) are still to
+# be defined — https://github.com/vredchenko/claude-transcripts/issues/210. Runs once,
+# on the not-yet-served copy, so anything added here must only ever create.
+seed_content() {
+  : "$1"
+}
+
+trim() {
+  s="$1"
+  while :; do
+    case "$s" in
+      [[:space:]]*) s="\${s#?}" ;;
+      *[[:space:]]) s="\${s%?}" ;;
+      *) break ;;
+    esac
+  done
+  printf '%s' "$s"
+}
+
+IFS=','
+for entry in \${FOSSIL_REPOSITORIES:-}; do
+  name="$(trim "$entry")"
+  [ -n "$name" ] || continue
+  # The URL rules \`fossil server\` applies to a repository directory, so a name that
+  # can't be served is refused here rather than created and then unreachable.
+  case "$name" in
+    -* | *[!A-Za-z0-9_-]*)
+      echo "fossil-seed: skipping '$name' (letters, digits, '-' and '_' only)" >&2
+      continue
+      ;;
+  esac
+  repo="$museum/$name.fossil"
+  [ -e "$repo" ] && continue
+  # Built under a name \`--repolist\` doesn't serve, then renamed: a seed interrupted
+  # half-way leaves no half-made repository to be served or skipped forever.
+  $bb rm -f "$repo.new"
+  fossil new --admin-user claude-transcripts --project-name "$name" "$repo.new" >/dev/null
+  fossil user capabilities nobody "$NOBODY_CAPS" -R "$repo.new" >/dev/null
+  seed_content "$repo.new"
+  $bb mv "$repo.new" "$repo"
+  echo "fossil-seed: created $repo (anonymous read-only)"
+done
+unset IFS
+
+exec fossil server "$@"
+`,
   },
   appConfig: {
     path: "config/app.json",
     source: "config/config.template.json",
-    content: "{\n  \"app\": {\n    \"name\": \"claude-transcripts\"\n  },\n  \"system\": {\n    \"logging\": {\n      \"chunk\": { \"maxEntriesPerChunk\": 200, \"flushIntervalMs\": 15000 }\n    },\n    \"sessions\": {\n      \"liveWindowMs\": 86400000,\n      \"idleThresholdMs\": 300000,\n      \"reconcile\": { \"follower\": true, \"intervalMs\": 3600000, \"batchSize\": 50 }\n    },\n    \"search\": {\n      \"flushIntervalMs\": 20000,\n      \"archiveIntervalMs\": 900000,\n      \"liveRebuildIntervalMs\": 3600000,\n      \"taskRetentionMs\": 3600000\n    }\n  },\n  \"couchdb\": {\n    \"databases\": {\n      \"sessions\": \"claude-transcripts-sessions\",\n      \"appLogs\": \"claude-transcripts-app-logs\"\n    }\n  },\n  \"s3\": {\n    \"buckets\": {\n      \"sessions\": \"claude-transcripts-sessions\"\n    }\n  },\n  \"meilisearch\": {\n    \"indexes\": {\n      \"sessions\": \"claude-transcripts-sessions\",\n      \"turns\": \"claude-transcripts-turns\",\n      \"liveTurns\": \"claude-transcripts-live-turns\"\n    }\n  },\n  \"fossil\": {\n    \"repositories\": {\n      \"sessions\": \"claude-transcripts-sessions\"\n    }\n  },\n  \"features\": {\n    \"s3Blobs\": true,\n    \"midFlightChunking\": true,\n    \"couchFullContentChunks\": true,\n    \"meilisearch\": true,\n    \"secretsMasking\": false\n  },\n  \"servicesMenu\": {},\n  \"userSettings\": {\n    \"sessionListPageSize\": 100,\n    \"transcriptPageSize\": 100,\n    \"transcriptAutoLoadMax\": 2000\n  },\n  \"recall\": {\n    \"mode\": \"auto\",\n    \"scope\": \"project\",\n    \"maxResults\": 5,\n    \"maxSnippetChars\": 400,\n    \"triggers\": {\n      \"priorWorkQuestion\": true,\n      \"repeatedError\": true,\n      \"beforeRederiving\": true\n    },\n    \"excludeCwdGlobs\": [],\n    \"primer\": { \"onSessionStart\": true, \"maxTokens\": 200 }\n  }\n}\n",
+    content: `{
+  "app": {
+    "name": "claude-transcripts"
+  },
+  "system": {
+    "logging": {
+      "chunk": { "maxEntriesPerChunk": 200, "flushIntervalMs": 15000 }
+    },
+    "sessions": {
+      "liveWindowMs": 86400000,
+      "idleThresholdMs": 300000,
+      "reconcile": { "follower": true, "intervalMs": 3600000, "batchSize": 50 }
+    },
+    "search": {
+      "flushIntervalMs": 20000,
+      "archiveIntervalMs": 900000,
+      "liveRebuildIntervalMs": 3600000,
+      "taskRetentionMs": 3600000
+    }
+  },
+  "couchdb": {
+    "databases": {
+      "sessions": "claude-transcripts-sessions",
+      "appLogs": "claude-transcripts-app-logs"
+    }
+  },
+  "s3": {
+    "buckets": {
+      "sessions": "claude-transcripts-sessions"
+    }
+  },
+  "meilisearch": {
+    "indexes": {
+      "sessions": "claude-transcripts-sessions",
+      "turns": "claude-transcripts-turns",
+      "liveTurns": "claude-transcripts-live-turns"
+    }
+  },
+  "fossil": {
+    "repositories": {
+      "sessions": "claude-transcripts-sessions"
+    }
+  },
+  "features": {
+    "s3Blobs": true,
+    "midFlightChunking": true,
+    "couchFullContentChunks": true,
+    "meilisearch": true,
+    "secretsMasking": false
+  },
+  "servicesMenu": {},
+  "userSettings": {
+    "sessionListPageSize": 100,
+    "transcriptPageSize": 100,
+    "transcriptAutoLoadMax": 2000
+  },
+  "recall": {
+    "mode": "auto",
+    "scope": "project",
+    "maxResults": 5,
+    "maxSnippetChars": 400,
+    "triggers": {
+      "priorWorkQuestion": true,
+      "repeatedError": true,
+      "beforeRederiving": true
+    },
+    "excludeCwdGlobs": [],
+    "primer": { "onSessionStart": true, "maxTokens": 200 }
+  }
+}
+`,
   },
 } as const satisfies Record<string, EmbeddedAsset>;
 
