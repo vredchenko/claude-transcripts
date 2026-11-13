@@ -200,7 +200,8 @@ describe("subagent markers", () => {
     expect(docs[1]).toMatchObject({ tool_name: "Grep", tool_use_id: "aaa111-t1" });
     // Live tool markers do not name the agent, so neither do these.
     expect(docs[1]).not.toHaveProperty("agent_id");
-    expect(facts.toolCounts).toEqual({ Agent: 1, Grep: 1, Read: 1 });
+    // `Read` failed: like the hook's `tool_counts`, only successful calls are counted.
+    expect(facts.toolCounts).toEqual({ Agent: 1, Grep: 1 });
   });
 
   test("the flat layout, typed by the call that spawned it", async () => {
@@ -226,7 +227,7 @@ describe("subagent markers", () => {
       d.event.startsWith("PostTool"),
     );
     expect(own).toHaveLength(2);
-    expect(facts.toolCounts).toEqual({ Grep: 1, Read: 1 });
+    expect(facts.toolCounts).toEqual({ Grep: 1 });
   });
 
   test("a line in both the session file and the agent file is counted once", async () => {
@@ -286,7 +287,7 @@ describe("runBackfill with subagents", () => {
     expect(starts.sort()).toEqual(["aaa111", "bbb222", "ddd444"]);
     expect(events.filter((e) => e.event === "SubagentStop")).toHaveLength(3);
     const summary = summaries.find((s) => s.session_id === NEW);
-    expect(summary?.tool_counts).toEqual({ Agent: 1, Grep: 1, Read: 1 });
+    expect(summary?.tool_counts).toEqual({ Agent: 1, Grep: 1 });
     expect(lines.some((l) => l.includes("3 subagent(s) in 3 session(s)"))).toBe(true);
     expect(lines.some((l) => l.includes("own transcript file is not stored"))).toBe(true);
     expect(lines.some((l) => l.includes("2 subagent line(s) carry no agent id"))).toBe(true);
