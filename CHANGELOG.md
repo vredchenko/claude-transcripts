@@ -6,7 +6,23 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] — 2026-11-13
+
+A minor release about sessions telling the truth. A session whose machine went away
+stops claiming to be live after two hours instead of a day, and `backfill` now records
+subagents and counts events the way the live hook does.
+
+### Added
+
+- **`backfill` reconstructs subagents.** Each subagent found on disk gets a
+  `SubagentStart`/`SubagentStop` pair, like the live hook writes, marked
+  `reconstructed` ([#278]). It reads the current layout
+  (`<session>/subagents/agent-<id>.jsonl` with its `.meta.json`), the older inline
+  sidechain lines, or both, and counts a line that appears in both once. Tool calls made
+  inside a subagent get their tool markers and count towards `tool_counts`. What a
+  transcript can't tell, such as when the hooks actually fired or whether a subagent was
+  cut off, is said in the run output and in [tools.md](docs/operate/tools.md). Sessions
+  adopted earlier pick this up with `backfill --force`.
 
 ### Fixed
 
@@ -21,6 +37,23 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   only idle could be reconciled while it was quiet. Its next event now reopens it
   until its own `SessionEnd` replaces the reconciled summary. A summary written by the
   hook stays final.
+- **`backfill` counts like the hook** ([#274]). `event_count` is prompts plus answered
+  tool calls, not every transcript line. `error_count` counts failed tool results instead
+  of always being 0. `prompt_count` leaves out lines Claude Code adds itself and the
+  interrupt marker. `tool_counts` holds successful calls only. A backfilled count can
+  still read lower than a live one, because subagent lifecycle and `StopFailure` leave no
+  trace in a transcript.
+- **A stray top-level `agent-*.jsonl` is no longer adopted as a session** by `backfill`
+  ([#278]).
+
+### Changed
+
+- **One definition of the CouchDB record schemas**, in `@claude-transcripts/shared/docs`.
+  The webapi validates against it and the CLI's types come from it, so the writer and the
+  gateway can't drift apart ([#275]). Nothing they accept changes.
+- **The CLI's embedded deploy files are written readably** in
+  `assets.generated.ts`, so a change to the config template or a compose file shows up
+  as a readable diff ([#279]).
 
 ## [0.9.0] — 2026-11-05
 
@@ -2043,7 +2076,12 @@ of them had ever executed:
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#272]: https://github.com/vredchenko/claude-transcripts/issues/272
+[#274]: https://github.com/vredchenko/claude-transcripts/pull/274
+[#275]: https://github.com/vredchenko/claude-transcripts/pull/275
+[#278]: https://github.com/vredchenko/claude-transcripts/pull/278
+[#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.10.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.0
 [0.9.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.9.0
 [0.8.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.8.0
 [0.7.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.7.2
