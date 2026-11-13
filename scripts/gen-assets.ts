@@ -42,9 +42,19 @@ const ASSETS: { key: string; from: string; to: string }[] = [
   { key: "appConfig", from: "config/config.template.json", to: "config/app.json" },
 ];
 
+/**
+ * A template literal whose value is exactly `text`, laid out as the file itself, so a
+ * diff of the generated module reads like a diff of the asset. Only the three things a
+ * template literal interprets are escaped: backslashes, backticks and `${`.
+ */
+function templateLiteral(text: string): string {
+  const body = text.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+  return `\`${body}\``;
+}
+
 const entries = ASSETS.map(({ key, from, to }) => {
   const content = readFileSync(join(ROOT, from), "utf8");
-  return `  ${key}: {\n    path: ${JSON.stringify(to)},\n    source: ${JSON.stringify(from)},\n    content: ${JSON.stringify(content)},\n  },`;
+  return `  ${key}: {\n    path: ${JSON.stringify(to)},\n    source: ${JSON.stringify(from)},\n    content: ${templateLiteral(content)},\n  },`;
 }).join("\n");
 
 const banner = `/**
