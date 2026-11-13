@@ -13,8 +13,10 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 - **A session killed without `SessionEnd` no longer reads as `running` for a day.**
   The default `system.sessions.liveWindowMs` drops from 24 h to 2 h, so a closed lid
   or a `kill -9` shows as `incomplete` within two hours, and the reconcile sweep
-  finalises it soon after ([#272]). **Upgrading:** `config/config.json` copied from an
-  older template still says `86400000`; lower it to `7200000` to pick this up.
+  finalises it soon after ([#272]). A `config/config.json` copied from an older
+  template still says `86400000`; that exact value is now read as unset, so it picks up
+  the new default too. To keep 24 h on purpose, write any other value, such as
+  `86400001`.
 - **A reconciled session that resumes reads as `running` again.** A session that was
   only idle could be reconciled while it was quiet. Its next event now reopens it
   until its own `SessionEnd` replaces the reconciled summary. A summary written by the

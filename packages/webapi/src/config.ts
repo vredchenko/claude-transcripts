@@ -154,10 +154,20 @@ export function loadConfig(): Config {
   };
 }
 
+/**
+ * The window the config template shipped before 0.10.0 (24 h). A `config.json` copied
+ * from one of those templates carries it literally, so it is read as unset: otherwise
+ * every instance set up before then would keep the old window without anyone choosing
+ * it. To really run with 24 h, write any other value (`86400001` will do).
+ */
+export const STALE_TEMPLATE_LIVE_WINDOW_MS = 86_400_000;
+
 /** The configured "live" activity window (ms), falling back to the 2h default. */
 export function liveWindowMs(config: Config): number {
   const v = config.system.sessions?.liveWindowMs;
-  return typeof v === "number" && v > 0 ? v : DEFAULT_LIVE_WINDOW_MS;
+  return typeof v === "number" && v > 0 && v !== STALE_TEMPLATE_LIVE_WINDOW_MS
+    ? v
+    : DEFAULT_LIVE_WINDOW_MS;
 }
 
 /**
