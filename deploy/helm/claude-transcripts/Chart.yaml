@@ -5,8 +5,8 @@ apiVersion: v2
 name: claude-transcripts
 description: "Claude Transcripts — self-hosted history for Claude Code sessions: CouchDB, Garage (S3), Fossil, Meilisearch and the app."
 type: application
-version: 0.10.0
-appVersion: 0.10.0
+version: 0.10.1
+appVersion: 0.10.1
 keywords:
   - claude
   - claude-code

@@ -6,7 +6,10 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.1] — 2026-11-13
+
+A patch release for the omnibus image, which 0.10.0 couldn't publish: it failed the
+scan gate. Nothing else changes: the app image, CLI and chart carry the same code as 0.10.0.
 
 ### Fixed
 
@@ -2097,6 +2100,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.10.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.1
 [0.10.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.0
 [0.9.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.9.0
 [0.8.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.8.0

@@ -16,7 +16,7 @@
     },
     "packages/cli": {
       "name": "@claude-transcripts/cli",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "bin": {
         "claude-transcripts": "dist/cli.js",
       },
@@ -33,14 +33,14 @@
     },
     "packages/shared": {
       "name": "@claude-transcripts/shared",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "dependencies": {
         "zod": "^4.6.7",
       },
     },
     "packages/webapi": {
       "name": "@claude-transcripts/webapi",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "dependencies": {
         "@claude-transcripts/shared": "workspace:*",
         "@hono/zod-openapi": "^1.6.3",
@@ -52,7 +52,7 @@
     },
     "packages/webui": {
       "name": "@claude-transcripts/webui",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "dependencies": {
         "@claude-transcripts/shared": "workspace:*",
         "@emotion/react": "^11.13.3",
