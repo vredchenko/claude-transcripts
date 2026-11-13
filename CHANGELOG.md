@@ -14,6 +14,11 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   `apt-get upgrade` layer was served from the CI build cache, so fixes released after
   that layer was first built never landed, and the 0.10.0 omnibus first failed the scan
   gate on zlib1g ([#282]).
+- **The omnibus builds the GitHub CLI from source** instead of installing it from
+  GitHub's apt repo. gh 2.104.0 ships `golang.org/x/net` v0.61.0 (CVE-2026-78661, HIGH,
+  fixed in 0.62.0), which kept the 0.10.0 omnibus from passing the scan gate. The
+  build raises that module and uses a current Go. It has no OAuth app, so authenticate
+  with `GH_TOKEN` rather than `gh auth login`'s browser flow ([#283]).
 
 ## [0.10.0] — 2026-11-13
 
@@ -2084,6 +2089,7 @@ of them had ever executed:
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#283]: https://github.com/vredchenko/claude-transcripts/pull/283
 [#282]: https://github.com/vredchenko/claude-transcripts/pull/282
 [#272]: https://github.com/vredchenko/claude-transcripts/issues/272
 [#274]: https://github.com/vredchenko/claude-transcripts/pull/274

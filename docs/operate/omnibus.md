@@ -81,7 +81,10 @@ Also inside:
   fetch but not push: the remote has no push URL, and a system-wide `pre-push` hook
   refuses pushes from any repository in the container.
 - **The GitHub CLI** (`gh`), with no credentials. Public reads work, unauthenticated
-  and rate-limited.
+  and rate-limited; set `GH_TOKEN` for more. It is built from the release's source
+  rather than installed from GitHub's apt repo, so the image can carry fixed Go
+  dependencies before upstream ships them. That build has no OAuth app, so
+  `gh auth login`'s browser flow isn't available; use a token.
 
 ## Recording sessions from the host
 

@@ -29,6 +29,7 @@ ARG COUCHDB_IMAGE=couchdb:3@sha256:4e8e0a366208a87d5059b0f4fcbefff13c32401a655d4
 ARG GARAGE_IMAGE=dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
 ARG MEILI_UI_IMAGE=riccoxie/meilisearch-ui:v0.14.1@sha256:f911cccfa54ab4cd75f9f43627ee4995e51061cf026b059db894aaeadecc3a8f
 ARG ALPINE_IMAGE=alpine:3.22@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f
+ARG GO_IMAGE=golang:1.27-trixie@sha256:c47c3fda018d13d43a6bf5ebac3e5bba8a23a35782aa4faf531afaf47c64c39f
 # Ours. Defaults are the tags the compose --build/--upstream paths give local builds;
 # bake replaces them with its own build contexts, and a release passes the app image
 # it just published.
@@ -78,6 +79,31 @@ FROM --platform=$BUILDPLATFORM ${MEILI_UI_IMAGE} AS meili-ui
 WORKDIR /opt/meilisearch-ui
 RUN BASE_PATH=/ pnpm run build:docker
 
+# ── the GitHub CLI, built from its release source ──────────────────────────────
+# Not from GitHub's apt repo: a released gh can carry a Go module with a fixed HIGH
+# advisory for weeks (v2.104.0 pins golang.org/x/net v0.61.0, CVE-2026-78661), and the
+# scan gate rightly refuses to publish that. This is the same release, built the way
+# upstream's script/build.go does, with a current Go and the flagged modules raised to
+# their fixed versions. Fetched by commit and checked, so a moved tag fails the build.
+# Upstream's release builds also embed its OAuth app for `gh auth login`'s browser
+# flow; this one doesn't, so authenticate with GH_TOKEN (docs/operate/omnibus.md).
+#
+# To bump: set GH_VERSION and GH_COMMIT (`git ls-remote` the tag). Drop a GH_GO_MODULES
+# entry once the release's own go.mod has reached it (`go get` would only re-pin it).
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS gh
+ARG TARGETOS TARGETARCH
+ARG GH_VERSION=2.104.0
+ARG GH_COMMIT=3d5a9e355a837f2f5ee78d7484c118cc1342ad1a
+ARG GH_GO_MODULES="golang.org/x/net@v0.62.0"
+RUN git clone --depth 1 --branch "v${GH_VERSION}" https://github.com/cli/cli.git /src \
+  && test "$(git -C /src rev-parse HEAD)" = "${GH_COMMIT}"
+WORKDIR /src
+RUN GOTOOLCHAIN=local go get ${GH_GO_MODULES} && GOTOOLCHAIN=local go mod tidy
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} GOTOOLCHAIN=local \
+      go build -trimpath \
+        -ldflags "-s -w -X github.com/cli/cli/v2/internal/build.Version=${GH_VERSION}" \
+        -o /gh ./cmd/gh
+
 # ── downloads: the CLI for every platform + the Claude Code plugin ─────────────
 # Cross-compiled from the app image's own sources, so the binaries are the same
 # version as the app (and the CLI on this container's PATH). Same flags as the
@@ -105,18 +131,10 @@ RUN set -eu; \
 # here that doesn't transplant. It's Debian (trixie), like the Bun image the app is
 # built on, so the app's bun binary runs on it unchanged.
 FROM ${COUCHDB_IMAGE} AS runtime
-# The GitHub CLI's apt repo: its own keyring, signed-by scoped to that one source.
-# Checksummed like every other fetch here; if GitHub rotates the key, the build fails
-# loudly and this pin is updated deliberately.
-ADD --checksum=sha256:6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b \
-    https://cli.github.com/packages/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli.gpg
 RUN set -eux; \
-  chmod 644 /etc/apt/keyrings/githubcli.gpg; \
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" \
-    > /etc/apt/sources.list.d/github-cli.list; \
   apt-get update; \
   apt-get upgrade -y --no-install-recommends; \
-  apt-get install -y --no-install-recommends git gh xz-utils; \
+  apt-get install -y --no-install-recommends git xz-utils; \
   apt-get clean; rm -rf /var/lib/apt/lists/*; \
   # Nouveau, CouchDB's optional Java search service: never enabled here (Meilisearch
   # does search), and its bundled Jetty and Jackson are the rest of what the scan flags.
@@ -128,6 +146,7 @@ COPY --from=garage-ui /bin/main /usr/local/bin/garage-webui
 COPY --from=meili --chmod=755 /meilisearch /usr/local/bin/meilisearch
 COPY --from=meili-ui /opt/meilisearch-ui/dist /opt/omnibus/meilisearch-ui
 COPY --from=fossil /bin/fossil /usr/local/bin/fossil
+COPY --from=gh /gh /usr/local/bin/gh
 COPY --from=fossil /bin/fossil-entrypoint /opt/omnibus/fossil-entrypoint.sh
 COPY --from=app /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=app /app /app
