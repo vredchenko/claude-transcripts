@@ -6,6 +6,15 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The omnibus image picks up Debian security fixes on every build.** Its
+  `apt-get upgrade` layer was served from the CI build cache, so fixes released after
+  that layer was first built never landed, and the 0.10.0 omnibus first failed the scan
+  gate on zlib1g ([#282]).
+
 ## [0.10.0] — 2026-11-13
 
 A minor release about sessions telling the truth. A session whose machine went away
@@ -2075,6 +2084,7 @@ of them had ever executed:
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#282]: https://github.com/vredchenko/claude-transcripts/pull/282
 [#272]: https://github.com/vredchenko/claude-transcripts/issues/272
 [#274]: https://github.com/vredchenko/claude-transcripts/pull/274
 [#275]: https://github.com/vredchenko/claude-transcripts/pull/275
