@@ -138,8 +138,8 @@ There is no `tools/` dir.
 - **Append-only / immutable docs.** New info is a new doc referencing `session_id`,
   never an in-place edit — this keeps future CouchDB replication conflict-free.
   Schema/view changes go through the self-built **migrations** (not ad-hoc scripts).
-- **CouchDB doc schemas are defined in code** (shared types + validators) and
-  validated at the webapi on write.
+- **CouchDB doc schemas are defined in code**, once, in `@claude-transcripts/shared/docs`
+  (zod), and validated at the webapi on write; the CLI's doc types derive from them.
 - **One writer.** The CLI (`packages/cli/src/hook/`) is the hook; `hooks/` is a thin
   plugin shim that pipes the payload to `claude-transcripts hook run`. There is no
   second copy of `sumTranscriptTokens` or the chunking helpers to keep in step — don't
