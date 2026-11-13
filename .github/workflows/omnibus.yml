@@ -1,8 +1,15 @@
 name: omnibus
 # Build the omnibus image (deploy/omnibus/) from this commit and smoke-test it: boot on
 # an empty volume, check every surface, recreate on the same volume and check nothing
-# was lost or re-provisioned (scripts/smoke-omnibus.ts). Publishing happens on release,
-# in publish-image.yml, from the app image that workflow has just scanned and pushed.
+# was lost or re-provisioned (scripts/smoke-omnibus.ts). Then put it through the same
+# scan gate a release does (.github/actions/scan-image), so a finding shows up on the
+# PR that brings it in rather than only once a tag is pushed. Publishing happens on
+# release, in publish-image.yml, from the app image that workflow has just scanned and
+# pushed.
+#
+# The gate also fails on advisories published since the last change: a new fixed
+# HIGH in an upstream package turns this red on an unrelated PR. That is the point (the
+# next release would fail the same way), but the fix is then its own PR.
 #
 # One `buildx bake` builds the app, Fossil and the omnibus as a single graph. Their
 # layers live in the GitHub Actions cache (deploy/omnibus/docker-bake.hcl, CACHE=gha),
@@ -55,3 +62,8 @@ jobs:
 
       - name: Smoke test
         run: bun run scripts/smoke-omnibus.ts claude-transcripts-omnibus:local
+
+      - name: Scan with the project's gate (grype + trivy, fixed HIGH/CRITICAL)
+        uses: ./.github/actions/scan-image
+        with:
+          image: claude-transcripts-omnibus:local

@@ -78,7 +78,10 @@ against what is published, since pinned images pick up advisories between releas
 `vX.Y.Z`, `latest` and `<short-sha>`, by the `omnibus` job in `publish-image.yml`. It is
 assembled from the app image that workflow has just scanned and pushed, smoke-tested,
 and held to the same scan gate. linux/amd64 only, like the app image. Pull requests that
-touch it are built and smoke-tested by `omnibus.yml`.
+touch it are built, smoke-tested and scanned by `omnibus.yml`, so a finding that would
+stop the release shows up on a PR first. Because the gate also catches advisories
+published since the last change, that check can go red on a PR that didn't cause it;
+the fix is then a PR of its own.
 
 ## One-time setup
 
