@@ -17,8 +17,10 @@ CouchDB holds parsed, pruned turns on full-content chunks
   identity on every machine.
 - **Stable ids where identity matters**: `summary:<sessionId>`,
   `chunk:<sessionId>:<byte_start>`. Event docs get CouchDB-assigned ids.
-- **Schemas live in code**: zod validators in `packages/webapi/src/routes/ingest.ts`
-  check documents written through the webapi. Ingested docs are built in
+- **Schemas live in code**, defined once as zod schemas in
+  `packages/shared/src/docs/` (`@claude-transcripts/shared/docs`). The webapi validates
+  documents written through it against them, and the CLI's doc types are derived from
+  them. Ingested docs are built in
   `packages/cli/src/lib/session-docs.ts`; the hook builds its own in
   `packages/cli/src/hook/handlers.ts` and writes them directly, so they are **not**
   validated on write.
