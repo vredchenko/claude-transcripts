@@ -21,7 +21,7 @@
 # a checkout, a user install or CI, and with Docker (BuildKit) or Podman.
 
 ARG NODE_IMAGE=node:22-trixie-slim@sha256:8eb619e402eaede1748a3c8173bffab391592812e85136452f781741c7242ddf
-ARG GO_IMAGE=golang:1.27-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4
+ARG GO_IMAGE=golang:1.27-trixie@sha256:c47c3fda018d13d43a6bf5ebac3e5bba8a23a35782aa4faf531afaf47c64c39f
 
 ## ── the source, at the release's commit ─────────────────────────────────────
 # Fetched by commit, not by tag, and checked: a moved tag fails the build instead of
