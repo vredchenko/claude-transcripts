@@ -88,4 +88,9 @@ target "omnibus" {
   tags       = [OMNIBUS_TAG]
   cache-from = cache_from("omnibus")
   cache-to   = cache_to("omnibus")
+  # The runtime stage runs `apt-get upgrade`. A cached copy of that layer keeps the OS
+  # packages of whenever it was first built, so a fix Debian has since shipped never
+  # lands and the scan gate fails on it. The stage is that one step plus COPYs from the
+  # other stages, so always rebuilding it costs little; everything before it still caches.
+  no-cache-filter = ["runtime"]
 }
