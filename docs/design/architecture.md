@@ -105,6 +105,10 @@ What is planned within each: [roadmap.md](roadmap.md).
 
 ## Stack
 
+![The same system by technology: Claude Code fires the hook, which writes through the Hono webapi into CouchDB and Garage; Meilisearch and Fossil sit beside them in a Compose or Kubernetes stack; the React webui and the Ink CLI read through the webapi; GitHub Actions publishes the images it runs from.](../assets/architecture-stack.png)
+
+[Open the diagram on its own](../assets/architecture-stack.html); it follows your light or dark theme.
+
 Bun + TypeScript (ESM, strict) throughout, in one workspace
 ([ADR 0004](decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)). webapi: Hono,
 `@hono/zod-openapi`, `nano`. webui: React 19, Vite, MUI, TanStack Router and Query. CLI:
@@ -112,3 +116,7 @@ Ink. API clients are generated from the OpenAPI spec with orval
 ([ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md)). Biome and
 lefthook. Releases on GitHub Actions to GHCR and GitHub Releases
 ([releasing.md](../operate/releasing.md)).
+The backing services run as a Docker Compose stack (`deploy/`) or a Kubernetes base
+generated from the same model ([ADR 0030](decisions/0030-kubernetes-deploy-generated-from-the-model.md)),
+or are ones you already run ([ADR 0020](decisions/0020-bundled-services-default-no-auth.md),
+[ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)).

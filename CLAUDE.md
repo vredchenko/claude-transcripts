@@ -59,6 +59,17 @@ architecture diagram, compose files, k8s base, inlined deploy assets, CLI refere
 Generated files are committed — regenerate, don't hand-edit; CI re-runs `gen:all` and
 fails on a diff.
 
+### Stack diagram
+
+`docs/design/architecture.md` is the prose source of a hand-drawn stack diagram
+(`docs/assets/architecture-stack*`). When you change that doc, redraw in development,
+never in CI: read the updated doc, edit `scripts/stack-diagram/architecture.html` with
+the `stack-diagram` skill (its icon names resolve through `scripts/stack-diagram/icons.json`),
+run `bun run diagram:stack`, and look at both PNGs before committing. If the change does
+not affect the picture, `bun run diagram:stack stamp` instead. `diagram:stack check` (lefthook
+and CI) only warns. The blueprint-generated `gen:diagram` is separate and stays authoritative
+for topology.
+
 ## Contributing
 
 - **Git** — `origin` is `github.com:vredchenko/claude-transcripts`. Work on a
