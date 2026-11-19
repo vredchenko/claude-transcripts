@@ -50,7 +50,7 @@ Not built: `couch` / `s3` passthroughs and `meta post` enrichment.
 |---|---|
 | `install [options]` | Set up everything: stores, app, and the Claude Code hook |
 | `uninstall [options]` | Remove the instance (history is kept unless --purge) |
-| `setup [options]` | Install/register the hook + generate runtime config |
+| `setup [options]` | Register the hook + write its config (it writes only through the webapi) |
 | `provision` | Create the CouchDB databases and the Garage bucket + key |
 | `stack [action] [options]` | Control the container stack |
 
@@ -125,16 +125,17 @@ claude-transcripts uninstall --purge --yes
 
 ### `setup [options]`
 
-Install/register the hook + generate runtime config
+Register the hook + write its config (it writes only through the webapi)
 
 | Option | |
 |---|---|
 | `--check` | verify an existing install (read-only) |
-| `--no-hook` | config + provision stores only (no registration) |
+| `--no-hook` | write the config only (no registration) |
 | `--project` | per-repo registration (placeholder — not built) |
 
 ```bash
 claude-transcripts setup --check
+claude-transcripts setup --webapi https://transcripts.example.net
 ```
 
 ### `provision`

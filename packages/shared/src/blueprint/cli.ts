@@ -74,13 +74,13 @@ export const CLI_SPEC: CliSpec = {
     {
       name: "setup",
       group: "lifecycle",
-      summary: "Install/register the hook + generate runtime config",
+      summary: "Register the hook + write its config (it writes only through the webapi)",
       args: [
         { name: "--check", description: "verify an existing install (read-only)" },
-        { name: "--no-hook", description: "config + provision stores only (no registration)" },
+        { name: "--no-hook", description: "write the config only (no registration)" },
         { name: "--project", description: "per-repo registration (placeholder — not built)" },
       ],
-      examples: ["setup --check"],
+      examples: ["setup --check", "setup --webapi https://transcripts.example.net"],
     },
     {
       name: "provision",

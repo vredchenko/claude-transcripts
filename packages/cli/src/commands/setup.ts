@@ -1,34 +1,37 @@
 /**
  * `claude-transcripts setup` — install/verify the logging hook + its runtime config.
  *
- *   claude-transcripts setup            # generate config, provision stores, register the hook
- *   claude-transcripts setup --check    # verify an existing installation (read-only)
- *   claude-transcripts setup --no-hook  # config + provision only (no Claude Code registration)
- *   claude-transcripts setup --project  # per-repo registration  (PLACEHOLDER — not yet built)
+ *   claude-transcripts setup                       # write the config, check the webapi, register the hook
+ *   claude-transcripts setup --webapi https://ct…  # the same, recording into a remote instance
+ *   claude-transcripts setup --check               # verify an existing installation (read-only)
+ *   claude-transcripts setup --no-hook             # config only (no Claude Code registration)
+ *   claude-transcripts setup --project             # per-repo registration (PLACEHOLDER — not yet built)
  *
  * What it does:
- *  1. Build the hook runtime config from `config/` + `.env` and write it to
- *     ~/.config/claude-transcripts/config.json (mode 600) — the file the hook
- *     reads (packages/cli/src/hook/runtime.ts); nothing else writes it.
- *  2. Provision stores on the configured backend: ensure the CouchDB databases,
- *     probe the Garage bucket (the app never creates buckets). Meilisearch is
- *     intentionally skipped for now.
+ *  1. Write the hook runtime config to ~/.config/claude-transcripts/config.json (mode
+ *     600) — the file the hook reads (packages/cli/src/hook/runtime.ts); nothing else
+ *     writes it. It names only the webapi the hook writes through (#288): no store, no
+ *     store credential. `--webapi` sets it; otherwise the env, then the URL already
+ *     configured, then the local default.
+ *  2. Check that webapi can take writes. Setup never touches a store: creating the
+ *     databases, bucket and indexes is the webapi's and `install`/`provision`'s job.
  *  3. Register the hook with Claude Code. Scope is flexible: we inspect BOTH the
  *     project (`.claude/settings.json`) and global (~/.claude/settings.json) config
  *     to see what's already wired, then act. Only global is implemented today;
  *     per-repo is stubbed (registerProject).
  *
- * Backend-agnostic: endpoints + secrets come from `.env` (Bun auto-loads it), so
- * this points at a bundled localhost stack or an external cluster by changing `.env`
- * only. In a source checkout, use `--no-hook` so a dev run never registers a second
+ * A client machine needs nothing but the instance's webapi URL. In a source checkout, use `--no-hook` so a dev run never registers a second
  * logger alongside the one already recording.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { type AppConfigFile, hookLaunch, resolveCouchUrl } from "@claude-transcripts/shared";
+import { type AppConfigFile, hookLaunch } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
-import { parseFlags } from "../lib/args";
+import { setWebapiUrl } from "../api/http";
+import { probeWebapi } from "../hook/ingest";
+import { hookConfigProblem, loadHookConfig, redactUrl } from "../hook/runtime";
+import { parseFlags, strOpt } from "../lib/args";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
 import { installPaths } from "../lib/paths";
 import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
@@ -49,77 +52,32 @@ function loadRepoConfig(): AppConfigFile {
   return JSON.parse(readFileSync(existsSync(live) ? live : template, "utf8")) as AppConfigFile;
 }
 
-// ── Store provisioning ───────────────────────────────────────────────────────
-
-interface CouchTarget {
-  url: string;
-  auth?: string;
-  databases: Record<string, string>;
-}
-
-function couchHeaders(auth?: string): Record<string, string> {
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (auth) h.Authorization = `Basic ${btoa(auth)}`;
-  return h;
-}
-
-/** Ensure each configured CouchDB database exists (idempotent; 412 = already there). */
-async function provisionCouch(t: CouchTarget, dryRun: boolean): Promise<boolean> {
-  let ok = true;
-  for (const name of Object.values(t.databases)) {
-    const url = `${t.url}/${encodeURIComponent(name)}`;
-    if (dryRun) {
-      console.log(
-        `  [check] couch db ${name}: ${(await fetch(url, { headers: couchHeaders(t.auth) })).status}`,
-      );
-      continue;
-    }
-    const res = await fetch(url, { method: "PUT", headers: couchHeaders(t.auth) });
-    if (res.status === 201) console.log(`  couch db ${name}: created`);
-    else if (res.status === 412) console.log(`  couch db ${name}: exists`);
-    else {
-      ok = false;
-      console.error(`  couch db ${name}: FAILED (${res.status} ${res.statusText})`);
-    }
-  }
-  return ok;
-}
+// ── Write target ─────────────────────────────────────────────────────────────
 
 /**
- * Probe the Garage bucket. The app never *creates* buckets (a Garage bucket + key
- * is an admin/bootstrap step), so setup only checks reachability + reports.
+ * Can the configured webapi take writes now? Printed, not thrown: the config is
+ * written either way, and an instance that is down today is still the right target.
  */
-interface BlobTarget {
-  endpoint: string;
-  region: string;
-  accessKey?: string;
-  secretKey?: string;
-  buckets: Record<string, string>;
-}
-
-async function probeGarage(blob: BlobTarget | undefined): Promise<void> {
-  if (!blob?.endpoint) {
-    console.log("  garage: no S3_ENDPOINT — blob storage disabled");
-    return;
+async function checkWebapi(): Promise<boolean> {
+  const config = loadHookConfig(HOOK_CONFIG_PATH);
+  if (!config) {
+    console.error(`  ✗ not recording — ${hookConfigProblem(HOOK_CONFIG_PATH)}`);
+    return false;
   }
-  const bucket = Object.values(blob.buckets)[0];
-  try {
-    const { S3Client } = await import("bun");
-    const client = new S3Client({
-      endpoint: blob.endpoint,
-      region: blob.region,
-      accessKeyId: blob.accessKey,
-      secretAccessKey: blob.secretKey,
-    });
-    // `.exists()` on a probe key resolves false for a missing key but throws for a
-    // missing bucket — enough to tell "bucket present" from "bucket absent".
-    await client.file("__claude_transcripts_setup_probe__", { bucket }).exists();
-    console.log(`  garage bucket ${bucket}: reachable`);
-  } catch (err) {
-    console.warn(
-      `  garage bucket ${bucket}: NOT reachable/created — create it + a key on the Garage cluster (admin), then set S3_* in .env. (${(err as Error).message})`,
-    );
+  const target = redactUrl(config.webapi.url);
+  const probe = await probeWebapi(config.webapi);
+  if (probe.ok) {
+    console.log(`  ✓ webapi ${target} takes writes`);
+    return true;
   }
+  console.error(
+    `  ✗ webapi ${target}: ${probe.reason} — the hook will report every write as failed`,
+  );
+  console.error(
+    "    bring the instance up (or re-run with `--webapi <url>`); sessions recorded " +
+      "meanwhile are recovered with `claude-transcripts backfill`.",
+  );
+  return false;
 }
 
 // ── Hook registration (Claude Code settings) ─────────────────────────────────
@@ -275,26 +233,16 @@ export async function runSetup(argv: string[]): Promise<number> {
   const check = options.check === true;
   const noHook = options["no-hook"] === true;
   const project = options.project === true;
+  // The instance this machine records into. Explicit beats everything, so a client
+  // can be pointed at a remote deployment with nothing else configured.
+  const explicit = strOpt(options, "webapi")?.replace(/\/+$/, "");
+  if (explicit) setWebapiUrl(explicit);
 
   console.log(`setup: repo ${REPO_ROOT}`);
-  const repoConfig = loadRepoConfig();
-  const hookConfig = buildHookConfig(repoConfig, process.env);
-  // The stores, for provisioning only — the hook config no longer names them (#288).
-  const env = process.env;
-  const couch: CouchTarget = {
-    url: resolveCouchUrl(env),
-    ...(env.COUCHDB_USER ? { auth: `${env.COUCHDB_USER}:${env.COUCHDB_PASSWORD ?? ""}` } : {}),
-    databases: repoConfig.couchdb.databases,
+  const hookConfig = {
+    ...buildHookConfig(loadRepoConfig(), process.env),
+    ...(explicit ? { webapi: { url: explicit } } : {}),
   };
-  const blob = env.S3_ENDPOINT
-    ? {
-        endpoint: env.S3_ENDPOINT,
-        region: env.S3_REGION || "garage",
-        accessKey: env.S3_ACCESS_KEY,
-        secretKey: env.S3_SECRET_KEY,
-        buckets: repoConfig.s3.buckets,
-      }
-    : undefined;
   reportExisting();
 
   if (check) {
@@ -302,40 +250,34 @@ export async function runSetup(argv: string[]): Promise<number> {
     console.log(
       `  hook config: ${existsSync(HOOK_CONFIG_PATH) ? "present" : "MISSING"} (${HOOK_CONFIG_PATH})`,
     );
-    console.log(`  couch: ${couch.url}`);
-    await provisionCouch(couch, true);
-    await probeGarage(blob);
-    return 0;
+    return (await checkWebapi()) ? 0 : 1;
   }
 
-  // 1. runtime config
+  // 1. runtime config — webapi only; a legacy store block is dropped with its credentials.
   writeHookConfig(HOOK_CONFIG_PATH, hookConfig);
   console.log(`  wrote hook config → ${HOOK_CONFIG_PATH} (mode 600)`);
 
-  // 2. provision stores. Meilisearch is not provisioned here: its indexes and their
-  // settings belong to the webapi (ADR 0016), which creates them at boot and fills
-  // them on `reindex`. `setup` is the host-side path and may run with no app up, so it
-  // reports search rather than configuring it.
-  const couchOk = await provisionCouch(couch, false);
-  await probeGarage(blob);
-  await reportSearch();
+  // 2. the write target. Search is reported the same way: the indexes are the
+  // webapi's (ADR 0016), so setup says where they stand rather than configuring them.
+  const reachable = await checkWebapi();
+  if (reachable) await reportSearch();
 
   // 3. register the hook
   if (noHook) {
-    console.log("  --no-hook: skipped Claude Code registration (config + stores only)");
+    console.log("  --no-hook: skipped Claude Code registration (config only)");
   } else if (project) {
     registerProject();
   } else {
     // Skip rather than double-write. The plugin registers the same events and both
     // routes end at `claude-transcripts hook run`, so registering here as well makes
-    // every event land twice in CouchDB — permanently, and silently, because the hook
+    // every event land twice — permanently, and silently, because the hook
     // swallows everything by design.
     //
     // `hook install` has refused this since it learned to look; `setup` never did, and
     // `setup` is the command the docs tell you to run first and the one `install`
     // calls. The guard was on the door you reach for second.
     //
-    // Skipped, not failed: steps 1 and 2 did real work, and a machine recording via
+    // Skipped, not failed: step 1 did real work, and a machine recording via
     // the plugin is already in the state `setup` exists to produce. Nothing is wrong
     // here, so nothing should exit non-zero.
     const plugin = globalRegistrationBlockedBy();
@@ -350,5 +292,5 @@ export async function runSetup(argv: string[]): Promise<number> {
   }
 
   console.log("setup: done. Verify with `claude-transcripts doctor` (write→read→search).");
-  return couchOk ? 0 : 1;
+  return reachable ? 0 : 1;
 }

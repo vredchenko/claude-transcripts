@@ -80,7 +80,7 @@ upgrades in place: it's idempotent and keeps your history.
 |---|---|
 | `install [options]` | Set up everything: stores, app, and the Claude Code hook |
 | `uninstall [options]` | Remove the instance (history is kept unless --purge) |
-| `setup [options]` | Install/register the hook + generate runtime config |
+| `setup [options]` | Register the hook + write its config (it writes only through the webapi) |
 | `provision` | Create the CouchDB databases and the Garage bucket + key |
 | `stack [action] [options]` | Control the container stack |
 

@@ -267,7 +267,11 @@ export async function runInstall(argv: string[]): Promise<number> {
   // ── 5. Application ────────────────────────────────────────────────────────
   step(5, TOTAL, "Application");
   if (noApp) {
-    console.log("  --no-app: skipped (run the webapi yourself)");
+    // The hook writes only through the webapi (#288): until one answers on the URL the
+    // hook config names, every session is reported as NOT recording.
+    console.log(
+      "  --no-app: skipped — run the webapi yourself; the hook records nothing until it answers",
+    );
   } else {
     try {
       await composeUp({ paths, env, app: true });
