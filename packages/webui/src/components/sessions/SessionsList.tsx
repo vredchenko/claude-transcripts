@@ -26,6 +26,7 @@ import {
   formatCompact,
   formatCount,
   formatDuration,
+  modelsLabel,
   projectName,
   statusTime,
   totalTools,
@@ -362,7 +363,7 @@ function SessionRow({ s, selection }: { s: SessionSummary; selection: RowSelecti
             noWrap
             sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}
           >
-            {s.model ?? "—"}
+            {modelsLabel(s)}
           </Typography>
 
           {/* Tool mix — hidden below md */}

@@ -212,10 +212,12 @@ function docToSummary(doc: any, firstTs?: string, chunkEntries = 0): SessionSumm
 }
 
 /** The ordered model / cwd / added-dir lists of an aggregate row; empty ones omitted. */
-function usedValues(agg: SessionAggregate): Pick<SessionSummary, "models" | "cwds" | "addedDirs"> {
+function usedValues(
+  agg: SessionAggregate | undefined,
+): Pick<SessionSummary, "models" | "cwds" | "addedDirs"> {
   const out: Pick<SessionSummary, "models" | "cwds" | "addedDirs"> = {};
   for (const key of ["models", "cwds", "addedDirs"] as const) {
-    const list = sessionValuesInOrder(agg[key]);
+    const list = sessionValuesInOrder(agg?.[key]);
     if (list.length) out[key] = list;
   }
   return out;
@@ -449,15 +451,17 @@ const listRoute = createRoute({
        * What the recall primer asks at session start ("how many sessions does this
        * cwd have?"), and what a "this project only" view needs without pulling the
        * corpus. `cwd` is compared with a trailing slash normalised away; the rest are
-       * literal. A session with no recorded `model` matches no `model` filter —
-       * asking for a value is asking for the sessions that have it.
+       * literal. `model` matches any model the session used, not only its first. A
+       * session with no recorded model matches no `model` filter — asking for a value
+       * is asking for the sessions that have it.
        */
       cwd: z.string().optional().openapi({
         description: "Exact project directory; a trailing slash is ignored.",
       }),
       hostname: z.string().optional().openapi({ description: "Exact hostname." }),
       model: z.string().optional().openapi({
-        description: "Exact model id. Sessions with no recorded model never match.",
+        description:
+          "Exact model id, matched against every model the session used. Sessions with no recorded model never match.",
       }),
       source: z.string().optional().openapi({ description: "Exact provenance (`source`)." }),
       status: SessionStatusSchema.optional().openapi({
@@ -670,7 +674,7 @@ export function sessionRoutes(ctx: AppContext) {
         overlapsRange(s, from, to) &&
         (!cwd || sameDir(s.cwd, cwd)) &&
         (!hostname || s.hostname === hostname) &&
-        (!model || s.model === model) &&
+        (!model || s.model === model || (s.models?.includes(model) ?? false)) &&
         (!source || s.source === source) &&
         (!status || s.status === status),
     );
@@ -704,7 +708,9 @@ export function sessionRoutes(ctx: AppContext) {
       // No summary: not ended.
     }
     if (doc && !reconciledThenResumed(doc, agg?.last)) {
-      summary = docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0);
+      // The lists come from the aggregate: it has the markers' cwds and added dirs,
+      // which the summary doesn't record.
+      summary = { ...docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0), ...usedValues(agg) };
     } else {
       // Not ended, or resumed since it was reconciled — the live aggregate (running /
       // incomplete).

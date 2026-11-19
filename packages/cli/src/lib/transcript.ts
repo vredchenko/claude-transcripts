@@ -5,7 +5,12 @@
  * math reuses the shared `sumTranscriptTokens` — the same dedupe-by-message-id
  * rule the hook uses, so counts match (docs/operate/tools.md "schema parity").
  */
-import { sumTranscriptTokens, type TokenUsage } from "@claude-transcripts/shared";
+import {
+  mainChainModel,
+  sumTranscriptTokens,
+  type TokenUsage,
+  transcriptModels,
+} from "@claude-transcripts/shared";
 
 /** One parsed transcript line. Claude Code owns the exact shape; we read loosely. */
 export interface TranscriptEntry {
@@ -44,6 +49,8 @@ export interface SessionFacts {
   gitBranch?: string;
   ccVersion?: string;
   model?: string;
+  /** Every main-chain model, in order of first use (`model` is the first). */
+  models: string[];
   startTimestamp?: string;
   endTimestamp?: string;
   /**
@@ -83,7 +90,7 @@ export function deriveSessionFacts(jsonl: string, opts: DeriveOpts = {}): Sessio
   const main = entries.filter((e) => e.type === "assistant" || e.type === "user");
   const first = main[0];
   const last = main[main.length - 1];
-  const firstAssistant = main.find((e) => e.type === "assistant");
+  const firstModel = main.map(mainChainModel).find((m) => m !== undefined);
 
   // A tool call fires a Post* hook only once its result is back, so tool calls are
   // counted by their results: `is_error` ⇒ PostToolUseFailure, otherwise PostToolUse.
@@ -126,7 +133,8 @@ export function deriveSessionFacts(jsonl: string, opts: DeriveOpts = {}): Sessio
     hostname: opts.hostname ?? "",
     gitBranch: first?.gitBranch,
     ccVersion: first?.version,
-    model: firstAssistant?.message?.model,
+    model: firstModel,
+    models: transcriptModels(jsonl),
     startTimestamp: first?.timestamp,
     endTimestamp: last?.timestamp,
     eventCount: promptCount + toolCalls,

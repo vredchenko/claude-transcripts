@@ -215,3 +215,12 @@ export function clockTime(iso: string | undefined, reference?: string): string {
   if (!ref || Number.isNaN(ref.getTime()) || ref.toDateString() === d.toDateString()) return clock;
   return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} ${clock}`;
 }
+
+/**
+ * A session's models as one line: the first, then each it switched to (`opus → sonnet`).
+ * Falls back to the single `model` for a session indexed before `models` existed.
+ */
+export function modelsLabel(s: { model?: string; models?: string[] }): string {
+  const models = s.models?.length ? s.models : s.model ? [s.model] : [];
+  return models.length ? models.join(" → ") : "—";
+}

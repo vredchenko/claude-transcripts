@@ -103,6 +103,38 @@ export function sumTranscriptTokens(jsonl: string): TokenUsage {
   return acc;
 }
 
+/**
+ * The model that answered a main-chain assistant line of a transcript, or undefined.
+ * Subagent lines (`isSidechain`) run on their own model and say nothing about the
+ * session's, and Claude Code stamps the turns it makes up itself (an API error, an
+ * interrupt) with a placeholder like `<synthetic>` rather than a model.
+ */
+export function mainChainModel(line: any): string | undefined {
+  if (line?.type !== "assistant" || line.isSidechain === true) return undefined;
+  const model = line.message?.model;
+  return typeof model === "string" && model && !model.startsWith("<") ? model : undefined;
+}
+
+/**
+ * Every model that answered the session's main chain, in order of first use — what a
+ * mid-session `/model` switch leaves behind in the transcript (#296). Written on the
+ * summary as `models`, by the hook and by backfill alike.
+ */
+export function transcriptModels(jsonl: string): string[] {
+  const seen = new Set<string>();
+  for (const line of jsonl.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const model = mainChainModel(JSON.parse(trimmed));
+      if (model) seen.add(model);
+    } catch {
+      // a partially-written line
+    }
+  }
+  return [...seen];
+}
+
 // ── Session shapes (webapi response contract, consumed by the webui + cli) ─────
 
 export type SessionStatus = "ended" | "running" | "incomplete";

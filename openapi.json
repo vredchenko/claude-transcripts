@@ -424,6 +424,12 @@
           "model": {
             "type": "string"
           },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "hostname": {
             "type": "string"
           },
@@ -718,10 +724,10 @@
           {
             "schema": {
               "type": "string",
-              "description": "Exact model id. Sessions with no recorded model never match."
+              "description": "Exact model id, matched against every model the session used. Sessions with no recorded model never match."
             },
             "required": false,
-            "description": "Exact model id. Sessions with no recorded model never match.",
+            "description": "Exact model id, matched against every model the session used. Sessions with no recorded model never match.",
             "name": "model",
             "in": "query"
           },
@@ -1141,6 +1147,12 @@
                   },
                   "model": {
                     "type": "string"
+                  },
+                  "models": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   },
                   "end_reason": {
                     "type": "string"
@@ -1825,10 +1837,10 @@
           {
             "schema": {
               "type": "string",
-              "description": "Exact model id (sessions only)."
+              "description": "Exact model id, any the session used (sessions only)."
             },
             "required": false,
-            "description": "Exact model id (sessions only).",
+            "description": "Exact model id, any the session used (sessions only).",
             "name": "model",
             "in": "query"
           },
