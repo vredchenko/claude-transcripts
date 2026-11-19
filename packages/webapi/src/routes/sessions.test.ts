@@ -171,6 +171,30 @@ describe("GET /sessions?status=", () => {
     expect(by.finalised.source).toBe("reconcile");
   });
 
+  test("lists every model and directory, and a model filter matches any of them", async () => {
+    const switched = {
+      ...agg(ago(1)),
+      model: "m-1",
+      models: { "m-1": ago(2), "m-2": `${ago(1)}~` },
+      cwds: { "/p": ago(2), "/p/src": ago(1) },
+      addedDirs: { "/extra": ago(1) },
+    };
+    const app2 = sessionRoutes({
+      ...ctx,
+      sessionIndex: { ready: true, rows: () => [...rows, { key: "switched", value: switched }] },
+    } as unknown as AppContext);
+    const res = await app2.fetch(new Request("http://localhost/sessions?model=m-2"));
+    const body = (await res.json()) as any;
+    expect(body.sessions).toHaveLength(1);
+    expect(body.sessions[0]).toMatchObject({
+      sessionId: "switched",
+      model: "m-1",
+      models: ["m-1", "m-2"],
+      cwds: ["/p", "/p/src"],
+      addedDirs: ["/extra"],
+    });
+  });
+
   test("rejects a status that doesn't exist", async () => {
     const res = await app.fetch(new Request("http://localhost/sessions?status=crashed"));
     expect(res.status).toBe(400);

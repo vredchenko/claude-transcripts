@@ -54,6 +54,13 @@ describe("toSessionSearchDoc", () => {
     expect(String(doc.id)).toMatch(MEILI_ID);
     expect(doc.tools).toEqual(["Bash"]);
   });
+
+  it("indexes every model the session used, or the one an older summary names", () => {
+    const base = { session_id: "s", model: "m-1" };
+    expect(toSessionSearchDoc({ ...base, models: ["m-1", "m-2"] }).models).toEqual(["m-1", "m-2"]);
+    expect(toSessionSearchDoc(base).models).toEqual(["m-1"]);
+    expect(toSessionSearchDoc({ session_id: "s" }).models).toEqual([]);
+  });
 });
 
 describe("Meili.pruneTasks", () => {

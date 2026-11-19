@@ -25,7 +25,7 @@ import { useMemo } from "react";
 import { getSearchQueryKey, type TurnHit, useSearch } from "../api/generated";
 import { MarkedSnippet } from "../components/HighlightedText";
 import { EmptyState, Loading } from "../components/states";
-import { formatCount, formatTimestamp, projectName, roleLabel } from "../format";
+import { formatCount, formatTimestamp, modelsLabel, projectName, roleLabel } from "../format";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
   type FilterKey,
@@ -231,7 +231,9 @@ export function SearchResultsPage() {
                         color="text.secondary"
                         sx={{ display: "block", wordBreak: "break-word" }}
                       >
-                        {[h.model, h.hostname, h.source].filter(Boolean).join(" · ")}
+                        {[h.model && modelsLabel(h), h.hostname, h.source]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </Typography>
                     </Box>
                   </Box>

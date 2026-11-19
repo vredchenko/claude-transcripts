@@ -58,6 +58,13 @@ const AGGREGATE_MAP = `function (doc) {
   // appeared, so a mid-session \`/model\` or \`cd\` is not hidden behind the first one.
   var models = {}, cwds = {}, addedDirs = {};
   if (model) models[model] = ts;
+  // A summary lists the session's models in order; one no marker named (a session
+  // recorded before #296) sorts after the markers' ones, in the summary's order.
+  if (isSummary && doc.models) {
+    for (var i = 0; i < doc.models.length; i++) {
+      if (!models[doc.models[i]]) models[doc.models[i]] = ts + "~" + ("00" + i).slice(-3);
+    }
+  }
   if (doc.event === "PostModelSwitch") {
     if (doc.from_model) models[doc.from_model] = ts;
     if (doc.to_model && doc.to_model !== doc.from_model) models[doc.to_model] = ts + "~";

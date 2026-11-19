@@ -88,6 +88,7 @@ Written once per session. A session is `ended` exactly when this doc exists.
   "system_checks": {},            // hook-written docs; reserved, currently empty
   "source": "live | backfill | doctor | reconcile",
   "model": "…",                   // backfill/doctor/reconcile docs
+  "models": ["…", "…"],           // every main-chain model, in order of first use
   "backfilled_at": "…",           // backfill only; the session's own time stays in `timestamp`
   "reconciled_at": "…",           // reconcile only; `timestamp` is the session's last activity
   "actor": "…"                    // optional, from `backfill --actor`
