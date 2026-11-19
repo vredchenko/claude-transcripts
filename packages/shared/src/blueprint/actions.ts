@@ -109,6 +109,11 @@ export const BINDINGS: HookActionBinding[] = [
   { event: "StopFailure", actions: ["write-event-marker", "update-counts"] },
   { event: "PreCompact", actions: ["write-event-marker"] },
   { event: "PostCompact", actions: ["write-event-marker"] },
+  // Mid-session changes to what the session runs on and where — the start-of-session
+  // `model` and `cwd` alone hide a `/model` switch or a `cd` (#296).
+  { event: "PostModelSwitch", actions: ["write-event-marker"] },
+  { event: "CwdChanged", actions: ["write-event-marker"] },
+  { event: "DirectoryAdded", actions: ["write-event-marker"] },
   { event: "SessionEnd", actions: ["flush-transcript-chunk", "write-summary", "upload-blobs"] },
 ];
 

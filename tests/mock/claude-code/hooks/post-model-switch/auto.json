@@ -1,0 +1,15 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/USER/.claude/projects/PROJECT/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/USER/project",
+  "hook_event_name": "PostModelSwitch",
+  "from_model": "claude-opus-4-8",
+  "to_model": "claude-haiku-4-8",
+  "requested_model": "claude-haiku-4-8",
+  "source": "auto",
+  "context_tokens": 48213,
+  "cache_ttl": "5m",
+  "prompt_cache_warm": false,
+  "estimated_cache_write_usd": 0.18,
+  "pricing": "catalog"
+}

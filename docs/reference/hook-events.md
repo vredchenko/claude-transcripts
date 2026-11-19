@@ -70,6 +70,13 @@ Every hook receives these on stdin; per-event fields are layered on top.
 | `UserPromptSubmit` | The user submits a prompt, before Claude sees it. Can block or inject context. | [ref](https://code.claude.com/docs/en/hooks#userpromptsubmit) | [user-prompt-submit/](../../tests/mock/claude-code/hooks/user-prompt-submit/) | `write-event-marker` · `update-counts` · `flush-transcript-chunk` |
 | `UserPromptExpansion` | A slash command / skill prompt is expanded/templated before use. | [ref](https://code.claude.com/docs/en/hooks#userpromptexpansion) | [user-prompt-expansion/](../../tests/mock/claude-code/hooks/user-prompt-expansion/) | _ignored — Slash-command expansion — redundant with `UserPromptSubmit`._ |
 
+## Model
+
+| Hook | Fires when | Docs | Examples | What we do |
+|------|------------|------|----------|------------|
+| `PreModelSwitch` | Before the model changes — `from_model`, `to_model`, `source` ∈ `command`/`picker`/`sdk`. Can block the switch. | [ref](https://code.claude.com/docs/en/hooks#premodelswitch) | [pre-model-switch/](../../tests/mock/claude-code/hooks/pre-model-switch/) | _ignored — Blocking pre-hook; `PostModelSwitch` records the switch that actually happened._ |
+| `PostModelSwitch` | The model changed — `from_model`, `to_model`, `source` ∈ `auto`/`command`/`picker`/`resume`/`sdk`, plus the estimated cache-write cost of the switch. | [ref](https://code.claude.com/docs/en/hooks#postmodelswitch) | [post-model-switch/](../../tests/mock/claude-code/hooks/post-model-switch/) | `write-event-marker` |
+
 ## Tool lifecycle
 
 | Hook | Fires when | Docs | Examples | What we do |
@@ -104,7 +111,8 @@ Every hook receives these on stdin; per-event fields are layered on top.
 
 | Hook | Fires when | Docs | Examples | What we do |
 |------|------------|------|----------|------------|
-| `CwdChanged` | The working directory changes during a session. | [ref](https://code.claude.com/docs/en/hooks#cwdchanged) | [cwd-changed/](../../tests/mock/claude-code/hooks/cwd-changed/) | _ignored — Host signal, out of session scope._ |
+| `CwdChanged` | The working directory changes during a session — `old_cwd`, `new_cwd`. | [ref](https://code.claude.com/docs/en/hooks#cwdchanged) | [cwd-changed/](../../tests/mock/claude-code/hooks/cwd-changed/) | `write-event-marker` |
+| `DirectoryAdded` | An extra working directory is added to the session — `directory`; `source` ∈ `slash_command` (`/add-dir`)/`register_repo_root`. | [ref](https://code.claude.com/docs/en/hooks#directoryadded) | [directory-added/](../../tests/mock/claude-code/hooks/directory-added/) | `write-event-marker` |
 | `FileChanged` | A watched file changes on disk. | [ref](https://code.claude.com/docs/en/hooks#filechanged) | [file-changed/](../../tests/mock/claude-code/hooks/file-changed/) | _ignored — Watcher signal, out of session scope._ |
 | `ConfigChange` | A settings/config/skills file changes during the session (`user_settings`, `project_settings`, …). | [ref](https://code.claude.com/docs/en/hooks#configchange) | [config-change/](../../tests/mock/claude-code/hooks/config-change/) | _ignored — Config-change signal, out of session scope._ |
 
@@ -148,8 +156,8 @@ Every hook receives these on stdin; per-event fields are layered on top.
 
 ## Coverage vs. what we wire today
 
-We currently bind actions to **11** of the 30 events —
-`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`. The rest are **intentionally ignored** — the "What we do" column gives
+We currently bind actions to **14** of the 33 events —
+`SessionStart`, `UserPromptSubmit`, `PostModelSwitch`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `CwdChanged`, `DirectoryAdded`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`. The rest are **intentionally ignored** — the "What we do" column gives
 the reason per event: a passive, observe-only writer gains nothing from
 blocking / UX / orchestration hooks, and every hook invocation costs a Bun startup,
 so we wire only the events that carry the session record ([actions.md](actions.md)).

@@ -153,6 +153,21 @@ const writeEventMarker: Handler = async (ctx) => {
     case "PostCompact":
       doc.trigger = p.trigger;
       break;
+    case "PostModelSwitch":
+      doc.from_model = p.from_model;
+      doc.to_model = p.to_model;
+      doc.requested_model = p.requested_model;
+      doc.source = p.source;
+      doc.estimated_cache_write_usd = p.estimated_cache_write_usd;
+      break;
+    case "CwdChanged":
+      doc.old_cwd = p.old_cwd;
+      doc.new_cwd = p.new_cwd;
+      break;
+    case "DirectoryAdded":
+      doc.directory = p.directory;
+      doc.source = p.source;
+      break;
   }
   await ctx.writer.event(doc);
 };

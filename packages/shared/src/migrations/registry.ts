@@ -237,6 +237,25 @@ const sessionIndexDeterministic: Migration = {
   },
 };
 
+/**
+ * v11 — redeploy `_design/session_index` so `aggregate` also carries every model, cwd
+ * and added directory a session used (`models` / `cwds` / `addedDirs`), from the
+ * `PostModelSwitch`, `CwdChanged` and `DirectoryAdded` markers (#296). View-only and
+ * additive; `down` leaves the fields in place.
+ */
+const sessionIndexModelsAndDirs: Migration = {
+  id: 11,
+  name: "session-index-models-and-dirs",
+  async up(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (models, cwds, added dirs)`);
+    const { _rev, ...body } = SESSION_INDEX_DESIGN;
+    await ctx.putDoc(SESSION_INDEX_DESIGN._id, body as Record<string, unknown>);
+  },
+  async down(ctx) {
+    ctx.log(`~ ${SESSION_INDEX_DESIGN._id} (models/cwds/added dirs left in place — additive)`);
+  },
+};
+
 /** All migrations, ascending by id. `latestVersion` is the last entry's id. */
 export const MIGRATIONS: Migration[] = [
   initialSchema,
@@ -249,6 +268,7 @@ export const MIGRATIONS: Migration[] = [
   chunkEntryKind,
   sessionIndexEventTimes,
   sessionIndexDeterministic,
+  sessionIndexModelsAndDirs,
 ];
 
 /** The highest migration id in the registry (the target for `up` with no `--to`). */
