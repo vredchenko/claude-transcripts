@@ -11,7 +11,6 @@ hooks/
 ├── .claude-plugin/plugin.json         manifest: commands, skills, userConfig
 ├── hooks/hooks.json                   generated from BINDINGS (bun run gen:hooks)
 ├── scripts/dispatch.ts                shim → claude-transcripts hook run
-├── settings.json                      subagentStatusLine
 ├── bin/claude-transcripts-statusline  statusline renderer (a plugin's bin/ is on PATH)
 ├── commands/status.md                 /claude-transcripts:status
 └── skills/{recall,session-history,transcripts-admin}/SKILL.md
@@ -26,8 +25,7 @@ registers the hook and statusline without the plugin
 It is one plugin rather than a writer and a reader, so one install gets both; a user
 who only wants logging sets `recall_mode` to `off`. Two platform constraints shape it:
 installing copies the plugin directory to a cache, so nothing in it may reference
-`../`; and a plugin's `settings.json` may set only `agent` and `subagentStatusLine`,
-not `statusLine`.
+`../`; and a plugin can't set `statusLine`, so the CLI registers it.
 
 ## Part 1 — visibility
 
@@ -89,8 +87,10 @@ The plugin's `bin/claude-transcripts-statusline` just finds the installed CLI an
 implementation. Because a plugin can't set `statusLine`, the CLI registers it:
 `claude-transcripts statusline install` (run by `install` unless `--no-statusline`)
 merges it into `~/.claude/settings.json` and leaves an existing `statusLine` alone,
-printing how to combine the two. The plugin's `settings.json` sets
-`subagentStatusLine`.
+printing how to combine the two. The wrapper is on the plugin's `PATH` for any surface
+that shows status — the main `statusLine`, a Claude Code mod, or a user's own script.
+The plugin carries no `settings.json`: the `subagentStatusLine` it once set was
+removed from Claude Code, which now draws subagent rows its own way.
 
 ### 1c. `/claude-transcripts:status`
 

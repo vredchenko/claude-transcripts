@@ -21,6 +21,13 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 - **`statusline install --glyph`** ([#311]) leads the statusline with the logo, for
   terminals that have `brand/font/claude-transcripts-glyph.ttf` installed.
 
+### Fixed
+
+- **The plugin no longer sets `subagentStatusLine`** ([#295]). Claude Code removed the
+  setting, so it did nothing but make `claude plugin list` print a deprecation note.
+  The plugin's `settings.json` is gone; `bin/claude-transcripts-statusline` stays on
+  the plugin's `PATH` for the main `statusLine` or a mod.
+
 ## [0.11.1] — 2026-11-21
 
 Fixes the v0.11.0 upgrade path for machines running a release binary. `setup` now
@@ -2236,6 +2243,7 @@ of them had ever executed:
 [#310]: https://github.com/vredchenko/claude-transcripts/issues/310
 [#306]: https://github.com/vredchenko/claude-transcripts/issues/306
 [#308]: https://github.com/vredchenko/claude-transcripts/issues/308
+[#295]: https://github.com/vredchenko/claude-transcripts/issues/295
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283
