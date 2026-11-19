@@ -56,7 +56,12 @@ const AGGREGATE_MAP = `function (doc) {
   // The model without its context suffix (\`[1m]\`), as \`baseModelId\` gives it: the
   // SessionStart payload carries the suffix and a transcript never does, so raw ids
   // would list one model twice (#296).
-  function base(m) { return real(m).replace(/\\[[^\\]]*\\]$/, ""); }
+  function base(m) {
+    m = real(m);
+    if (m.charAt(m.length - 1) !== "]") return m;
+    var open = m.lastIndexOf("[");
+    return open >= 0 && m.indexOf("]", open) === m.length - 1 ? m.slice(0, open) : m;
+  }
   var model = (doc.event === "SessionStart" || isSummary) ? real(doc.model) : "";
   var tools = {};
   if (doc.event === "PostToolUse" && doc.tool_name) tools[doc.tool_name] = 1;
