@@ -8,8 +8,8 @@ import type { StoreHealth, Targets } from "../hook/runtime";
 import {
   HOOK_SILENT_AFTER_MS,
   hookSilent,
+  RECOVER_HINT,
   renderStatusline,
-  STALL_AFTER_MS,
   shortWhere,
   storeState,
   transcriptMtimeMs,
@@ -34,9 +34,6 @@ function state(over: Partial<Parameters<typeof renderStatusline>[0]>) {
 
 function targets(over: Partial<Targets> = {}): Targets {
   return {
-    couchUrl: "http://127.0.0.1:7652",
-    sessionsDb: "claude-transcripts-sessions",
-    bucket: "claude-transcripts-sessions",
     webapiUrl: "http://127.0.0.1:7650",
     features: [],
     mirrors: [],
@@ -46,12 +43,15 @@ function targets(over: Partial<Targets> = {}): Targets {
   };
 }
 
+/** Long enough ago that nothing about the line could be "recent". */
+const A_MINUTE = 60_000;
+
 const counts = { events: 128, prompts: 4, errors: 0, tools: { Bash: 4, Read: 2 } };
 
-/** A direct store plus mirrors, in the order `stores` uses (index 0 is the direct one). */
+/** The instance's webapi plus mirrors, in the order `stores` uses (index 0 is the instance). */
 function stores(direct: Partial<StoreHealth>, ...mirrors: Partial<StoreHealth>[]): StoreHealth[] {
   return [
-    { label: "sessions@primary:5984", kind: "direct", lastWriteMs: 0, lastFailureMs: 0, ...direct },
+    { label: "primary:7650", kind: "webapi", lastWriteMs: 0, lastFailureMs: 0, ...direct },
     ...mirrors.map((m, i) => ({
       label: `mirror${i + 1}.example.net`,
       kind: "mirror" as const,
@@ -68,12 +68,22 @@ describe("renderStatusline", () => {
     expect(line.startsWith(`○ ${CT} off`)).toBe(true);
   });
 
-  test("a recent successful write → recording, with counts and the store", () => {
+  test("a recent successful write → recording, with counts and the webapi", () => {
     const line = renderStatusline(
       state({ targets: targets({ lastWriteMs: NOW - 2000 }), counts }),
       NOW,
     );
-    expect(line).toBe(
+    expect(line).toBe(`● ${CT} rec · 128 ev · 6 tools · 2s ago → 127.0.0.1:7650`);
+  });
+
+  test("a targets file from before #288 still names the CouchDB it wrote to", () => {
+    const t = targets({
+      webapiUrl: undefined,
+      couchUrl: "http://127.0.0.1:7652",
+      sessionsDb: "claude-transcripts-sessions",
+      lastWriteMs: NOW - 2000,
+    });
+    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
       `● ${CT} rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
     );
   });
@@ -84,20 +94,21 @@ describe("renderStatusline", () => {
     expect(line).toContain("no write yet");
   });
 
-  test("failures after the last success, past the stall window → stalled", () => {
+  test("a failure after the last success → stalled, with the recovery command", () => {
     const t = targets({
-      lastWriteMs: NOW - STALL_AFTER_MS - 1000,
+      lastWriteMs: NOW - A_MINUTE - 1000,
       lastFailureMs: NOW - 500,
     });
     const line = renderStatusline(state({ targets: t, counts }), NOW);
     expect(line.startsWith(`◐ ${CT} stalled`)).toBe(true);
     expect(line).toContain("last write 1m ago");
+    expect(line).toContain(RECOVER_HINT);
   });
 
   test("the version is on every state, including the ones that report nothing", () => {
     // The states worth knowing the version in are exactly the broken ones: "which
     // binary is this?" is the first question when the line says off or stalled.
-    const stalled = targets({ lastWriteMs: NOW - STALL_AFTER_MS - 1000, lastFailureMs: NOW });
+    const stalled = targets({ lastWriteMs: NOW - A_MINUTE - 1000, lastFailureMs: NOW });
     for (const line of [
       renderStatusline(state({ configured: false }), NOW),
       renderStatusline(state({}), NOW),
@@ -126,17 +137,16 @@ describe("storeState", () => {
     expect(storeState({ lastWriteMs: 0, lastFailureMs: NOW - 500 }, NOW)).toBe("failing");
   });
 
-  test("a rejection inside the stall window does not unseat a recent success", () => {
+  test("the FIRST rejection after a success is failing — no grace window (#288)", () => {
+    // Nothing buffers a failed write, so every one is a gap only backfill fills; a
+    // window that hid it for a minute hid exactly the writes that were lost.
     expect(storeState({ lastWriteMs: NOW - 10_000, lastFailureMs: NOW - 500 }, NOW)).toBe(
-      "healthy",
+      "failing",
     );
-    // …and a stale failure before a fresh success is forgotten.
-    expect(storeState({ lastWriteMs: NOW - 1000, lastFailureMs: NOW - 5000 }, NOW)).toBe("healthy");
   });
 
-  test("a rejection newer than a success that has aged out is failing", () => {
-    const s = { lastWriteMs: NOW - STALL_AFTER_MS - 1000, lastFailureMs: NOW - 500 };
-    expect(storeState(s, NOW)).toBe("failing");
+  test("a failure followed by a success is forgotten", () => {
+    expect(storeState({ lastWriteMs: NOW - 1000, lastFailureMs: NOW - 5000 }, NOW)).toBe("healthy");
   });
 });
 
@@ -144,29 +154,53 @@ describe("renderStatusline, per-store health", () => {
   // The bug this whole change exists for: the primary has accepted nothing for weeks,
   // the mirror holds every byte, and the old renderer had to lie in one direction or
   // the other — a permanent red, or a green dot naming the dead host.
-  test("a dead primary with a live mirror records, and names the mirror", () => {
+  test("a dead instance with a live mirror records, names the mirror, and asks for backfill", () => {
     const t = targets({
       lastWriteMs: NOW - 2000,
       stores: stores(
-        { lastWriteMs: NOW - STALL_AFTER_MS - 5000, lastFailureMs: NOW - 500 },
+        { lastWriteMs: NOW - A_MINUTE - 5000, lastFailureMs: NOW - 500 },
         { label: "logs.example.net", lastWriteMs: NOW - 2000 },
       ),
     });
     const line = renderStatusline(state({ targets: t, counts }), NOW);
-    expect(line).toBe(`● ${CT} rec (mirror) · 128 ev · 6 tools · 2s ago → logs.example.net`);
-    expect(line).not.toContain("primary:5984");
+    expect(line).toBe(
+      `● ${CT} rec (mirror) · 128 ev · 6 tools · 2s ago · ${RECOVER_HINT} → logs.example.net`,
+    );
+    expect(line).not.toContain("primary:7650");
   });
 
   test("every store failing is stalled, and reports the newest success across them", () => {
     const t = targets({
       stores: stores(
-        { lastWriteMs: NOW - STALL_AFTER_MS - 600_000, lastFailureMs: NOW - 500 },
-        { lastWriteMs: NOW - STALL_AFTER_MS - 60_000, lastFailureMs: NOW - 500 },
+        { lastWriteMs: NOW - A_MINUTE - 600_000, lastFailureMs: NOW - 500 },
+        { lastWriteMs: NOW - A_MINUTE - 60_000, lastFailureMs: NOW - 500 },
       ),
     });
     const line = renderStatusline(state({ targets: t, counts }), NOW);
     expect(line.startsWith(`◐ ${CT} stalled`)).toBe(true);
     expect(line).toContain("last write 2m ago");
+  });
+
+  test("a failing instance names why, and the line shows the fix", () => {
+    const t = targets({
+      stores: stores({
+        lastWriteMs: NOW - 30_000,
+        lastFailureMs: NOW - 500,
+        lastError: "HTTP 503",
+      }),
+    });
+    expect(renderStatusline(state({ targets: t, counts }), NOW)).toBe(
+      `◐ ${CT} stalled · HTTP 503 · 128 ev · 6 tools · last write 30s ago · ${RECOVER_HINT} → primary:7650`,
+    );
+  });
+
+  test("the fix is dropped before the facts when the terminal is narrow", () => {
+    const t = targets({
+      stores: stores({ lastWriteMs: NOW - 30_000, lastFailureMs: NOW - 500, lastError: "timeout" }),
+    });
+    const line = renderStatusline(state({ targets: t, counts }), NOW, { columns: 70 });
+    expect(line).not.toContain(RECOVER_HINT);
+    expect(line).toContain("timeout");
   });
 
   test("stores present but nothing tried yet is ready, not stalled", () => {
@@ -298,21 +332,24 @@ describe("renderStatusline, drawing", () => {
   test("a link wraps the store label, and only that", () => {
     const url = "http://127.0.0.1:7650/app/sessions/abc";
     const line = renderStatusline(rec, NOW, { link: url });
-    expect(line).toContain(
-      `\x1b]8;;${url}\x1b\\claude-transcripts-sessions@127.0.0.1:7652\x1b]8;;\x1b\\`,
-    );
+    expect(line).toContain(`\x1b]8;;${url}\x1b\\127.0.0.1:7650\x1b]8;;\x1b\\`);
     expect(visible(line)).toBe(plain);
   });
 
   test("a narrow terminal drops detail, least useful first, never the state or version", () => {
-    const at = (columns: number) => renderStatusline(rec, NOW, { columns });
-    expect(at(200)).toBe(plain);
-    expect(at(80)).toBe(
-      `● ${CT} rec · 128 ev · 2s ago → claude-transcripts-sessions@127.0.0.1:7652`,
-    );
-    expect(at(70)).toBe(`● ${CT} rec · 128 ev · 2s ago → claude-transcripts-sessions`);
-    expect(at(60)).toBe(`● ${CT} rec · 2s ago → claude-transcripts-sessions`);
-    expect(at(50)).toBe(`● ${CT} rec → claude-transcripts-sessions`);
+    const named = state({
+      targets: targets({
+        webapiUrl: "https://transcripts.example.net:7650",
+        lastWriteMs: NOW - 2000,
+      }),
+      counts,
+    });
+    const at = (columns: number) => renderStatusline(named, NOW, { columns });
+    expect(at(200)).toBe(`● ${CT} rec · 128 ev · 6 tools · 2s ago → transcripts.example.net:7650`);
+    expect(at(70)).toBe(`● ${CT} rec · 128 ev · 2s ago → transcripts.example.net:7650`);
+    expect(at(50)).toBe(`● ${CT} rec · 128 ev · 2s ago → transcripts`);
+    expect(at(40)).toBe(`● ${CT} rec · 2s ago → transcripts`);
+    expect(at(30)).toBe(`● ${CT} rec → transcripts`);
     expect(at(10)).toBe(`● ${CT} rec`);
   });
 

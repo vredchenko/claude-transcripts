@@ -409,11 +409,11 @@ export interface TopologyNodeDef {
 
 export type TopologyEdgeKind =
   | "emits" // Claude Code → hook: one invocation per event
-  | "direct-write" // the hook → CouchDB/S3, bypassing the gateway (ADR 0016 amendment)
+  | "ingest" // the hook → webapi's /api/ingest: the live write path (#288)
   | "http-client" // webui/cli/agents → webapi
   | "curated-write" // webapi → store, through endpoints that own the doc/blob shape
   | "read-only-proxy" // webapi → store, /api/couch + /api/s3
-  | "changes-follower" // webapi ← CouchDB _changes, the consequence of the bypass
+  | "changes-follower" // webapi ← CouchDB _changes: search follows the store
   | "indexes" // webapi → Meilisearch
   | "serves-static" // webapi → the SPA and the docs
   | "admin-of"; // admin UI → its backing service

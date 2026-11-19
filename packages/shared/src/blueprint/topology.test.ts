@@ -2,10 +2,8 @@
  * The diagram scene must stay tied to the blueprint it claims to project.
  *
  * The five hand-drawn ASCII diagrams this replaces drifted from each other and from
- * the code: one said `CLI` where the others said `cli`, and every one of them routed
- * the hook *through* the webapi — the exact opposite of ADR 0016's amendment, which
- * is why the `_changes` follower exists. The whole point of generating the picture is
- * that such a claim becomes checkable, so these are the checks.
+ * the code. The whole point of generating the picture is that a claim like "every
+ * write goes through the webapi" (#288) becomes checkable, so these are the checks.
  */
 import { describe, expect, test } from "bun:test";
 import { buildAppBlueprint } from "./build";
@@ -51,14 +49,27 @@ describe("topology integrity", () => {
     }
   });
 
-  test("the hook writes to the stores directly, not through the gateway", () => {
-    // ADR 0016's amendment, and the invariant every ASCII diagram got backwards.
-    const fromHook = TOPOLOGY.edges.filter((e) => e.from === "hook");
-    expect(fromHook.length).toBeGreaterThan(0);
-    for (const e of fromHook) {
-      expect(e.kind).toBe("direct-write");
-      expect(e.to).not.toBe("webapi");
+  test("no client reaches a store: hook, webui, CLI and agents all end at the webapi", () => {
+    // ADR 0016: the webapi is the single I/O interface (#288). A new edge from a
+    // client to CouchDB, S3 or Meilisearch is the regression this exists to stop.
+    const stores = new Set(TOPOLOGY.nodes.filter((n) => n.lane === "store").map((n) => n.key));
+    const clients = ["hook", "webui", "cli", "agents"];
+    for (const e of TOPOLOGY.edges.filter((e) => clients.includes(e.from))) {
+      expect(stores.has(e.to)).toBe(false);
+      expect(e.to).toBe("webapi");
     }
+  });
+
+  test("the hook writes, and only through the ingest surface", () => {
+    const fromHook = TOPOLOGY.edges.filter((e) => e.from === "hook");
+    expect(fromHook).toHaveLength(1);
+    expect(fromHook[0]).toMatchObject({ to: "webapi", kind: "ingest" });
+  });
+
+  test("every write into a store comes from the webapi", () => {
+    const writes = TOPOLOGY.edges.filter((e) => e.kind === "curated-write");
+    expect(writes.length).toBeGreaterThan(0);
+    for (const e of writes) expect(e.from).toBe("webapi");
   });
 });
 

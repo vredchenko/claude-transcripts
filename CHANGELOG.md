@@ -8,6 +8,30 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Breaking
+
+- **The hook writes only through the webapi** ([#288]). It no longer opens CouchDB or
+  S3: every event, chunk, summary and transcript goes to the instance's
+  `/api/ingest/*`, and mirrors are simply more webapis. The hook config's `webapi.url`
+  is now **required** and is its write target; `couch` and `blob` blocks are ignored
+  and dropped the next time `setup` or `install` rewrites the file, taking the store
+  credentials with them. **A config with stores but no `webapi.url` stops recording**
+  and says so in the session-start banner: run `claude-transcripts setup`, or add
+  `"webapi": { "url": "…" }` by hand. A remote or omnibus instance needs nothing but
+  its webapi published.
+
+### Added
+
+- **Loud write failures** ([#288]). There is no local buffer, so a failed write is
+  shown at once rather than after a stall window: the statusline goes `stalled` on the
+  first rejected write, names why (`HTTP 503`, `timeout`, `unreachable`) and shows
+  `claude-transcripts backfill`, which recovers the gap. The session-start banner probes
+  the webapi and says "NOT recording" before the first write is lost. `hook status`
+  and `doctor` check the hook's real write target. The transcript upload, which used to
+  swallow its errors, reports them too.
+- **`GET /api/ingest/{id}/high-water`**: how far a session's chunks reach, so a resumed
+  session continues on its stored chunk boundaries without the hook reading CouchDB.
+
 ### Fixed
 
 - **The omnibus webapi reported `0.0.0-dev` instead of its release version** on
@@ -2136,6 +2160,7 @@ of them had ever executed:
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
+[#288]: https://github.com/vredchenko/claude-transcripts/issues/288
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283

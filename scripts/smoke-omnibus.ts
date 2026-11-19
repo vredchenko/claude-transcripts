@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-import { APP_VERSION } from "@claude-transcripts/shared";
 /**
  * Smoke-test an omnibus image: boot it on an empty volume, check every surface it
  * claims, then recreate the container on the same volume and check that nothing was
@@ -10,6 +9,10 @@ import { APP_VERSION } from "@claude-transcripts/shared";
  * Needs docker and a free 127.0.0.1:7650. Leaves nothing behind: the container and
  * volume are removed on exit, pass or fail (the logs are printed on failure).
  */
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { APP_VERSION } from "@claude-transcripts/shared";
 import { $ } from "bun";
 
 const IMAGE = process.argv[2] ?? "claude-transcripts-omnibus:local";
@@ -104,6 +107,8 @@ async function main(): Promise<void> {
     "and read back from S3",
   );
 
+  await liveHook();
+
   const before = await secret("COUCHDB_PASSWORD");
   const s3Before = await secret("s3.env");
 
@@ -121,6 +126,91 @@ async function main(): Promise<void> {
   check(logs.includes("nothing to do"), "Garage bootstrap was a no-op");
 
   console.log("[smoke] pass");
+}
+
+/**
+ * The live hook, as Claude Code runs it, with a config that names ONLY the webapi
+ * (#288): no CouchDB, no S3, no credentials. A scripted session must read back whole
+ * through the API. Then the same against a dead target, which must say so on
+ * SessionStart rather than record nothing in silence.
+ */
+async function liveHook(): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), "ct-smoke-hook-"));
+  try {
+    const cli = join(import.meta.dir, "..", "packages", "cli", "src", "cli.tsx");
+    const config = (url: string) => {
+      const path = join(dir, `config-${encodeURIComponent(url)}.json`);
+      writeFileSync(
+        path,
+        JSON.stringify({
+          webapi: { url },
+          features: { midFlightChunking: true, couchFullContentChunks: true },
+        }),
+      );
+      return path;
+    };
+    const id = `smoke-hook-${Date.now()}`;
+    const transcript = join(dir, `${id}.jsonl`);
+    writeFileSync(
+      transcript,
+      [
+        { type: "user", sessionId: id, message: { role: "user", content: "hello" } },
+        { type: "assistant", sessionId: id, message: { role: "assistant", content: "hi" } },
+      ]
+        .map((e) => `${JSON.stringify(e)}\n`)
+        .join(""),
+    );
+    const fire = async (cfg: string, payload: Record<string, unknown>) => {
+      const proc = Bun.spawn(["bun", "run", cli, "hook", "run"], {
+        stdin: new Response(
+          JSON.stringify({ session_id: id, transcript_path: transcript, cwd: dir, ...payload }),
+        ),
+        stdout: "pipe",
+        stderr: "ignore",
+        env: { ...process.env, CT_HOOK_CONFIG: cfg },
+      });
+      const out = await new Response(proc.stdout).text();
+      check((await proc.exited) === 0, `hook ${payload.hook_event_name} exits 0`);
+      return out;
+    };
+
+    const live = config(BASE);
+    const banner = await fire(live, { hook_event_name: "SessionStart", source: "startup" });
+    check(banner.includes(`/app/sessions/${id}`), "SessionStart banner links the session");
+    await fire(live, { hook_event_name: "UserPromptSubmit", prompt: "hello" });
+    await fire(live, {
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_use_id: "t1",
+      tool_input: { command: "true" },
+    });
+    await fire(live, { hook_event_name: "Stop" });
+    await fire(live, { hook_event_name: "SessionEnd", reason: "exit" });
+
+    // The transcript upload is detached (#217): give it a moment to land.
+    let detail: Record<string, any> = {};
+    for (let i = 0; i < 30; i++) {
+      detail = (await (await get(`/api/sessions/${id}`)).json()) as Record<string, any>;
+      if (detail.hasTranscript) break;
+      await Bun.sleep(1000);
+    }
+    check(detail.status === "ended", "webapi-only hook: the session ended (summary landed)");
+    check(detail.promptCount === 1, "  …with its prompt counted");
+    check(detail.toolCounts?.Bash === 1, "  …and its tool call");
+    check(detail.hasTranscript === true, "  …and its transcript uploaded through ingest");
+    const turns = (await (await get(`/api/sessions/${id}/transcript`)).json()) as {
+      totalCount?: number;
+    };
+    check(turns.totalCount === 2, "  …and its chunks read back");
+
+    const dead = await fire(config("http://127.0.0.1:1"), {
+      hook_event_name: "SessionStart",
+      source: "startup",
+    });
+    check(dead.includes("NOT recording"), "an unreachable webapi is announced, not silent");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 try {

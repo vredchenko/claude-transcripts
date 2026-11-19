@@ -1,40 +1,45 @@
 /**
- * Per-store write health.
+ * Per-target write health.
  *
- * A single outcome pair could not express "the primary is dead but the mirror is fine",
+ * A single outcome pair could not express "the instance is down but the mirror is fine",
  * which is the ordinary state of a machine reporting into a shared instance. Collapsed,
- * the indicator was wrong whichever way it resolved: counting only the direct store
- * showed permanent failure on a box recording correctly, and counting any store showed
- * a confident green dot labelled with a host that had accepted nothing for weeks.
+ * the indicator was wrong whichever way it resolved.
  */
 import { describe, expect, test } from "bun:test";
 import { type HookConfig, makeTargets, resolveTargets } from "./runtime";
 
 const WITH_MIRROR = {
-  couch: { url: "http://user:pw@couch.example:5984", databases: { sessions: "app-sessions" } },
+  webapi: { url: "http://user:pw@ct.example:7650" },
   features: {},
   mirrors: [{ url: "https://logs.example.com" }],
 } as unknown as HookConfig;
 
 describe("resolveTargets stores", () => {
-  test("direct store first, then mirrors in config order", () => {
+  test("the instance's webapi first, then mirrors in config order", () => {
     const t = resolveTargets(WITH_MIRROR);
-    expect(t.stores?.map((s) => s.kind)).toEqual(["direct", "mirror"]);
-    expect(t.stores?.[0]?.label).toBe("app-sessions@couch.example:5984");
+    expect(t.stores?.map((s) => s.kind)).toEqual(["webapi", "mirror"]);
+    expect(t.stores?.[0]?.label).toBe("ct.example:7650");
     expect(t.stores?.[1]?.label).toBe("logs.example.com");
   });
 
-  test("always seeds at least the direct store — an empty `stores` cannot arise here", () => {
+  test("credentials never reach the targets file — the statusline prints it", () => {
+    const t = resolveTargets(WITH_MIRROR);
+    expect(JSON.stringify(t)).not.toContain("pw");
+    expect(t.webapiUrl).toBe("http://ct.example:7650");
+  });
+
+  test("names no store: the hook has no CouchDB or S3 target any more (#288)", () => {
+    const t = resolveTargets(WITH_MIRROR);
+    expect(t.couchUrl).toBeUndefined();
+    expect(t.bucket).toBeUndefined();
+  });
+
+  test("always seeds at least the instance — an empty `stores` cannot arise here", () => {
     // A renderer has to decide what an empty array means, and the honest answer is
-    // "we never produce one": every config has a direct store, because `couch` is the
-    // one block that cannot be defaulted. Pinned because the statusline now relies on
-    // it to tell "nothing tried yet" apart from "nothing to try".
-    const noMirrors = {
-      couch: { url: "http://c:5984", databases: { sessions: "s" } },
-      features: {},
-    } as unknown as HookConfig;
+    // "we never produce one": a loadable config always has a webapi.
+    const noMirrors = { webapi: { url: "http://c:7650" }, features: {} } as unknown as HookConfig;
     expect(resolveTargets(noMirrors).stores).toHaveLength(1);
-    expect(resolveTargets(noMirrors).stores?.[0]?.kind).toBe("direct");
+    expect(resolveTargets(noMirrors).stores?.[0]?.kind).toBe("webapi");
   });
 });
 
@@ -45,16 +50,26 @@ describe("markWrite", () => {
     const store = makeTargets(`test-${Math.random()}`);
     store.write(resolveTargets(WITH_MIRROR));
 
-    store.markWrite(false, 0); // primary refuses
-    store.markWrite(true, 1); // mirror accepts
+    store.markWrite({ ok: false, reason: "HTTP 502" }, 0); // the instance refuses
+    store.markWrite({ ok: true }, 1); // mirror accepts
 
     const t = store.read();
     expect(t?.stores?.[0]?.lastWriteMs).toBe(0);
     expect(t?.stores?.[0]?.lastFailureMs).toBeGreaterThan(0);
+    expect(t?.stores?.[0]?.lastError).toBe("HTTP 502");
     expect(t?.stores?.[1]?.lastWriteMs).toBeGreaterThan(0);
     // The flat pair aggregates: recorded somewhere counts as recorded.
     expect(t?.lastWriteMs).toBeGreaterThan(0);
     expect(t?.lastFailureMs).toBe(0);
+    store.clear();
+  });
+
+  test("a success clears the reason the last failure gave", () => {
+    const store = makeTargets(`test-${Math.random()}`);
+    store.write(resolveTargets(WITH_MIRROR));
+    store.markWrite({ ok: false, reason: "timeout" }, 0);
+    store.markWrite({ ok: true }, 0);
+    expect(store.read()?.stores?.[0]?.lastError).toBeUndefined();
     store.clear();
   });
 

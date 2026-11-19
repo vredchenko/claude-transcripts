@@ -319,6 +319,18 @@
         },
         "required": ["sessionId", "cwd", "role", "timestamp", "text"]
       },
+      "ChunkHighWater": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": ["id", "bytes"]
+      },
       "SessionResetResult": {
         "type": "object",
         "properties": {
@@ -1606,6 +1618,50 @@
                     }
                   },
                   "required": ["error"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingest/{id}/high-water": {
+      "get": {
+        "operationId": "chunkHighWater",
+        "summary": "How far a session's chunk docs reach — the byte offset a live writer resumes at",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reach",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkHighWater"
                 }
               }
             }

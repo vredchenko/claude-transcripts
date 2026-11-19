@@ -3,14 +3,15 @@ import type { ActionDef, HookActionBinding } from "./types";
 /**
  * The catalogue of actions, defined independently of what starts them. Hooks bind to
  * actions many-to-many (BINDINGS); `triggers` names the other starters — a CLI command,
- * the webapi's change follower. `implemented` flags the ones that run today: a bound
+ * the webapi's change follower. Every hook write goes through the webapi's ingest routes
+ * (#288). `implemented` flags the ones that run today: a bound
  * action has a hook handler (the CLI's `HANDLERS` map), an unbound one has its CLI
  * command (tests in the CLI keep both in step).
  */
 export const ACTIONS: ActionDef[] = [
   {
     key: "write-event-marker",
-    summary: "Append a light append-only event marker doc",
+    summary: "Append a light event marker doc (POST /api/ingest/events)",
     implemented: true,
   },
   {
@@ -20,13 +21,17 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     key: "flush-transcript-chunk",
-    summary: "Tail the transcript → append chunk docs",
+    summary: "Tail the transcript → append chunk docs (POST /api/ingest/chunks)",
     implemented: true,
   },
-  { key: "write-summary", summary: "Write summary:<id> at session end", implemented: true },
+  {
+    key: "write-summary",
+    summary: "Write summary:<id> at session end (POST /api/ingest/summary)",
+    implemented: true,
+  },
   {
     key: "upload-blobs",
-    summary: "Upload summary.json + transcript.jsonl to S3",
+    summary: "Upload the transcript (PUT /api/ingest/{id}/transcript), detached",
     implemented: true,
   },
   {
@@ -36,7 +41,8 @@ export const ACTIONS: ActionDef[] = [
   },
   {
     key: "announce-recording",
-    summary: "Tell the user, in the transcript, whether and where this session is recorded",
+    summary:
+      "Probe the webapi and tell the user, in the transcript, whether and where this session is recorded",
     implemented: true,
   },
   {

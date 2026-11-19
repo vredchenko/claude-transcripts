@@ -3,38 +3,29 @@
  *
  * This is the one file the hook itself reads, and nothing else writes it. It exists
  * because the hook runs as a separate short-lived process with no access to the
- * instance layout logic — so everything it needs (store URLs, credentials, feature
+ * instance layout logic — so everything it needs (the webapi it writes through, feature
  * flags, chunk tunables) is baked into a single 0600 file at install time.
+ *
+ * It names no store and holds no store credential: the hook writes only through the
+ * webapi (#288). A config written by an older release still has `couch` / `blob`
+ * blocks; rewriting it drops them, since they are not carried forward.
  */
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { type AppConfigFile, type EnvLike, resolveCouchUrl } from "@claude-transcripts/shared";
+import type { AppConfigFile, EnvLike } from "@claude-transcripts/shared";
+
+/** Where a local instance's webapi listens by default (`.env.template`, installation.md). */
+export const DEFAULT_WEBAPI_URL = "http://127.0.0.1:7650";
 
 /**
  * The hook runtime config — the one projection both `install` and `setup` write.
  * `env` may be `process.env`, so any key can be absent or empty.
  */
 export function buildHookConfig(app: AppConfigFile, env: EnvLike) {
-  const user = env.COUCHDB_USER;
   return {
-    couch: {
-      url: resolveCouchUrl(env),
-      databases: app.couchdb.databases,
-      ...(user ? { auth: `${user}:${env.COUCHDB_PASSWORD ?? ""}` } : {}),
-    },
-    // Omitted entirely when S3 isn't provisioned yet — the hook checks for an access
-    // key and simply doesn't upload blobs, rather than failing per event.
-    blob: env.S3_ENDPOINT
-      ? {
-          endpoint: env.S3_ENDPOINT,
-          region: env.S3_REGION || "garage",
-          accessKey: env.S3_ACCESS_KEY,
-          secretKey: env.S3_SECRET_KEY,
-          buckets: app.s3.buckets,
-        }
-      : undefined,
-    // Where the CLI reaches this instance's webapi. Omitted when the env doesn't say, so
-    // a hand-set URL (a remote deployment) is preserved rather than guessed over.
+    // The hook's write target. Omitted when the env doesn't say, so a hand-set URL (a
+    // remote deployment) is preserved rather than guessed over; `writeHookConfig`
+    // falls back to the local default only when there is nothing to preserve.
     ...webapiFromEnv(env),
     features: app.features,
     system: app.system,
@@ -100,6 +91,9 @@ export function mergePreserved(
 
 export function writeHookConfig(path: string, config: unknown): void {
   const merged = mergePreserved((config ?? {}) as Record<string, unknown>, readExisting(path));
+  // A hook with no webapi records nothing, so never write one: a fresh machine whose env
+  // names no webapi gets the local default rather than a config that silently can't.
+  merged.webapi ??= { url: DEFAULT_WEBAPI_URL };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`);
   chmodSync(path, 0o600);

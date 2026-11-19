@@ -19,7 +19,10 @@
 import { hostname } from "node:os";
 import { getSession, getSessionTranscript, resetSession, search } from "../api/generated";
 import { webapiUrl } from "../api/http";
+import { probeWebapi } from "../hook/ingest";
+import { hookConfigProblem, loadHookConfig, redactUrl } from "../hook/runtime";
 import { parseFlags, strOpt } from "../lib/args";
+import { installPaths } from "../lib/paths";
 import { buildChunkDocs, buildEventDocs, buildSummaryDoc } from "../lib/session-docs";
 import { makeSink } from "../lib/sink";
 import { deriveSessionFacts } from "../lib/transcript";
@@ -152,6 +155,32 @@ async function cleanUp(sessionId: string): Promise<void> {
   }
 }
 
+/** Is the hook's write target there? False only when the hook is configured and failing. */
+async function checkHookTarget(testing: string): Promise<boolean> {
+  const path = installPaths().hookConfig;
+  const config = loadHookConfig(path);
+  if (!config) {
+    // No hook on this machine is legitimate (a server, a CI box); say so and go on.
+    console.log(`doctor: hook — not recording (${hookConfigProblem(path)})`);
+    return true;
+  }
+  const target = redactUrl(config.webapi.url);
+  const probe = await probeWebapi(config.webapi);
+  if (!probe.ok) {
+    console.error(`doctor: HOOK CANNOT WRITE — ${target}: ${probe.reason}`);
+    console.error(
+      "doctor: sessions are not being recorded. Fix `webapi.url` in " +
+        `${path} (or bring the webapi up), then recover the gap with \`claude-transcripts backfill\`.`,
+    );
+    return false;
+  }
+  const same = redactUrl(testing).replace(/\/+$/, "") === target.replace(/\/+$/, "");
+  console.log(
+    `doctor: hook writes to ${target} — reachable${same ? "" : " (not the target tested below)"}`,
+  );
+  return true;
+}
+
 export async function runDoctor(argv: string[]): Promise<number> {
   const { options } = parseFlags(argv);
   const sink = makeSink({ dryRun: false, webapiUrl: strOpt(options, "webapi") });
@@ -184,6 +213,11 @@ export async function runDoctor(argv: string[]): Promise<number> {
       return 1;
     }
   }
+
+  // The hook writes to its own configured webapi, which is not necessarily the one this
+  // run is testing (`--webapi`, `CT_WEBAPI_URL`). Check that one too: a hook pointed
+  // somewhere dead is the failure nothing else on this machine would report (#288).
+  if (!(await checkHookTarget(sink.label))) return 1;
 
   console.log(`doctor: synthetic session ${sessionId}`);
 

@@ -67,7 +67,7 @@ describe.if(posix)("SessionEnd through `hook run`", () => {
         uploads.push({ path: url.pathname, body });
         return new Response(null, { status: 201 });
       }
-      // Couch writes and mirror ingest of docs: accept everything.
+      // Ingest of docs: accept everything.
       return Response.json({ ok: true }, { status: 201 });
     },
   });
@@ -76,10 +76,8 @@ describe.if(posix)("SessionEnd through `hook run`", () => {
   test("returns before the upload finishes, and the upload lands", async () => {
     const base = `http://localhost:${server.port}`;
     const config: HookConfig = {
-      couch: { url: base, databases: { sessions: "s" } },
-      // No local S3 key: the blob goes only to the mirror, which this server plays.
-      blob: { endpoint: base, region: "auto", buckets: { sessions: "b" } },
-      mirrors: [{ url: base }],
+      // The instance's webapi, which this server plays: the transcript goes to it.
+      webapi: { url: base },
       features: {},
       system: { logging: { chunk: { maxEntriesPerChunk: 200, flushIntervalMs: 15_000 } } },
     };
@@ -119,8 +117,7 @@ describe("upload-blobs", () => {
     const transcript = join(dir, "inline.jsonl");
     writeFileSync(transcript, "{}\n");
     const config: HookConfig = {
-      couch: { url: "http://localhost:1", databases: {} },
-      blob: { endpoint: "http://localhost:1", region: "auto", buckets: { sessions: "b" } },
+      webapi: { url: "http://localhost:1" },
       features: {},
       system: { logging: { chunk: { maxEntriesPerChunk: 200, flushIntervalMs: 15_000 } } },
     };
@@ -130,7 +127,13 @@ describe("upload-blobs", () => {
     );
     if (!ctx) throw new Error("no context");
     const puts: string[] = [];
-    ctx.blob = { enabled: true, put: async (_b, key) => void puts.push(key) };
+    const ignore = async () => {};
+    ctx.writer = {
+      event: ignore,
+      chunk: ignore,
+      summary: ignore,
+      transcript: async (id) => void puts.push(id),
+    };
 
     ctx.detachUpload = () => true;
     await HANDLERS["upload-blobs"]?.(ctx);
@@ -138,6 +141,6 @@ describe("upload-blobs", () => {
 
     ctx.detachUpload = () => false;
     await HANDLERS["upload-blobs"]?.(ctx);
-    expect(puts).toEqual(["s1/transcript.jsonl"]);
+    expect(puts).toEqual(["s1"]);
   });
 });

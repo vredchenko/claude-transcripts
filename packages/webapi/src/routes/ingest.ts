@@ -20,6 +20,7 @@ import { validationHook } from "./validation";
  *   POST   /api/ingest/events           bulk-insert append-only event docs
  *   POST   /api/ingest/chunks           bulk-insert chunk docs (stable ids; idempotent)
  *   PUT    /api/ingest/{id}/transcript  store the transcript blob in S3 (ADR 0014)
+ *   GET    /api/ingest/{id}/high-water  how far the session's chunks reach (resume point)
  *   DELETE /api/ingest/{id}             drop a session's derived docs, to re-ingest it
  *
  * The doc schemas are shared (`@claude-transcripts/shared/docs`), so the CLI that builds
@@ -98,6 +99,32 @@ const transcriptRoute = createRoute({
   responses: {
     200: { content: { "application/json": { schema: ResultSchema } }, description: "Stored" },
     400: { content: { "application/json": { schema: ErrorSchema } }, description: "Empty body" },
+    500: { content: { "application/json": { schema: ErrorSchema } }, description: "Error" },
+  },
+});
+
+const HighWaterSchema = z
+  .object({
+    id: z.string(),
+    /** The highest `byte_end` across the session's chunk docs; 0 when there are none. */
+    bytes: z.number(),
+  })
+  .openapi("ChunkHighWater");
+
+/**
+ * Where a live writer resumes chunking a session. The hook keeps its byte offset in
+ * `/tmp`; when that is lost (a reboot between a session and its resume) it asks here,
+ * so a resumed session continues on the stored chunk boundaries instead of re-chunking
+ * from 0 (#168). Part of the write surface because only a writer needs it (#288).
+ */
+const highWaterRoute = createRoute({
+  method: "get",
+  path: "/ingest/{id}/high-water",
+  operationId: "chunkHighWater",
+  summary: "How far a session's chunk docs reach — the byte offset a live writer resumes at",
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: { content: { "application/json": { schema: HighWaterSchema } }, description: "Reach" },
     500: { content: { "application/json": { schema: ErrorSchema } }, description: "Error" },
   },
 });
@@ -214,6 +241,20 @@ export function ingestRoutes(ctx: AppContext) {
       "application/x-ndjson",
     );
     return c.json({ ok: true, id, bytes: text.length });
+  });
+
+  route.openapi(highWaterRoute, async (c: any) => {
+    const id = c.req.param("id");
+    // `by_session` is keyed [id, byte_start]; read backwards for the furthest chunk.
+    // `descending` swaps the bounds, so start high and end low.
+    const res = await ctx.couch.db("sessions").view("chunks", "by_session", {
+      startkey: [id, {}],
+      endkey: [id],
+      descending: true,
+      limit: 1,
+    });
+    const end = Number((res.rows as any[])[0]?.value?.byte_end ?? 0);
+    return c.json({ id, bytes: Number.isFinite(end) && end > 0 ? end : 0 });
   });
 
   route.openapi(resetRoute, async (c: any) => {
