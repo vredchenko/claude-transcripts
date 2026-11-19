@@ -34,7 +34,6 @@ const STORE_ACCESS: [(line: string) => boolean, string][] = [
 
 /** Admin paths that provision a local stack: they own the stores, by design. */
 const ALLOWED = new Set([
-  "commands/setup.ts",
   "lib/provision.ts",
   "lib/instance-env.ts",
   "lib/assets.generated.ts",

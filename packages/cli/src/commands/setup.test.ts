@@ -7,8 +7,8 @@
  * first and the one `install` calls, so the guard sat on the door you reach for
  * second. These tests pin the wiring, not the detection.
  */
-import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { globalRegistrationBlockedBy } from "./setup";
@@ -51,4 +51,59 @@ describe("globalRegistrationBlockedBy", () => {
     });
     expect(globalRegistrationBlockedBy(path)?.key).toBe("claude-transcripts@my-fork");
   });
+});
+
+describe("setup writes a webapi-only client config (#288)", () => {
+  const ENTRY = join(import.meta.dir, "..", "cli.tsx");
+  const server = Bun.serve({
+    port: 0,
+    fetch: (req) =>
+      new URL(req.url).pathname === "/health"
+        ? Response.json({ ok: true })
+        : Response.json({ error: "nope" }, { status: 404 }),
+  });
+  afterAll(() => server.stop(true));
+
+  async function setup(webapi: string, existing?: unknown) {
+    const home = mkdtempSync(join(tmpdir(), "ct-setup-home-"));
+    const config = join(home, "config.json");
+    if (existing) writeFileSync(config, JSON.stringify(existing));
+    const proc = Bun.spawn(["bun", "run", ENTRY, "setup", "--no-hook", "--webapi", webapi], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, CT_HOME: home, CT_HOOK_CONFIG: config, FORCE_COLOR: "0" },
+    });
+    const [out, err, code] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    return { code, out: out + err, config: JSON.parse(readFileSync(config, "utf8")) };
+  }
+
+  test("--webapi points the hook at a remote instance, and setup checks it takes writes", async () => {
+    const url = `http://localhost:${server.port}`;
+    const r = await setup(`${url}/`, {
+      couch: { url: "http://127.0.0.1:5984", auth: "admin:secret" },
+      blob: { accessKey: "GK", secretKey: "shh" },
+      mirrors: [{ url: "https://backup.example.net" }],
+    });
+    expect(r.code).toBe(0);
+    expect(r.config.webapi).toEqual({ url });
+    // The legacy store blocks go, credentials with them; the machine's mirrors stay.
+    expect(r.config.couch).toBeUndefined();
+    expect(r.config.blob).toBeUndefined();
+    expect(r.config.mirrors).toEqual([{ url: "https://backup.example.net" }]);
+    expect(r.out).toContain("takes writes");
+    // …and it never reached for a store.
+    expect(r.out).not.toMatch(/couch db|garage bucket/i);
+  }, 20_000);
+
+  test("an unreachable webapi is written anyway, but setup says so and fails", async () => {
+    const r = await setup("http://127.0.0.1:1");
+    expect(r.code).toBe(1);
+    expect(r.config.webapi).toEqual({ url: "http://127.0.0.1:1" });
+    expect(r.out).toContain("unreachable");
+    expect(r.out).toContain("backfill");
+  }, 20_000);
 });

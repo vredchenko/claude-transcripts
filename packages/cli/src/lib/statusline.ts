@@ -160,6 +160,11 @@ export interface StatuslineLine {
   where?: string;
   /** `+2` when more mirrors are taking writes than the one named. */
   more?: string;
+  /**
+   * The session's page on the instance. When set, `where` shows this link (scheme
+   * dropped, shortened as the width demands) and the drawing makes it clickable.
+   */
+  href?: string;
 }
 
 const GLYPH: Record<LineState, string> = { rec: "●", stalled: "◐", ready: "◌", off: "○" };
@@ -262,7 +267,11 @@ export function statuslineLine(state: StatuslineState, now = Date.now()): Status
 export interface FormatOptions {
   /** ANSI colour by state. Off by default: tests and pipes get the plain line. */
   color?: boolean;
-  /** Wrap the store label in an OSC 8 hyperlink to this URL. */
+  /**
+   * The session's page on the instance (`sessionLink`). Shown in place of the store
+   * label, and clickable (OSC 8) where the terminal supports it — but only on a line
+   * naming the instance: a `(mirror)` line's data is not there yet.
+   */
   link?: string | null;
   /** Fit the line into this many columns by dropping detail, least useful first. */
   columns?: number;
@@ -291,7 +300,13 @@ const STATE_COLOR: Record<LineState, string> = {
 const SHRINK: ((l: StatuslineLine) => StatuslineLine)[] = [
   ({ tools: _, ...l }) => l,
   ({ fix: _, ...l }) => l,
-  (l) => (l.where ? { ...l, where: shortWhere(l.where) } : l),
+  (l) => (l.href ? { ...l, where: linkText(l.href, "mid") } : l),
+  (l) =>
+    l.href
+      ? { ...l, where: linkText(l.href, "short") }
+      : l.where
+        ? { ...l, where: shortWhere(l.where) }
+        : l,
   ({ events: _, ...l }) => l,
   ({ age: _, ...l }) => l,
   ({ where: _, more: __, ...l }) => l,
@@ -309,9 +324,29 @@ export function shortWhere(where: string): string {
   return host.split(".")[0] || host;
 }
 
+/**
+ * A session link as the line shows it: `host:port/app/sessions/<id>` in full, then
+ * `host:port/…/<id8>`, then `host/…/<id8>`. Enough to tell which instance and which
+ * session at a glance; the click target is always the whole URL.
+ */
+export function linkText(url: string, form: "full" | "mid" | "short"): string {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return url;
+  }
+  if (form === "full") return `${u.host}${u.pathname}`;
+  const id = (u.pathname.split("/").filter(Boolean).pop() ?? "").slice(0, 8);
+  return `${form === "mid" ? u.host : shortWhere(u.host)}/…/${id}`;
+}
+
 /** Draw a line. With no options it is the plain line every earlier release printed. */
 export function formatStatusline(line: StatuslineLine, opts: FormatOptions = {}): string {
   let l = line;
+  if (opts.link && l.where && l.qualifier !== "(mirror)") {
+    l = { ...l, href: opts.link, where: linkText(opts.link, "full") };
+  }
   if (opts.columns && opts.columns > 0) {
     for (const shrink of SHRINK) {
       // Measured on the plain drawing: escapes take no columns.
@@ -350,7 +385,7 @@ function draw(l: StatuslineLine, opts: FormatOptions): string {
 
   let out = [head, ...details].join(sep);
   if (l.where) {
-    const label = opts.link ? osc8(opts.link, l.where) : l.where;
+    const label = l.href && opts.link ? osc8(l.href, l.where) : l.where;
     out += `${dim(" →")} ${label}${l.more ? ` ${l.more}` : ""}`;
   }
   return out;

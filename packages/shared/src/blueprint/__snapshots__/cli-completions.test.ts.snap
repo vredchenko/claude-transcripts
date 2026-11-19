@@ -138,7 +138,7 @@ _claude_transcripts_flags() {
   case $1 in
     (install) reply=('--port-base:first port of the block' '--meili-key:generate a Meilisearch master key' '--no-hook:skip Claude Code registration' '--no-statusline:register the hook but not the statusline' '--no-app:skip the app container (run the webapi yourself)' '--no-prune:keep superseded app images' '--skip-preflight:continue past failed preflight checks' '--yes:no prompts; take documented defaults' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (uninstall) reply=('--purge:also delete recorded history (destructive)' '--yes:skip the confirmation prompt' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
-    (setup) reply=('--check:verify an existing install (read-only)' '--no-hook:config + provision stores only (no registration)' '--project:per-repo registration (placeholder — not built)' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
+    (setup) reply=('--check:verify an existing install (read-only)' '--no-hook:write the config only (no registration)' '--project:per-repo registration (placeholder — not built)' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (provision) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (stack) reply=('--app:include the app container' '--volumes:with \`down\`: delete the data volumes too' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (sessions) reply=('--limit:rows to list (default 50) / transcript entries to preview (default 30)' '--cwd:only this project directory' '--model:only this model' '--hostname:only this host' '--source:only this provenance (live | backfill | …)' '--from:only sessions overlapping at/after this ISO instant' '--to:only sessions overlapping at/before this ISO instant' '--json:print the webapi response as JSON instead of a table' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
@@ -164,7 +164,7 @@ _claude_transcripts() {
   commands=(
     'install:Set up everything: stores, app, and the Claude Code hook'
     'uninstall:Remove the instance (history is kept unless --purge)'
-    'setup:Install/register the hook + generate runtime config'
+    'setup:Register the hook + write its config (it writes only through the webapi)'
     'provision:Create the CouchDB databases and the Garage bucket + key'
     'stack:Control the container stack'
     'sessions:List / inspect sessions (via the webapi)'
@@ -282,7 +282,7 @@ end
 complete -c claude-transcripts -f
 complete -c claude-transcripts -n _claude_transcripts_at_command -a install -d 'Set up everything: stores, app, and the Claude Code hook'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a uninstall -d 'Remove the instance (history is kept unless --purge)'
-complete -c claude-transcripts -n _claude_transcripts_at_command -a setup -d 'Install/register the hook + generate runtime config'
+complete -c claude-transcripts -n _claude_transcripts_at_command -a setup -d 'Register the hook + write its config (it writes only through the webapi)'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a provision -d 'Create the CouchDB databases and the Garage bucket + key'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a stack -d 'Control the container stack'
 complete -c claude-transcripts -n _claude_transcripts_at_command -a sessions -d 'List / inspect sessions (via the webapi)'
@@ -321,7 +321,7 @@ complete -c claude-transcripts -n '_claude_transcripts_in uninstall' -l help -d 
 complete -c claude-transcripts -n '_claude_transcripts_in uninstall' -l version -d 'print the CLI version (alias: -V)'
 
 complete -c claude-transcripts -n '_claude_transcripts_in setup' -l check -d 'verify an existing install (read-only)'
-complete -c claude-transcripts -n '_claude_transcripts_in setup' -l no-hook -d 'config + provision stores only (no registration)'
+complete -c claude-transcripts -n '_claude_transcripts_in setup' -l no-hook -d 'write the config only (no registration)'
 complete -c claude-transcripts -n '_claude_transcripts_in setup' -l project -d 'per-repo registration (placeholder — not built)'
 complete -c claude-transcripts -n '_claude_transcripts_in setup' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
 complete -c claude-transcripts -n '_claude_transcripts_in setup' -l help -d 'show help for a command (alias: -h)'

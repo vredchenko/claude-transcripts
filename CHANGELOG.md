@@ -29,6 +29,13 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   the webapi and says "NOT recording" before the first write is lost. `hook status`
   and `doctor` check the hook's real write target. The transcript upload, which used to
   swallow its errors, reports them too.
+- **The statusline shows the session's link** ([#288]):
+  `host:port/app/sessions/<id>`, clickable, in place of the store label. A narrow
+  terminal shortens it (`host/…/<id8>`) before dropping anything that says whether the
+  session is recording.
+- **`setup --webapi <url>`** points a machine at an instance hosted elsewhere. `setup`
+  no longer creates CouchDB databases or probes the bucket: it writes a client config
+  naming only the webapi, and checks that webapi takes writes ([#288]).
 - **`GET /api/ingest/{id}/high-water`**: how far a session's chunks reach, so a resumed
   session continues on its stored chunk boundaries without the hook reading CouchDB.
 

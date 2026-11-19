@@ -329,11 +329,57 @@ describe("renderStatusline, drawing", () => {
     );
   });
 
-  test("a link wraps the store label, and only that", () => {
+  test("the session's link is what the line shows, and what it opens", () => {
     const url = "http://127.0.0.1:7650/app/sessions/abc";
     const line = renderStatusline(rec, NOW, { link: url });
-    expect(line).toContain(`\x1b]8;;${url}\x1b\\127.0.0.1:7650\x1b]8;;\x1b\\`);
-    expect(visible(line)).toBe(plain);
+    const text = "127.0.0.1:7650/app/sessions/abc";
+    expect(line).toContain(`\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`);
+    expect(visible(line)).toBe(plain.replace("→ 127.0.0.1:7650", `→ ${text}`));
+  });
+
+  test("a mirror line names the mirror, unlinked: the session is not on the instance", () => {
+    const now = NOW;
+    const mirrored = state({
+      targets: targets({
+        webapiUrl: "http://127.0.0.1:7650",
+        stores: [
+          { kind: "webapi", label: "127.0.0.1:7650", lastWriteMs: 0, lastFailureMs: now - 1000 },
+          {
+            kind: "mirror",
+            label: "backup.example.net",
+            lastWriteMs: now - 1000,
+            lastFailureMs: 0,
+          },
+        ],
+      }),
+      counts,
+    });
+    const line = renderStatusline(mirrored, now, {
+      link: "http://127.0.0.1:7650/app/sessions/abc",
+    });
+    expect(line).toContain("→ backup.example.net");
+    expect(line).not.toContain("\x1b]8;;");
+  });
+
+  test("a narrow terminal shortens the link before dropping anything that says recording", () => {
+    const id = "fdce046a-996f-40dc-a8f6-fc82e239014b";
+    const named = state({
+      targets: targets({
+        webapiUrl: "https://transcripts.example.net:7650",
+        lastWriteMs: NOW - 2000,
+      }),
+      counts,
+    });
+    const link = `https://transcripts.example.net:7650/app/sessions/${id}`;
+    const at = (columns: number) => visible(renderStatusline(named, NOW, { columns, link }));
+    expect(at(200)).toBe(
+      `● ${CT} rec · 128 ev · 6 tools · 2s ago → transcripts.example.net:7650/app/sessions/${id}`,
+    );
+    expect(at(90)).toBe(`● ${CT} rec · 128 ev · 2s ago → transcripts.example.net:7650/…/fdce046a`);
+    expect(at(60)).toBe(`● ${CT} rec · 128 ev · 2s ago → transcripts/…/fdce046a`);
+    expect(at(10)).toBe(`● ${CT} rec`);
+    // Whatever shows, the click opens the whole session URL.
+    expect(renderStatusline(named, NOW, { columns: 60, link })).toContain(`\x1b]8;;${link}\x1b\\`);
   });
 
   test("a narrow terminal drops detail, least useful first, never the state or version", () => {
@@ -354,8 +400,10 @@ describe("renderStatusline, drawing", () => {
   });
 
   test("width is measured on what shows, not on the escapes", () => {
-    const line = renderStatusline(rec, NOW, { color: true, link: "http://x/y", columns: 80 });
-    expect(visible(line)).toBe(renderStatusline(rec, NOW, { columns: 80 }));
+    const link = "http://127.0.0.1:7650/app/sessions/abc";
+    const line = renderStatusline(rec, NOW, { color: true, link, columns: 80 });
+    expect(visible(line)).toBe(visible(renderStatusline(rec, NOW, { link, columns: 80 })));
+    expect(visible(line).length).toBeLessThanOrEqual(80);
   });
 });
 
