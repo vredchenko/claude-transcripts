@@ -3,6 +3,7 @@ import {
   type SessionAggregate,
   type SessionStatus,
   type SessionSummary,
+  sessionValuesInOrder,
 } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, idleThresholdMs, liveWindowMs } from "../config";
@@ -47,6 +48,12 @@ const SessionSummarySchema = z
     durationMs: z.number().optional(),
     activeMs: z.number().optional(),
     model: z.string().optional(),
+    // Every model / working directory / `/add-dir` directory the session used, in
+    // order of first use (`model` and `cwd` are the first of each). Absent when the
+    // index predates them (migration v11) or the session is read from its summary doc.
+    models: z.array(z.string()).optional(),
+    cwds: z.array(z.string()).optional(),
+    addedDirs: z.array(z.string()).optional(),
     cwd: z.string(),
     hostname: z.string(),
     eventCount: z.number(),
@@ -204,6 +211,16 @@ function docToSummary(doc: any, firstTs?: string, chunkEntries = 0): SessionSumm
   };
 }
 
+/** The ordered model / cwd / added-dir lists of an aggregate row; empty ones omitted. */
+function usedValues(agg: SessionAggregate): Pick<SessionSummary, "models" | "cwds" | "addedDirs"> {
+  const out: Pick<SessionSummary, "models" | "cwds" | "addedDirs"> = {};
+  for (const key of ["models", "cwds", "addedDirs"] as const) {
+    const list = sessionValuesInOrder(agg[key]);
+    if (list.length) out[key] = list;
+  }
+  return out;
+}
+
 /**
  * Map a `session_index/aggregate` reduce row to the response contract. Ended
  * sessions carry their full rollup in `agg.summary` (fidelity equal to the summary
@@ -226,6 +243,7 @@ function aggregateToSummary(
       startTimestamp: agg.first || undefined,
       durationMs: durationBetween(agg.first, s.timestamp || agg.last),
       model: agg.model || undefined,
+      ...usedValues(agg),
       cwd: agg.cwd ?? "",
       hostname: agg.hostname ?? "",
       eventCount: s.event_count ?? 0,
@@ -248,6 +266,7 @@ function aggregateToSummary(
     startTimestamp: agg.first || undefined,
     durationMs: durationBetween(agg.first, agg.last),
     model: agg.model || undefined,
+    ...usedValues(agg),
     cwd: agg.cwd ?? "",
     hostname: agg.hostname ?? "",
     eventCount: agg.events ?? 0,

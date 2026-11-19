@@ -42,6 +42,24 @@
           "model": {
             "type": "string"
           },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cwds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "addedDirs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "cwd": {
             "type": "string"
           },

@@ -55,6 +55,24 @@ export const HOOK_TYPES: HookTypeDef[] = [
     ignoreReason: "Slash-command expansion — redundant with `UserPromptSubmit`.",
     summary: "A slash command / skill prompt is expanded/templated before use.",
   },
+  // ── Model ──
+  {
+    event: "PreModelSwitch",
+    category: "model",
+    canBlock: true,
+    wired: false,
+    ignoreReason: "Blocking pre-hook; `PostModelSwitch` records the switch that actually happened.",
+    summary:
+      "Before the model changes — `from_model`, `to_model`, `source` ∈ `command`/`picker`/`sdk`. Can block the switch.",
+  },
+  {
+    event: "PostModelSwitch",
+    category: "model",
+    canBlock: false,
+    wired: true,
+    summary:
+      "The model changed — `from_model`, `to_model`, `source` ∈ `auto`/`command`/`picker`/`resume`/`sdk`, plus the estimated cache-write cost of the switch.",
+  },
   // ── Tool lifecycle ──
   {
     event: "PreToolUse",
@@ -182,9 +200,16 @@ export const HOOK_TYPES: HookTypeDef[] = [
     event: "CwdChanged",
     category: "environment",
     canBlock: false,
-    wired: false,
-    ignoreReason: "Host signal, out of session scope.",
-    summary: "The working directory changes during a session.",
+    wired: true,
+    summary: "The working directory changes during a session — `old_cwd`, `new_cwd`.",
+  },
+  {
+    event: "DirectoryAdded",
+    category: "environment",
+    canBlock: false,
+    wired: true,
+    summary:
+      "An extra working directory is added to the session — `directory`; `source` ∈ `slash_command` (`/add-dir`)/`register_repo_root`.",
   },
   {
     event: "FileChanged",

@@ -121,6 +121,12 @@ export interface SessionSummary {
    */
   activeMs?: number;
   model?: string;
+  /** Every model the session used, in order of first use; `model` is the first. */
+  models?: string[];
+  /** Every working directory the session was in, in order of first use. */
+  cwds?: string[];
+  /** Extra directories added to the session (`/add-dir`), in order. */
+  addedDirs?: string[];
   cwd: string;
   hostname: string;
   eventCount: number;
