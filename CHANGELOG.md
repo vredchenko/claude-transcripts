@@ -8,6 +8,13 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The plugin no longer sets `subagentStatusLine`** ([#295]). Claude Code removed the
+  setting, so it did nothing but make `claude plugin list` print a deprecation note.
+  The plugin's `settings.json` is gone; `bin/claude-transcripts-statusline` stays on
+  the plugin's `PATH` for the main `statusLine` or a mod.
+
 ## [0.11.0] — 2026-11-19
 
 The hook now records only through the webapi, the same gateway every other client
@@ -2190,6 +2197,7 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#295]: https://github.com/vredchenko/claude-transcripts/issues/295
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283
