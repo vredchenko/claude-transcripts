@@ -171,7 +171,9 @@ Notes:
   CouchDB groups the re-reduce. `models`, `cwds` and `addedDirs` map every model,
   working directory and `/add-dir` directory the session used to when it first appeared
   (from `PostModelSwitch`, `CwdChanged` and `DirectoryAdded` markers); the webapi lists
-  them in that order. The webapi caches it in memory
+  them in that order. `models` holds ids without the context suffix (`claude-opus-5-5[1m]`
+  is `claude-opus-5-5`) and never a placeholder like `<synthetic>`; the markers keep the
+  raw value. The webapi caches it in memory
   ([webapi.md](webapi.md#session-list)).
 - `entries_by_session` is transcript order across speakers; `by_role` groups by speaker
   and so can't interleave them. Byte-range-only chunks emit nothing to either.

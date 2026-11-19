@@ -5,7 +5,12 @@
  * by `features.meilisearch` + `MEILI_HOST`; in the bundled dev stack Meili runs with
  * no master key, so `apiKey` is optional.
  */
-import { HIGHLIGHT_POST, HIGHLIGHT_PRE, sessionValuesInOrder } from "@claude-transcripts/shared";
+import {
+  baseModelId,
+  HIGHLIGHT_POST,
+  HIGHLIGHT_PRE,
+  sessionValuesInOrder,
+} from "@claude-transcripts/shared";
 
 export interface MeiliConfig {
   host: string;
@@ -332,8 +337,11 @@ export const SESSIONS_INDEX_SETTINGS: IndexSettings = {
 
 /** Every model a session used; a doc from before `models` existed has only its `model`. */
 function usedModels(models: unknown, model: unknown): string[] {
-  if (Array.isArray(models) && models.length) return models.filter((m) => typeof m === "string");
-  return typeof model === "string" && model ? [model] : [];
+  const listed = Array.isArray(models) && models.length ? models : [model];
+  // Without the context suffix (`[1m]`), and without placeholders like `<synthetic>`
+  // that older backfills stored as a model.
+  const real = listed.filter((m): m is string => typeof m === "string" && !!m && m[0] !== "<");
+  return [...new Set(real.map(baseModelId))];
 }
 
 /** Project a stored `summary:` doc into a Meilisearch session document. */
