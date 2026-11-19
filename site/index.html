@@ -7,7 +7,7 @@
     <title>Claude Transcripts — self-hosted history for Claude Code</title>
     <meta
       name="description"
-      content="Self-hosted history for your Claude Code sessions. A hook logs every session to your own CouchDB + S3; a web API, web UI, and CLI read it back. Nothing leaves your network."
+      content="Self-hosted history for your Claude Code sessions. A hook logs every session through a web API into your own CouchDB + S3; a web UI, CLI and agents read it back. Nothing leaves your network."
     />
     <style>
       :root {
@@ -244,8 +244,8 @@
         <h1>Self-hosted history for<br /><span class="clay">Claude Code</span> sessions</h1>
         <p class="lead">
           A Claude Code hook logs every session — events, an end-of-session summary, and the full
-          transcript — to your own CouchDB + S3 storage. A web API serves it back; a web UI, a CLI,
-          and AI agents read it. Nothing leaves your network.
+          transcript — through a web API into your own CouchDB + S3 storage. The same API serves it
+          back; a web UI, a CLI, and AI agents read it. Nothing leaves your network.
         </p>
         <div class="btns">
           <a class="btn primary" href="./docs/start/installation.html">Get started</a>
@@ -255,7 +255,7 @@
       </section>
 
       <img class="diagram" id="how" src="./docs/assets/architecture.svg"
-           alt="Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.">
+           alt="Claude Code fires a hook that writes events, summaries and transcripts through the webapi gateway into CouchDB and S3; the same gateway reads them back for the web UI, the CLI and agents.">
 
       <div class="grid">
         <div class="card">

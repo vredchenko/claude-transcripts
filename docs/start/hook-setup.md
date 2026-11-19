@@ -1,54 +1,45 @@
 # Hook setup
 
 `claude-transcripts install` configures and registers the hook for you. This page is
-for wiring the hook by hand: against stores you already run, from a checkout, or on a
-machine that records to an instance elsewhere.
+for wiring the hook by hand: against an instance you already run, from a checkout, or on
+a machine that records to an instance elsewhere.
+
+The hook writes only through a webapi's `/api/ingest/*` routes
+([ADR 0016, amendment 2](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)),
+so wiring it means naming one URL. It needs no store address and no store credential.
 
 ## 1. Write the runtime config
 
 The hook reads one file, `~/.config/claude-transcripts/config.json` (mode 600,
-`CT_HOOK_CONFIG` overrides the path). From a checkout, fill `.env` with your CouchDB
-credentials and S3 key, then:
+`CT_HOOK_CONFIG` overrides the path). Write it, and check the instance takes writes:
 
 ```bash
-bun run cli setup --no-hook   # write the config, create the CouchDB databases, probe the bucket
-bun run cli setup --check     # verify later, read-only
+claude-transcripts setup --no-hook --webapi http://127.0.0.1:7650   # or the remote instance's URL
+claude-transcripts setup --check                                     # verify later, read-only
 ```
 
-Store names, `features`, `system` and `recall` come from
-[`config/`](configuration.md); URLs and credentials from `.env`:
+Without `--webapi`, the URL comes from `CT_WEBAPI_URL`, else `WEBAPI_HOST`/`WEBAPI_PORT`,
+else the URL already in the file, else `http://127.0.0.1:7650`. `features`, `system`
+and `recall` come from [`config/`](configuration.md):
 
 ```jsonc
 {
-  "couch": {
-    "url": "http://127.0.0.1:7652",
-    "databases": { "sessions": "claude-transcripts-sessions", "appLogs": "claude-transcripts-app-logs" },
-    "auth": "user:pass"
-  },
-  "blob": {
-    "endpoint": "http://127.0.0.1:7653",
-    "region": "garage",
-    "accessKey": "…",
-    "secretKey": "…",
-    "buckets": { "sessions": "claude-transcripts-sessions" }
-  },
-  "webapi": { "url": "http://127.0.0.1:7650" },   // used by the CLI, ignored by the hook
+  "webapi": { "url": "http://127.0.0.1:7650" },   // required: where the hook writes
   "features": { … },
   "system": { … },
   "recall": { … }
 }
 ```
 
-- The bucket must already exist; the hook never creates it.
-- Without `blob` (or with an empty `accessKey`), only CouchDB docs are written and no
-  byte-exact transcript is kept ([ADR 0014](../design/decisions/0014-transcripts-live-in-s3-only.md)).
-- `webapi.url` is written only when `CT_WEBAPI_URL` or `WEBAPI_PORT` is set. On a
-  machine that records to a remote deployment, set it by hand.
-- Add `mirrors` to also write every session to a second instance
+- `webapi` may also take `auth` (`user:password`) and `timeoutMs` / `blobTimeoutMs`,
+  as a mirror does.
+- Add `mirrors` to also write every session to more instances
   ([mirrors.md](../operate/mirrors.md)).
 - A rewrite by `setup` or `install` keeps `mirrors` and `webapi`; everything else is
-  regenerated.
-- No config means the hook does nothing, silently.
+  regenerated. A `couch` or `blob` block left by an older release is dropped, along with
+  its credentials.
+- No config, or one without `webapi.url`, means the hook records nothing, and the
+  session-start banner and statusline say so.
 
 ## 2. Register the hook
 
@@ -81,8 +72,10 @@ Use one route, not both: with both, every event is recorded twice.
 claude-transcripts doctor
 ```
 
-Drives one synthetic session through CouchDB, S3, the views and search, reports what
-passed, and deletes it again (`--keep` leaves it for inspection).
+Drives one synthetic session through the webapi's ingest routes into CouchDB and S3,
+reads it back through the views and search, reports what passed, and deletes it again
+(`--keep` leaves it for inspection). It also checks that the hook's configured target
+takes writes.
 
 ## 4. Adopt existing history (optional)
 

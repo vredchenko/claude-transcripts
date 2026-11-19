@@ -1,6 +1,7 @@
 # Mid-flight chunking
 
-The hook copies the transcript into CouchDB `chunk` docs while the session runs, rather
+The hook copies the transcript into CouchDB `chunk` docs (through the webapi's
+`/api/ingest/chunks`) while the session runs, rather
 than only at `SessionEnd`. A crashed or killed session loses at most the last unflushed
 delta instead of everything, and a running session's transcript can be read and
 searched. The byte-exact transcript still goes to S3 at `SessionEnd`. Decision:
@@ -39,10 +40,10 @@ Keeping each chunk faithful to its slice keeps chunks append-only.
 
 On `SessionStart` with `source` `startup` or `clear`, the offset resets to 0. On
 `resume` or `compact` it carries over: `SessionEnd` releases the lock but keeps the
-state file. If the state is gone (a reboot cleared `/tmp`), the hook asks CouchDB for
-the highest `byte_end` among the session's chunks (`_all_docs` over the
-`chunk:<sessionId>:` prefix, descending, limit 1) and continues from there; if CouchDB
-doesn't answer within 2 s, it starts at 0. An offset past the end of the file (a
+state file. If the state is gone (a reboot cleared `/tmp`), the hook asks the webapi for
+the highest `byte_end` among the session's chunks (`GET /api/ingest/{id}/high-water`,
+one row of the `chunks/by_session` view, read backwards) and continues from there; if the
+webapi doesn't answer within 2 s, it starts at 0. An offset past the end of the file (a
 rewritten transcript) is never used. Restarting at 0 on a resume re-slices the
 transcript on new boundaries with new ids, duplicating content
 ([#168](https://github.com/vredchenko/claude-transcripts/issues/168)), which is why the

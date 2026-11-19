@@ -51,7 +51,7 @@ running stack and webapi ([testing.md](testing.md)).
 
 ## Layout
 
-![Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
+![Claude Code fires a hook that writes events, summaries and transcripts through the webapi gateway into CouchDB and S3; the same gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
 
 | Path | What it is |
 |------|------------|
@@ -76,11 +76,9 @@ are 7650–7661 ([table](../start/installation.md#ports)).
 The full set is in [`CLAUDE.md`](../../CLAUDE.md).
 
 - **The webapi is the I/O gateway.** Consumers read through it and write only through
-  its curated routes. The exception is the hook, which writes to CouchDB and S3
-  directly so recording never depends on the webapi
-  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
-  That is why the `_changes` follower exists and why hook-written docs get no
-  write-time validation.
+  its curated routes — the hook included, which records through `/api/ingest/*`
+  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)).
+  Nothing in the hook may reach a store; `hook/no-store-access.test.ts` enforces it.
 - **Extend the blueprint, don't re-derive it.** Compose files, the k8s base, the
   manifest at `/`, hook registration and the CLI reference are projections of
   `packages/shared/src/blueprint/`. Change the blueprint and regenerate.

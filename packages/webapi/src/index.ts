@@ -67,8 +67,8 @@ void sessionIndex.load().then(() => {
 // restart. `unref` so this timer never holds the process open on its own.
 setInterval(() => void sessionIndex.load(), SESSION_INDEX_RELOAD_MS).unref();
 
-// Follow CouchDB's change feed so docs written outside the ingest endpoints — the
-// hook writes straight to CouchDB — reach the index without a manual reindex.
+// Follow CouchDB's change feed so every doc, by whatever route it arrived, reaches the
+// search and session indexes on one path, without a manual reindex.
 startChangesFollower(ctx);
 console.log(
   meili.enabled

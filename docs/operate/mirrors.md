@@ -11,8 +11,7 @@ Add `mirrors` to the hook runtime config (`~/.config/claude-transcripts/config.j
 
 ```json
 {
-  "couch": { "url": "http://127.0.0.1:7652", "databases": { "sessions": "..." } },
-  "blob":  { "endpoint": "http://127.0.0.1:7653", "buckets": { "sessions": "..." } },
+  "webapi": { "url": "http://127.0.0.1:7650" },
   "mirrors": [
     { "url": "https://logs.example.com", "timeoutMs": 2000, "blobTimeoutMs": 60000 }
   ]
@@ -43,17 +42,17 @@ hook: registered for 11 event(s), mirroring to 1
 
 ## How it works
 
-The hook writes this machine's CouchDB and S3 directly. A remote instance exposes only
-its webapi, whose store proxies are read-only, so a mirror writes through the one write
-surface it has, `/api/ingest` (the same routes `import` uses):
+The hook writes only through a webapi's ingest routes
+([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)),
+so a mirror is simply a second webapi it writes to, over the same client and the same
+routes `import` uses:
 
-| Written locally | Sent to the mirror as |
+| Written | Route, on the instance and on each mirror |
 |---|---|
 | `event` doc | `POST /api/ingest/events` |
 | `chunk` doc | `POST /api/ingest/chunks` |
 | `summary` doc | `POST /api/ingest/summary` |
 | `<session>/transcript.jsonl` | `PUT /api/ingest/<session>/transcript` |
-| `<session>/summary.json` | not sent (a copy of the summary doc) |
 
 The mirror applies its own database and bucket names. It is a write path only; the CLI
 and webui keep reading the local instance.
@@ -65,11 +64,13 @@ minute (`blobTimeoutMs`) of its own.
 
 ## Failure behaviour
 
-A mirror never blocks a session or slows the local write: requests run in parallel with
-the local write, each has its own timeout, and every failure is swallowed.
+A mirror never blocks a session or slows the instance's write: requests run in parallel
+with it, each has its own timeout, and no failure is thrown. Each target's health is
+tracked separately, so the statusline can show `rec (mirror)` when only a mirror is
+taking writes, and `stalled` (with the reason) when none is.
 
 **There is no retry and no queue.** Writes that fail while the mirror is unreachable
-are lost to the mirror; the local copy is complete. Fill the gap from the local
+are lost to the mirror; the instance's copy is complete. Fill the gap from the
 instance:
 
 ```bash

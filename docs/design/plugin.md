@@ -94,8 +94,8 @@ printing how to combine the two. The plugin's `settings.json` sets
 
 ### 1c. `/claude-transcripts:status`
 
-The on-demand answer: instance URL and version, hook registration and events, CouchDB
-and S3 reachability, Meilisearch state, this session's id and webui link, and the
+The on-demand answer: instance URL and version, hook registration and events, whether
+the webapi the hook writes to takes writes, Meilisearch state, this session's id and webui link, and the
 running counts.
 
 ## Part 2 — skills

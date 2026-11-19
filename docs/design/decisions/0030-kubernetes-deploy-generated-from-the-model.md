@@ -78,10 +78,11 @@ generator must not bake in.
   StatefulSets — because the model describes a single-user, single-node stack
   ([architecture.md](../architecture.md#tiers)). Multi-node or HA shapes are a Tier 3 concern and would
   extend the model, not the generator.
-- The `hook` still writes to CouchDB and S3 directly ([ADR 0016](0016-webapi-is-the-io-gateway.md));
-  on Kubernetes that means the machine running Claude Code needs a route to those
-  Services (port-forward, Ingress, a tailnet) — the same requirement compose's
-  localhost ports satisfy implicitly.
+- The `hook` writes only through the webapi
+  ([ADR 0016, amendment 2](0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi));
+  on Kubernetes the machine running Claude Code needs a route to the `app` Service alone
+  (port-forward, Ingress, a tailnet). *(Until #288 it wrote CouchDB and S3 directly and
+  needed routes to those Services too.)*
 
 ## Amendment: a Helm chart too, generated the same way
 

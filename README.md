@@ -18,7 +18,7 @@ Everything runs on your own infrastructure. Nothing leaves your network.
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
     <img src="docs/assets/architecture-light.svg" width="820"
-         alt="Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.">
+         alt="Claude Code fires a hook that writes events, summaries and transcripts through the webapi gateway into CouchDB and S3; the same gateway reads them back for the web UI, the CLI and agents.">
   </picture>
 </p>
 
@@ -211,18 +211,19 @@ it back (verifying CouchDB + S3 are wired), then deletes it again. To see it in
 bun run cli setup            # verify later with: bun run cli setup --check
 ```
 
-This writes `~/.config/claude-transcripts/config.json`, ensures the CouchDB
-databases, probes the Garage bucket, and registers the logging hook in
+This writes `~/.config/claude-transcripts/config.json` (it names only the webapi the
+hook writes through), checks that webapi takes writes, and registers the logging hook in
 `~/.claude/settings.json` for all session events. Now run Claude Code anywhere —
 each session is logged; browse them at `http://127.0.0.1:<WEBAPI_PORT>/app` (7650 by
 default) — the same address `install` prints.
 
 > From a source checkout the hook runs `bun run <repo>/packages/cli/src/cli.tsx hook
 > run`, so keep this clone in place and `bun` on your `PATH`; an installed binary
-> registers itself instead and needs neither. Either way it **never blocks a session** —
-> if the stack is down, events are dropped rather than surfaced. It writes to CouchDB
-> and S3 directly for that reason
-> ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
+> registers itself instead and needs neither. Either way it **never blocks a session**,
+> and it writes only through the webapi
+> ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)).
+> If the webapi is down it says so — the session-start banner reads "NOT recording" and
+> the statusline turns `stalled` — and `bun run cli backfill` recovers the gap later.
 
 ### 8. Backfill existing history
 

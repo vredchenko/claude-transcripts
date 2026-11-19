@@ -30,7 +30,8 @@ Use **one** S3-compatible object store, addressed through Bun's native
 secret key, bucket — shared by the webapi (`S3_*` env) and the hook
 (`config.json.blob`). **MinIO and rclone are removed**; Garage is the reference
 backend, but any S3-compatible store (MinIO, R2, AWS) works by changing endpoint
-and credentials only.
+and credentials only. *(Since #288 the hook writes through the webapi and has no
+`blob` block; the webapi's `S3_*` env is the only S3 configuration.)*
 
 ## Consequences
 

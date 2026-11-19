@@ -13,8 +13,8 @@ Use these consistently across code, config, and docs.
 ## What this is
 
 **Claude Transcripts** (`claude-transcripts`) — self-hosted history for
-Claude Code sessions. A Claude Code **hook** (writer) logs every session to
-**CouchDB + S3 (Garage)**; a **webapi** gateway serves it back; a **webui** and a
+Claude Code sessions. A Claude Code **hook** (writer) logs every session through a
+**webapi** gateway into **CouchDB + S3 (Garage)**; the same gateway serves it back; a **webui** and a
 **cli** (and AI agents) read it. Built fresh as a Bun + TypeScript monorepo.
 
 > `docs/` holds the full technical design — tiers, architecture, ADRs, data model.
@@ -118,14 +118,14 @@ There is no `tools/` dir.
   Consumers **project** from it (`toManifest` → `/`, `toComposeEnv` → stack,
   `toSeedPlan` → seed) — don't re-derive these facts elsewhere; **extend the
   blueprint**. Pure TS, so Bun server and React client both use it.
-- **The webapi is the I/O gateway** (stability column): consumers never touch
-  CouchDB/S3 directly for **reads**, and writes are never proxied. Two exceptions, both
-  deliberate: host-side metadata ingestion (local files the container can't see, still
-  delivered *to* the webapi), and **the hook, which writes to CouchDB and S3 directly**
-  so that recording a session never depends on the webapi being up
-  ([ADR 0016](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
-  That bypass is why the `_changes` follower exists, and why hook-written docs get no
-  write-time validation.
+- **The webapi is the I/O gateway** (stability column): no consumer touches CouchDB/S3
+  directly, for reads or writes, and writes are never proxied. **That includes the
+  hook**, which writes only through `/api/ingest/*`
+  ([ADR 0016, amendment 2](docs/design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi));
+  its config names a webapi URL and no store. `hook/no-store-access.test.ts` and the
+  topology tests fail on a new direct store path. The only CLI code that reaches the
+  stores is provisioning the stack it installs (`install`, `provision`). The `_changes`
+  follower is how every write becomes searchable.
 - **`CLI_SPEC` is the CLI's source of truth** (`packages/shared/src/blueprint/cli.ts`):
   help, pre-dispatch argument validation, and the generated command reference
   (`bun run gen:cli-docs` → `packages/cli/README.md` + `docs/reference/cli.md`) all
@@ -146,7 +146,9 @@ There is no `tools/` dir.
   reintroduce one.
 - **Bundled backing services default to no auth**, localhost only; treat empty
   creds as valid for the bundled case.
-- The hook **never blocks a session**: every external call is wrapped in try/catch.
+- The hook **never blocks a session**: every external call is time-boxed and caught.
+  It **fails loudly**, not silently: a write that does not land shows in the banner and
+  statusline with the `backfill` command that recovers it. There is no local queue.
 
 ## Tiers (scope discipline)
 

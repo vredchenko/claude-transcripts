@@ -1,6 +1,6 @@
 # Architecture
 
-![Claude Code fires a hook that writes events, summaries and transcripts directly to CouchDB and S3; the webapi gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
+![Claude Code fires a hook that writes events, summaries and transcripts through the webapi gateway into CouchDB and S3; the same gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
 
 Claude Code keeps transcripts per machine, where they are easy to lose and hard to
 search across. Claude Transcripts records every session into stores you run and serves
@@ -13,22 +13,24 @@ Scope is Claude Code only, not agent sessions in general
 
 ## Data flow
 
-- **The hook writes.** `claude-transcripts hook run`, registered with Claude Code,
-  writes events, chunks and the end-of-session summary to CouchDB and the transcript to
-  S3, directly, so recording never depends on the webapi
-  ([ADR 0016 amendment](decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
-  It never blocks a session.
-- **The webapi is the gateway.** The webui, the CLI and agents read only through it,
-  and write only through its curated routes (`/api/ingest/*`, `/api/migrate/*`,
+- **The hook writes, through the webapi.** `claude-transcripts hook run`, registered
+  with Claude Code, sends events, chunks, the end-of-session summary and the transcript
+  to the webapi's `/api/ingest/*`
+  ([ADR 0016, amendment 2](decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)).
+  It never blocks a session, and it fails loudly: the banner and statusline say when a
+  write is not landing, and `backfill` recovers the gap from Claude Code's own transcript.
+- **The webapi is the gateway.** The hook, the webui, the CLI and agents read only
+  through it, and write only through its curated routes (`/api/ingest/*`, `/api/migrate/*`,
   `/api/search/reindex`). It proxies CouchDB (`/api/couch`) and S3 (`/api/s3`)
   read-only, because their native APIs are useful read surfaces; writes are never
   proxied. Its API is the stable contract while internals change
   ([ADR 0016](decisions/0016-webapi-is-the-io-gateway.md)).
-- **Derived state follows CouchDB.** Because the hook bypasses the webapi, the webapi
-  follows CouchDB's `_changes` feed to keep the search indexes and its in-memory
-  session index current. Hook-written docs get no write-time validation.
-- **Provisioning** (`install`, `setup`, `provision`) creates databases and buckets
-  directly.
+- **Derived state follows CouchDB.** The webapi follows CouchDB's `_changes` feed to
+  keep the search indexes and its in-memory session index current, so every write —
+  from whichever ingest route — becomes searchable on one path.
+- **Provisioning** (`install`, `provision`) creates databases and buckets directly, on
+  the stack it brings up. `setup` touches no store: it writes a client config naming
+  the webapi.
 
 ## Components
 
@@ -64,14 +66,14 @@ technologies: [database-choice.md](database-choice.md).
 
 ## Session lifecycle
 
-1. `SessionStart` resets per-session state, writes an event doc, prints the banner
-   (with the Claude Code hook-spec check) and injects the recall primer.
+1. `SessionStart` resets per-session state, probes the webapi, writes an event doc,
+   prints the banner (whether and where it is recording, the session's link, the Claude
+   Code hook-spec check) and injects the recall primer.
 2. Each prompt, tool call and stop writes an event doc; the transcript is tailed into
    `chunk` docs every 200 entries or 15 s ([mid-flight-chunking.md](mid-flight-chunking.md)),
    so a live or crashed session can be read.
 3. `SessionEnd` flushes the last chunk, writes `summary:<id>` with counts and token
-   usage, and uploads the transcript to S3.
-
+   usage, and uploads the transcript (through the webapi, to S3).
 4. A session that never reaches `SessionEnd` (killed, crashed) is finalised later:
    the webapi's change follower runs `claude-transcripts reconcile` on it, which writes
    the missing summary from the recorded events ([tools.md](../operate/tools.md#reconcile)).
