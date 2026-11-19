@@ -13,9 +13,8 @@ import { readFileSync, statSync } from "node:fs";
 import {
   buildChunkEntries,
   chunkDocId,
+  scanTranscript,
   sliceIntoChunks,
-  sumTranscriptTokens,
-  transcriptModels,
 } from "@claude-transcripts/shared";
 import { recordingBanner, unreachableBanner } from "./announce";
 import type { IngestClient } from "./ingest";
@@ -261,6 +260,8 @@ const writeSummary: Handler = async (ctx) => {
     }
   }
 
+  // One pass for tokens and models: SessionEnd runs on a tight exit budget (#217).
+  const scan = scanTranscript(jsonl);
   const doc = {
     type: "summary",
     ...commonFields(ctx),
@@ -270,8 +271,8 @@ const writeSummary: Handler = async (ctx) => {
     error_count: counts.errors,
     tool_counts: counts.tools,
     transcript_bytes: transcriptBytes,
-    token_usage: sumTranscriptTokens(jsonl),
-    ...modelsField(jsonl),
+    token_usage: scan.tokenUsage,
+    ...(scan.models.length ? { models: scan.models } : {}),
     system_checks: {},
     source: "live",
   };
@@ -286,12 +287,6 @@ const writeSummary: Handler = async (ctx) => {
   // the real figures.
   ctx.targets.clear();
 };
-
-/** The summary's `models`, from the transcript; left out when it names none. */
-function modelsField(jsonl: string): { models?: string[] } {
-  const models = transcriptModels(jsonl);
-  return models.length ? { models } : {};
-}
 
 /** Upload one session's byte-faithful transcript; the webapi keeps it in S3 (ADR 0014). */
 export async function uploadTranscript(

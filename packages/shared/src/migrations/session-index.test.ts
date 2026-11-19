@@ -3,6 +3,7 @@
  * the map values it reduces and re-reduces (#119).
  */
 import { describe, expect, test } from "bun:test";
+import { scanTranscript } from "../index";
 import { SESSION_INDEX_DESIGN, sessionValuesInOrder } from "./session-index";
 
 type Fn = (...args: any[]) => any;
@@ -114,5 +115,47 @@ describe("session_index/aggregate", () => {
       // Stringify, so tool key order counts too.
       expect(JSON.stringify(out)).toBe(JSON.stringify(baseline));
     }
+  });
+});
+
+describe("session_index/aggregate models ignore the context suffix (#296 review)", () => {
+  const modelsOf = (docs: Record<string, unknown>[]) =>
+    sessionValuesInOrder(reduce(null, mapAll(docs), false).models);
+
+  test("a 1M-context SessionStart and its transcript's model are one model", () => {
+    const transcript = JSON.stringify({ type: "assistant", message: { model: "m-opus" } });
+    const { models } = scanTranscript(transcript);
+    expect(
+      modelsOf([
+        doc("2026-01-01T00:00:01Z", { event: "SessionStart", model: "m-opus[1m]" }),
+        doc("2026-01-01T00:00:09Z", { type: "summary", event: undefined, models }),
+      ]),
+    ).toEqual(["m-opus"]);
+  });
+
+  test("a switch to the same model at another context size is not a model switch", () => {
+    expect(
+      modelsOf([
+        doc("2026-01-01T00:00:01Z", { event: "SessionStart", model: "m-opus" }),
+        doc("2026-01-01T00:00:02Z", {
+          event: "PostModelSwitch",
+          from_model: "m-opus",
+          to_model: "m-opus[1m]",
+        }),
+      ]),
+    ).toEqual(["m-opus"]);
+  });
+
+  test("a stored placeholder model is not a model", () => {
+    const agg = reduce(
+      null,
+      mapAll([
+        doc("2026-01-01T00:00:01Z", { event: "SessionStart", model: "<synthetic>" }),
+        doc("2026-01-01T00:00:09Z", { type: "summary", event: undefined, models: ["<synthetic>"] }),
+      ]),
+      false,
+    );
+    expect(sessionValuesInOrder(agg.models)).toEqual([]);
+    expect(agg.model).toBe("");
   });
 });

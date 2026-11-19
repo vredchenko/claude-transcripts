@@ -54,15 +54,54 @@ function usageWeight(u: UsageBlock): number {
 }
 
 /**
- * Sum Anthropic token usage from a Claude Code transcript (JSONL).
+ * A model id without Claude Code's context-window suffix: `claude-opus-5-5[1m]` →
+ * `claude-opus-5-5`. The `SessionStart` payload carries the suffix and a transcript's
+ * `message.model` never does, so comparing them raw reads a 1M-context session as a
+ * switch between two models. The suffix is a context size, not a model; the raw value
+ * stays on the markers that recorded it.
+ *
+ * `session_index/aggregate` inlines the same regex (a view is a string).
+ */
+export function baseModelId(model: string): string {
+  return model.replace(/\[[^\]]*\]$/, "");
+}
+
+/**
+ * The model that answered a main-chain assistant line of a transcript, or undefined.
+ * Subagent lines (`isSidechain`) run on their own model and say nothing about the
+ * session's, and Claude Code stamps the turns it makes up itself (an API error, an
+ * interrupt) with a placeholder like `<synthetic>` rather than a model.
+ */
+export function mainChainModel(line: any): string | undefined {
+  if (line?.type !== "assistant" || line.isSidechain === true) return undefined;
+  const model = line.message?.model;
+  return typeof model === "string" && model && !model.startsWith("<")
+    ? baseModelId(model)
+    : undefined;
+}
+
+/** What one pass over a transcript yields for the session summary. */
+export interface TranscriptScan {
+  tokenUsage: TokenUsage;
+  /** Every main-chain model, in order of first use (see `mainChainModel`). */
+  models: string[];
+}
+
+/**
+ * Read a Claude Code transcript (JSONL) once for everything the summary needs.
  *
  * Token usage lives only inside the transcript (`message.usage` per assistant
  * turn). The same assistant message is logged multiple times (streaming chunks +
  * snapshot updates), so a naive sum overcounts. We dedupe by the Anthropic
  * message id, keeping the heaviest usage seen per id.
+ *
+ * Models are what a mid-session `/model` switch leaves behind (#296). One pass, because
+ * the hook runs this at `SessionEnd`, whose exit budget a megabytes-long transcript
+ * already strains (#217).
  */
-export function sumTranscriptTokens(jsonl: string): TokenUsage {
+export function scanTranscript(jsonl: string): TranscriptScan {
   const byMessage = new Map<string, UsageBlock>();
+  const models = new Set<string>();
   let anonSeq = 0;
 
   for (const line of jsonl.split("\n")) {
@@ -74,6 +113,8 @@ export function sumTranscriptTokens(jsonl: string): TokenUsage {
     } catch {
       continue;
     }
+    const model = mainChainModel(doc);
+    if (model) models.add(model);
     const usage: UsageBlock | undefined = doc?.message?.usage;
     if (!usage) continue;
     const id: string = doc.message?.id || `__anon_${anonSeq++}`;
@@ -100,39 +141,17 @@ export function sumTranscriptTokens(jsonl: string): TokenUsage {
   }
   acc.total = acc.input + acc.output + acc.cacheCreation + acc.cacheRead;
 
-  return acc;
+  return { tokenUsage: acc, models: [...models] };
 }
 
-/**
- * The model that answered a main-chain assistant line of a transcript, or undefined.
- * Subagent lines (`isSidechain`) run on their own model and say nothing about the
- * session's, and Claude Code stamps the turns it makes up itself (an API error, an
- * interrupt) with a placeholder like `<synthetic>` rather than a model.
- */
-export function mainChainModel(line: any): string | undefined {
-  if (line?.type !== "assistant" || line.isSidechain === true) return undefined;
-  const model = line.message?.model;
-  return typeof model === "string" && model && !model.startsWith("<") ? model : undefined;
+/** Token usage of a transcript (see `scanTranscript`). */
+export function sumTranscriptTokens(jsonl: string): TokenUsage {
+  return scanTranscript(jsonl).tokenUsage;
 }
 
-/**
- * Every model that answered the session's main chain, in order of first use — what a
- * mid-session `/model` switch leaves behind in the transcript (#296). Written on the
- * summary as `models`, by the hook and by backfill alike.
- */
+/** Every main-chain model of a transcript, in order of first use (see `scanTranscript`). */
 export function transcriptModels(jsonl: string): string[] {
-  const seen = new Set<string>();
-  for (const line of jsonl.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      const model = mainChainModel(JSON.parse(trimmed));
-      if (model) seen.add(model);
-    } catch {
-      // a partially-written line
-    }
-  }
-  return [...seen];
+  return scanTranscript(jsonl).models;
 }
 
 // ── Session shapes (webapi response contract, consumed by the webui + cli) ─────

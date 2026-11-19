@@ -51,23 +51,32 @@ const AGGREGATE_MAP = `function (doc) {
   if (doc.type !== "event" && doc.type !== "summary") return;
   var isSummary = doc.type === "summary";
   var ts = doc.timestamp || "";
-  var model = (doc.event === "SessionStart" || isSummary) ? (doc.model || "") : "";
+  // A placeholder like \`<synthetic>\` (older backfills stored one) is not a model.
+  function real(m) { return typeof m === "string" && m && m.charAt(0) !== "<" ? m : ""; }
+  // The model without its context suffix (\`[1m]\`), as \`baseModelId\` gives it: the
+  // SessionStart payload carries the suffix and a transcript never does, so raw ids
+  // would list one model twice (#296).
+  function base(m) { return real(m).replace(/\\[[^\\]]*\\]$/, ""); }
+  var model = (doc.event === "SessionStart" || isSummary) ? real(doc.model) : "";
   var tools = {};
   if (doc.event === "PostToolUse" && doc.tool_name) tools[doc.tool_name] = 1;
   // Every model, cwd and added directory the session touched, each with when it first
   // appeared, so a mid-session \`/model\` or \`cd\` is not hidden behind the first one.
   var models = {}, cwds = {}, addedDirs = {};
-  if (model) models[model] = ts;
+  if (model) models[base(model)] = ts;
   // A summary lists the session's models in order; one no marker named (a session
   // recorded before #296) sorts after the markers' ones, in the summary's order.
   if (isSummary && doc.models) {
     for (var i = 0; i < doc.models.length; i++) {
-      if (!models[doc.models[i]]) models[doc.models[i]] = ts + "~" + ("00" + i).slice(-3);
+      var listed = base(doc.models[i]);
+      if (listed && !models[listed]) models[listed] = ts + "~" + ("00" + i).slice(-3);
     }
   }
   if (doc.event === "PostModelSwitch") {
-    if (doc.from_model) models[doc.from_model] = ts;
-    if (doc.to_model && doc.to_model !== doc.from_model) models[doc.to_model] = ts + "~";
+    // A switch between \`opus\` and \`opus[1m]\` changes the context size, not the model.
+    var from = base(doc.from_model), to = base(doc.to_model);
+    if (from) models[from] = ts;
+    if (to && to !== from) models[to] = ts + "~";
   }
   if (doc.cwd) cwds[doc.cwd] = ts;
   if (doc.event === "CwdChanged" && doc.new_cwd) cwds[doc.new_cwd] = ts + "~";

@@ -1,4 +1,4 @@
-import { HIGHLIGHT_PRE } from "@claude-transcripts/shared";
+import { baseModelId, HIGHLIGHT_PRE } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { indexName } from "../config";
 import type { AppContext } from "../context";
@@ -226,7 +226,11 @@ export function searchRoutes(ctx: AppContext) {
       eq("cwd", cwd),
       // Any model the session used. `model` alone covers documents indexed before
       // `models` existed, which carry only the first one.
-      model ? `(${eq("model", model)} OR ${eq("models", model)})` : null,
+      // `models` holds ids without the context suffix (`[1m]`), so it is asked for the
+      // base id; `model` is the raw first one, so it is asked for both.
+      model
+        ? `(${eq("model", model)} OR ${eq("model", baseModelId(model))} OR ${eq("models", baseModelId(model))})`
+        : null,
       eq("hostname", hostname),
       eq("source", source),
     ].filter((f): f is string => f !== null);
@@ -312,7 +316,14 @@ export function searchRoutes(ctx: AppContext) {
       totals: { sessions: sessionRes.estimatedTotalHits, turns: turnRes.estimatedTotalHits },
       facets: {
         cwd: facets.cwd ?? [],
-        model: [...new Set([...(facets.model ?? []), ...(facets.models ?? [])])].sort(),
+        // One entry per model, whatever context size it ran at.
+        model: [
+          ...new Set(
+            [...(facets.model ?? []), ...(facets.models ?? [])]
+              .filter((m) => !m.startsWith("<"))
+              .map(baseModelId),
+          ),
+        ].sort(),
         hostname: facets.hostname ?? [],
         source: facets.source ?? [],
       },
