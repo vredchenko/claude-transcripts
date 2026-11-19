@@ -24,9 +24,14 @@ Tier 1 (capture, browse, search, export/import, one-command install) is built. O
   ([compatibility.md](../start/compatibility.md)).
 - **Application logging** into its own database — designed, not built
   ([app-logging.md](../operate/app-logging.md)).
-- **Secrets masking** (`features.secretsMasking`) — a flag with no implementation (#11).
-  It becomes a prerequisite for recall scopes wider than `project`, and for sharing
-  bundles.
+- **Leaked secrets: detection and scrubbing** ([secrets.md](secrets.md)). Today it is
+  only `features.secretsMasking`, a flag with no implementation behind it. Scope:
+  in-session detection by Claude with plugin and CLI commands, deterministic scanners,
+  backend scans at write time, at session end and on a schedule, masking on read as a
+  last line of defence, and scrubbing across CouchDB, S3, Meilisearch, mirrors and the
+  client's own transcript, with user decisions recorded so nobody is asked twice.
+  Depends on the hook writing through the webapi (#288). It is a prerequisite for recall
+  scopes wider than `project`, and for sharing bundles.
 
 ## Tier 2: make history useful
 
