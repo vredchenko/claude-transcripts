@@ -32,6 +32,23 @@ Scope is Claude Code only, not agent sessions in general
   the stack it brings up. `setup` touches no store: it writes a client config naming
   the webapi.
 
+## Where things run
+
+- **Client side, on each machine that runs Claude Code:** Claude Code, the plugin
+  (`hooks/`, a shim that pipes every hook event to `claude-transcripts hook run`, plus
+  skills and the statusline), the hook, and the CLI. Each of them reaches the
+  server only through the webapi; none opens a store.
+- **Server side:** the webapi, the webui it serves, and the stores (CouchDB, Garage,
+  Meilisearch, Fossil). They run as a Compose stack, a Kubernetes base or Helm chart, or
+  all in one omnibus container ([distributions.md](../reference/distributions.md)).
+  Any store can instead be one you already run
+  ([ADR 0020](decisions/0020-bundled-services-default-no-auth.md),
+  [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)).
+- **GitHub:** CI runs on GitHub Actions. A release publishes the app and omnibus images
+  and the Helm chart to GHCR, and the CLI as self-contained binaries on GitHub Releases,
+  which `install.sh` fetches; the same binary ships inside the app and omnibus images.
+  The landing page and these docs deploy to GitHub Pages.
+
 ## Components
 
 | Component | Path | Role | Reference |
@@ -105,7 +122,7 @@ What is planned within each: [roadmap.md](roadmap.md).
 
 ## Stack
 
-![The same system by technology: Claude Code fires the hook, which writes through the Hono webapi into CouchDB and Garage; Meilisearch and Fossil sit beside them in a Compose or Kubernetes stack; the React webui and the Ink CLI read through the webapi; GitHub Actions publishes the images it runs from.](../assets/architecture-stack.png)
+![The same system by where it runs: on your machine Claude Code, its plugin, the hook and the CLI all reach the server only through the webapi; on the server the webapi serves the webui and fronts CouchDB, Garage, Meilisearch and Fossil; on GitHub, Actions runs CI and publishes images to GHCR, CLI binaries to Releases and the docs to Pages.](../assets/architecture-stack.png)
 
 [Open the diagram on its own](../assets/architecture-stack.html); it follows your light or dark theme.
 
@@ -116,7 +133,3 @@ Ink. API clients are generated from the OpenAPI spec with orval
 ([ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md)). Biome and
 lefthook. Releases on GitHub Actions to GHCR and GitHub Releases
 ([releasing.md](../operate/releasing.md)).
-The backing services run as a Docker Compose stack (`deploy/`) or a Kubernetes base
-generated from the same model ([ADR 0030](decisions/0030-kubernetes-deploy-generated-from-the-model.md)),
-or are ones you already run ([ADR 0020](decisions/0020-bundled-services-default-no-auth.md),
-[ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)).

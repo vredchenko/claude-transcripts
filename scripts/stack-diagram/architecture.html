@@ -8,7 +8,7 @@
   %%ICON_<name>%% tokens resolve through scripts/stack-diagram/icons.json.
   Redraw it when the doc changes; see CLAUDE.md ("Stack diagram").
 
-  source: docs/design/architecture.md sha256:8854d27da6a7922152eace763bb8ef8aa28faa20a8ca6b0a6f42bca53765bde3
+  source: docs/design/architecture.md sha256:0aea83aa1166731b3d513f87640177837ab4778d9fe2dd47f31b8a7cbd727865
 -->
 <html lang="en"><!-- set lang to the label language, e.g. "ja" for Japanese labels -->
 <head>
@@ -93,7 +93,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 
 
 .scroller { overflow-x: auto; border: 1px solid var(--color-rule-2); border-radius: var(--radius-card); }
 /* CANVAS SIZE: set width/height here AND on svg.edges AND its viewBox — keep the three in sync */
-.canvas { position: relative; width: 920px; height: 680px; background: var(--color-paper);
+.canvas { position: relative; width: 1180px; height: 910px; background: var(--color-paper);
   background-image:
     linear-gradient(var(--color-rule) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
@@ -158,7 +158,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 
 .node .name span, .node .role span { background: var(--color-veil); backdrop-filter: blur(1.5px);
   padding: 0 var(--space-xs); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
-svg.edges { position:absolute; inset:0; width:920px; height:680px; pointer-events:none; }
+svg.edges { position:absolute; inset:0; width:1180px; height:910px; pointer-events:none; }
 .e  { stroke: var(--color-accent); stroke-width:1.6; fill:none; }   /* primary flow */
 .n  { stroke: var(--color-neutral); stroke-width:1.4; fill:none; }  /* internal */
 path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
@@ -189,107 +189,128 @@ if (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme
   <header class="head">
     <div>
       <div class="kicker">claude-transcripts / architecture</div>
-      <h1>Every session, recorded through one gateway</h1>
+      <h1>Clients on your machine, everything else behind one gateway</h1>
     </div>
-    <p class="lede">The hook writes only through the webapi; the web UI, the CLI and agents read back through it. Stores can be bundled or your own.</p>
+    <p class="lede">Claude Code, its plugin, the hook and the CLI never touch a store: every read and write goes through the webapi. GitHub builds and ships each piece.</p>
   </header>
 
   <div class="scroller">
   <div class="canvas">
 
     <!-- GROUPS -->
-    <div class="group gn" style="left:210px; top:10px; width:350px; height:210px;">
+    <div class="group gn" style="left:40px; top:20px; width:810px; height:210px;">
       <div class="g-label"><img class="lt" src="%%ICON_github%%" alt=""><img class="dk" src="%%ICON_github_dark%%" alt="">GitHub</div>
     </div>
-    <div class="group gb" style="left:210px; top:240px; width:350px; height:390px;">
-      <div class="g-label"><img src="%%ICON_ct%%" alt="">claude-transcripts · Bun + TypeScript</div>
+    <div class="group gb" style="left:40px; top:250px; width:500px; height:640px;">
+      <div class="g-label"><img class="plate" src="%%ICON_laptop%%" alt="">Your machine · client side</div>
     </div>
-    <div class="group ga" style="left:710px; top:30px; width:180px; height:630px;">
-      <div class="g-label"><img src="%%ICON_docker%%" alt="">Compose or k8s</div>
+    <div class="group ga" style="left:670px; top:250px; width:480px; height:640px;">
+      <div class="g-label"><img src="%%ICON_docker%%" alt="">Your server · Compose, k8s or omnibus</div>
     </div>
 
     <!-- EDGES -->
-    <svg class="edges" viewBox="0 0 920 680" aria-hidden="true">
+    <svg class="edges" viewBox="0 0 1180 910" aria-hidden="true">
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
           <path d="M0 0 L10 5 L0 10 z" fill="context-stroke"/>
         </marker>
       </defs>
-      <!-- build / deploy -->
-      <path class="n dash" d="M334 100 H436" marker-end="url(#ar)"/>
-      <text class="el" x="385" y="92" text-anchor="middle">publish</text>
-      <path class="n dash" d="M470 176 V294" marker-end="url(#ar)"/>
-      <text class="el" x="480" y="266">image</text>
+      <!-- build / ship -->
+      <path class="n dash" d="M296 110 H164" marker-end="url(#ar)"/>
+      <text class="el" x="230" y="102" text-anchor="middle">deploy</text>
+      <path class="n dash" d="M364 110 H566" marker-end="url(#ar)"/>
+      <text class="el" x="465" y="102" text-anchor="middle">release</text>
+      <path class="n dash" d="M330 74 V50 H760 V74" marker-end="url(#ar)"/>
+      <text class="el" x="545" y="42" text-anchor="middle">publish</text>
+      <path class="n dash" d="M760 186 V244" marker-end="url(#ar)"/>
+      <text class="el" x="770" y="222">pull images</text>
+      <path class="n dash" d="M580 186 V470 H450 V494" marker-end="url(#ar)"/>
+      <text class="el" x="515" y="462" text-anchor="middle">install.sh</text>
       <!-- write path -->
-      <path class="e" d="M144 330 H266" marker-end="url(#ar)"/>
-      <text class="el a" x="205" y="322" text-anchor="middle">hook events</text>
-      <path class="e" d="M334 330 H436" marker-end="url(#ar)"/>
-      <text class="el a" x="385" y="322" text-anchor="middle">/api/ingest</text>
-      <path class="e" d="M504 320 H650 V260 H764" marker-end="url(#ar)"/>
-      <text class="el a" x="707" y="252" text-anchor="middle">docs · _changes</text>
-      <path class="e" d="M504 340 H650 V400 H764" marker-end="url(#ar)"/>
-      <text class="el a" x="707" y="392" text-anchor="middle">transcript.jsonl</text>
-      <!-- reads / derived -->
-      <path class="n" d="M504 308 H610 V120 H764" marker-end="url(#ar)"/>
-      <text class="el" x="687" y="112" text-anchor="middle">/api/fossil</text>
-      <path class="n" d="M504 352 H610 V540 H764" marker-end="url(#ar)"/>
-      <text class="el" x="687" y="532" text-anchor="middle">index · search</text>
-      <path class="n" d="M144 510 H266" marker-end="url(#ar)"/>
-      <text class="el" x="205" y="502" text-anchor="middle">browser</text>
-      <path class="n" d="M300 474 V440 H440 V406" marker-end="url(#ar)"/>
-      <text class="el" x="370" y="432" text-anchor="middle">/api</text>
-      <path class="n" d="M470 474 V406" marker-end="url(#ar)"/>
-      <text class="el" x="480" y="446">/api</text>
+      <path class="e" d="M164 350 H256" marker-end="url(#ar)"/>
+      <text class="el a" x="210" y="342" text-anchor="middle">events</text>
+      <path class="e" d="M324 350 H416" marker-end="url(#ar)"/>
+      <text class="el a" x="370" y="342" text-anchor="middle">stdin</text>
+      <path class="e" d="M484 350 H726" marker-end="url(#ar)"/>
+      <text class="el a" x="660" y="342" text-anchor="middle">/api/ingest</text>
+      <path class="e" d="M794 340 H1024" marker-end="url(#ar)"/>
+      <text class="el a" x="909" y="332" text-anchor="middle">docs · _changes</text>
+      <path class="e" d="M794 356 H960 V490 H1024" marker-end="url(#ar)"/>
+      <!-- read / derived -->
+      <path class="n" d="M794 368 H920 V630 H1024" marker-end="url(#ar)"/>
+      <text class="el" x="972" y="622" text-anchor="middle">index · search</text>
+      <path class="n" d="M794 378 H880 V770 H1024" marker-end="url(#ar)"/>
+      <text class="el" x="952" y="762" text-anchor="middle">/api/fossil</text>
+      <path class="n" d="M290 426 V530 H416" marker-end="url(#ar)"/>
+      <text class="el" x="300" y="484">skills</text>
+      <path class="n" d="M484 530 H620 V370 H726" marker-end="url(#ar)"/>
+      <text class="el" x="628" y="452">/api</text>
+      <path class="n" d="M164 710 H726" marker-end="url(#ar)"/>
+      <text class="el" x="300" y="702" text-anchor="middle">browser</text>
+      <path class="n" d="M760 674 V426" marker-end="url(#ar)"/>
+      <text class="el" x="770" y="560">/api</text>
     </svg>
 
     <!-- NODES -->
-    <div class="node" style="left:234px;top:70px">
+    <div class="node" style="left:64px;top:80px">
+      <div class="tile"><img src="%%ICON_pages%%" alt=""></div>
+      <div class="name"><span>GitHub Pages</span></div><div class="role"><span>site · docs</span></div>
+    </div>
+    <div class="node" style="left:264px;top:80px">
       <div class="tile"><img src="%%ICON_actions%%" alt=""></div>
       <div class="name"><span>GitHub Actions</span></div><div class="role"><span>ci · release</span></div>
     </div>
-    <div class="node" style="left:404px;top:70px">
-      <div class="tile"><img src="%%ICON_ghcr%%" alt=""></div>
-      <div class="name"><span>GHCR + Releases</span></div><div class="role"><span>images · cli binary</span></div>
+    <div class="node" style="left:534px;top:80px">
+      <div class="tile"><img src="%%ICON_releases%%" alt=""></div>
+      <div class="name"><span>GitHub Releases</span></div><div class="role"><span>cli binaries</span></div>
     </div>
-    <div class="node" style="left:44px;top:300px">
+    <div class="node" style="left:694px;top:80px">
+      <div class="tile"><img src="%%ICON_ghcr%%" alt=""></div>
+      <div class="name"><span>GHCR</span></div><div class="role"><span>images · helm chart</span></div>
+    </div>
+    <div class="node" style="left:64px;top:320px">
       <div class="tile"><img src="%%ICON_claude%%" alt=""></div>
       <div class="name"><span>Claude Code</span></div><div class="role"><span>your sessions</span></div>
     </div>
-    <div class="node" style="left:234px;top:300px">
+    <div class="node" style="left:224px;top:320px">
+      <div class="tile"><img src="%%ICON_plugin%%" alt=""></div>
+      <div class="name"><span>plugin</span></div><div class="role"><span>hooks · skills</span></div>
+    </div>
+    <div class="node" style="left:384px;top:320px">
       <div class="tile"><img src="%%ICON_webhook%%" alt=""></div>
       <div class="name"><span>hook</span></div><div class="role"><span>the writer</span></div>
     </div>
-    <div class="node" style="left:404px;top:300px">
-      <div class="tile"><img src="%%ICON_hono%%" alt=""></div>
-      <div class="name"><span>webapi</span></div><div class="role"><span>Hono · I/O gateway</span></div>
+    <div class="node" style="left:384px;top:500px">
+      <div class="tile"><img src="%%ICON_terminal%%" alt=""></div>
+      <div class="name"><span>CLI</span></div><div class="role"><span>you + agents</span></div>
     </div>
-    <div class="node" style="left:44px;top:480px">
+    <div class="node" style="left:64px;top:680px">
       <div class="tile"><img src="%%ICON_you%%" alt=""></div>
       <div class="name"><span>You</span></div><div class="role"><span>browse · search</span></div>
     </div>
-    <div class="node" style="left:234px;top:480px">
+    <div class="node" style="left:694px;top:320px">
+      <div class="tile"><img src="%%ICON_hono%%" alt=""></div>
+      <div class="name"><span>webapi</span></div><div class="role"><span>Hono · I/O gateway</span></div>
+    </div>
+    <div class="node" style="left:694px;top:680px">
       <div class="tile"><img src="%%ICON_react%%" alt=""></div>
-      <div class="name"><span>webui</span></div><div class="role"><span>React · Vite · MUI</span></div>
+      <div class="name"><span>webui</span></div><div class="role"><span>served by the webapi</span></div>
     </div>
-    <div class="node" style="left:404px;top:480px">
-      <div class="tile"><img src="%%ICON_terminal%%" alt=""></div>
-      <div class="name"><span>CLI</span></div><div class="role"><span>Ink · you + agents</span></div>
-    </div>
-    <div class="node" style="left:734px;top:90px">
-      <div class="tile"><img src="%%ICON_fossil%%" alt=""></div>
-      <div class="name"><span>Fossil</span></div><div class="role"><span>version control</span></div>
-    </div>
-    <div class="node" style="left:734px;top:230px">
+    <div class="node" style="left:994px;top:320px">
       <div class="tile"><img src="%%ICON_couchdb%%" alt=""></div>
       <div class="name"><span>CouchDB</span></div><div class="role"><span>source of truth</span></div>
     </div>
-    <div class="node" style="left:734px;top:370px">
+    <div class="node" style="left:994px;top:460px">
       <div class="tile"><img src="%%ICON_garage%%" alt=""></div>
       <div class="name"><span>Garage</span></div><div class="role"><span>S3 · transcripts</span></div>
     </div>
-    <div class="node" style="left:734px;top:510px">
+    <div class="node" style="left:994px;top:600px">
       <div class="tile"><img src="%%ICON_meilisearch%%" alt=""></div>
       <div class="name"><span>Meilisearch</span></div><div class="role"><span>derived search</span></div>
+    </div>
+    <div class="node" style="left:994px;top:740px">
+      <div class="tile"><img src="%%ICON_fossil%%" alt=""></div>
+      <div class="name"><span>Fossil</span></div><div class="role"><span>version control</span></div>
     </div>
   </div>
   </div>
