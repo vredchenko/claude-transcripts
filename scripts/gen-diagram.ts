@@ -36,10 +36,10 @@ import {
  *
  * Replaces the hand-typed ASCII that used to open the README. That drawing existed in
  * five places, had already drifted (`cli` vs `CLI`), and — more seriously — all five
- * copies were wrong: they routed the hook *through* the webapi, when ADR 0016's
- * amendment is precisely that the hook writes to CouchDB and S3 **directly**, so that
- * recording a session never depends on the webapi being up. Generating the picture is
- * what makes that claim checkable.
+ * copies had gone wrong with respect to the code at the time (the hook then wrote the
+ * stores directly). Since ADR 0016's second amendment the hook writes only through the
+ * webapi, and the picture says so because it is generated from the same topology the
+ * tests check. Generating it is what keeps that claim checkable.
  *
  * Three files come out of one scene. The split is forced, not stylistic:
  *   - the README is rendered by GitHub, which serves SVGs through an image proxy in
@@ -157,10 +157,9 @@ function boxWidth(node: DiagramNode): number {
  * The band is what makes the picture readable, and it falls straight out of ADR
  * 0016. The write lane (Claude Code → hook) runs along the top, the read lane
  * (clients → gateway) along the bottom, and the stores sit centred at the right
- * where both converge. Because the two lanes occupy different y bands, the hook's
- * long bypass to the stores passes *over* the gateway rather than through it, and
- * the clients' arrows to the gateway pass *under* the hook rather than through it —
- * which is exactly what the first attempt at this got wrong.
+ * where both converge. Both lanes end at the gateway: the hook's ingest edge drops into
+ * it from above, and the clients' arrows reach it from below, passing *under* the hook
+ * rather than through it.
  */
 const LANE_ORDER = ["write", "read"] as const;
 const LANE_GAP = 34;

@@ -4,7 +4,9 @@ Date: 2026-06-18
 
 ## Status
 
-Accepted. Amended 2026-08-09 — see [Amendment](#amendment-the-hook-is-a-second-writer).
+Accepted. Amended 2026-08-09 ([the hook is a second writer](#amendment-the-hook-is-a-second-writer)),
+which was superseded 2026-11-19 ([the hook writes through the webapi](#amendment-2-the-hook-writes-through-the-webapi)).
+The decision holds as first written: nothing writes a backend except the webapi.
 
 ## Context
 
@@ -40,9 +42,9 @@ system, whose contract holds even as internals change, break, or toggle.
 - The one thing that legitimately bypasses the webapi is **host-side metadata
   ingestion** by the hook/CLI (reading local config/transcripts the container
   can't see) — that's an *input source*, still delivered *to* the webapi, not a
-  backend write around it. *(Too narrow as written — see the
-  [Amendment](#amendment-the-hook-is-a-second-writer): the hook writes to CouchDB
-  and S3 directly.)*
+  backend write around it. *(For a while the hook also wrote CouchDB and S3 directly —
+  see the [first amendment](#amendment-the-hook-is-a-second-writer). It no longer does:
+  [Amendment 2](#amendment-2-the-hook-writes-through-the-webapi).)*
 
 ## Consequences
 
@@ -58,7 +60,8 @@ system, whose contract holds even as internals change, break, or toggle.
 
 ## Amendment: the hook is a second writer
 
-*2026-08-09.*
+*2026-08-09. **Superseded** by [Amendment 2](#amendment-2-the-hook-writes-through-the-webapi);
+kept as the record of why the bypass existed and what it cost.*
 
 The exception above describes something narrower than what the code does, and the gap
 is worth stating plainly rather than leaving a reader to infer that nothing writes
@@ -109,3 +112,59 @@ Everything else in the decision. The **read** path is unchanged — no consumer 
 backend directly. The webui and CLI remain webapi clients with generated clients. The
 gateway is still the stability column and still the one place to add auth, masking and
 rate limiting later. The exception is one writer, on one path, for one reason.
+
+## Amendment 2: the hook writes through the webapi
+
+*2026-11-19 ([#288](https://github.com/vredchenko/claude-transcripts/issues/288)). Supersedes
+the first amendment.*
+
+**The hook writes only through the webapi's `/api/ingest/*` routes**, like `backfill`
+and `import`. It opens no store client, its runtime config names only a webapi URL and
+holds no store credential, and a static test fails the build if anything in the hook
+reaches for a store.
+
+| action | route |
+|---|---|
+| `write-event-marker` | `POST /api/ingest/events` |
+| `flush-transcript-chunk` | `POST /api/ingest/chunks` (resume: `GET /api/ingest/{id}/high-water`) |
+| `write-summary` | `POST /api/ingest/summary` |
+| `upload-blobs` | `PUT /api/ingest/{id}/transcript` |
+
+### Why the first amendment's reasoning no longer holds
+
+It traded visibility for independence: a writer that depends only on the store keeps
+recording while the webapi is down, and stays silent about failures. In practice:
+
+- **"Only the store" was rarely true.** A client machine recording into a remote or
+  omnibus instance had to reach CouchDB and S3 across the network — publishing stores
+  that the gateway exists to keep private, and carrying their credentials on every
+  host. The webapi is the one surface every deployment already publishes.
+- **Silent loss was the common failure.** A dropped write was invisible, so a broken
+  install looked identical to a working one until someone went looking for a session.
+- **Every cost listed above** — no write-time validation, a second implementation of
+  each write, store credentials on the host — went away only by closing the bypass.
+
+### The trade, stated
+
+Recording now depends on the webapi being up. That is accepted, and made **loud
+rather than lossy-and-silent**:
+
+- The session-start banner probes the webapi and says "NOT recording" before the first
+  write is lost.
+- Every write reports its outcome; the statusline goes `stalled` on the first rejected
+  write, names the reason, and shows the recovery command.
+- `hook status`, `setup` and `doctor` probe the hook's real write target.
+- **Recovery is `claude-transcripts backfill`**, which rebuilds a gap from Claude Code's
+  own transcript on disk (and `backfill --repair` re-sends a missing transcript). The
+  transcript file is the buffer; the hook keeps no queue of its own.
+
+The hook still **never blocks a session**: every write is time-boxed and caught. It
+fails loudly, not fatally.
+
+### What follows
+
+- Hook-written docs are validated at write time like any other ingest.
+- The `_changes` follower stays: it is how *every* write, from any ingest route,
+  becomes searchable ([ADR 0009](0009-meilisearch-search.md)).
+- A mirror ([`mirrors`](../../operate/mirrors.md)) is just another webapi; the hook fans
+  out to the instance and its mirrors over the same client.

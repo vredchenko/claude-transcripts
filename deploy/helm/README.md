@@ -107,9 +107,10 @@ spec:
 
 ## Recording sessions
 
-As with the kustomize base, the hook writes to CouchDB and S3 directly, so the machine
-running Claude Code needs a route to those two Services (port-forward, an Ingress of
-your own, a tailnet). See [deploy/k8s/README.md](../k8s/README.md#reaching-it).
+The hook writes only through the webapi, so the machine running Claude Code needs a
+route to the `app` Service alone (port-forward, an Ingress of your own, a tailnet), and
+`claude-transcripts setup --webapi <url>`. See
+[deploy/k8s/README.md](../k8s/README.md#reaching-it).
 
 ## Testing it
 

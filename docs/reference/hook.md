@@ -1,8 +1,10 @@
 # The hook
 
-The writer: what Claude Code runs on every registered session event, logging the
-session to CouchDB and S3 as it happens. It never blocks or fails a session: every
-external call is wrapped, errors go to stderr, and it always exits 0.
+The writer: what Claude Code runs on every registered session event, recording the
+session as it happens through the webapi's `/api/ingest/*` routes — the only way it
+writes ([ADR 0016, amendment 2](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)).
+It never blocks or fails a session: every write is time-boxed and caught, and it always
+exits 0. It does fail **loudly**: see [When a write fails](#when-a-write-fails).
 
 Setup: [hook-setup.md](../start/hook-setup.md). Events: [hook-events.md](hook-events.md)
 (generated). What each action does: [actions.md](actions.md).
@@ -14,7 +16,8 @@ In the CLI, at `packages/cli/src/hook/`:
 ```
 index.ts       dispatch: payload → the actions bound to that event in the blueprint
 handlers.ts    one handler per action
-runtime.ts     runtime config, CouchDB + S3 clients, per-session state in /tmp
+ingest.ts      the webapi client: ingest routes, fan-out to mirrors, health probe
+runtime.ts     runtime config, write outcomes, per-session state in /tmp
 ```
 
 `claude-transcripts hook run` reads one payload on stdin; `hook install` registers that
@@ -33,7 +36,7 @@ registration is generated from, so dispatch and registration can't drift. An eve
 actions run concurrently and settled: one failing doesn't stop the others.
 
 `SessionStart` gets a 180 s timeout because it does real work (seeding state, and on a
-resume asking CouchDB where the chunks end). `SessionEnd` gets 60 s, because that is
+resume asking the webapi where the chunks end, `GET /api/ingest/{id}/high-water`). `SessionEnd` gets 60 s, because that is
 the most Claude Code grants at exit: it takes the largest declared SessionEnd timeout,
 caps it at 60 s (with a 1.5 s floor), and cancels the hook when the budget runs out
 ("Hook cancelled"). Every other event gets 5 s.
@@ -43,10 +46,10 @@ and the summary. The transcript upload, megabytes on a long session, is handed t
 detached `claude-transcripts hook upload` and the hook returns. The child runs in its
 own session, so it outlives both the hook and Claude Code.
 
-To give the in-line part more headroom (a slow or remote CouchDB), set
+To give the in-line part more headroom (a slow or remote webapi), set
 `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` in the environment Claude Code runs in; it
-replaces the exit budget. A session that ended without its transcript reaching S3 can
-be finished with `claude-transcripts backfill --repair`.
+replaces the exit budget. A session that ended without its transcript landing can be
+finished with `claude-transcripts backfill --repair`.
 
 Eight of the eleven events are registered `async: true`, so Claude Code doesn't wait
 for the writer (a synchronous `PostToolUse` costs roughly 130–160 ms per tool call).
@@ -67,13 +70,33 @@ session-start banner instead.
 ## Runtime config
 
 From `CT_HOOK_CONFIG`, else `~/.config/claude-transcripts/config.json`
-([hook-setup.md](../start/hook-setup.md#1-write-the-runtime-config)). No config means
-the hook does nothing; the session-start banner then says the session is not being
-recorded.
+([hook-setup.md](../start/hook-setup.md#1-write-the-runtime-config)). Its one required
+key is `webapi.url`, the instance the hook writes to; `mirrors` adds more
+([mirrors.md](../operate/mirrors.md)). It holds no store address or credential. No
+config, or one without `webapi.url` (a pre-0.11 config that names `couch`/`blob`
+instead), means the hook records nothing, and the session-start banner says why and
+what to run.
+
+## When a write fails
+
+There is no local queue: Claude Code's own transcript on disk is the buffer, and
+`claude-transcripts backfill` rebuilds any gap from it. So the hook's job on failure is
+to say so, at once:
+
+- **Session start** probes the webapi's `/health`. If it is down, or up with its stores
+  unavailable, the banner reads `○ Claude Transcripts NOT recording — <host>: <reason>`.
+- **Every write** records its outcome per target. The statusline turns `◐ stalled` on
+  the first rejected write, names why (`HTTP 503`, `timeout`, `unreachable`) and shows
+  ``run `claude-transcripts backfill` ``. A mirror taking writes while the instance is
+  not shows `● rec (mirror)` with the same hint.
+- **`hook status`, `setup` and `doctor`** probe the configured target and say whether it
+  takes writes.
 
 ## Checking it
 
-- `claude-transcripts hook status` — what is registered, where, and any mirrors.
+- `claude-transcripts hook status` — what is registered, the webapi it writes to and
+  whether that takes writes now, and any mirrors.
 - `claude-transcripts doctor` — the whole write → read path.
 - `claude-transcripts statusline` — the live indicator (`● ct rec`, `◐ ct stalled`,
-  `○ ct off`), read from the hook's local state with no network calls.
+  `○ ct off`) and the session's link, read from the hook's local state with no network
+  calls.

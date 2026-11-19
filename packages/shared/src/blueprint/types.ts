@@ -364,7 +364,7 @@ export type DiagramLevel = "compact" | "expanded";
 /** Where a node sits in the story — not where it sits on the page. */
 export type TopologyNodeRole =
   | "producer" // Claude Code — emits the events
-  | "writer" // the hook — the second writer (ADR 0016 amendment)
+  | "writer" // the hook — writes through the gateway's ingest routes (ADR 0016, amendment 2)
   | "client" // webui / cli / agents — HTTP consumers of the gateway
   | "gateway" // webapi — the stability column
   | "store" // CouchDB / Garage / Fossil — durable
@@ -378,8 +378,8 @@ export type IconKey = "claude" | "mark" | "couchdb" | "garage" | "meilisearch" |
  * Which path through the system a node belongs to.
  *
  * A fact about the system, not about the picture: ADR 0016 is entirely the
- * distinction between the write path (Claude Code → hook → the stores, bypassing the
- * gateway) and the read path (webui/cli/agents → gateway → the stores). `store` is
+ * distinction between the write path (Claude Code → hook → the gateway's ingest routes
+ * → the stores) and the read path (webui/cli/agents → gateway → the stores). `store` is
  * the shared destination both converge on. A renderer keeps the two apart, which is
  * also what stops a read arrow from being drawn through the hook.
  */

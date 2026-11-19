@@ -59,7 +59,7 @@ export const TOPOLOGY_NODES: TopologyNodeDef[] = [
     summary: "Anything that speaks the OpenAPI contract.",
   },
 
-  // ── rank 1 (write lane) — the second writer ──
+  // ── rank 1 (write lane) — the hook, writing through the gateway ──
   {
     key: "hook",
     label: "hook",

@@ -3,11 +3,11 @@
  * in-memory session index, and the Meilisearch indexes.
  *
  * Indexing used to happen only as a side effect of `/api/ingest/*`, which left a hole:
- * the hook writes straight to CouchDB, so a live-recorded session was never searchable
- * until someone ran a manual reindex. Following the change feed closes that without
- * coupling the writer to the reader — whoever writes a doc, by whatever path, the
- * readers catch up. It also keeps the hook free of a hard dependency on the webapi
- * being up, which matters because the hook must never block a session.
+ * the hook then wrote straight to CouchDB, so a live-recorded session was never
+ * searchable until someone ran a manual reindex. Following the change feed closed that
+ * without coupling the writer to the reader — whoever writes a doc, by whatever path,
+ * the readers catch up — and it stays the one indexing path now that the hook writes
+ * through `/api/ingest/*` too (#288).
  *
  * It now feeds the session index too (#107), which is why the feed runs even when
  * search is switched off: the change feed is the only thing that knows which sessions

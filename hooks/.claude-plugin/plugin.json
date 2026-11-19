@@ -1,7 +1,7 @@
 {
   "name": "claude-transcripts",
   "version": "0.10.2",
-  "description": "Claude Transcripts — log every session to CouchDB + S3, show that it's recording, and read the history back.",
+  "description": "Claude Transcripts — record every session through your instance's webapi, show that it's recording, and read the history back.",
   "keywords": [
     "session-logging",
     "couchdb",

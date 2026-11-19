@@ -72,8 +72,10 @@ exposure is your decision, not the base's. Two ways:
   kubectl -n claude-transcripts port-forward svc/meilisearch-ui 7657:24900 &
   kubectl -n claude-transcripts port-forward svc/fossil 7658:8080 &
   ```
-  With those up, the repo-root `.env` defaults (`COUCHDB_PORT=7652`, `S3_ENDPOINT=http://127.0.0.1:7653`, …)
-  and the hook work unchanged.
+  Recording needs only the first (`app`): the hook writes through the webapi, so
+  `claude-transcripts setup --webapi http://127.0.0.1:7650` is the whole client side.
+  The rest are for the admin UIs and for running the CLI's admin commands against the
+  cluster with the repo-root `.env` defaults (`COUCHDB_PORT=7652`, …).
 - **Ingress** — `overlays/ingress/` is a starting point (k3s' Traefik picks it up with
   no class set). Put it on a network you trust; a tailnet works well.
 

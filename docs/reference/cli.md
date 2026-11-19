@@ -11,8 +11,8 @@ runtime; the app image bundles one at `/cli/download`; from a checkout run
   `sessions`, `search` and `turns` take `--json` for scripts and agents.
 - **Host commands** (`install`, `uninstall`, `setup`, `provision`, `stack`, `hook`,
   `statusline`) work on the local machine: containers, store provisioning, Claude
-  Code's settings. `hook run` writes to CouchDB and S3 directly
-  ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
+  Code's settings. `hook run`, the writer, is a webapi client too: it records through
+  `/api/ingest/*` ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)).
 
 **Which webapi:** `--webapi`, else `CT_WEBAPI_URL`, else `WEBAPI_PORT` (on
 `WEBAPI_HOST`, default `127.0.0.1`), else `webapi.url` in the hook runtime config, else

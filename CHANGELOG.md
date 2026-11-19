@@ -39,6 +39,16 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 - **`GET /api/ingest/{id}/high-water`**: how far a session's chunks reach, so a resumed
   session continues on its stored chunk boundaries without the hook reading CouchDB.
 
+### Documentation
+
+- **Every doc now describes one write path** ([#288]). ADR 0016 gets a second
+  amendment that supersedes "the hook is a second writer". Architecture, hook
+  reference and setup, mirrors, omnibus, Helm and k8s, the README, `CLAUDE.md`, the
+  plugin and marketplace descriptions, the admin skill and `/claude-transcripts:status`
+  all describe the webapi as the hook's only write interface. A remote or omnibus
+  instance needs only its webapi reachable. A docs-drift test fails if a published doc
+  says otherwise again.
+
 ### Fixed
 
 - **The omnibus webapi reported `0.0.0-dev` instead of its release version** on

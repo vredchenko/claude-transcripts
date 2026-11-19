@@ -7,8 +7,9 @@
 
 It is the I/O gateway ([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md)):
 consumers read through it and write only via `/api/ingest/*`, `/api/migrate/*` and
-`/api/search/reindex`. The hook writes to CouchDB and S3 directly, which is why the
-webapi follows CouchDB's `_changes` feed. In production it also serves the SPA, the docs
+`/api/search/reindex` — the hook included, which records every session through
+`/api/ingest/*`. The webapi follows CouchDB's `_changes` feed so that every write, by
+any route, reaches the search index on one path. In production it also serves the SPA, the docs
 and the CLI binary. URL list: [routes.md](routes.md).
 
 ## Configuration

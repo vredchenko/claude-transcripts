@@ -107,8 +107,22 @@ Swap `latest/download` for `download/vX.Y.Z` to pin a release. Re-running
 Then re-run `claude-transcripts install` to move the app image to the new version: the
 binary and the app container are versioned together, and a schema mismatch makes
 ingest reject documents without saying so. Do **not** run `install` on a
-**client-only** machine (the hook writes to stores hosted elsewhere, no local
-containers): it would stand up a stack the machine was never meant to have.
+**client-only** machine ([below](#recording-into-a-remote-instance)): it would stand up
+a stack the machine was never meant to have.
+
+## Recording into a remote instance
+
+A machine that records into an instance hosted elsewhere — a home server, the
+[omnibus](../operate/omnibus.md), a cluster — runs no containers. The hook writes only
+through the webapi, so all it needs is the CLI and that instance's URL:
+
+```sh
+claude-transcripts setup --webapi https://transcripts.example.net
+```
+
+That writes the hook config (naming only the webapi, with no store address or
+credential), checks the instance takes writes, and registers the hook. Only the
+instance's webapi port has to be reachable from this machine.
 
 ## Uninstalling
 

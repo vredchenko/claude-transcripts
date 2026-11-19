@@ -88,10 +88,14 @@ Also inside:
 
 ## Recording sessions from the host
 
-The hook writes to CouchDB and S3 directly, not through the webapi
-([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-the-hook-is-a-second-writer)).
-So a host recording into the omnibus needs 7652 and 7653 published as well as 7650,
-and the CouchDB password and S3 key from `/data/secrets` (below).
+The hook writes only through the webapi
+([ADR 0016](../design/decisions/0016-webapi-is-the-io-gateway.md#amendment-2-the-hook-writes-through-the-webapi)),
+so a host recording into the omnibus needs nothing but 7650 published, and no store
+credential. Point the hook at it:
+
+```bash
+claude-transcripts setup --webapi http://<omnibus-host>:7650
+```
 
 ## Configuration
 

@@ -8,7 +8,7 @@
     {
       "name": "claude-transcripts",
       "source": "./hooks",
-      "description": "Log every session to CouchDB + S3, show that it's recording, and read the history back.",
+      "description": "Record every session through your instance's webapi, show that it's recording, and read the history back.",
       "version": "0.10.2",
       "category": "productivity"
     }

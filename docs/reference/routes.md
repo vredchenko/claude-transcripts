@@ -15,7 +15,7 @@ response shapes for the typed `/api` routes are in the OpenAPI spec, browsable a
 | `/api/turns` | One speaker's turns across all sessions in time order (`role`, `from`, `to`, `limit`, `skip`). |
 | `/api/search` | Full-text search: session metadata hits and conversation-turn hits. Returns `enabled: false` when Meilisearch is off or unreachable. |
 | `POST /api/search/reindex` | Clear and rebuild both search indexes from CouchDB. |
-| `/api/ingest/*` | The write surface: `POST summary`, `POST events`, `POST chunks`, `PUT {id}/transcript`, `DELETE {id}` (`?blobs=true` also deletes the transcript). Used by `backfill`, `import`, `doctor` and mirrors; the hook bypasses it. |
+| `/api/ingest/*` | The write surface: `POST summary`, `POST events`, `POST chunks`, `PUT {id}/transcript`, `DELETE {id}` (`?blobs=true` also deletes the transcript). The only way anything writes: the hook (and its mirrors), `backfill`, `import` and `doctor`. `GET {id}/high-water` is where a resumed session's chunks end. |
 | `/api/migrate/*` | `GET status`, `POST up`, `POST down` ([migrations.md](../operate/migrations.md)). |
 | `/api/blueprint`, `/api/blueprint/{services,hooks,actions,env}` | The blueprint, or one facet of it. |
 | `/api/couch/*` | Read-only passthrough to CouchDB's HTTP API (docs, views). |

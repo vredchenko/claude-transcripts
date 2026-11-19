@@ -32,10 +32,9 @@ sharing) but never replaces rotation.
 
 ## Prerequisite: one write path
 
-Write-time detection only works if every write passes through the same checkpoint. Today
-the hook writes to CouchDB and S3 directly and bypasses the webapi (#288). Until it
-writes through `/api/ingest/*` like every other writer, any write-time guard misses the
-main source of data. This feature depends on #288.
+Write-time detection only works if every write passes through the same checkpoint. Since
+#288 every writer, the hook included, goes through the webapi's `/api/ingest/*`, so that
+is where a write-time guard belongs.
 
 ## Layers of defence
 
