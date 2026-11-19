@@ -42,8 +42,7 @@ plugin's `scripts/dispatch.ts`.
   line drops detail rather than wrapping. The number is the recording binary's own version
   (`ct@dev` from a checkout), so a machine running a stale hook says so on every
   refresh instead of only under `hook status`. Rendered from the hook's own scratch files — no network.
-  A plugin may set `subagentStatusLine` (done, in `settings.json`) but not the main
-  `statusLine`, so that one is registered by `claude-transcripts statusline install`
+  A plugin can't set `statusLine`, so it is registered by `claude-transcripts statusline install`
   (`install` does it for you; `--no-statusline` opts out). An existing `statusLine`
   of yours is never overwritten.
 - **On demand**: `/claude-transcripts:status` — hook registration, stores, this
@@ -72,7 +71,7 @@ resolves everything itself. The copies were retired along with the
   a missing or broken CLI must never turn into a failed hook.
 - `bin/claude-transcripts-statusline` — the statusline wrapper (a plugin's `bin/` is
   on PATH). Same resolution as the shim; prints `○ ct off` if the CLI is missing.
-- `settings.json` — `subagentStatusLine`, the one setting a plugin may carry.
+  Usable from any surface that shows status: `statusLine`, a mod, or your own script.
 - `commands/status.md` — `/claude-transcripts:status`.
 - `skills/recall/`, `skills/session-history/`, `skills/transcripts-admin/` — the skills.
 

@@ -11,10 +11,11 @@
  * per-session scratch files, prints one line and exits. No network, ever, and nothing
  * it does can fail loudly — a broken indicator is worse than none.
  *
- * Registration lives here, not in the plugin, because a plugin's `settings.json` may
- * set `subagentStatusLine` but **not** `statusLine` (plugin.md, Part 1b). `statusLine`
- * is a single setting, so if the user already has one that isn't ours we print the
- * snippet and stop rather than overwrite it — never touch a key that isn't ours.
+ * Registration lives here, not in the plugin, because a plugin can't set `statusLine`
+ * (plugin.md, Part 1b). `statusLine` is a single setting, so if the user already has one
+ * that isn't ours we print the snippet and stop rather than overwrite it — never touch a
+ * key that isn't ours. `isOurs` also recognises the plugin's `claude-transcripts-statusline`
+ * wrapper, for users who point `statusLine` at it.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
