@@ -60,10 +60,14 @@ function usageWeight(u: UsageBlock): number {
  * switch between two models. The suffix is a context size, not a model; the raw value
  * stays on the markers that recorded it.
  *
- * `session_index/aggregate` inlines the same regex (a view is a string).
+ * A trailing `[…]` with no `]` inside it is dropped. Not a regex: the id comes from a
+ * hook payload, and `/\[[^\]]*\]$/` is quadratic on a string of many `[`.
+ * `session_index/aggregate` inlines the same steps (a view is a string).
  */
 export function baseModelId(model: string): string {
-  return model.replace(/\[[^\]]*\]$/, "");
+  if (!model.endsWith("]")) return model;
+  const open = model.lastIndexOf("[");
+  return open >= 0 && model.indexOf("]", open) === model.length - 1 ? model.slice(0, open) : model;
 }
 
 /**

@@ -100,5 +100,15 @@ describe("scanTranscript", () => {
   test("baseModelId drops only a trailing context suffix", () => {
     expect(baseModelId("claude-opus-5-5[1m]")).toBe("claude-opus-5-5");
     expect(baseModelId("claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(baseModelId("a[b]c]")).toBe("a[b]c]");
+    expect(baseModelId("a[]")).toBe("a");
+  });
+
+  test("baseModelId is linear on a hostile id", () => {
+    const hostile = `${"[".repeat(200_000)}x`;
+    const t = performance.now();
+    expect(baseModelId(`${hostile}]`)).toBe("[".repeat(199_999));
+    expect(baseModelId(hostile)).toBe(hostile);
+    expect(performance.now() - t).toBeLessThan(100);
   });
 });
