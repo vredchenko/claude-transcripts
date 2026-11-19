@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { APP_VERSION } from "@claude-transcripts/shared";
 /**
  * Smoke-test an omnibus image: boot it on an empty volume, check every surface it
  * claims, then recreate the container on the same volume and check that nothing was
@@ -53,8 +54,11 @@ async function main(): Promise<void> {
   console.log(`[smoke] ${IMAGE} — ${step}`);
   await start();
 
-  const health = (await (await get("/health")).json()) as { ok?: boolean };
+  const health = (await (await get("/health")).json()) as { ok?: boolean; version?: string };
   check(health.ok === true, "webapi /health reports ok");
+  // The image is built from this tree, so it reports this tree's version (#289): the
+  // omnibus once shipped 0.10.2 reporting 0.0.0-dev, and nothing here noticed.
+  check(health.version === APP_VERSION, `/health reports ${APP_VERSION} (got ${health.version})`);
   check((await exec("omnibus-health")).exitCode === 0, "omnibus-health: every service answers");
   check((await get("/app/")).ok, "webui at /app/");
   check((await get("/docs/")).ok, "docs at /docs/");
@@ -73,7 +77,7 @@ async function main(): Promise<void> {
   check(plugin.ok, "/downloads/ has the plugin bundle");
 
   const version = (await exec("claude-transcripts", "--version")).text().trim();
-  check(version.length > 0, `CLI on PATH (${version})`);
+  check(version === APP_VERSION, `CLI on PATH reports ${APP_VERSION} (got ${version})`);
   check((await exec("claude-transcripts", "sessions")).exitCode === 0, "CLI reaches the webapi");
   check((await exec("gh", "--version")).exitCode === 0, "gh installed");
 

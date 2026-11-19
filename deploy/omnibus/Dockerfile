@@ -113,7 +113,6 @@ WORKDIR /app
 RUN set -eu; mkdir -p /downloads; \
   for t in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do \
     bun build --compile --splitting --target="bun-$t" packages/cli/src/cli.tsx \
-      --define "process.env.CT_VERSION='${CT_VERSION}'" \
       --outfile "/downloads/claude-transcripts-$t"; \
   done
 # The plugin as a self-contained local marketplace: `claude plugin marketplace add`
@@ -124,7 +123,8 @@ COPY deploy/omnibus/downloads.html /downloads/index.html
 RUN set -eu; \
   tar -C /plugin -czf /downloads/claude-transcripts-plugin.tar.gz claude-transcripts-plugin; \
   cd /downloads; for f in claude-transcripts-*; do sha256sum "$f" > "$f.sha256"; done; \
-  sed -i "s/@VERSION@/${CT_VERSION}/g" index.html
+  version="v$(bun -p 'require("/app/packages/cli/package.json").version')"; \
+  sed -i "s/@VERSION@/${version}/g" index.html
 
 # ── the runtime ────────────────────────────────────────────────────────────────
 # On the CouchDB image: an Erlang release plus its system libraries is the one thing

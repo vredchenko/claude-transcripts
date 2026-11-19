@@ -8,8 +8,13 @@
  *   bun run scripts/release.ts 0.1.0     # bump, then commit + tag by hand
  *   bun run scripts/release.ts 0.1.0 --check   # verify only, no writes
  *
- * Stamping also re-runs gen:k8s (the k8s base pins the app image) and gen:helm (the chart
- * is versioned with the release); --check verifies both.
+ * Stamping also re-runs gen:k8s (the k8s base pins the app image), gen:helm (the chart
+ * is versioned with the release) and gen:clients (the OpenAPI spec carries the version);
+ * --check verifies all three.
+ *
+ * These manifests are the ONLY source of the version (#289): the webapi, the CLI and the
+ * blueprint read it from package.json at runtime / bundle time. CI runs --check on
+ * every release tag, so a tag that disagrees with them cannot publish.
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -74,7 +79,18 @@ if (!check) {
     stderr: "inherit",
   });
   if (helm.exitCode !== 0) throw new Error("gen-helm failed — the chart was not re-versioned");
+  const clients = Bun.spawnSync(["bun", "run", "gen:clients"], {
+    cwd: ROOT,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  if (clients.exitCode !== 0) throw new Error("gen:clients failed — the spec was not re-versioned");
 }
+const spec = JSON.parse(readFileSync(join(ROOT, "openapi.json"), "utf8")) as {
+  info: { version: string };
+};
+const specStale = spec.info.version !== `v${version}`;
+if (specStale) console.log(`[release] openapi.json is ${spec.info.version}, expected v${version}`);
 const chartYaml = readFileSync(
   join(ROOT, "deploy", "helm", "claude-transcripts", "Chart.yaml"),
   "utf8",
@@ -94,15 +110,17 @@ const unpinned = ownImages.filter((ref) => !base.includes(`image: ${ref}\n`));
 for (const ref of unpinned) console.log(`[release] deploy/k8s/base does not run ${ref}`);
 
 if (check) {
-  if (stale > 0 || unpinned.length > 0 || chartStale) {
+  if (stale > 0 || unpinned.length > 0 || chartStale || specStale) {
     throw new Error(
       `${stale} manifest(s) not at ${version}, ${unpinned.length} k8s image(s) not pinned to it` +
-        `${chartStale ? ", the chart not versioned with it" : ""} — run without --check to stamp`,
+        `${chartStale ? ", the chart not versioned with it" : ""}` +
+        `${specStale ? ", openapi.json not versioned with it" : ""} — run without --check to stamp`,
     );
   }
-  console.log(`[release] all manifests, the k8s base and the chart at ${version}`);
+  console.log(`[release] all manifests, the k8s base, the chart and the spec at ${version}`);
 } else {
   if (unpinned.length > 0) throw new Error("k8s base still not pinned after gen-k8s");
   if (chartStale) throw new Error("chart still not versioned after gen-helm");
+  if (specStale) throw new Error("openapi.json still not versioned after gen:clients");
   console.log(`[release] stamped ${version}; next: commit, then tag v${version} and push`);
 }

@@ -9,7 +9,8 @@
 # future `upgrade`, or run by someone who already has the binary — so it lives in the CLI.
 # (`upgrade` is not implemented yet; see docs/start/installation.md#upgrading.)
 #
-#   CT_VERSION=v0.1.0   install a specific release (default: latest)
+#   CT_INSTALL_VERSION=v0.1.0   install a specific release (default: latest)
+#                               (CT_VERSION still works for now, deprecated)
 #   CT_BIN_DIR=~/.local/bin
 #   CT_NO_RUN=1         install the binary only; don't run `install`
 #
@@ -56,7 +57,11 @@ main() {
   need uname
 
   target="$(detect_target)"
-  version="${CT_VERSION:-$(latest_version)}"
+  if [ -z "${CT_INSTALL_VERSION:-}" ] && [ -n "${CT_VERSION:-}" ]; then
+    info "CT_VERSION is deprecated here; use CT_INSTALL_VERSION"
+    CT_INSTALL_VERSION="$CT_VERSION"
+  fi
+  version="${CT_INSTALL_VERSION:-$(latest_version)}"
   [ -n "$version" ] || die "could not resolve the latest release version."
 
   asset="$BIN_NAME-$target"

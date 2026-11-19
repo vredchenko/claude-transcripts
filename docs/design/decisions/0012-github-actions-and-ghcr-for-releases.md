@@ -40,8 +40,9 @@ the source.
   `GITHUB_TOKEN` (granted by default).
 - Because the path derives from `${{ github.repository }}`, **forks publish to
   their own GHCR namespace with no edits**.
-- The release version is baked at build time via the `CT_VERSION` build arg and
-  surfaced at `/health` + in the OpenAPI doc (unchanged from 0005).
+- The release version is surfaced at `/health` + in the OpenAPI doc. It is read from
+  the committed `package.json`, not baked from the tag
+  ([0005, 2026-11-19 amendment](0005-tag-driven-image-releases.md#amendment-only-tags-publish-and-the-version-is-read-from-the-tree)).
 - Backing-service images are mirrored to the same registry
   ([ADR 0024](0024-mirror-backing-images-to-registry.md)); a fresh clone can also
   skip the registry entirely with the upstream dev override
@@ -57,7 +58,7 @@ The two workflows above are now five; `publish-image.yml` also runs on `main`
 | workflow | runs on | does |
 |---|---|---|
 | `ci.yml` | push + PR to `main` | lint/typecheck/test/build, generated-file and contract checks, the Bun-floor check, browser tests |
-| `publish-image.yml` | `v*.*.*` tag, push to `main`, dispatch | the combined image ([tags](../../operate/releasing.md#app-image-tags)); grype/trivy before push |
+| `publish-image.yml` | `v*.*.*` tag, push to `main`, dispatch | the combined image ([tags](../../operate/releasing.md#app-image-tags)); grype/trivy before push. Since 2026-11-19 only a tag pushes; `main` builds and scans |
 | `release-cli.yml` | `v*.*.*` tag, dispatch | cross-compiled CLI binaries on the GitHub Release, and the npm package |
 | `mirror-images.yml` | `v*.*.*` tag, dispatch | mirrors the backing-service images ([ADR 0024](0024-mirror-backing-images-to-registry.md)) |
 | `pages.yml` | push to `main` (site/docs paths), dispatch | the project site and rendered docs on GitHub Pages |

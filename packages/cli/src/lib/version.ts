@@ -1,8 +1,21 @@
 /**
- * The CLI's own version. Baked in at build time (`--define process.env.CT_VERSION` in
- * the Dockerfile and release-cli.yml); a checkout running from source is "0.0.0-dev",
- * which `install` reads as "track the `main` image" rather than pinning a release.
+ * The CLI's own version: the lockstep app version from `package.json` (#289), bundled
+ * into the compiled binary — no build flag, nothing to forget to pass. Spelled `vX.Y.Z`,
+ * like the tag and the app image `install` pins to it.
+ *
+ * There are no dev builds. A source checkout reports the version of the tree it runs
+ * from; {@link runningFromSource} lets `install` say so rather than pretend the
+ * checkout is that release.
  */
-export const DEV_VERSION = "0.0.0-dev";
-export const VERSION: string = process.env.CT_VERSION ?? DEV_VERSION;
-export const isRelease = (): boolean => VERSION !== DEV_VERSION;
+import { APP_VERSION } from "@claude-transcripts/shared";
+
+export const VERSION: string = APP_VERSION;
+
+/**
+ * True when this is `bun run packages/cli/src/cli.tsx` out of a checkout, not a compiled
+ * binary (`/$bunfs/…`) or the npm bundle — i.e. code that may be ahead of the release
+ * its `package.json` names.
+ */
+export function runningFromSource(path: string = import.meta.path): boolean {
+  return /[\\/]packages[\\/]cli[\\/]src[\\/]/.test(path);
+}

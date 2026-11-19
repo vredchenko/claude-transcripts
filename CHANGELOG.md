@@ -6,6 +6,30 @@ webui, CLI, and shared layer as a set ([ADR 0023](docs/design/decisions/0023-loc
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning
 is [semver](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The omnibus webapi reported `0.0.0-dev` instead of its release version** on
+  `/health` and in its OpenAPI document. The version was a `CT_VERSION` build argument
+  set on the app image, and the omnibus runtime stage (a different base image that
+  copies the app's files) never carried it over. The omnibus's downloadable CLI
+  binaries were stamped with an empty version for the same reason ([#289]).
+
+### Changed
+
+- **The version has one source: the committed `package.json`.** `CT_VERSION` is gone
+  as a build argument and environment variable; the webapi, CLI, webui and blueprint
+  all read the lockstep version (`APP_VERSION`, spelled `vX.Y.Z`). A release tag that
+  disagrees with the manifests now fails CI, and the omnibus smoke test checks
+  `/health` and the bundled CLI against them ([#289]).
+- **Only release tags publish images.** The `:main` app image is no longer pushed;
+  `main` still builds and scans it. `install` always pins the CLI's own release, and
+  warns when run from a source checkout. The statusline no longer has a `ct@dev`
+  label ([#289]).
+- **`install.sh` takes `CT_INSTALL_VERSION`** to pick a release. `CT_VERSION` still
+  works for now, with a deprecation notice ([#289]).
+
 ## [0.10.2] — 2026-11-13
 
 A patch release that tightens the image pipeline. The Garage web UI moves to Go
@@ -2111,6 +2135,7 @@ of them had ever executed:
 [#265]: https://github.com/vredchenko/claude-transcripts/pull/265
 [#267]: https://github.com/vredchenko/claude-transcripts/pull/267
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
+[#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283

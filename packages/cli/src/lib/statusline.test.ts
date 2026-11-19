@@ -20,8 +20,8 @@ const NOW = 1_700_000_000_000;
 /**
  * Pinned, so these assert a format rather than whatever this checkout is stamped as —
  * and pinned to the shape a **release actually carries**, `v` included. The first cut
- * of this suite used "9.9.9", which no build ever produces: `CT_VERSION` is baked from
- * the git tag. The tests passed, the docs said `ct@0.2.0`, and the released binary
+ * of this suite used "9.9.9", which no build ever produces: `APP_VERSION` is spelled
+ * as the git tag is. The tests passed, the docs said `ct@0.2.0`, and the released binary
  * rendered `ct@v0.3.0` — an invented fixture agreeing with nothing.
  */
 const VERSION = "v9.9.9";
@@ -114,10 +114,6 @@ describe("versionLabel", () => {
   test("a release is shown as its tag, prefix and all", () => {
     // What a release binary is actually stamped with — see the note on VERSION.
     expect(versionLabel("v0.2.0")).toBe("ct@v0.2.0");
-  });
-
-  test("a checkout is 'dev', not thirteen characters of 0.0.0-dev", () => {
-    expect(versionLabel("0.0.0-dev")).toBe("ct@dev");
   });
 });
 

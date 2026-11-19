@@ -58,7 +58,6 @@ export const ENV_VARS: EnvVarDef[] = [
   { name: "WEBAPI_HOST", scope: "host", default: "127.0.0.1", description: "webapi bind host" },
   { name: "WEBUI_HOST", scope: "host", default: "127.0.0.1", description: "webui bind host" },
   { name: "CT_STATIC_DIR", scope: "host", description: "prebuilt SPA dir (prod image only)" },
-  { name: "CT_VERSION", scope: "host", description: "baked release version" },
 
   {
     name: "COUCHDB_URL",

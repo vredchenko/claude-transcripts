@@ -42,11 +42,8 @@ RUN bun run scripts/build-docs.ts --out /docs-dist
 
 # ── build-cli: compile the CLI to a single self-contained binary ────────────
 FROM deps AS build-cli
-# Same reason as the released binaries: a CLI that thinks it's a dev build takes the
-# dev branch of every "is this a release" decision.
-ARG CT_VERSION=0.0.0-dev
+# The version comes from package.json, bundled in (#289) — no build argument.
 RUN bun build --compile packages/cli/src/cli.tsx \
-      --define "process.env.CT_VERSION='${CT_VERSION}'" \
       --outfile /out/claude-transcripts
 
 # ── runtime: compose the built artifacts into a slim image ──────────────────
@@ -70,9 +67,6 @@ COPY --from=build-docs /docs-dist ./docs
 # Bundled CLI binary — on PATH for exec-into-container use, and served for download.
 COPY --from=build-cli /out/claude-transcripts /usr/local/bin/claude-transcripts
 
-# Baked release version (passed by the publish workflow).
-ARG CT_VERSION=0.0.0-dev
-ENV CT_VERSION=${CT_VERSION}
 # The webapi serves the built SPA at /app and the static docs at /docs from these dirs.
 ENV CT_STATIC_DIR=/app/packages/webui/dist
 ENV CT_DOCS_DIR=/app/docs

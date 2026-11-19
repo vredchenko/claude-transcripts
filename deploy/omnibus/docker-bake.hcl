@@ -11,10 +11,6 @@
 # image instead of building one (the release does: it reuses the image it just scanned
 # and pushed).
 
-variable "CT_VERSION" {
-  default = "0.0.0-dev"
-}
-
 variable "APP_IMAGE" {
   default = ""
 }
@@ -53,7 +49,6 @@ function "cache_to" {
 target "app" {
   context    = "."
   dockerfile = "Dockerfile"
-  args       = { CT_VERSION = CT_VERSION }
   cache-from = cache_from("app")
   cache-to   = cache_to("app")
 }

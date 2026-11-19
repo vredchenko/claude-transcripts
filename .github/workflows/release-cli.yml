@@ -26,30 +26,32 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: bun install --frozen-lockfile
 
-      - name: Compute version
-        id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      # The binaries report package.json's version, bundled in (#289). A tag that
+      # disagrees with the committed manifests would ship binaries that say otherwise.
+      - name: Check the tag matches the manifests
+        if: startsWith(github.ref, 'refs/tags/')
+        run: bun run scripts/release.ts "${GITHUB_REF_NAME#v}" --check
 
       - name: Cross-compile binaries (Linux + macOS)
         run: |
           set -euo pipefail
           mkdir -p out
-          # Bake the version in. Without this a released binary reports 0.0.0-dev, and
-          # everything keyed off "is this a release" silently takes the dev branch —
-          # the app-image pin, the version-skew warning, the written asset stamp.
-          VERSION="${GITHUB_REF_NAME#refs/tags/}"
-          case "$VERSION" in v*) : ;; *) VERSION="0.0.0-dev" ;; esac
-          echo "building CLI as $VERSION"
           # --splitting keeps Ink out of the entry chunk; without it piped stdout is
           # truncated (#146). Still one self-contained binary.
           for t in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
             plat="${t#bun-}"
             bun build --compile --splitting --target="$t" packages/cli/src/cli.tsx \
-              --define "process.env.CT_VERSION='$VERSION'" \
               --outfile "out/claude-transcripts-$plat"
           done
           (cd out && for f in claude-transcripts-*; do sha256sum "$f" > "$f.sha256"; done)
           ls -la out
+          # The binary reports the version it was stamped with, not something else.
+          want="v$(jq -r .version packages/cli/package.json)"
+          got="$(./out/claude-transcripts-linux-x64 --version)"
+          if [ "$got" != "$want" ]; then
+            echo "::error::compiled CLI reports $got, package.json says $want"
+            exit 1
+          fi
 
       # Tag build → publish. Dispatch → upload artifacts only.
       - name: Attach binaries to the Release
@@ -67,11 +69,10 @@ jobs:
 
       - name: Build the npm bundle
         if: startsWith(github.ref, 'refs/tags/')
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
         run: |
           set -euo pipefail
-          # Stamp the version and drop `dependencies` from the manifest we publish:
+          # Drop `dependencies` from the manifest we publish (the version is already
+          # the release's — the check above made sure):
           # the bundle is self-contained (bun inlines every dependency), and npm can't
           # parse this monorepo's `workspace:` protocol — it fails EUNSUPPORTEDPROTOCOL.
           #
@@ -80,7 +81,7 @@ jobs:
           # which still legitimately declare `workspace:*`. This mutation is CI-local
           # and never committed. node_modules is already installed, so removing the
           # declaration doesn't affect how the bundle resolves imports.
-          jq --arg v "$VERSION" '.version = $v | del(.dependencies)' \
+          jq 'del(.dependencies)' \
             packages/cli/package.json > /tmp/cli-package.json
           mv /tmp/cli-package.json packages/cli/package.json
           bun run scripts/build-cli-npm.ts

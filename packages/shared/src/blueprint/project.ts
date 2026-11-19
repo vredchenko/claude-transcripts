@@ -374,8 +374,8 @@ export function toArchitectureDiagram(
   return {
     level,
     title: model.identity.title,
-    // Deliberately not the version: gen-diagram builds from the committed config
-    // template with no env, so `identity.version` would be the "0.0.0-dev" fallback.
+    // Deliberately not the version: the committed diagram would then change on every
+    // release for no visual reason.
     subtitle: "self-hosted history for your Claude Code sessions",
     nodes,
     edges,

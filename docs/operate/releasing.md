@@ -54,13 +54,20 @@ manual `release-cli` run uploads the binaries as workflow artifacts without publ
 |-----|-------|-----------|
 | `vX.Y.Z` | that release | a `v*.*.*` tag |
 | `latest` | the newest release | a `v*.*.*` tag |
-| `main` | the tip of `main` | every push to `main` |
-| `<short-sha>` | one commit | all of the above, and manual dispatch |
+| `<short-sha>` | one commit | a `v*.*.*` tag, and manual dispatch |
 
-`latest` tracks releases, not `main`. `install` pins the app image to the CLI's own
-version, or to `main` for an unreleased CLI, and warns if the running app reports a
-different version. Every build is scanned with grype and trivy and fails on HIGH
-severity, so a base-image CVE can block a merge build too.
+Only release tags publish. A push to `main` builds and scans the image the same way but
+pushes nothing, so there is no image of unreleased code: to run it for real, cut a
+patch release. `install` pins the app image to the CLI's own version and warns if the
+running app reports a different one. Every build is scanned with grype and trivy and
+fails on HIGH severity, so a base-image CVE can block a merge build too.
+
+The version every component reports (`--version`, `/health`, the OpenAPI document, the
+statusline, the omnibus downloads page) is read from the committed `package.json`;
+nothing injects it at build time. On a tag, `publish-image` and `release-cli` run
+`release.ts <version> --check` and fail if the tag disagrees with the manifests, the
+compiled CLI's `--version` is checked against them, and the omnibus smoke test checks
+`/health` and the bundled CLI.
 
 ### The scan gate
 

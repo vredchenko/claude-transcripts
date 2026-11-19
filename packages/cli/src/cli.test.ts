@@ -9,13 +9,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const ENTRY = join(import.meta.dir, "cli.tsx");
+const CLI_PKG = JSON.parse(readFileSync(join(import.meta.dir, "..", "package.json"), "utf8")) as {
+  version: string;
+};
 
 async function run(...args: string[]) {
   const proc = Bun.spawn(["bun", "run", ENTRY, ...args], {
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",
-    env: { ...process.env, CT_VERSION: "1.2.3", FORCE_COLOR: "0" },
+    env: { ...process.env, FORCE_COLOR: "0" },
   });
   const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -26,10 +29,10 @@ async function run(...args: string[]) {
 }
 
 describe("claude-transcripts dispatch", () => {
-  test("--version prints the baked version on stdout, exit 0", async () => {
+  test("--version prints the package.json version, tag-spelled, on stdout, exit 0", async () => {
     const r = await run("--version");
     expect(r.code).toBe(0);
-    expect(r.stdout.trim()).toBe("1.2.3");
+    expect(r.stdout.trim()).toBe(`v${CLI_PKG.version}`);
     expect(r.stderr).toBe("");
   });
 

@@ -47,6 +47,6 @@ how they're versioned, and how they're packaged.
 Lockstep holds. Packaging differs: the root `Dockerfile` builds every component from
 source in one multi-stage build (parallel `build-webui` / `build-docs` / `build-cli`
 stages → `runtime`), not from released artifacts. `release-cli.yml` builds the CLI
-binaries independently from the same tag; both get the same `CT_VERSION`. The image
+binaries independently from the same tag; both read the same `package.json` version. The image
 already serves `/app`, `/docs`, `/cli/download` and Scalar at `/api/docs` (not
 Swagger).
