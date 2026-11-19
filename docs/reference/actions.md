@@ -40,12 +40,14 @@ already happens in the webapi's change follower).
 
 ## What is wired
 
-Eleven events: `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`,
-`Stop`, `StopFailure`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PostCompact`,
-`SessionEnd`. `flush-transcript-chunk` runs on the turn events (`UserPromptSubmit`,
+Fourteen events: `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure`,
+`Stop`, `StopFailure`, `SubagentStart`, `SubagentStop`, `PostModelSwitch`, `CwdChanged`,
+`DirectoryAdded`, `PreCompact`, `PostCompact`, `SessionEnd`. `flush-transcript-chunk` runs on the turn events (`UserPromptSubmit`,
 `PostToolUse`, `PostToolUseFailure`, `Stop`) and a final flush at `SessionEnd`.
 `StopFailure`, `PreCompact` and `PostCompact` only write markers, which explain sessions
-with an unusual shape (API errors, compaction).
+with an unusual shape (API errors, compaction). `PostModelSwitch`, `CwdChanged` and
+`DirectoryAdded` only write markers too: what the session ran on, and where, after it
+started.
 
 ## Adding behaviour
 

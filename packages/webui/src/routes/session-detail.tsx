@@ -35,6 +35,7 @@ import {
   formatCount,
   formatDuration,
   formatTimestamp,
+  modelsLabel,
   projectName,
   statusTime,
   totalTools,
@@ -233,13 +234,28 @@ export function SessionDetailPage() {
             {split?.activeMs !== undefined && (
               <MetaField label="ACTIVE">{formatDuration(split.activeMs)}</MetaField>
             )}
-            {session.model && <MetaField label="MODEL">{session.model}</MetaField>}
-            {session.hostname && <MetaField label="HOST">{session.hostname}</MetaField>}
-            {session.cwd && (
-              <MetaField label="DIRECTORY" wide>
-                {session.cwd}
-              </MetaField>
+            {(session.models?.length ?? 0) > 1 ? (
+              <MetaField label="MODELS">{modelsLabel(session)}</MetaField>
+            ) : (
+              session.model && <MetaField label="MODEL">{session.model}</MetaField>
             )}
+            {session.hostname && <MetaField label="HOST">{session.hostname}</MetaField>}
+            {(session.cwds?.length ?? 0) > 1 ? (
+              <MetaField label="DIRECTORIES" wide>
+                {session.cwds?.join(" → ")}
+              </MetaField>
+            ) : (
+              session.cwd && (
+                <MetaField label="DIRECTORY" wide>
+                  {session.cwd}
+                </MetaField>
+              )
+            )}
+            {session.addedDirs?.length ? (
+              <MetaField label="ADDED DIRS" wide>
+                {session.addedDirs.join(", ")}
+              </MetaField>
+            ) : null}
             {session.tokenUsage && (
               <MetaField label="TOKENS">{formatCount(session.tokenUsage.total)}</MetaField>
             )}

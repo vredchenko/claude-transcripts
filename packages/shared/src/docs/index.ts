@@ -35,6 +35,8 @@ export const SummaryDocSchema = z
     hostname: z.string(),
     cwd: z.string(),
     model: z.string().optional(),
+    // Every model the session used, in order of first use (#296); absent on older docs.
+    models: z.array(z.string()).optional(),
     end_reason: z.string(),
     event_count: z.number(),
     prompt_count: z.number(),

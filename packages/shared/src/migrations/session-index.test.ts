@@ -32,7 +32,14 @@ const DOCS = [
   doc("2026-01-01T00:00:05Z", { cwd: "/elsewhere", tool_name: "Bash", hostname: "host-a" }),
   doc("2026-01-01T00:00:01Z", { event: "UserPromptSubmit", cwd: "/a-tie", hostname: "" }),
   { session_id: "s", type: "chunk", entries: [{}, {}], byte_end: 40 },
-  doc("2026-01-01T00:00:09Z", { type: "summary", event: undefined, model: "m-2", cwd: "/z" }),
+  doc("2026-01-01T00:00:09Z", {
+    type: "summary",
+    event: undefined,
+    model: "m-2",
+    // m-4 is one no marker named (a session recorded before #296): it goes last.
+    models: ["m-1", "m-3", "m-4"],
+    cwd: "/z",
+  }),
   doc("2026-01-01T00:00:04Z", {
     event: "PostModelSwitch",
     cwd: "/repo/sub",
@@ -88,7 +95,7 @@ describe("session_index/aggregate", () => {
 
   test("lists every model and directory in order of first use (#296)", () => {
     // A switch target sorts just after the switch, so m-3 comes before the summary's m-2.
-    expect(sessionValuesInOrder(baseline.models)).toEqual(["m-1", "m-3", "m-2"]);
+    expect(sessionValuesInOrder(baseline.models)).toEqual(["m-1", "m-3", "m-2", "m-4"]);
     // `/elsewhere` dates from the `cd` at :04, not from its first marker at :05.
     expect(sessionValuesInOrder(baseline.cwds)).toEqual([
       "/a-tie",

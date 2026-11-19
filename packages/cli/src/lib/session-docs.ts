@@ -8,6 +8,7 @@ import {
   buildChunkEntries,
   type ChunkEntry,
   chunkDocId,
+  mainChainModel,
   sliceIntoChunks,
   sumTranscriptTokens,
 } from "@claude-transcripts/shared";
@@ -48,6 +49,7 @@ export function buildSummaryDoc(
     hostname: facts.hostname,
     cwd: facts.cwd,
     model: facts.model,
+    ...(facts.models.length ? { models: facts.models } : {}),
     end_reason: "unknown", // not captured in the transcript
     event_count: facts.eventCount,
     prompt_count: facts.promptCount,
@@ -89,6 +91,7 @@ export function buildReconciledSummary(
     hostname: s.hostname,
     cwd: s.cwd,
     ...(s.model ? { model: s.model } : {}),
+    ...(s.models?.length ? { models: s.models } : {}),
     end_reason: "unknown",
     event_count: s.eventCount,
     prompt_count: s.promptCount,
@@ -164,7 +167,12 @@ const clip = (s: string): string => (s.length > PREVIEW_LIMIT ? s.slice(0, PREVI
  *
  * Emits: `SessionStart`, `UserPromptSubmit`, and one `PostToolUse` /
  * `PostToolUseFailure` per tool call (classified by the matching tool_result's
- * `is_error`).
+ * `is_error`). A `PostModelSwitch` where the main chain's model changes, and a
+ * `CwdChanged` where its `cwd` does, at the first line that shows the new value — the
+ * hook fires both earlier, so the time is approximate, and the switch's `source` and
+ * cost estimate are not in the transcript. Each marker carries the cwd in force then,
+ * as a live one does. `DirectoryAdded` leaves no trace in the file and has no
+ * reconstruction.
  *
  * `SubagentStart`/`SubagentStop` markers, and the tool markers of subagent lines kept
  * in their own files, come from `buildSubagentEventDocs` (subagents.ts).
@@ -176,6 +184,8 @@ export function buildEventDocs(
 ): EventDoc[] {
   const entries = parseEntries(jsonl);
   const docs: EventDoc[] = [];
+  let cwd = facts.cwd;
+  let model = facts.model;
   const mk = (
     event: string,
     timestamp: string | undefined,
@@ -186,7 +196,7 @@ export function buildEventDocs(
     session_id: facts.sessionId,
     timestamp: timestamp ?? facts.startTimestamp ?? "",
     hostname: facts.hostname,
-    cwd: facts.cwd,
+    cwd,
     reconstructed: true,
     ingest_source: source,
     ...extra,
@@ -212,6 +222,20 @@ export function buildEventDocs(
 
   for (const e of entries) {
     const content = e.message?.content;
+    // User and assistant lines only: the session's own cwd (`facts.cwd`) is read from them.
+    const turn = e.type === "user" || e.type === "assistant";
+    if (turn && e.isSidechain !== true && typeof e.cwd === "string" && e.cwd && e.cwd !== cwd) {
+      const old = cwd;
+      cwd = e.cwd;
+      docs.push(mk("CwdChanged", e.timestamp, { old_cwd: old, new_cwd: cwd }));
+    }
+    const answeredBy = mainChainModel(e);
+    if (answeredBy && answeredBy !== model) {
+      if (model) {
+        docs.push(mk("PostModelSwitch", e.timestamp, { from_model: model, to_model: answeredBy }));
+      }
+      model = answeredBy;
+    }
     if (isUserPrompt(e)) {
       const text = blockText(content, "text");
       docs.push(

@@ -76,7 +76,8 @@ a `summary` doc is `ended` (unless the summary was reconciled and events have ar
 since); otherwise `running` if its last event is within
 `system.sessions.liveWindowMs` (2 h), else `incomplete`. Filters (`cwd`, `model`,
 `hostname`, `source`, `status` exact; `from`/`to` by overlap) apply before paging, and
-`totalCount` is the filtered count; `model` and `cwd` match the session's first one.
+`totalCount` is the filtered count. The `model` filter matches any model the session
+used (search's does too); `cwd` matches the directory it started in.
 Each row also lists `models`, `cwds` and `addedDirs`, everything the session used in
 order of first use, and carries `activeMs`: the session's span
 minus gaps longer than `idleThresholdMs`, from `session_index/event_times`.

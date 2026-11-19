@@ -51,7 +51,7 @@ To give the in-line part more headroom (a slow or remote webapi), set
 replaces the exit budget. A session that ended without its transcript landing can be
 finished with `claude-transcripts backfill --repair`.
 
-Eight of the eleven events are registered `async: true`, so Claude Code doesn't wait
+Eleven of the fourteen events are registered `async: true`, so Claude Code doesn't wait
 for the writer (a synchronous `PostToolUse` costs roughly 130–160 ms per tool call).
 Three stay synchronous:
 
