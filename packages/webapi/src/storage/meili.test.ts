@@ -60,6 +60,9 @@ describe("toSessionSearchDoc", () => {
     expect(toSessionSearchDoc({ ...base, models: ["m-1", "m-2"] }).models).toEqual(["m-1", "m-2"]);
     expect(toSessionSearchDoc(base).models).toEqual(["m-1"]);
     expect(toSessionSearchDoc({ session_id: "s" }).models).toEqual([]);
+    // Context suffix dropped, placeholders left out, one entry per model.
+    expect(toSessionSearchDoc({ session_id: "s", model: "m-1[1m]" }).models).toEqual(["m-1"]);
+    expect(toSessionSearchDoc({ session_id: "s", model: "<synthetic>" }).models).toEqual([]);
   });
 });
 

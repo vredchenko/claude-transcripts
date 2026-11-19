@@ -1,4 +1,5 @@
 import {
+  baseModelId,
   buildChunkEntries,
   type SessionAggregate,
   type SessionStatus,
@@ -209,6 +210,14 @@ function docToSummary(doc: any, firstTs?: string, chunkEntries = 0): SessionSumm
     source: doc.source || "live",
     tokenUsage: doc.token_usage,
   };
+}
+
+/** Whether a session used `model`, context suffix (`[1m]`) ignored on both sides. */
+function usedModel(s: SessionSummary, model: string): boolean {
+  const want = baseModelId(model);
+  return (
+    (s.model !== undefined && baseModelId(s.model) === want) || (s.models?.includes(want) ?? false)
+  );
 }
 
 /** The ordered model / cwd / added-dir lists of an aggregate row; empty ones omitted. */
@@ -674,7 +683,7 @@ export function sessionRoutes(ctx: AppContext) {
         overlapsRange(s, from, to) &&
         (!cwd || sameDir(s.cwd, cwd)) &&
         (!hostname || s.hostname === hostname) &&
-        (!model || s.model === model || (s.models?.includes(model) ?? false)) &&
+        (!model || usedModel(s, model)) &&
         (!source || s.source === source) &&
         (!status || s.status === status),
     );
