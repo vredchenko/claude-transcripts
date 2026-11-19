@@ -1,6 +1,6 @@
 {
   "name": "claude-transcripts",
-  "version": "0.10.2",
+  "version": "0.11.0",
   "description": "Claude Transcripts — record every session through your instance's webapi, show that it's recording, and read the history back.",
   "keywords": [
     "session-logging",
