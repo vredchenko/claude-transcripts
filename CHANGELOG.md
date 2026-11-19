@@ -8,6 +8,18 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-19
+
+The hook now records only through the webapi, the same gateway every other client
+uses. It no longer connects to CouchDB or S3 and holds no store credentials, so a
+machine recording into a remote or omnibus instance needs nothing but that instance's
+URL (`claude-transcripts setup --webapi <url>`). Failures are loud instead of silent:
+the session-start banner and the statusline say when writes are not landing, and
+`claude-transcripts backfill` recovers the gap. The statusline also shows the session's
+link. **Upgrading:** a hook config that names CouchDB/S3 but no webapi stops recording
+until you re-run `claude-transcripts setup` (or `install`). The omnibus image now
+reports its real version.
+
 ### Breaking
 
 - **The hook writes only through the webapi** ([#288]). It no longer opens CouchDB or
@@ -2188,6 +2200,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.11.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.0
 [0.10.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.2
 [0.10.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.1
 [0.10.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.0
