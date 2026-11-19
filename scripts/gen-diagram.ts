@@ -59,8 +59,7 @@ import {
  *     and the env passed to `buildAppBlueprint` is empty — otherwise a contributor's
  *     `WEBAPI_PORT` or a local `features` toggle silently changes the output and
  *     fails the gate on their PR for reasons CI cannot reproduce;
- *   - no version string is emitted (with no env, `identity.version` is the
- *     "0.0.0-dev" fallback, which would be both wrong and churning);
+ *   - no version string is emitted (it would churn the diagram on every release);
  *   - no Date, no Math.random;
  *   - coordinates are rounded at emit time by `n()`; attributes come out in
  *     object-literal order; iteration is over arrays, never over mutated maps.

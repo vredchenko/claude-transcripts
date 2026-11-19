@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../version";
 import { ACTIONS, BINDINGS } from "./actions";
 import { CLI_SPEC } from "./cli";
 import { ENV_VARS } from "./env";
@@ -76,7 +77,7 @@ function resolveRepositories(config: AppConfigFile): Record<string, string> {
 }
 
 export function buildAppBlueprint(config: AppConfigFile, env: EnvLike = {}): AppBlueprint {
-  const version = env.CT_VERSION ?? "0.0.0-dev";
+  const version = APP_VERSION;
 
   const services: ServiceDef[] = SERVICES.map((s) => ({
     ...s,

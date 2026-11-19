@@ -107,7 +107,8 @@ Omit a section to get its defaults.
 
 Other variables: `CT_HOME` relocates a whole install (see
 [installation.md](installation.md#where-things-live)); the app image sets
-`CT_STATIC_DIR`, `CT_DOCS_DIR`, `CT_CLI_BIN` and `CT_VERSION`.
+`CT_STATIC_DIR`, `CT_DOCS_DIR` and `CT_CLI_BIN`. The version is not a setting: every
+component reports the one in `package.json`.
 
 ## Backend topology — bundled or external
 

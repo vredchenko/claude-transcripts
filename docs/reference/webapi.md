@@ -24,7 +24,9 @@ directory); secrets and endpoints from the environment
 | `MEILI_HOST`, `MEILI_API_KEY` (used only when `features.meilisearch` is on) | `http://127.0.0.1:7656` |
 | `WEBAPI_HOST`, `WEBAPI_PORT` | `127.0.0.1:7650` |
 | `CT_STATIC_DIR`, `CT_DOCS_DIR`, `CT_CLI_BIN`, `CT_DOWNLOADS_DIR` | unset; each enables `/app`, `/docs`, `/cli/download`, `/downloads/` |
-| `CT_VERSION` | baked into the image from the git tag; reported by `/health` |
+
+The version `/health` and the OpenAPI document report is not configurable: it is the
+lockstep version in `package.json`, spelled `vX.Y.Z`.
 
 ## HTTP API
 

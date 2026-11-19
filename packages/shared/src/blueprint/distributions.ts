@@ -102,7 +102,7 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     publishedAt: "ghcr.io/<owner>/claude-transcripts-app",
     builtBy: ["Dockerfile", ".github/workflows/publish-image.yml"],
     platforms: "linux/amd64",
-    note: "webapi serving the webui (/app), docs (/docs) and the CLI binary (/cli/download). Release tags, plus `main`.",
+    note: "webapi serving the webui (/app), docs (/docs) and the CLI binary (/cli/download). Release tags only.",
   },
   {
     key: "omnibus",

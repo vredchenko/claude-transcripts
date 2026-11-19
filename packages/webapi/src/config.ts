@@ -39,7 +39,6 @@ export interface Config {
     docsDir?: string;
     cliBin?: string;
     downloadsDir?: string;
-    version: string;
   };
   couchdb: {
     /** Base URL, credential-free (from `COUCHDB_URL`, else `COUCHDB_HOST`/`PORT`). */
@@ -111,7 +110,6 @@ export function loadConfig(): Config {
       docsDir: env.CT_DOCS_DIR || undefined,
       cliBin: env.CT_CLI_BIN || undefined,
       downloadsDir: env.CT_DOWNLOADS_DIR || undefined,
-      version: env.CT_VERSION ?? "0.0.0-dev",
     },
     couchdb: {
       url: resolveCouchUrl(env),

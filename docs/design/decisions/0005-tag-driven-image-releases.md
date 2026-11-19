@@ -46,3 +46,19 @@ elsewhere (no per-commit image builds).
 - Manifests carry the lockstep `version`: `scripts/release.ts <ver>` stamps it into
   every manifest; `--check` verifies they match.
 - Tags are cut (since `v0.0.1`). Details: [releasing.md](../../operate/releasing.md).
+
+## Amendment: only tags publish, and the version is read from the tree
+
+*2026-11-19* ([#289](https://github.com/vredchenko/claude-transcripts/issues/289)).
+Supersedes the `:main` half of the amendment above.
+
+- **No dev builds.** `main` still builds and scans the app image, but only a
+  `v*.*.*` tag publishes (`:vX.Y.Z`, `:latest`, `:<sha>`). The `:main` image existed
+  because releases were months apart; they are now cheap, so running unreleased code
+  for real means cutting a patch release.
+- **No `CT_VERSION`.** The version was injected as a build argument, which the omnibus
+  image silently dropped (`COPY --from` carries files, not `ENV`): 0.10.2 reported
+  `0.0.0-dev`. Every component now reads the lockstep version from `package.json`
+  (`APP_VERSION` in `@claude-transcripts/shared`, bundled into the compiled CLI),
+  reported as `vX.Y.Z`. The manifests are the one source; `release.ts --check` gates
+  every tag against them, and the omnibus smoke test checks `/health` and the CLI.

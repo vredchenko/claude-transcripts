@@ -13,7 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/
 
 `install.sh` fetches the release binary for your platform (Linux or macOS, x64 or
 arm64), verifies its checksum, puts it in `~/.local/bin` and runs
-`claude-transcripts install`. `CT_VERSION=vX.Y.Z` pins a release, `CT_BIN_DIR` changes
+`claude-transcripts install`. `CT_INSTALL_VERSION=vX.Y.Z` pins a release (`CT_VERSION` still works, deprecated), `CT_BIN_DIR` changes
 the target directory, `CT_NO_RUN=1` installs the binary only.
 
 With the binary already on your `PATH`:
@@ -47,8 +47,8 @@ resumes from there:
    `instance.env`, which is why the app starts after this. A key is minted only when
    `instance.env` has none; earlier app keys, which nothing holds any more, are then
    deleted from Garage.
-5. **Application** — the combined app image, pinned to the CLI's own version (or
-   `:main` for a non-release CLI). Waits for `/health` to answer (liveness only; it
+5. **Application** — the combined app image, pinned to the CLI's own version (run
+   from a source checkout, it warns that the released image may be behind the code). Waits for `/health` to answer (liveness only; it
    doesn't check the body's store status), warns on a version mismatch, then removes app images this upgrade superseded (never the one it just replaced;
    `--no-prune` opts out).
 6. **Claude Code hook** — writes the hook runtime config and merges the hook (and the

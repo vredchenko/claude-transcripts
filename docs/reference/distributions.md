@@ -39,7 +39,7 @@ the app image among them, and the table marks what they run. For how each is bui
 | npm package | npm | anywhere Bun runs | npm: @claude-transcripts/cli | `scripts/build-cli-npm.ts`, `.github/workflows/release-cli.yml` |
 | Claude Code plugin | plugin | anywhere Claude Code runs; needs Bun and the CLI | this repo as a plugin marketplace (.claude-plugin/marketplace.json → hooks/) | `.claude-plugin/marketplace.json`, `hooks/` |
 
-- **App image**: webapi serving the webui (/app), docs (/docs) and the CLI binary (/cli/download). Release tags, plus `main`.
+- **App image**: webapi serving the webui (/app), docs (/docs) and the CLI binary (/cli/download). Release tags only.
 - **Omnibus image**: The whole stack in one container under s6-overlay: one `docker run`, one /data volume, one published port (7650). Assembled from the released app image. Release tags only.
 - **Compose stack**: The app is the opt-in `app` profile. Pulls the mirror, or the public upstream images with --upstream (what `install` uses).
 - **Kubernetes base (kustomize)**: `kubectl apply -k`; pinned upstream images, the app at the checkout's release tag. ClusterIP only: exposing it is an overlay's call.

@@ -32,7 +32,7 @@ import {
 import { installPaths } from "../lib/paths";
 import { hasFailures, isPortFree, preflight, renderChecks } from "../lib/preflight";
 import { provisionCouch, provisionGarage } from "../lib/provision";
-import { DEV_VERSION, VERSION } from "../lib/version";
+import { runningFromSource, VERSION } from "../lib/version";
 import { runHook } from "./hook";
 import { runStatusline } from "./statusline";
 
@@ -110,9 +110,7 @@ async function warnOnVersionSkew(env: EnvMap): Promise<void> {
     });
     const body = (await res.json()) as { version?: string };
     const running = body.version ?? "unknown";
-    // A `main` image reports "<last release>+<sha>", which never equals a release
-    // version — so only compare when the CLI itself is a release.
-    if (VERSION !== DEV_VERSION && running !== VERSION) {
+    if (running !== VERSION) {
       console.log(`  ! app image reports ${running}, but this CLI is ${VERSION}`);
       console.log("    they are versioned in lockstep — pin APP_TAG in the instance env");
     } else {
@@ -170,6 +168,12 @@ export async function runInstall(argv: string[]): Promise<number> {
   const TOTAL = 8;
 
   console.log(`claude-transcripts install (${VERSION})`);
+  if (runningFromSource()) {
+    // A checkout reports the version its package.json names, but may be ahead of it;
+    // the image it pins is that release, not this code (there are no dev images).
+    console.log(`  ! running from source: pinning the released ${VERSION} app image,`);
+    console.log("    which may be behind this checkout — use the dev stack to run it instead");
+  }
   console.log(`  config  ${paths.configDir}`);
   console.log(`  data    ${paths.dataDir}`);
 
@@ -207,11 +211,8 @@ export async function runInstall(argv: string[]): Promise<number> {
   let env: EnvMap = loadOrCreateInstanceEnv(paths.instanceEnv, {
     portBase,
     // Lockstep versioning (ADR 0023) means the CLI and the app image have to move
-    // together. A released CLI pins its exact version; an unreleased one tracks
-    // `main`, because `latest` is the newest *release* and would pair a dev CLI with
-    // an older app — which is how an install ended up running schema v5 against a
-    // v7 CLI.
-    appTag: VERSION === DEV_VERSION ? "main" : VERSION,
+    // together, so the CLI pins its own version. Only releases publish images (#289).
+    appTag: VERSION,
     meiliMasterKey: meiliKey,
   });
   console.log(`  ${firstRun ? "generated" : "reused"} ${paths.instanceEnv}`);

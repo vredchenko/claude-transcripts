@@ -32,7 +32,7 @@
  */
 import { statSync } from "node:fs";
 import type { Counts, StoreHealth, Targets } from "../hook/runtime";
-import { DEV_VERSION, VERSION } from "./version";
+import { VERSION } from "./version";
 
 /** What Claude Code pipes to a statusline command. Only the fields we read. */
 export interface StatuslineInput {
@@ -93,20 +93,15 @@ export function ago(ms: number, now: number): string {
 }
 
 /**
- * `ct@v0.2.0`, or `ct@dev` from a checkout.
+ * `ct@v0.2.0`.
  *
- * The version is passed through as it is baked, `v` and all: `CT_VERSION` comes from
- * the git tag, so `--version`, `GET /health` and the app image tag `install` pins all
- * spell it `v0.2.0`. Trimming the prefix here would make the statusline the one
+ * The version is passed through as every surface spells it, `v` and all:
+ * `--version`, `GET /health` and the app image tag `install` pins all say `v0.2.0`
+ * (`APP_VERSION`). Trimming the prefix here would make the statusline the one
  * component with its own spelling.
- *
- * `0.0.0-dev` is the exception, and becomes `dev`: thirteen characters that say "not a
- * release", on a line competing for room with the model, the branch and the context
- * meter, when three say it. The distinction it draws — released binary vs working copy
- * — is the only one this field exists to make when the number isn't a release.
  */
 export function versionLabel(version: string = VERSION): string {
-  return `ct@${version === DEV_VERSION ? "dev" : version}`;
+  return `ct@${version}`;
 }
 
 /** `db@host:port` — the store, short enough for a statusline. */

@@ -2,16 +2,10 @@ name: publish-image
 # Publishes the combined app image (webapi + prebuilt webui SPA) to GHCR. Auth uses
 # the built-in GITHUB_TOKEN — no committed secrets. See ADR 0012.
 #
-# Two moving tags, with deliberately different meanings:
-#   :latest — the newest RELEASE (pushed only by a vMAJOR.MINOR.PATCH tag)
-#   :main   — the tip of main, rebuilt on every merge
-#
-# Both exist because they answer different questions. `latest` must stay pinned to a
-# release, or `install` would hand users untested code. But without `main`, there was
-# no container image of the current code at all: after 0.0.1 the app image sat at
-# schema v5 while main moved to v7, so an install could only get an image well behind
-# the CLI driving it. Lockstep versioning (ADR 0023) means the two have to move
-# together, and that needs an image that tracks main.
+# Only a vMAJOR.MINOR.PATCH tag publishes: `:vX.Y.Z`, `:latest` and `:<sha>`. A push to
+# main builds and scans the image the same way — so a release never meets a broken
+# build for the first time — but pushes nothing. There are no dev images (#289): the
+# version is package.json's, and the tag must agree with it.
 on:
   push:
     tags: ["v*.*.*"]
@@ -30,8 +24,17 @@ jobs:
       image: ${{ steps.tags.outputs.scan }}
     steps:
       - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
         with:
-          fetch-depth: 0
+          bun-version: latest
+
+      # A tag whose version isn't the one committed in every manifest would publish an
+      # image that reports something else (#289). release.ts --check is the same check
+      # the release was stamped with.
+      - name: Check the tag matches the manifests
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bun install --frozen-lockfile && bun run scripts/release.ts "${GITHUB_REF_NAME#v}" --check
 
       - name: Compute image tags
         id: tags
@@ -43,25 +46,17 @@ jobs:
           case "${{ github.ref }}" in
             refs/tags/v*)
               # A release: pin the version and move `latest` onto it.
-              VERSION="${{ github.ref_name }}"
-              TAGS="$REPO:$VERSION $REPO:latest $REPO:$SHA"
-              ;;
-            refs/heads/main)
-              # The tip of main. Versioned as "<last release>+<sha>" so anything
-              # running it reports a version that can't be mistaken for a release.
-              VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)+$SHA"
-              TAGS="$REPO:main $REPO:$SHA"
+              TAGS="$REPO:${{ github.ref_name }} $REPO:latest $REPO:$SHA"
               ;;
             *)
-              VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)+$SHA"
               TAGS="$REPO:$SHA"
               ;;
           esac
           echo "list=$TAGS" >> "$GITHUB_OUTPUT"
           echo "scan=$REPO:$SHA" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -73,7 +68,7 @@ jobs:
           set -euo pipefail
           TAG_ARGS=""
           for t in ${{ steps.tags.outputs.list }}; do TAG_ARGS="$TAG_ARGS -t $t"; done
-          docker build $TAG_ARGS --build-arg CT_VERSION="${{ steps.tags.outputs.version }}" .
+          docker build $TAG_ARGS .
 
       - name: Scan with the project's gate (grype + trivy, fixed HIGH/CRITICAL)
         uses: ./.github/actions/scan-image
@@ -81,6 +76,7 @@ jobs:
           image: ${{ steps.tags.outputs.scan }}
 
       - name: Push image
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
           for t in ${{ steps.tags.outputs.list }}; do docker push "$t"; done
