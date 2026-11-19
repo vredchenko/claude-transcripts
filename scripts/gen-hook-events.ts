@@ -18,6 +18,7 @@ const rows = toHookEventRows(buildAppBlueprint(loadConfigFile(ROOT), process.env
 const SECTION_TITLES: Record<HookCategory, string> = {
   "session-start": "Session start & setup",
   "turn-input": "Turn input",
+  model: "Model",
   tool: "Tool lifecycle",
   subagent: "Subagents, teams & tasks",
   display: "Display, MCP & notifications",

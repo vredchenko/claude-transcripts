@@ -31,6 +31,9 @@ export interface SessionSummary {
   durationMs?: number;
   activeMs?: number;
   model?: string;
+  models?: string[];
+  cwds?: string[];
+  addedDirs?: string[];
   cwd: string;
   hostname: string;
   eventCount: number;

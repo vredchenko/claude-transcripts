@@ -54,6 +54,17 @@ const AGGREGATE_MAP = `function (doc) {
   var model = (doc.event === "SessionStart" || isSummary) ? (doc.model || "") : "";
   var tools = {};
   if (doc.event === "PostToolUse" && doc.tool_name) tools[doc.tool_name] = 1;
+  // Every model, cwd and added directory the session touched, each with when it first
+  // appeared, so a mid-session \`/model\` or \`cd\` is not hidden behind the first one.
+  var models = {}, cwds = {}, addedDirs = {};
+  if (model) models[model] = ts;
+  if (doc.event === "PostModelSwitch") {
+    if (doc.from_model) models[doc.from_model] = ts;
+    if (doc.to_model && doc.to_model !== doc.from_model) models[doc.to_model] = ts + "~";
+  }
+  if (doc.cwd) cwds[doc.cwd] = ts;
+  if (doc.event === "CwdChanged" && doc.new_cwd) cwds[doc.new_cwd] = ts + "~";
+  if (doc.event === "DirectoryAdded" && doc.directory) addedDirs[doc.directory] = ts;
   emit(doc.session_id, {
     ended: isSummary ? 1 : 0,
     events: doc.type === "event" ? 1 : 0,
@@ -61,6 +72,9 @@ const AGGREGATE_MAP = `function (doc) {
     errors: doc.event === "PostToolUseFailure" ? 1 : 0,
     started: doc.event === "SessionStart" ? 1 : 0,
     tools: tools,
+    models: models,
+    cwds: cwds,
+    addedDirs: addedDirs,
     first: ts,
     last: ts,
     model: model,
@@ -86,13 +100,19 @@ const AGGREGATE_MAP = `function (doc) {
 }`;
 
 const AGGREGATE_REDUCE = `function (keys, values, rereduce) {
-  var acc = { ended:0, events:0, prompts:0, errors:0, started:0, tools:{}, first:"", last:"", model:"", cwd:"", hostname:"", modelAt:"", cwdAt:"", hostnameAt:"", summary:null, chunkEntries:0, chunkBytes:0 };
+  var acc = { ended:0, events:0, prompts:0, errors:0, started:0, tools:{}, models:{}, cwds:{}, addedDirs:{}, first:"", last:"", model:"", cwd:"", hostname:"", modelAt:"", cwdAt:"", hostnameAt:"", summary:null, chunkEntries:0, chunkBytes:0 };
   // Keep the earliest-stamped value; an unstamped one sorts last, ties go to the smaller value.
   function earliest(v, f) {
     var val = v[f];
     if (!val) return;
     var at = v[f + "At"] || "", a = at || "\\uffff", b = acc[f + "At"] || "\\uffff";
     if (acc[f] === "" || a < b || (a === b && val < acc[f])) { acc[f] = val; acc[f + "At"] = at; }
+  }
+  // Merge a value → first-seen-timestamp map, keeping the earliest stamp per value.
+  function firstSeen(f, m) {
+    for (var k in m) {
+      if (m.hasOwnProperty(k) && (!acc[f].hasOwnProperty(k) || m[k] < acc[f][k])) acc[f][k] = m[k];
+    }
   }
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
@@ -111,12 +131,22 @@ const AGGREGATE_REDUCE = `function (keys, values, rereduce) {
     earliest(v, "hostname");
     // A session has one \`summary:<id>\` doc, so there is only ever one to keep.
     if (v.summary) acc.summary = v.summary;
+    firstSeen("models", v.models || {});
+    firstSeen("cwds", v.cwds || {});
+    firstSeen("addedDirs", v.addedDirs || {});
     var t = v.tools || {};
     for (var k in t) { if (t.hasOwnProperty(k)) acc.tools[k] = (acc.tools[k] || 0) + t[k]; }
   }
   var names = Object.keys(acc.tools).sort(), tools = {};
   for (var j = 0; j < names.length; j++) tools[names[j]] = acc.tools[names[j]];
   acc.tools = tools;
+  // Key order is part of the value CouchDB compares between groupings; fix it.
+  var maps = ["models", "cwds", "addedDirs"];
+  for (var m = 0; m < maps.length; m++) {
+    var keys = Object.keys(acc[maps[m]]).sort(), sorted = {};
+    for (var q = 0; q < keys.length; q++) sorted[keys[q]] = acc[maps[m]][keys[q]];
+    acc[maps[m]] = sorted;
+  }
   return acc;
 }`;
 
@@ -151,6 +181,15 @@ export interface SessionAggregate {
   errors: number;
   started: number;
   tools: Record<string, number>;
+  /**
+   * Every model / cwd / added directory the session used, mapped to when it first
+   * appeared (v11). A `PostModelSwitch` or `CwdChanged` target is stamped just after its
+   * event's time (`ts~`), so it sorts after the value it replaced. `sessionValuesInOrder`
+   * turns a map into the ordered list. Absent on rows from a pre-v11 view.
+   */
+  models?: Record<string, string>;
+  cwds?: Record<string, string>;
+  addedDirs?: Record<string, string>;
   first: string;
   last: string;
   model: string;
@@ -180,4 +219,11 @@ export interface SessionAggregate {
   chunkEntries: number;
   /** Highest `byte_end` across the session's chunks — how far chunk coverage reaches. */
   chunkBytes: number;
+}
+
+/** A first-seen map (`SessionAggregate.models` …) as a list, earliest first. */
+export function sessionValuesInOrder(seen: Record<string, string> | undefined): string[] {
+  return Object.entries(seen ?? {})
+    .sort(([a, at], [b, bt]) => (at < bt ? -1 : at > bt ? 1 : a < b ? -1 : a > b ? 1 : 0))
+    .map(([value]) => value);
 }

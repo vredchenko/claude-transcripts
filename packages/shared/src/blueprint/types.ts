@@ -224,6 +224,7 @@ export interface StoreModel {
 export type HookCategory =
   | "session-start"
   | "turn-input"
+  | "model"
   | "tool"
   | "subagent"
   | "display"
