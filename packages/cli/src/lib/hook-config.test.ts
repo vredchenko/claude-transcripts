@@ -10,7 +10,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildHookConfig, mergePreserved, writeHookConfig } from "./hook-config";
+import {
+  buildHookConfig,
+  DEFAULT_WEBAPI_URL,
+  mergePreserved,
+  writeHookConfig,
+} from "./hook-config";
 
 let dir: string;
 let path: string;
@@ -23,6 +28,14 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
+
+const APP = {
+  system: { logging: { chunk: { maxEntriesPerChunk: 50, flushIntervalMs: 1000 } } },
+  couchdb: { databases: { sessions: "sessions" } },
+  s3: { buckets: { blobs: "blobs" } },
+  features: {},
+  servicesMenu: {},
+};
 
 const MIRRORS = [{ url: "https://logs.example.com", timeoutMs: 2000 }];
 
@@ -54,9 +67,32 @@ describe("writeHookConfig", () => {
     expect((read().couch as { url: string }).url).toBe("http://new");
   });
 
-  test("stays 0600 — it holds store credentials", () => {
+  test("stays 0600 — it can hold a webapi or mirror's basic-auth credential", () => {
     writeHookConfig(path, { couch: { url: "http://new" } });
     expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
+  test("drops a legacy store block on rewrite — the hook no longer needs it (#288)", () => {
+    writeFileSync(
+      path,
+      JSON.stringify({
+        couch: { url: "http://127.0.0.1:5984", auth: "admin:secret" },
+        blob: { accessKey: "GK", secretKey: "shh" },
+        webapi: { url: "https://ct.example" },
+      }),
+    );
+    writeHookConfig(path, buildHookConfig(APP, {}));
+    const out = read();
+    expect(out.couch).toBeUndefined();
+    expect(out.blob).toBeUndefined();
+    expect(JSON.stringify(out)).not.toContain("secret");
+    // …while the hand-set webapi survives.
+    expect(out.webapi).toEqual({ url: "https://ct.example" });
+  });
+
+  test("never writes a config with no webapi: the local default fills in", () => {
+    writeHookConfig(path, buildHookConfig(APP, {}));
+    expect(read().webapi).toEqual({ url: DEFAULT_WEBAPI_URL });
   });
 });
 
@@ -114,8 +150,18 @@ describe("buildHookConfig", () => {
     expect("webapi" in buildHookConfig(app, { WEBAPI_HOST: "127.0.0.1" })).toBe(false);
   });
 
-  test("an empty S3_REGION falls back to the default", () => {
-    const env = { S3_ENDPOINT: "http://127.0.0.1:7653", S3_REGION: "" };
-    expect(buildHookConfig(app, env).blob?.region).toBe("garage");
+  test("names no store and carries no store credential, whatever the env holds", () => {
+    const env = {
+      COUCHDB_URL: "http://127.0.0.1:5984",
+      COUCHDB_USER: "admin",
+      COUCHDB_PASSWORD: "secret",
+      S3_ENDPOINT: "http://127.0.0.1:7653",
+      S3_ACCESS_KEY: "GK",
+      S3_SECRET_KEY: "shh",
+    };
+    const cfg = buildHookConfig(app, env) as Record<string, unknown>;
+    expect(cfg.couch).toBeUndefined();
+    expect(cfg.blob).toBeUndefined();
+    expect(JSON.stringify(cfg)).not.toMatch(/secret|shh|GK/);
   });
 });

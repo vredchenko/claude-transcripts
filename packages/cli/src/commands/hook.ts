@@ -17,7 +17,14 @@ import { hookLaunch } from "@claude-transcripts/shared";
 import { dispatch, hookAsync, hookBindings, hookTimeout } from "../hook";
 import { cliArgv } from "../hook/detach";
 import { uploadTranscript } from "../hook/handlers";
-import { loadHookConfig, makeBlob } from "../hook/runtime";
+import { probeWebapi } from "../hook/ingest";
+import {
+  hookConfigProblem,
+  loadHookConfig,
+  makeTargets,
+  makeWriter,
+  redactUrl,
+} from "../hook/runtime";
 import { parseFlags, strOpt } from "../lib/args";
 import { installPaths } from "../lib/paths";
 import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
@@ -248,7 +255,7 @@ function pluginSummary(plugin: PluginRegistration): string {
   return `${plugin.key}${version}${count ? ` — registers ${count} event(s)` : ""}`;
 }
 
-function status(): number {
+async function status(): Promise<number> {
   const paths = installPaths();
   const settings = readSettings(paths.claudeSettings);
   const found = findRegistered(settings);
@@ -259,6 +266,19 @@ function status(): number {
   );
   console.log(`hook: command    ${hookCommand()}`);
   if (plugin) console.log(`hook: plugin     ${pluginSummary(plugin)}`);
+  // Where writes go, and whether they can land there now: the hook writes only through
+  // the webapi (#288), so this is the whole of "is it recording".
+  const config = loadHookConfig(paths.hookConfig);
+  if (!config) {
+    console.log(`hook: NOT RECORDING — ${hookConfigProblem(paths.hookConfig)}`);
+  } else {
+    const probe = await probeWebapi(config.webapi);
+    console.log(
+      `hook: writes to  ${redactUrl(config.webapi.url)} — ${probe.ok ? "reachable" : `FAILING (${probe.reason})`}`,
+    );
+    if (!probe.ok)
+      console.log("hook: recover sessions recorded meanwhile with `claude-transcripts backfill`");
+  }
   // Mirroring is otherwise invisible: it is configured by hand, writes to somewhere
   // else, and fails silently by design (mirrors.md). Somewhere has to say it is on.
   const mirrors = configuredMirrors(paths.hookConfig);
@@ -324,9 +344,20 @@ async function upload(argv: string[]): Promise<number> {
   }
   try {
     const config = loadHookConfig(installPaths().hookConfig);
-    const bucket = config?.blob?.buckets.sessions;
-    if (!config || !bucket) return 0;
-    await uploadTranscript(makeBlob(config), bucket, sessionId, transcriptPath);
+    if (!config) return 0;
+    // Outcomes are stamped like any other write, so a rejected upload shows on the
+    // statusline of a resumed session rather than nowhere.
+    const targets = makeTargets(sessionId);
+    const writer = makeWriter(config, (outcome, i) => {
+      targets.markWrite(outcome, i);
+      if (!outcome.ok) {
+        console.error(
+          `[hook] transcript upload of ${sessionId} failed (${outcome.reason}) — ` +
+            "re-send it with `claude-transcripts backfill --repair`",
+        );
+      }
+    });
+    await uploadTranscript(writer, sessionId, transcriptPath);
   } catch (err) {
     console.error("[hook] upload failed (ignored):", err);
   }

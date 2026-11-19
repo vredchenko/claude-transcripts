@@ -12,7 +12,6 @@ import { type Icon, loadIcon, placeIcon } from "./lib/icons";
 import {
   type Attrs,
   anchorOnFace,
-  anchorOnRect,
   type Box,
   cx,
   cy,
@@ -20,7 +19,6 @@ import {
   escapeXml,
   FONT_STACK,
   group,
-  line,
   MARKER_LEN,
   marker,
   measureText,
@@ -328,15 +326,8 @@ interface EdgeStyle {
 }
 
 function edgeStyle(kind: DiagramEdge["kind"]): EdgeStyle {
-  if (kind === "direct-write") {
-    return {
-      stroke: v("clay"),
-      dash: "5 4",
-      markerId: "ct-arrow-clay",
-      labelFill: v("accentText"),
-    };
-  }
-  if (kind === "emits") {
+  // The write lane — Claude Code → hook → gateway — in the accent colour.
+  if (kind === "emits" || kind === "ingest") {
     return { stroke: v("clay"), markerId: "ct-arrow-clay", labelFill: v("accentText") };
   }
   return { stroke: v("muted"), markerId: "ct-arrow-muted", labelFill: v("muted") };
@@ -364,10 +355,9 @@ function labelSpot(
 }
 
 /**
- * Route an edge. Rank-to-rank edges get a rounded orthogonal elbow, which reads calm
- * and flat; the hook's two bypass edges get a straight dashed diagonal, because a
- * line visibly *skipping over* the gateway box is the most informative mark in the
- * picture — it is the fact every hand-drawn version got backwards.
+ * Route an edge: a rounded orthogonal elbow between ranks, which reads calm and flat.
+ * (The hook's old bypass to the stores was drawn as a dashed diagonal skipping the
+ * gateway; since #288 there is no such edge.)
  */
 function drawEdge(
   edge: DiagramEdge,
@@ -380,26 +370,17 @@ function drawEdge(
   const to = byKey.get(edge.to);
   if (!from || !to) return "";
   const style = edgeStyle(edge.kind);
-  const diagonal = edge.kind === "direct-write";
-
-  let a: Point;
-  let b: Point;
-  if (diagonal) {
-    a = anchorOnRect(from.box, { x: cx(to.box), y: cy(to.box) });
-    b = anchorOnRect(to.box, { x: cx(from.box), y: cy(from.box) });
-  } else {
-    const outSlot = faceIndex.get(`${edge.from}|r|${edge.to}`) ?? { i: 0, of: 1 };
-    const inSlot = faceIndex.get(`${edge.to}|l|${edge.from}`) ?? { i: 0, of: 1 };
-    a = anchorOnFace(from.box, "r", outSlot.i, outSlot.of);
-    b = anchorOnFace(to.box, "l", inSlot.i, inSlot.of);
-  }
+  const outSlot = faceIndex.get(`${edge.from}|r|${edge.to}`) ?? { i: 0, of: 1 };
+  const inSlot = faceIndex.get(`${edge.to}|l|${edge.from}`) ?? { i: 0, of: 1 };
+  const a = anchorOnFace(from.box, "r", outSlot.i, outSlot.of);
+  const b = anchorOnFace(to.box, "l", inSlot.i, inSlot.of);
   const head = shorten(a, b, MARKER_LEN + 1);
   // Transit early when the bundle fans out from the source, late when it fans in on
   // the target — the opposite end from where labelSpot puts the label.
   const out = fanOut.get(edge.from) ?? 1;
   const into = fanIn.get(edge.to) ?? 1;
   const transit = into > out ? 0.68 : out > into ? 0.32 : 0.5;
-  const d = diagonal ? line(a, head) : orthPath(a, head, transit);
+  const d = orthPath(a, head, transit);
 
   const attrs: Attrs = {
     d,
@@ -417,9 +398,7 @@ function drawEdge(
     // pixels between anchor points on the shared box's face. Three clients converging
     // on the gateway get labelled at their own ends; the gateway's three edges to the
     // stores get labelled at the stores' ends. Anything one-to-one takes the midpoint.
-    const { mx, my } = diagonal
-      ? { mx: (a.x + head.x) / 2, my: (a.y + head.y) / 2 - 6 }
-      : labelSpot(edge, a, head, from.box, to.box, fanOut, fanIn);
+    const { mx, my } = labelSpot(edge, a, head, from.box, to.box, fanOut, fanIn);
     // A halo in the page background keeps the label legible where it crosses a line.
     parts.push(
       text(mx, my, edge.label, {
@@ -456,7 +435,6 @@ function render(
     const key = face === "r" ? "from" : "to";
     const groups = new Map<string, DiagramEdge[]>();
     for (const e of diagram.edges) {
-      if (e.kind === "direct-write") continue;
       const owner = e[key];
       const list = groups.get(owner) ?? [];
       list.push(e);

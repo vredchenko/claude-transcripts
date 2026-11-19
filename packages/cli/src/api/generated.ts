@@ -148,6 +148,11 @@ export interface CrossSessionTurn {
   text: string;
 }
 
+export interface ChunkHighWater {
+  id: string;
+  bytes: number;
+}
+
 export type SessionResetResultDeleted = {
   summary: number;
   events: number;
@@ -547,6 +552,10 @@ export type IngestTranscript500 = {
   error: string;
 };
 
+export type ChunkHighWater500 = {
+  error: string;
+};
+
 export type ResetSessionParams = {
   blobs?: ResetSessionBlobs;
 };
@@ -787,6 +796,23 @@ export const ingestTranscript = async (
   return customFetch<IngestTranscript200>(getIngestTranscriptUrl(id), {
     ...options,
     method: "PUT",
+  });
+};
+
+/**
+ * @summary How far a session's chunk docs reach — the byte offset a live writer resumes at
+ */
+export const getChunkHighWaterUrl = (id: string) => {
+  return `/api/ingest/${id}/high-water`;
+};
+
+export const chunkHighWater = async (
+  id: string,
+  options?: RequestInit,
+): Promise<ChunkHighWater> => {
+  return customFetch<ChunkHighWater>(getChunkHighWaterUrl(id), {
+    ...options,
+    method: "GET",
   });
 };
 

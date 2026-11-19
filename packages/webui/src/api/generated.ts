@@ -160,6 +160,11 @@ export interface CrossSessionTurn {
   text: string;
 }
 
+export interface ChunkHighWater {
+  id: string;
+  bytes: number;
+}
+
 export type SessionResetResultDeleted = {
   summary: number;
   events: number;
@@ -556,6 +561,10 @@ export type IngestTranscript400 = {
 };
 
 export type IngestTranscript500 = {
+  error: string;
+};
+
+export type ChunkHighWater500 = {
   error: string;
 };
 
@@ -1315,6 +1324,77 @@ export const useIngestTranscript = <
 
   return useMutation(mutationOptions);
 };
+
+/**
+ * @summary How far a session's chunk docs reach — the byte offset a live writer resumes at
+ */
+export const getChunkHighWaterUrl = (id: string) => {
+  return `/api/ingest/${id}/high-water`;
+};
+
+export const chunkHighWater = async (
+  id: string,
+  options?: RequestInit,
+): Promise<ChunkHighWater> => {
+  return customFetch<ChunkHighWater>(getChunkHighWaterUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getChunkHighWaterQueryKey = (id?: string) => {
+  return [`/api/ingest/${id}/high-water`] as const;
+};
+
+export const getChunkHighWaterQueryOptions = <
+  TData = Awaited<ReturnType<typeof chunkHighWater>>,
+  TError = ErrorType<ChunkHighWater500>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof chunkHighWater>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getChunkHighWaterQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof chunkHighWater>>> = ({ signal }) =>
+    chunkHighWater(id, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof chunkHighWater>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ChunkHighWaterQueryResult = NonNullable<Awaited<ReturnType<typeof chunkHighWater>>>;
+export type ChunkHighWaterQueryError = ErrorType<ChunkHighWater500>;
+
+/**
+ * @summary How far a session's chunk docs reach — the byte offset a live writer resumes at
+ */
+
+export function useChunkHighWater<
+  TData = Awaited<ReturnType<typeof chunkHighWater>>,
+  TError = ErrorType<ChunkHighWater500>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof chunkHighWater>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getChunkHighWaterQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
 
 /**
  * @summary Delete a session's summary/event/chunk docs so it can be re-ingested

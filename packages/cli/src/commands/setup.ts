@@ -26,7 +26,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { type AppConfigFile, hookLaunch } from "@claude-transcripts/shared";
+import { type AppConfigFile, hookLaunch, resolveCouchUrl } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { parseFlags } from "../lib/args";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
@@ -89,7 +89,15 @@ async function provisionCouch(t: CouchTarget, dryRun: boolean): Promise<boolean>
  * Probe the Garage bucket. The app never *creates* buckets (a Garage bucket + key
  * is an admin/bootstrap step), so setup only checks reachability + reports.
  */
-async function probeGarage(blob: ReturnType<typeof buildHookConfig>["blob"]): Promise<void> {
+interface BlobTarget {
+  endpoint: string;
+  region: string;
+  accessKey?: string;
+  secretKey?: string;
+  buckets: Record<string, string>;
+}
+
+async function probeGarage(blob: BlobTarget | undefined): Promise<void> {
   if (!blob?.endpoint) {
     console.log("  garage: no S3_ENDPOINT — blob storage disabled");
     return;
@@ -269,12 +277,24 @@ export async function runSetup(argv: string[]): Promise<number> {
   const project = options.project === true;
 
   console.log(`setup: repo ${REPO_ROOT}`);
-  const hookConfig = buildHookConfig(loadRepoConfig(), process.env);
+  const repoConfig = loadRepoConfig();
+  const hookConfig = buildHookConfig(repoConfig, process.env);
+  // The stores, for provisioning only — the hook config no longer names them (#288).
+  const env = process.env;
   const couch: CouchTarget = {
-    url: hookConfig.couch.url,
-    auth: hookConfig.couch.auth,
-    databases: hookConfig.couch.databases,
+    url: resolveCouchUrl(env),
+    ...(env.COUCHDB_USER ? { auth: `${env.COUCHDB_USER}:${env.COUCHDB_PASSWORD ?? ""}` } : {}),
+    databases: repoConfig.couchdb.databases,
   };
+  const blob = env.S3_ENDPOINT
+    ? {
+        endpoint: env.S3_ENDPOINT,
+        region: env.S3_REGION || "garage",
+        accessKey: env.S3_ACCESS_KEY,
+        secretKey: env.S3_SECRET_KEY,
+        buckets: repoConfig.s3.buckets,
+      }
+    : undefined;
   reportExisting();
 
   if (check) {
@@ -284,7 +304,7 @@ export async function runSetup(argv: string[]): Promise<number> {
     );
     console.log(`  couch: ${couch.url}`);
     await provisionCouch(couch, true);
-    await probeGarage(hookConfig.blob);
+    await probeGarage(blob);
     return 0;
   }
 
@@ -297,7 +317,7 @@ export async function runSetup(argv: string[]): Promise<number> {
   // them on `reindex`. `setup` is the host-side path and may run with no app up, so it
   // reports search rather than configuring it.
   const couchOk = await provisionCouch(couch, false);
-  await probeGarage(hookConfig.blob);
+  await probeGarage(blob);
   await reportSearch();
 
   // 3. register the hook

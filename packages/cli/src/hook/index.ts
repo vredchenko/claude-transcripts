@@ -12,9 +12,9 @@
  */
 import { buildAppBlueprint } from "@claude-transcripts/shared";
 import { loadAppConfig } from "../lib/app-config";
-import { emitSessionStart, NOT_RECORDING_BANNER } from "./announce";
+import { emitSessionStart, notRecordingBanner } from "./announce";
 import { HANDLERS } from "./handlers";
-import { buildContext, type HookConfig, loadHookConfig } from "./runtime";
+import { buildContext, type HookConfig, hookConfigProblem, loadHookConfig } from "./runtime";
 
 /** Event → action keys, projected from the blueprint. */
 export function hookBindings(): Record<string, string[]> {
@@ -27,7 +27,7 @@ export function hookBindings(): Record<string, string[]> {
 /**
  * Per-event command timeout (seconds) for the registration.
  *
- * `SessionStart` seeds state and may query CouchDB for a resume, so it gets a long
+ * `SessionStart` seeds state and may ask the webapi where a resume continues, so it gets a long
  * budget. `SessionEnd` asks for 60s because that is all Claude Code grants at exit:
  * the teardown budget is the largest declared SessionEnd timeout capped at 60s (with a
  * 1.5s floor), unless the user sets `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS`.
@@ -92,7 +92,7 @@ export async function dispatch(raw: string, configPath: string): Promise<Dispatc
     // identical otherwise, and the difference is a week of lost history. This is the
     // one thing that runs ahead of the config gate (docs/design/plugin.md, Part 1a).
     if ((payload as { hook_event_name?: string })?.hook_event_name === "SessionStart") {
-      emitSessionStart({ systemMessage: NOT_RECORDING_BANNER });
+      emitSessionStart({ systemMessage: notRecordingBanner(hookConfigProblem(configPath)) });
     }
     return { ran: false, actions: [] };
   }

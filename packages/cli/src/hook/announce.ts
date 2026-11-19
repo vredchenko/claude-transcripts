@@ -20,29 +20,45 @@ import { hostOf, type SessionStartOutput, type Targets } from "./runtime";
  * clickable where the terminal spots URLs itself — and it spots one far more reliably
  * when nothing is glued to either end of it.
  *
- * The store is named as the statusline names it (`db@host`), so the two agree at a
- * glance; the S3 bucket and the mirrors follow in brackets.
+ * The target is named as the statusline names it (the webapi's `host:port`), so the
+ * two agree at a glance; mirrors follow in brackets.
  */
 export function recordingBanner(targets: Targets, sessionId: string): string {
-  const also: string[] = [];
-  if (targets.bucket) also.push(`s3://${targets.bucket}`);
-  // Name the mirrors rather than counting them. A bare "+ 1 mirror(s)" let a banner
-  // headline a store that was dead while the mirror held everything — the reader could
-  // not tell where their history was actually going without opening the config.
-  if (targets.mirrors.length) {
-    also.push(`mirrors: ${targets.mirrors.map(hostOf).join(", ")}`);
-  }
-  const head = `● Claude Transcripts recording → ${whereLabel(targets)}${also.length ? ` (+ ${also.join(", ")})` : ""}`;
+  // Name the mirrors rather than counting them: the reader should be able to tell
+  // where their history is going without opening the config.
+  const also = targets.mirrors.length
+    ? ` (+ mirrors: ${targets.mirrors.map(hostOf).join(", ")})`
+    : "";
+  const head = `● Claude Transcripts recording → ${whereLabel(targets)}${also}`;
   const link = sessionLink(targets.webapiUrl, sessionId);
   return link ? `${head}\n  ${link}` : head;
 }
 
 /**
- * The negative case, which is the important one: a silent hook and a broken hook look
- * identical from inside Claude Code, so "not recording" has to be said out loud.
+ * The webapi didn't answer the session-start probe. Said before the first write is
+ * lost, with what recovers it — nothing is buffered (#288). The hook still tries every
+ * write, so if the webapi comes back mid-session the statusline turns green.
  */
-export const NOT_RECORDING_BANNER =
-  "○ Claude Transcripts not recording — no instance configured. Run `claude-transcripts install`.";
+export function unreachableBanner(targets: Targets, reason: string): string {
+  return (
+    `○ Claude Transcripts NOT recording — ${whereLabel(targets)}: ${reason}.\n` +
+    "  Writes are retried per event; recover any gap later with `claude-transcripts backfill`."
+  );
+}
+
+/**
+ * The negative case, which is the important one: a silent hook and a broken hook look
+ * identical from inside Claude Code, so "not recording" has to be said out loud — and
+ * why, when the config can say ({@link hookConfigProblem}).
+ */
+export function notRecordingBanner(problem?: string | null): string {
+  return `○ Claude Transcripts not recording — ${problem ?? NOT_CONFIGURED}.`;
+}
+
+const NOT_CONFIGURED = "no instance configured. Run `claude-transcripts install`";
+
+/** The no-config banner, kept for callers that have no config path to ask about. */
+export const NOT_RECORDING_BANNER = notRecordingBanner();
 
 /** The Claude Code hook-output envelope for SessionStart, or null if there is nothing to say. */
 export function sessionStartEnvelope(out: SessionStartOutput): object | null {

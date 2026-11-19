@@ -1,50 +1,48 @@
 /**
  * Resuming an ended session must not re-chunk what is already stored (#168). Real
- * handlers against a fake CouchDB: first-write-wins PUT and a key range over `_all_docs`.
+ * handlers against a fake webapi: first-write-wins chunk ingest and the high-water route.
  */
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { appendFileSync, mkdtempSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HANDLERS } from "./handlers";
-import { buildContext, fetchChunkHighWater, type HookConfig, makeChunkState } from "./runtime";
+import { fetchChunkHighWater } from "./ingest";
+import { buildContext, type HookConfig, makeChunkState } from "./runtime";
 
-const DB = "s";
 const docs = new Map<string, Record<string, unknown>>();
-let allDocsQueries = 0;
+let highWaterQueries = 0;
 let mode: "ok" | "error" | "slow" = "ok";
+
+/** The webapi's `GET /api/ingest/{id}/high-water`: the furthest `byte_end` of its chunks. */
+function highWater(sid: string): number {
+  return Math.max(
+    0,
+    ...[...docs.values()]
+      .filter((d) => d.type === "chunk" && d.session_id === sid)
+      .map((d) => d.byte_end as number),
+  );
+}
 
 const server = Bun.serve({
   port: 0,
   async fetch(req) {
     const url = new URL(req.url);
-    const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    if (req.method === "GET" && parts[1] === "_all_docs") {
-      allDocsQueries++;
+    const hw = url.pathname.match(/^\/api\/ingest\/([^/]+)\/high-water$/);
+    if (req.method === "GET" && hw) {
+      highWaterQueries++;
       if (mode === "error") return new Response("boom", { status: 500 });
       if (mode === "slow") await Bun.sleep(500);
-      const q = url.searchParams;
-      const descending = q.get("descending") === "true";
-      const a = JSON.parse(q.get("startkey") ?? '""') as string;
-      const b = JSON.parse(q.get("endkey") ?? '"￰"') as string;
-      const [lo, hi] = descending ? [b, a] : [a, b];
-      const ids = [...docs.keys()].filter((id) => id >= lo && id <= hi).sort();
-      if (descending) ids.reverse();
-      const limit = Number(q.get("limit") ?? ids.length);
-      const rows = ids.slice(0, limit).map((id) => ({
-        id,
-        key: id,
-        ...(q.get("include_docs") === "true" ? { doc: docs.get(id) } : {}),
-      }));
-      return Response.json({ total_rows: docs.size, offset: 0, rows });
+      const sid = decodeURIComponent(hw[1] as string);
+      return Response.json({ id: sid, bytes: highWater(sid) });
     }
-    if (req.method === "PUT" && parts.length === 2) {
-      const id = parts[1] as string;
-      if (docs.has(id)) return Response.json({ error: "conflict" }, { status: 409 });
-      docs.set(id, { ...((await req.json()) as Record<string, unknown>), _id: id });
-      return Response.json({ ok: true }, { status: 201 });
+    if (req.method === "POST" && url.pathname === "/api/ingest/chunks") {
+      // Stable ids, first write wins — a re-flush conflicts benignly, as CouchDB does.
+      const { docs: batch } = (await req.json()) as { docs: Record<string, unknown>[] };
+      for (const d of batch) if (!docs.has(d._id as string)) docs.set(d._id as string, d);
+      return Response.json({ ok: true });
     }
-    if (req.method === "POST") return Response.json({ ok: true }, { status: 201 });
+    if (req.method === "POST") return Response.json({ ok: true });
     return new Response("nope", { status: 405 });
   },
 });
@@ -54,7 +52,7 @@ const sessions: string[] = [];
 
 afterEach(() => {
   docs.clear();
-  allDocsQueries = 0;
+  highWaterQueries = 0;
   mode = "ok";
 });
 afterAll(() => {
@@ -71,7 +69,7 @@ afterAll(() => {
 });
 
 const config = (url = `http://localhost:${server.port}`): HookConfig => ({
-  couch: { url, databases: { sessions: DB } },
+  webapi: { url },
   features: { midFlightChunking: true },
   // Two entries per chunk and a flush interval that never elapses inside a test, so
   // boundaries are decided by the entry count alone — deterministic.
@@ -150,8 +148,8 @@ describe("SessionEnd", () => {
     expect(ranges(sid)).toHaveLength(3);
 
     await fire("SessionStart", sid, transcript, { source: "resume" });
-    // A local offset was there, so the store was never asked.
-    expect(allDocsQueries).toBe(0);
+    // A local offset was there, so the webapi was never asked.
+    expect(highWaterQueries).toBe(0);
     appendEntries(transcript, 3, "resumed");
     await fire("Stop", sid, transcript);
 
@@ -162,13 +160,13 @@ describe("SessionEnd", () => {
 });
 
 describe("resume with the local chunk state lost (e.g. a reboot)", () => {
-  test("seeds the offset from the store's highest byte_end", async () => {
+  test("seeds the offset from the webapi's high-water mark", async () => {
     const { sid, transcript } = newSession();
     const ended = await runAndEnd(sid, transcript);
     unlinkSync(`/tmp/claude-transcripts-${sid}.chunkstate`);
 
     await fire("SessionStart", sid, transcript, { source: "resume" });
-    expect(allDocsQueries).toBe(1);
+    expect(highWaterQueries).toBe(1);
     expect(makeChunkState(sid).load().offset).toBe(ended);
 
     appendEntries(transcript, 3, "resumed");
@@ -186,7 +184,7 @@ describe("resume with the local chunk state lost (e.g. a reboot)", () => {
     expect(makeChunkState(sid).load().offset).toBe(0);
   });
 
-  test("a local offset past the end of the file falls back to the store", async () => {
+  test("a local offset past the end of the file falls back to the webapi", async () => {
     const { sid, transcript } = newSession();
     const ended = await runAndEnd(sid, transcript);
     makeChunkState(sid).save({ offset: ended + 1_000, lastFlushMs: 1 });
@@ -204,7 +202,7 @@ describe("resume with the local chunk state lost (e.g. a reboot)", () => {
     expect(makeChunkState(sid).load().offset).toBe(ended);
   });
 
-  test("an unreachable store falls back to offset 0 without throwing", async () => {
+  test("an unreachable webapi falls back to offset 0 without throwing", async () => {
     const { sid, transcript } = newSession();
     await runAndEnd(sid, transcript);
     unlinkSync(`/tmp/claude-transcripts-${sid}.chunkstate`);
@@ -218,7 +216,7 @@ describe("resume with the local chunk state lost (e.g. a reboot)", () => {
 
 describe("a new transcript still starts from zero", () => {
   for (const source of ["startup", "clear", undefined]) {
-    test(`source ${String(source)} resets the offset and does not ask the store`, async () => {
+    test(`source ${String(source)} resets the offset and does not ask the webapi`, async () => {
       const { sid, transcript } = newSession();
       makeChunkState(sid).save({ offset: 999, lastFlushMs: 1 });
       docs.set(`chunk:${sid}:000000000000`, {
@@ -230,12 +228,12 @@ describe("a new transcript still starts from zero", () => {
 
       await fire("SessionStart", sid, transcript, source ? { source } : {});
       expect(makeChunkState(sid).load().offset).toBe(0);
-      expect(allDocsQueries).toBe(0);
+      expect(highWaterQueries).toBe(0);
     });
   }
 });
 
-describe("fetchChunkHighWater", () => {
+describe("fetchChunkHighWater against the fake webapi", () => {
   const chunk = (sid: string, start: number, end: number) =>
     docs.set(`chunk:${sid}:${String(start).padStart(12, "0")}`, {
       type: "chunk",
@@ -243,35 +241,29 @@ describe("fetchChunkHighWater", () => {
       byte_start: start,
       byte_end: end,
     });
+  const target = () => ({ url: `http://localhost:${server.port}` });
 
-  test("returns the byte_end of the highest-starting chunk", async () => {
+  test("returns how far the session's chunks reach", async () => {
     chunk("abc", 0, 100);
     chunk("abc", 100, 2_500);
     chunk("abc", 2_500, 2_600);
-    expect(await fetchChunkHighWater(config(), DB, "abc")).toBe(2_600);
-  });
-
-  test("ignores a session whose id merely shares the prefix", async () => {
-    chunk("abc", 0, 100);
-    chunk("abcd", 0, 9_999);
-    docs.set("summary:abc", { type: "summary", byte_end: 50_000 });
-    expect(await fetchChunkHighWater(config(), DB, "abc")).toBe(100);
+    expect(await fetchChunkHighWater(target(), "abc")).toBe(2_600);
   });
 
   test("null when the session has no chunks", async () => {
     chunk("other", 0, 100);
-    expect(await fetchChunkHighWater(config(), DB, "abc")).toBeNull();
+    expect(await fetchChunkHighWater(target(), "abc")).toBeNull();
   });
 
   test("null on an error response", async () => {
     chunk("abc", 0, 100);
     mode = "error";
-    expect(await fetchChunkHighWater(config(), DB, "abc")).toBeNull();
+    expect(await fetchChunkHighWater(target(), "abc")).toBeNull();
   });
 
-  test("null when the store does not answer in time", async () => {
+  test("null when the webapi does not answer in time", async () => {
     chunk("abc", 0, 100);
     mode = "slow";
-    expect(await fetchChunkHighWater(config(), DB, "abc", 50)).toBeNull();
+    expect(await fetchChunkHighWater(target(), "abc", 50)).toBeNull();
   });
 });

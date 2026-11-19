@@ -2,11 +2,11 @@
  * The statusline indicator, rendered from the hook's own per-session scratch state
  * (docs/design/plugin.md, Part 1b).
  *
- *   ● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → claude-transcripts-sessions@127.0.0.1:7652
- *   ● ct@v0.2.0 rec (mirror) · 128 ev · 2s ago → logs.example.net  (primary dead, mirror taking writes)
- *   ◐ ct@v0.2.0 stalled · 128 ev · last write 6m ago → …           (configured, writes failing)
+ *   ● ct@v0.2.0 rec · 128 ev · 6 tools · 2s ago → 127.0.0.1:7650
+ *   ● ct@v0.2.0 rec (mirror) · 128 ev · 2s ago → logs.example.net  (instance down, mirror taking writes)
+ *   ◐ ct@v0.2.0 stalled · timeout · 128 ev · last write 6m ago · run `claude-transcripts backfill` → …
  *   ◐ ct@v0.2.0 stalled · hook silent · 128 ev · last write 9m ago → …  (session moving, hook not)
- *   ○ ct@dev off · no instance configured
+ *   ○ ct@v0.2.0 off · no instance configured
  *
  * The version is the **recording binary's own**, not the instance's. Everything is
  * lockstep-versioned (ADR 0023), and `install` pins the app image to the CLI's version
@@ -17,8 +17,9 @@
  * Runs on every statusline refresh, so it does **no network I/O** — ever. Everything
  * it shows is what the hook already wrote to `/tmp` while recording: the counters
  * (`makeCounts`) and the resolved targets plus last-write time (`makeTargets`). That
- * last field is what separates "recording" from "configured but failing": a store that
- * has refused writes for five minutes must not get a confident green dot.
+ * last field is what separates "recording" from "configured but failing" — and a
+ * failure shows from the first rejected write, with its reason and the command that
+ * recovers the gap (#288): nothing buffers it, so nobody else will say.
  *
  * Health is read per store, because a machine that reports into a shared instance
  * routinely has a dead primary and a live mirror. Collapsing those into one verdict is
@@ -51,8 +52,8 @@ export interface StatuslineState {
   version?: string;
 }
 
-/** A failure newer than the last success, and no success within this window → stalled. */
-export const STALL_AFTER_MS = 60_000;
+/** The command that recovers what a failing write lost (#288: nothing is buffered). */
+export const RECOVER_HINT = "run `claude-transcripts backfill`";
 
 /**
  * Transcript modified this long after the hook's last attempt → the hook is no longer
@@ -104,25 +105,31 @@ export function versionLabel(version: string = VERSION): string {
   return `ct@${version}`;
 }
 
-/** `db@host:port` — the store, short enough for a statusline. */
+/**
+ * Where this session's writes go, short enough for a statusline: the webapi's
+ * `host:port`. A targets file from before #288 named a CouchDB, as `db@host:port`.
+ */
 export function whereLabel(t: Targets): string {
-  const host = t.couchUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  return `${t.sessionsDb}@${host}`;
+  const host = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (t.webapiUrl) return host(t.webapiUrl);
+  return t.couchUrl ? `${t.sessionsDb ?? "?"}@${host(t.couchUrl)}` : "?";
 }
 
 /** One store's verdict. `idle` is "nothing tried yet", not "nothing worked". */
 export type StoreState = "healthy" | "failing" | "idle";
 
 /**
- * A store is failing once a rejection is newer than its last success *and* that success
- * has aged out of the stall window. A store that has never written is failing only if
- * something was actually rejected — otherwise it is merely idle.
+ * A target is failing as soon as a rejection is newer than its last success — the
+ * first failed write, not one that has persisted (#288). With no local queue, every
+ * failed write is a gap only `backfill` fills, so the moment to say so is now. A
+ * target that has never written is failing only if something was actually rejected;
+ * otherwise it is merely idle.
  */
 export function storeState(
   s: Pick<StoreHealth, "lastWriteMs" | "lastFailureMs">,
-  now: number,
+  _now?: number,
 ): StoreState {
-  if (s.lastFailureMs > s.lastWriteMs && now - s.lastWriteMs > STALL_AFTER_MS) return "failing";
+  if (s.lastFailureMs > s.lastWriteMs) return "failing";
   return s.lastWriteMs > 0 ? "healthy" : "idle";
 }
 
@@ -147,6 +154,8 @@ export interface StatuslineLine {
   tools?: number;
   /** `2s ago`, `last write 6m ago`, `no write yet`. */
   age?: string;
+  /** What to run to recover the gap, on a failing line. */
+  fix?: string;
   /** The store label, `db@host` or a mirror's host. */
   where?: string;
   /** `+2` when more mirrors are taking writes than the one named. */
@@ -195,14 +204,13 @@ export function statuslineLine(state: StatuslineState, now = Date.now()): Status
     if (hookSilent(Math.max(t.lastWriteMs, t.lastFailureMs), state.transcriptMtimeMs)) {
       return line("stalled", { note: "hook silent", age, where });
     }
-    if (t.lastFailureMs > t.lastWriteMs && now - t.lastWriteMs > STALL_AFTER_MS) {
-      return line("stalled", { age, where });
-    }
+    if (t.lastFailureMs > t.lastWriteMs) return line("stalled", { age, where, fix: RECOVER_HINT });
     if (t.lastWriteMs <= 0) return line("ready", { age: "no write yet", where });
     return line("rec", { age: ago(t.lastWriteMs, now), where });
   }
 
-  const direct = stores.find((s) => s.kind === "direct") ?? stores[0];
+  // The instance's own webapi (`direct`: the CouchDB a pre-#288 file names).
+  const direct = stores.find((s) => s.kind === "webapi" || s.kind === "direct") ?? stores[0];
   const headline = direct ?? { label: whereLabel(t), lastWriteMs: 0, lastFailureMs: 0 };
 
   // Before any store is called healthy: a silent hook leaves every store frozen as it was.
@@ -225,17 +233,28 @@ export function statuslineLine(state: StatuslineState, now = Date.now()): Status
   const healthyMirrors = stores.filter((s) => s !== direct && storeState(s, now) === "healthy");
   const first = healthyMirrors[0];
   if (first) {
+    // Recorded, but not on the instance: if it is rejecting writes, that is a gap there
+    // only backfill fills, so the line says so even though it is green.
+    const instanceFailing = direct && storeState(direct, now) === "failing";
     return line("rec", {
       qualifier: "(mirror)",
       age: ago(first.lastWriteMs, now),
+      ...(instanceFailing ? { fix: RECOVER_HINT } : {}),
       where: first.label,
       ...(healthyMirrors.length > 1 ? { more: `+${healthyMirrors.length - 1}` } : {}),
     });
   }
 
-  if (stores.some((s) => storeState(s, now) === "failing")) {
+  const failing = stores.find((s) => storeState(s, now) === "failing");
+  if (failing) {
     const best = Math.max(...stores.map((s) => s.lastWriteMs));
-    return line("stalled", { age: lastWrite(best, now), where: headline.label });
+    const reason = (direct && storeState(direct, now) === "failing" ? direct : failing).lastError;
+    return line("stalled", {
+      ...(reason ? { note: reason } : {}),
+      age: lastWrite(best, now),
+      fix: RECOVER_HINT,
+      where: headline.label,
+    });
   }
   return line("ready", { age: "no write yet", where: headline.label });
 }
@@ -271,6 +290,7 @@ const STATE_COLOR: Record<LineState, string> = {
  */
 const SHRINK: ((l: StatuslineLine) => StatuslineLine)[] = [
   ({ tools: _, ...l }) => l,
+  ({ fix: _, ...l }) => l,
   (l) => (l.where ? { ...l, where: shortWhere(l.where) } : l),
   ({ events: _, ...l }) => l,
   ({ age: _, ...l }) => l,
@@ -324,6 +344,7 @@ function draw(l: StatuslineLine, opts: FormatOptions): string {
     l.note && (l.note === "hook silent" ? paint(SGR.yellow, l.note) : l.note),
     counts && dim(counts),
     l.age && dim(l.age),
+    l.fix && paint(SGR.yellow, l.fix),
   ].filter(Boolean);
   const sep = dim(" · ");
 

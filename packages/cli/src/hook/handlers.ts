@@ -16,16 +16,10 @@ import {
   sliceIntoChunks,
   sumTranscriptTokens,
 } from "@claude-transcripts/shared";
-import { resolveWebapiUrl } from "../api/http";
-import { recordingBanner } from "./announce";
+import { recordingBanner, unreachableBanner } from "./announce";
+import type { IngestClient } from "./ingest";
 import { buildPrimer } from "./recall";
-import {
-  type BlobClient,
-  commonFields,
-  type HookContext,
-  makeChunkState,
-  resolveTargets,
-} from "./runtime";
+import { commonFields, type HookContext, makeChunkState, resolveTargets } from "./runtime";
 
 export type Handler = (ctx: HookContext) => Promise<void>;
 
@@ -34,7 +28,7 @@ export type Handler = (ctx: HookContext) => Promise<void>;
  *
  * A resume or compact keeps the offset, so flushes stay on the stored chunk boundaries
  * (#168). With no usable local offset (`/tmp` lost to a reboot) it is seeded from the
- * store's chunk high-water; an offset past the end of the file — a rewritten transcript —
+ * webapi's chunk high-water; an offset past the end of the file — a rewritten transcript —
  * is never used, since nothing would be chunked until the file grew past it.
  */
 const seedSessionStart: Handler = async (ctx) => {
@@ -42,7 +36,7 @@ const seedSessionStart: Handler = async (ctx) => {
   // The resolved targets, for the statusline and the banner. Always rewritten: config
   // can change between a session's start and its resume, and the file is cheap.
   // `lastWriteMs` starts at 0 — "recording" is earned by a write landing, not claimed.
-  ctx.targets.write(resolveTargets(ctx.config, safeWebapiUrl()));
+  ctx.targets.write(resolveTargets(ctx.config));
 
   const cs = makeChunkState(ctx.sessionId);
   if (!source || source === "startup" || source === "clear") {
@@ -67,14 +61,6 @@ function fileSize(path: string | undefined): number | null {
   }
 }
 
-function safeWebapiUrl(): string | undefined {
-  try {
-    return resolveWebapiUrl();
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * Tell the user, in the transcript, that this session is recorded and where.
  *
@@ -83,8 +69,14 @@ function safeWebapiUrl(): string | undefined {
  * may not have landed yet — resolve inline in that case; same inputs, same answer.
  */
 const announceRecording: Handler = async (ctx) => {
-  const targets = ctx.targets.read() ?? resolveTargets(ctx.config, safeWebapiUrl());
-  ctx.output.systemMessage = recordingBanner(targets, ctx.sessionId);
+  // Checked before the first write rather than discovered by it (#288): a webapi that is
+  // down now loses this session's events, and the banner is where that gets noticed.
+  const reachable = await ctx.probe();
+  if (!reachable.ok) ctx.targets.markWrite(reachable, 0);
+  const targets = ctx.targets.read() ?? resolveTargets(ctx.config);
+  ctx.output.systemMessage = reachable.ok
+    ? recordingBanner(targets, ctx.sessionId)
+    : unreachableBanner(targets, reachable.reason);
 };
 
 /**
@@ -162,7 +154,7 @@ const writeEventMarker: Handler = async (ctx) => {
       doc.trigger = p.trigger;
       break;
   }
-  await ctx.couch.postDoc(ctx.sessionsDb, doc);
+  await ctx.writer.event(doc);
 };
 
 /**
@@ -215,7 +207,8 @@ const flushTranscriptChunk: Handler = async (ctx) => {
       const byteEnd = state.offset + s.byteEnd;
       const entries = allEntries?.slice(entryCursor, entryCursor + s.entryCount);
       entryCursor += s.entryCount;
-      await ctx.couch.putDoc(ctx.sessionsDb, chunkDocId(ctx.sessionId, byteStart), {
+      await ctx.writer.chunk({
+        _id: chunkDocId(ctx.sessionId, byteStart),
         type: "chunk",
         session_id: ctx.sessionId,
         byte_start: byteStart,
@@ -266,15 +259,7 @@ const writeSummary: Handler = async (ctx) => {
     source: "live",
   };
 
-  await ctx.couch.upsertDoc(ctx.sessionsDb, `summary:${ctx.sessionId}`, doc, 30000);
-  if (ctx.blob.enabled && ctx.sessionsBucket) {
-    await ctx.blob.put(
-      ctx.sessionsBucket,
-      `${ctx.sessionId}/summary.json`,
-      JSON.stringify(doc),
-      "application/json",
-    );
-  }
+  await ctx.writer.summary({ _id: `summary:${ctx.sessionId}`, ...doc }, 30000);
   // Targets go: the statusline reads them per session, and a finished session is not
   // recording. Counts stay. A session can be resumed after SessionEnd, and
   // `seedSessionStart` deliberately does *not* reset them on a resume so the totals keep
@@ -285,10 +270,9 @@ const writeSummary: Handler = async (ctx) => {
   ctx.targets.clear();
 };
 
-/** Upload one session's byte-faithful transcript — S3 is its durable home. */
+/** Upload one session's byte-faithful transcript; the webapi keeps it in S3 (ADR 0014). */
 export async function uploadTranscript(
-  blob: BlobClient,
-  bucket: string,
+  writer: IngestClient,
   sessionId: string,
   transcriptPath: string,
 ): Promise<void> {
@@ -298,7 +282,7 @@ export async function uploadTranscript(
   } catch {
     return;
   }
-  await blob.put(bucket, `${sessionId}/transcript.jsonl`, data, "application/x-ndjson");
+  await writer.transcript(sessionId, data);
 }
 
 /**
@@ -310,9 +294,9 @@ export async function uploadTranscript(
  * cannot start does the upload run here, which is the old behaviour.
  */
 const uploadBlobs: Handler = async (ctx) => {
-  if (!ctx.blob.enabled || !ctx.sessionsBucket || !ctx.transcriptPath) return;
+  if (!ctx.transcriptPath) return;
   if (ctx.detachUpload(ctx.sessionId, ctx.transcriptPath)) return;
-  await uploadTranscript(ctx.blob, ctx.sessionsBucket, ctx.sessionId, ctx.transcriptPath);
+  await uploadTranscript(ctx.writer, ctx.sessionId, ctx.transcriptPath);
 };
 
 /** Action key → implementation. Keys match the blueprint's `ActionDef`s. */

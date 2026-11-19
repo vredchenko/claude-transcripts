@@ -7,9 +7,9 @@ import type { TopologyEdgeDef, TopologyGroupDef, TopologyModel, TopologyNodeDef 
  * for *deployment*. It says what runs, on which port, from which image. It says
  * nothing about the arrows, because `dependsOn` there exists only to emit compose
  * `depends_on` and is set on three services. The facts this file adds — that the
- * webui, CLI and agents reach everything through the gateway, and that the hook
- * deliberately does **not** — lived only in prose and in five hand-drawn ASCII
- * diagrams that had already drifted apart.
+ * hook, webui, CLI and agents all reach the stores through the gateway, and that
+ * the gateway is the only writer (#288) — lived only in prose and in five
+ * hand-drawn ASCII diagrams that had already drifted apart.
  *
  * Node labels and ports are read *through* `serviceKey` (see `toArchitectureDiagram`
  * in project.ts), never copied here, so renaming a service moves the diagram too.
@@ -70,7 +70,7 @@ export const TOPOLOGY_NODES: TopologyNodeDef[] = [
     level: "compact",
     ref: "design/decisions/0016-webapi-is-the-io-gateway.md",
     summary:
-      "Writes each event, the end-of-session summary and the transcript blob directly, so recording never depends on the webapi being up.",
+      "Writes each event, chunk, the end-of-session summary and the transcript through the webapi's ingest routes — the one write interface — and says so at once when a write fails.",
   },
 
   // ── rank 2 (read lane) — the stability column ──
@@ -185,45 +185,41 @@ export const TOPOLOGY_EDGES: TopologyEdgeDef[] = [
     note: "hooks/scripts/dispatch.ts pipes the payload to `claude-transcripts hook run` and always exits 0.",
   },
 
-  // The bypass. This is what every hand-drawn diagram got wrong: they routed the
-  // hook through the webapi, which is the opposite of what ADR 0016's amendment says.
+  // Every write goes through the gateway (#288). There is no edge from any client to a
+  // store, and `topology.test.ts` fails if one appears.
   {
     from: "hook",
-    to: "couchdb",
-    kind: "direct-write",
-    label: "events + summary",
+    to: "webapi",
+    kind: "ingest",
+    label: "writes · /api/ingest",
     level: "compact",
     ref: "design/decisions/0016-webapi-is-the-io-gateway.md",
-    note: "Written directly, not through the gateway, so a webapi outage never loses a session.",
-  },
-  {
-    from: "hook",
-    to: "garage",
-    kind: "direct-write",
-    label: "transcript",
-    level: "compact",
-    requiresFeature: "s3Blobs",
-    note: "The same bypass; transcript bytes live only in S3 (ADR 0014).",
+    note: "Events, chunks, the summary and the transcript, through the curated write surface. A failed write is reported, never buffered; `backfill` recovers it.",
   },
 
   { from: "webui", to: "webapi", kind: "http-client", label: "HTTP", level: "compact" },
   { from: "cli", to: "webapi", kind: "http-client", label: "HTTP", level: "compact" },
   { from: "agents", to: "webapi", kind: "http-client", label: "HTTP", level: "compact" },
 
+  // The gateway is the only thing that touches a store, both ways. One arrow per store
+  // in the compact view; the expanded view splits the curated writes from the
+  // read-only proxies below.
   {
     from: "webapi",
     to: "couchdb",
-    kind: "read-only-proxy",
-    label: "reads · /api/couch",
+    kind: "curated-write",
+    label: "reads + writes",
     level: "compact",
+    note: "The curated write surface owns and validates the document shapes; writes are never proxied.",
   },
   {
     from: "webapi",
     to: "garage",
-    kind: "read-only-proxy",
-    label: "reads · /api/s3",
+    kind: "curated-write",
+    label: "reads + writes",
     level: "compact",
     requiresFeature: "s3Blobs",
+    note: "Transcript bytes live only in S3 (ADR 0014), written by the ingest route.",
   },
   {
     from: "webapi",
@@ -246,10 +242,17 @@ export const TOPOLOGY_EDGES: TopologyEdgeDef[] = [
   {
     from: "webapi",
     to: "couchdb",
-    kind: "curated-write",
-    label: "/api/ingest",
+    kind: "read-only-proxy",
+    label: "reads · /api/couch",
     level: "expanded",
-    note: "The curated write surface that owns the document shapes; writes are never proxied.",
+  },
+  {
+    from: "webapi",
+    to: "garage",
+    kind: "read-only-proxy",
+    label: "reads · /api/s3",
+    level: "expanded",
+    requiresFeature: "s3Blobs",
   },
   {
     from: "couchdb",
@@ -257,7 +260,7 @@ export const TOPOLOGY_EDGES: TopologyEdgeDef[] = [
     kind: "changes-follower",
     label: "_changes",
     level: "expanded",
-    note: "Exists because of the hook bypass: hook-written docs get no write-time validation.",
+    note: "Indexes search from CouchDB's change feed, so search follows the store whatever wrote to it.",
   },
   { from: "couchdb-fauxton", to: "couchdb", kind: "admin-of", level: "expanded" },
   { from: "garage-ui", to: "garage", kind: "admin-of", level: "expanded" },

@@ -7,9 +7,10 @@
  * that hook: it reads the same runtime config the standalone plugin reads, so both
  * forms behave identically and an install can move between them.
  *
- * The one rule that overrides everything else: **the hook must never block a session.**
- * Every external call is wrapped, every failure is swallowed, and the process always
- * exits 0. Losing a session's history is bad; wedging someone's Claude Code is worse.
+ * It writes through the instance's webapi and nowhere else (#288, `ingest.ts`). Two
+ * rules hold everywhere: **the hook never blocks a session** — every call is bounded
+ * and the process always exits 0 — and **a failed write is never silent**: each
+ * outcome is stamped where the statusline reads it, with the reason.
  */
 import {
   closeSync,
@@ -22,34 +23,33 @@ import {
 } from "node:fs";
 import { hostname } from "node:os";
 import type { RecallConfigFile } from "@claude-transcripts/shared";
-import { S3Client } from "bun";
 import { hookCompatLines } from "./compat";
 import { spawnDetached, uploadArgv } from "./detach";
 import {
-  fanOutBlob,
-  fanOutCouch,
-  type MirrorTarget,
-  makeMirrorBlob,
-  makeMirrorCouch,
-} from "./mirror";
+  fanOut,
+  fetchChunkHighWater,
+  type IngestClient,
+  makeIngestClient,
+  probeWebapi,
+  type WebapiTarget,
+  type WriteOutcome,
+} from "./ingest";
 
 export interface HookConfig {
-  couch: { url: string; databases: Record<string, string>; auth?: string };
-  blob?: {
-    endpoint: string;
-    region: string;
-    accessKey?: string;
-    secretKey?: string;
-    buckets: Record<string, string>;
-  };
   /**
-   * Additional instances that receive the same writes, reached through their webapi
-   * (see {@link MirrorTarget}). Absent or empty writes to the local stores only,
-   * which is what every config written before mirrors existed says.
+   * The instance's webapi — the hook's write target, and the only one it needs. A
+   * config without it records nothing ({@link hookConfigProblem} says why).
    */
-  mirrors?: MirrorTarget[];
-  /** This instance's webapi, read by the CLI to find it (the hook never calls it). */
-  webapi?: { url: string };
+  webapi: WebapiTarget;
+  /** Additional webapis that receive the same writes (`docs/operate/mirrors.md`). */
+  mirrors?: WebapiTarget[];
+  /**
+   * Store blocks written by releases before #288, when the hook wrote CouchDB and S3
+   * directly. Ignored: the hook no longer reads them, and they hold credentials this
+   * machine no longer needs — `setup` drops them on its next run.
+   */
+  couch?: unknown;
+  blob?: unknown;
   features: Record<string, boolean>;
   system: { logging: { chunk: { maxEntriesPerChunk: number; flushIntervalMs: number } } };
   /** The deployment's recall section, if the config was written after it existed. */
@@ -78,6 +78,7 @@ export function normalizeHookConfig(raw: HookConfig): HookConfig {
   const chunk = raw.system?.logging?.chunk;
   return {
     ...raw,
+    features: raw.features ?? {},
     system: {
       ...raw.system,
       logging: {
@@ -91,184 +92,58 @@ export function normalizeHookConfig(raw: HookConfig): HookConfig {
   };
 }
 
-/** Load the runtime config, or null to silently do nothing (no install → no logging). */
+/** Load the runtime config, or null when it can't record ({@link hookConfigProblem}). */
 export function loadHookConfig(path: string): HookConfig | null {
   try {
     const raw = JSON.parse(readFileSync(path, "utf8")) as HookConfig;
-    // A config with no `couch` block cannot be made usable by defaulting — there is
-    // nowhere to write. Reject it here, where the caller already handles null and says
-    // so on SessionStart, rather than letting buildContext throw past every handler.
-    if (!raw?.couch?.url) return null;
+    // Without a webapi there is nowhere to write — and no defaulting can invent one.
+    // Rejected here, where the caller already handles null and says so on SessionStart,
+    // rather than letting buildContext throw past every handler.
+    if (!raw?.webapi?.url) return null;
     return normalizeHookConfig(raw);
   } catch {
     return null;
   }
 }
 
-// ── Stores ───────────────────────────────────────────────────────────────────
-
-export interface CouchClient {
-  postDoc(db: string, doc: object): Promise<void>;
-  putDoc(db: string, id: string, doc: object, timeoutMs?: number): Promise<void>;
-  /**
-   * Write a doc that may already exist, replacing it.
-   *
-   * Separate from {@link putDoc} on purpose. `putDoc` is first-write-wins: chunk ids are
-   * keyed by byte offset, so a re-flush of the same span *should* leave the stored copy
-   * alone rather than rewrite it. The summary is the opposite — one doc per session that
-   * a later SessionEnd must be able to correct — and a bare PUT can only 409 there.
-   */
-  upsertDoc(db: string, id: string, doc: object, timeoutMs?: number): Promise<void>;
+/**
+ * Why the config at `path` can't record, in one line for the session-start banner —
+ * or null when it can. The legacy case is the one worth naming: a config written
+ * before #288 holds store credentials but no webapi, and looks perfectly healthy.
+ */
+export function hookConfigProblem(path: string): string | null {
+  let raw: Partial<HookConfig>;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8")) as Partial<HookConfig>;
+  } catch {
+    return "no instance configured. Run `claude-transcripts install`";
+  }
+  if (raw?.webapi?.url) return null;
+  if (raw?.couch || raw?.blob) {
+    return (
+      "this machine's config names the stores but no webapi, and the hook now writes only " +
+      "through the webapi. Run `claude-transcripts setup` (or add `webapi.url` to " +
+      `${path})`
+    );
+  }
+  return `no webapi configured in ${path}. Run \`claude-transcripts setup\``;
 }
 
-/** Basic auth for the direct CouchDB, or nothing for the bundled no-auth default. */
-function couchAuthHeaders(config: HookConfig): Record<string, string> {
-  return config.couch.auth ? { Authorization: `Basic ${btoa(config.couch.auth)}` } : {};
-}
+// ── Writes ───────────────────────────────────────────────────────────────────
 
 /**
- * CouchDB over plain HTTP with a short timeout — a slow store must not stall a session.
+ * The hook's writer: the instance's webapi, then any mirrors, written together.
  *
- * `onWrite` hears whether each write landed. It exists for the statusline: "recording"
- * has to mean a store that recently accepted a doc, not merely a config file that
- * names one ({@link TargetsStore}).
+ * Each target reports its outcome against its own index — the contract
+ * {@link resolveTargets} seeds `stores` in — so a healthy mirror can never mark a dead
+ * instance as recording, or the reverse.
  */
-function makeDirectCouch(config: HookConfig, onWrite?: (ok: boolean) => void): CouchClient {
-  const root = config.couch.url;
-  const headers = { "Content-Type": "application/json", ...couchAuthHeaders(config) };
-
-  return {
-    async postDoc(db, doc) {
-      try {
-        const res = await fetch(`${root}/${db}`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(doc),
-          signal: AbortSignal.timeout(5000),
-        });
-        onWrite?.(res.ok);
-      } catch {
-        onWrite?.(false);
-      }
-    },
-    async putDoc(db, id, doc, timeoutMs = 5000) {
-      try {
-        const res = await fetch(`${root}/${db}/${encodeURIComponent(id)}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(doc),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        onWrite?.(res.ok);
-      } catch {
-        onWrite?.(false);
-      }
-    },
-    /**
-     * PUT, and on a 409 fetch the current `_rev` and PUT once more.
-     *
-     * CouchDB rejects a PUT to an existing id that carries no `_rev`. That is what a
-     * resumed session's second SessionEnd used to hit: the conflict was reported to
-     * `onWrite` and otherwise dropped, so the summary silently stayed at the numbers
-     * the *first* exit wrote while the S3 copy — a plain overwriting put — moved on.
-     * The two stores then disagreed permanently about the same session.
-     *
-     * One retry, not a loop: the competitor for this document is another SessionEnd for
-     * the same session, which does not happen concurrently. A second conflict means
-     * something unmodelled is writing, and losing that race quietly beats spinning in a
-     * hook that must never delay a session.
-     */
-    async upsertDoc(db, id, doc, timeoutMs = 5000) {
-      const url = `${root}/${db}/${encodeURIComponent(id)}`;
-      const put = (body: object) =>
-        fetch(url, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      try {
-        const res = await put(doc);
-        if (res.status !== 409) {
-          onWrite?.(res.ok);
-          return;
-        }
-        const current = await fetch(url, {
-          headers,
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        if (!current.ok) {
-          onWrite?.(false);
-          return;
-        }
-        const { _rev } = (await current.json()) as { _rev?: string };
-        if (!_rev) {
-          onWrite?.(false);
-          return;
-        }
-        const retry = await put({ ...doc, _rev });
-        onWrite?.(retry.ok);
-      } catch {
-        onWrite?.(false);
-      }
-    },
-  };
-}
-
-/**
- * The hook's CouchDB writer: this machine's store, plus any configured mirrors.
- *
- * The fan-out lives here rather than in the handlers on purpose — a composite that
- * satisfies {@link CouchClient} means "write to two places" is a config fact, not a
- * thing every handler has to remember to do.
- */
-export function makeCouch(
+export function makeWriter(
   config: HookConfig,
-  onWrite?: (ok: boolean, storeIndex: number) => void,
-): CouchClient {
-  const mirrors = config.mirrors ?? [];
-  // Mirrors report their outcome too, but against their OWN index — reporting them
-  // into a single shared pair would let a healthy mirror mark a dead primary as
-  // recording, and the label the statusline prints is the primary's. The indices
-  // here are the contract `resolveTargets` seeds `stores` in.
-  return fanOutCouch([
-    makeDirectCouch(config, onWrite && ((ok) => onWrite(ok, 0))),
-    ...mirrors.map((m, i) => makeMirrorCouch(m, onWrite && ((ok) => onWrite(ok, i + 1)))),
-  ]);
-}
-
-export interface BlobClient {
-  enabled: boolean;
-  put(bucket: string, key: string, data: Buffer | string, contentType: string): Promise<void>;
-}
-
-function makeDirectBlob(config: HookConfig): BlobClient {
-  const cfg = config.blob;
-  const s3 = cfg?.accessKey
-    ? new S3Client({
-        endpoint: cfg.endpoint,
-        region: cfg.region,
-        accessKeyId: cfg.accessKey,
-        secretAccessKey: cfg.secretKey,
-      })
-    : null;
-  return {
-    enabled: Boolean(s3),
-    async put(bucket, key, data, contentType) {
-      if (!s3) return;
-      try {
-        await s3.write(key, data, { bucket, type: contentType });
-      } catch {
-        // non-fatal
-      }
-    },
-  };
-}
-
-/** The hook's blob writer: local S3, plus any configured mirrors. */
-export function makeBlob(config: HookConfig): BlobClient {
-  const mirrors = config.mirrors ?? [];
-  return fanOutBlob([makeDirectBlob(config), ...mirrors.map((m) => makeMirrorBlob(m))]);
+  onWrite?: (outcome: WriteOutcome, storeIndex: number) => void,
+): IngestClient {
+  const targets = [config.webapi, ...(config.mirrors ?? [])];
+  return fanOut(targets.map((t, i) => makeIngestClient(t, onWrite && ((o) => onWrite(o, i)))));
 }
 
 // ── Per-session state (survives the many short-lived hook processes) ──────────
@@ -336,65 +211,63 @@ export function makeCounts(sessionId: string): CountsStore {
  * prints lands in a terminal.
  */
 /**
- * One store's write health, kept per store rather than for the fan-out as a whole.
+ * One write target's health, kept per target rather than for the fan-out as a whole.
  *
- * A single outcome pair could not express "the primary is dead but the mirror is
+ * A single outcome pair could not express "the instance is down but the mirror is
  * fine", which is the ordinary state of a machine that reports into a shared
- * instance. Collapsing the two made the indicator wrong whichever way it resolved:
- * counting only the direct store showed a permanent failure on a machine that was
- * recording correctly, and counting any store showed a confident green dot labelled
- * with a host that had accepted nothing for weeks.
+ * instance. Collapsing the two made the indicator wrong whichever way it resolved.
  *
- * Never carries credentials — labels come from {@link redactUrl}.
+ * Never carries credentials — labels come from {@link hostOf}.
  */
 export interface StoreHealth {
-  /** `db@host` for the direct store, `host` for a mirror. */
+  /** The target's `host:port`. */
   label: string;
-  kind: "direct" | "mirror";
-  /** Epoch ms of the last write this store accepted; 0 until one lands. */
+  /**
+   * `webapi` for the instance, `mirror` for the rest. `direct` is a store written
+   * directly, which only a targets file from before #288 still says.
+   */
+  kind: "webapi" | "mirror" | "direct";
+  /** Epoch ms of the last write this target accepted; 0 until one lands. */
   lastWriteMs: number;
-  /** Epoch ms of the last write this store rejected after its last success; 0 if none. */
+  /** Epoch ms of the last write this target rejected after its last success; 0 if none. */
   lastFailureMs: number;
+  /** Why the last failure failed (`HTTP 503`, `timeout`, `unreachable`); absent if none. */
+  lastError?: string;
 }
 
 export interface Targets {
-  /** CouchDB base URL with any userinfo stripped. */
-  couchUrl: string;
-  sessionsDb: string;
-  /** S3 bucket, if blob upload is configured. */
-  bucket?: string;
-  /** The webapi this machine's CLI resolves to — where the deep link points. */
+  /** The instance's webapi, credentials stripped — the write target and the deep link. */
   webapiUrl?: string;
   /** Feature flags that were on when the session started. */
   features: string[];
   /** Mirrors this machine also reports into (URLs only). */
   mirrors: string[];
   /**
-   * Per-store health: index 0 is the direct store, then mirrors in config order.
+   * Per-target health: index 0 is the instance's webapi, then mirrors in config order.
    *
    * Optional because it genuinely is absent on a targets file written by an older
    * binary — the file lives in `/tmp` per session and survives an upgrade mid-session.
    * A renderer must handle that rather than assume the key.
    */
   stores?: StoreHealth[];
-  /**
-   * Aggregate of {@link stores} (the best outcome across them).
-   *
-   * Kept for one release because the targets file lives in `/tmp` per session: a
-   * session that started under an older binary and continues after an upgrade hands
-   * the renderer a file with no `stores` key, and showing "off" at a live session
-   * would be a worse lie than the one being fixed. Delete both next release.
-   */
+  /** Aggregate of {@link stores} (the best outcome across them). */
   lastWriteMs: number;
   /** See {@link lastWriteMs}. */
   lastFailureMs: number;
+  /**
+   * Pre-#288 fields: a session that started under an older binary still has them in
+   * its `/tmp` targets file. Read only by the renderer's fallback for such a file.
+   */
+  couchUrl?: string;
+  sessionsDb?: string;
+  bucket?: string;
 }
 
 export interface TargetsStore {
   read(): Targets | null;
   write(t: Targets): void;
-  /** Stamp the outcome of one CouchDB write against one store (0 = direct). */
-  markWrite(ok: boolean, storeIndex?: number): void;
+  /** Stamp the outcome of one write against one target (0 = the instance's webapi). */
+  markWrite(outcome: WriteOutcome | boolean, storeIndex?: number): void;
   clear(): void;
 }
 
@@ -421,7 +294,13 @@ export function makeTargets(sessionId: string): TargetsStore {
   return {
     read,
     write,
-    markWrite(ok, storeIndex = 0) {
+    markWrite(outcome, storeIndex = 0) {
+      const o: WriteOutcome =
+        typeof outcome === "boolean"
+          ? outcome
+            ? { ok: true }
+            : { ok: false, reason: "failed" }
+          : outcome;
       const t = read();
       if (!t) return; // no session-start seed → nothing to annotate
       const now = Date.now();
@@ -429,16 +308,18 @@ export function makeTargets(sessionId: string): TargetsStore {
       // rather than inventing entries whose labels we would have to guess.
       const store = t.stores?.[storeIndex];
       if (store) {
-        if (ok) {
+        if (o.ok) {
           store.lastWriteMs = now;
           store.lastFailureMs = 0;
+          delete store.lastError;
         } else {
           store.lastFailureMs = now;
+          store.lastError = o.reason;
         }
       }
-      // The flat pair stays the aggregate: any store accepting a write means the
-      // session is being recorded somewhere, which is what the old renderer asked.
-      if (ok) {
+      // The flat pair stays the aggregate: any target accepting a write means the
+      // session is being recorded somewhere.
+      if (o.ok) {
         t.lastWriteMs = now;
         t.lastFailureMs = 0;
       } else if (!t.stores?.some((x) => x.lastWriteMs > x.lastFailureMs)) {
@@ -476,31 +357,24 @@ export function hostOf(url: string): string {
 }
 
 /** The resolved targets for a config, before any write has happened. */
-export function resolveTargets(config: HookConfig, webapiUrl?: string): Targets {
+export function resolveTargets(config: HookConfig): Targets {
+  const health = (url: string, kind: StoreHealth["kind"]): StoreHealth => ({
+    label: hostOf(url),
+    kind,
+    lastWriteMs: 0,
+    lastFailureMs: 0,
+  });
   return {
-    couchUrl: redactUrl(config.couch.url),
-    sessionsDb: config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB,
-    bucket: config.blob?.accessKey ? config.blob.buckets.sessions : undefined,
-    webapiUrl,
+    webapiUrl: redactUrl(config.webapi.url),
     features: Object.entries(config.features ?? {})
       .filter(([, on]) => on)
       .map(([k]) => k),
     mirrors: (config.mirrors ?? []).map((m) => redactUrl(m.url)),
-    // Order matters and is the contract `markWrite`'s index relies on: the direct
-    // store first, then mirrors exactly as `makeCouch` fans them out.
+    // Order matters and is the contract `markWrite`'s index relies on: the instance
+    // first, then mirrors exactly as `makeWriter` fans them out.
     stores: [
-      {
-        label: `${config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB}@${hostOf(config.couch.url)}`,
-        kind: "direct",
-        lastWriteMs: 0,
-        lastFailureMs: 0,
-      },
-      ...(config.mirrors ?? []).map((m) => ({
-        label: hostOf(m.url),
-        kind: "mirror" as const,
-        lastWriteMs: 0,
-        lastFailureMs: 0,
-      })),
+      health(config.webapi.url, "webapi"),
+      ...(config.mirrors ?? []).map((m) => health(m.url, "mirror")),
     ],
     lastWriteMs: 0,
     lastFailureMs: 0,
@@ -596,44 +470,6 @@ export function makeChunkState(sessionId: string): ChunkStateStore {
   };
 }
 
-/** How long a resume waits on CouchDB for the chunk high-water mark before giving up. */
-const HIGH_WATER_TIMEOUT_MS = 2_000;
-
-/**
- * The `byte_end` of a session's last chunk doc in the direct CouchDB, or null.
- *
- * Chunk ids sort in byte order ({@link chunkDocId}) and live chunks tile the file, so the
- * last id under the prefix (`descending`, `limit=1`; startkey is the high end) is the one
- * that ends furthest. Mirrors aren't asked — they may lag. Any failure is null.
- */
-export async function fetchChunkHighWater(
-  config: HookConfig,
-  db: string,
-  sessionId: string,
-  timeoutMs = HIGH_WATER_TIMEOUT_MS,
-): Promise<number | null> {
-  try {
-    const prefix = `chunk:${sessionId}:`;
-    const qs = new URLSearchParams({
-      startkey: JSON.stringify(`${prefix}\ufff0`),
-      endkey: JSON.stringify(prefix),
-      descending: "true",
-      limit: "1",
-      include_docs: "true",
-    });
-    const res = await fetch(`${config.couch.url}/${encodeURIComponent(db)}/_all_docs?${qs}`, {
-      headers: couchAuthHeaders(config),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { rows?: { doc?: { byte_end?: unknown } }[] };
-    const end = body.rows?.[0]?.doc?.byte_end;
-    return typeof end === "number" && Number.isFinite(end) && end > 0 ? end : null;
-  } catch {
-    return null;
-  }
-}
-
 // ── Context ──────────────────────────────────────────────────────────────────
 
 export interface SessionStartOutput {
@@ -652,8 +488,8 @@ export interface HookContext {
   transcriptPath?: string;
   payload: any;
   config: HookConfig;
-  couch: CouchClient;
-  blob: BlobClient;
+  /** Every write goes here: the instance's webapi plus mirrors ({@link makeWriter}). */
+  writer: IngestClient;
   counts: CountsStore;
   targets: TargetsStore;
   /**
@@ -664,13 +500,13 @@ export interface HookContext {
    */
   output: SessionStartOutput;
   /**
-   * The highest `byte_end` this session's chunk docs reach in the direct CouchDB, or
-   * null when there are none or the store can't say in time. Lets a resume pick up the
-   * offset when `/tmp` lost it (see {@link fetchChunkHighWater}).
+   * The highest `byte_end` this session's chunks reach, from the instance's webapi, or
+   * null when there are none or it can't say in time. Lets a resume pick up the offset
+   * when `/tmp` lost it.
    */
   chunkHighWater(): Promise<number | null>;
-  sessionsDb: string;
-  sessionsBucket?: string;
+  /** Ask whether the instance's webapi can take writes now (session start only). */
+  probe(): Promise<WriteOutcome>;
   /**
    * Start this session's transcript upload in a detached process; false if it could
    * not start. A seam so tests don't spawn — the real one is `spawnDetached`.
@@ -683,18 +519,16 @@ export interface HookContext {
   hookCompat(): string[];
 }
 
-const DEFAULT_SESSIONS_DB = "claude-transcripts-sessions";
-
 export function buildContext(payload: any, config: HookConfig): HookContext | null {
   const event: string | undefined = payload?.hook_event_name;
   const sessionId: string | undefined = payload?.session_id;
   if (!event || !sessionId) return null;
   const targets = makeTargets(sessionId);
-  const sessionsDb = config.couch.databases.sessions ?? DEFAULT_SESSIONS_DB;
   return {
     output: {},
     hookCompat: () => hookCompatLines(),
-    chunkHighWater: () => fetchChunkHighWater(config, sessionsDb, sessionId),
+    chunkHighWater: () => fetchChunkHighWater(config.webapi, sessionId),
+    probe: () => probeWebapi(config.webapi),
     event,
     sessionId,
     cwd: payload?.cwd ?? "",
@@ -703,12 +537,9 @@ export function buildContext(payload: any, config: HookConfig): HookContext | nu
     transcriptPath: payload?.transcript_path,
     payload,
     config,
-    couch: makeCouch(config, (ok, storeIndex) => targets.markWrite(ok, storeIndex)),
-    blob: makeBlob(config),
+    writer: makeWriter(config, (outcome, i) => targets.markWrite(outcome, i)),
     counts: makeCounts(sessionId),
     targets,
-    sessionsDb,
-    sessionsBucket: config.blob?.buckets.sessions,
     detachUpload: (sid, path) => spawnDetached(uploadArgv(sid, path)),
   };
 }
