@@ -29,6 +29,12 @@ Every mirror in the array gets every write. No re-registration is needed; sessio
 already running keep the config they started with. `install` and `setup` preserve
 `mirrors` when they regenerate the file; edit the key to change or remove it.
 
+A mirror is always *another* instance. An entry whose URL is the config's own
+`webapi.url` (compared ignoring case, a trailing slash and a default port) would
+receive every write twice, so the hook skips it, `setup` and `install` drop it, and
+`hook status` and `doctor` flag it. Configs written before v0.11 often have one, left
+from when the mirror was the hook's only webapi write.
+
 Check it:
 
 ```console

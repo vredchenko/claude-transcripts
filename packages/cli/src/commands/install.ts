@@ -310,8 +310,10 @@ export async function runInstall(argv: string[]): Promise<number> {
 
   // ── 6. Hook ───────────────────────────────────────────────────────────────
   step(6, TOTAL, "Claude Code hook");
-  writeHookConfig(paths.hookConfig, buildHookConfig(app, env));
+  const dropped = writeHookConfig(paths.hookConfig, buildHookConfig(app, env));
   console.log(`  wrote ${paths.hookConfig} (0600)`);
+  for (const url of dropped)
+    console.log(`  dropped mirror ${url} — it is the webapi itself (#306)`);
   if (noHook) {
     console.log("  --no-hook: skipped registration");
   } else {

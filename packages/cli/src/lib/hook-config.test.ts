@@ -90,6 +90,31 @@ describe("writeHookConfig", () => {
     expect(out.webapi).toEqual({ url: "https://ct.example" });
   });
 
+  test("drops a mirror equal to webapi.url, after normalising it (#306)", () => {
+    writeFileSync(
+      path,
+      JSON.stringify({
+        webapi: { url: "https://ct.example.net" },
+        mirrors: [{ url: "HTTPS://CT.example.net/" }, ...MIRRORS],
+      }),
+    );
+    const dropped = writeHookConfig(path, buildHookConfig(APP, {}));
+    expect(dropped).toEqual(["HTTPS://CT.example.net/"]);
+    expect(read().mirrors).toEqual(MIRRORS);
+  });
+
+  test("removes the mirrors key when the only mirror was the webapi itself", () => {
+    writeFileSync(
+      path,
+      JSON.stringify({ mirrors: [{ url: "https://ct.example.net" }], webapi: { url: "x" } }),
+    );
+    writeHookConfig(path, {
+      ...buildHookConfig(APP, {}),
+      webapi: { url: "https://ct.example.net" },
+    });
+    expect(read().mirrors).toBeUndefined();
+  });
+
   test("never writes a config with no webapi: the local default fills in", () => {
     writeHookConfig(path, buildHookConfig(APP, {}));
     expect(read().webapi).toEqual({ url: DEFAULT_WEBAPI_URL });

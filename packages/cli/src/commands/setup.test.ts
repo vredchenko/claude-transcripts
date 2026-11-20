@@ -8,10 +8,10 @@
  * second. These tests pin the wiring, not the detection.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { globalRegistrationBlockedBy } from "./setup";
+import { globalRegistrationBlockedBy, loadSetupConfig } from "./setup";
 
 /** A settings.json at a throwaway path, laid out as Claude Code would. */
 function settingsWith(contents: unknown): string {
@@ -99,6 +99,20 @@ describe("setup writes a webapi-only client config (#288)", () => {
     expect(r.out).not.toMatch(/couch db|garage bucket/i);
   }, 20_000);
 
+  test("drops a mirror that is the webapi itself, keeping the others (#306)", async () => {
+    const url = `http://localhost:${server.port}`;
+    const r = await setup(url, {
+      webapi: { url },
+      mirrors: [
+        { url: `${url.toUpperCase().replace("HTTP:", "http:")}/` },
+        { url: "https://b.example" },
+      ],
+    });
+    expect(r.code).toBe(0);
+    expect(r.config.mirrors).toEqual([{ url: "https://b.example" }]);
+    expect(r.out).toContain("dropped mirror");
+  }, 20_000);
+
   test("an unreachable webapi is written anyway, but setup says so and fails", async () => {
     const r = await setup("http://127.0.0.1:1");
     expect(r.code).toBe(1);
@@ -106,4 +120,22 @@ describe("setup writes a webapi-only client config (#288)", () => {
     expect(r.out).toContain("unreachable");
     expect(r.out).toContain("backfill");
   }, 20_000);
+});
+
+describe("loadSetupConfig (#306)", () => {
+  test("with no checkout (a release binary), falls back instead of reading the disk", () => {
+    // In a compiled binary the repo root resolves to `/`, which has no `config/`.
+    const root = mkdtempSync(join(tmpdir(), "ct-setup-nocheckout-"));
+    const app = loadSetupConfig(root);
+    expect(app.system.logging.chunk.maxEntriesPerChunk).toBeGreaterThan(0);
+    expect(app.features).toBeDefined();
+  });
+
+  test("prefers the checkout's live config over its template", () => {
+    const root = mkdtempSync(join(tmpdir(), "ct-setup-checkout-"));
+    mkdirSync(join(root, "config"));
+    writeFileSync(join(root, "config", "config.template.json"), JSON.stringify({ tag: "t" }));
+    writeFileSync(join(root, "config", "config.json"), JSON.stringify({ tag: "live" }));
+    expect((loadSetupConfig(root) as unknown as { tag: string }).tag).toBe("live");
+  });
 });

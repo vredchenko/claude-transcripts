@@ -9,7 +9,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type HookConfig, hookConfigProblem, loadHookConfig, normalizeHookConfig } from "./runtime";
+import {
+  type HookConfig,
+  hookConfigProblem,
+  loadHookConfig,
+  normalizeHookConfig,
+  redundantMirrorsIn,
+} from "./runtime";
 
 function writeConfig(body: unknown): string {
   const path = join(mkdtempSync(join(tmpdir(), "ct-cfg-")), "config.json");
@@ -93,5 +99,33 @@ describe("loadHookConfig", () => {
     const out = normalizeHookConfig(raw);
     expect(out.mirrors).toEqual([{ url: "https://m.example" }]);
     expect(out.features).toEqual({ midFlightChunking: true });
+  });
+});
+
+describe("a mirror that is the webapi itself (#306)", () => {
+  function configFile(body: unknown): string {
+    const path = join(mkdtempSync(join(tmpdir(), "ct-redundant-")), "config.json");
+    writeFileSync(path, JSON.stringify(body));
+    return path;
+  }
+  const body = {
+    webapi: { url: "https://ct.example.net" },
+    mirrors: [{ url: "https://ct.example.net:443/" }, { url: "https://other.example" }],
+  };
+
+  test("is skipped at load, so the hook never writes twice to one instance", () => {
+    const config = loadHookConfig(configFile(body));
+    expect(config?.mirrors).toEqual([{ url: "https://other.example" }]);
+  });
+
+  test("is still reported from the file as written", () => {
+    expect(redundantMirrorsIn(configFile(body))).toEqual(["https://ct.example.net:443/"]);
+  });
+
+  test("a different path on the same host is a different instance", () => {
+    const config = loadHookConfig(
+      configFile({ webapi: body.webapi, mirrors: [{ url: "https://ct.example.net/other" }] }),
+    );
+    expect(config?.mirrors).toHaveLength(1);
   });
 });

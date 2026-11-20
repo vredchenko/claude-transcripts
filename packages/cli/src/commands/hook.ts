@@ -24,6 +24,7 @@ import {
   makeTargets,
   makeWriter,
   redactUrl,
+  redundantMirrorsIn,
 } from "../hook/runtime";
 import { parseFlags, strOpt } from "../lib/args";
 import { installPaths } from "../lib/paths";
@@ -281,8 +282,16 @@ async function status(): Promise<number> {
   }
   // Mirroring is otherwise invisible: it is configured by hand, writes to somewhere
   // else, and fails silently by design (mirrors.md). Somewhere has to say it is on.
-  const mirrors = configuredMirrors(paths.hookConfig);
+  // A mirror equal to `webapi.url` is skipped at load (#306); it is still worth naming,
+  // since the file says something the hook does not do.
+  const redundant = new Set(redundantMirrorsIn(paths.hookConfig));
+  const mirrors = configuredMirrors(paths.hookConfig).filter((url) => !redundant.has(url));
   for (const url of mirrors) console.log(`hook: mirror     ${url}`);
+  for (const url of redundant) {
+    console.log(
+      `hook: mirror     ${url} — same as webapi.url, ignored. Remove it from \`mirrors\`.`,
+    );
+  }
   // Both routes registered is the failure worth shouting about: every event is written
   // twice and nothing else will ever say so.
   if (plugin && found.length) {

@@ -31,9 +31,24 @@ import {
   type IngestClient,
   makeIngestClient,
   probeWebapi,
+  redundantMirrors,
   type WebapiTarget,
   type WriteOutcome,
 } from "./ingest";
+
+/**
+ * Mirrors in the config at `path` whose URL is its own `webapi.url` (#306), read from
+ * the file as written — {@link loadHookConfig} already drops them, so this is what
+ * `hook status` and `doctor` use to say they are there and should be removed.
+ */
+export function redundantMirrorsIn(path: string): string[] {
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<HookConfig>;
+    return redundantMirrors(raw?.webapi, raw?.mirrors);
+  } catch {
+    return [];
+  }
+}
 
 export interface HookConfig {
   /**
@@ -76,8 +91,15 @@ const DEFAULT_CHUNK = { maxEntriesPerChunk: 200, flushIntervalMs: 15000 } as con
  */
 export function normalizeHookConfig(raw: HookConfig): HookConfig {
   const chunk = raw.system?.logging?.chunk;
+  // A mirror that is the instance itself would receive every write twice (#306).
+  // Dropped here so a hand-edited or pre-0.11 config can't double-write even before
+  // `setup` rewrites it; `hook status` and `doctor` say it is there.
+  const mirrors = Array.isArray(raw.mirrors)
+    ? raw.mirrors.filter((m) => redundantMirrors(raw.webapi, [m]).length === 0)
+    : raw.mirrors;
   return {
     ...raw,
+    ...(mirrors === undefined ? {} : { mirrors }),
     features: raw.features ?? {},
     system: {
       ...raw.system,
