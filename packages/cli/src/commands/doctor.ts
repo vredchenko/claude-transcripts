@@ -20,7 +20,7 @@ import { hostname } from "node:os";
 import { getSession, getSessionTranscript, resetSession, search } from "../api/generated";
 import { webapiUrl } from "../api/http";
 import { probeWebapi } from "../hook/ingest";
-import { hookConfigProblem, loadHookConfig, redactUrl } from "../hook/runtime";
+import { hookConfigProblem, loadHookConfig, redactUrl, redundantMirrorsIn } from "../hook/runtime";
 import { parseFlags, strOpt } from "../lib/args";
 import { installPaths } from "../lib/paths";
 import { buildChunkDocs, buildEventDocs, buildSummaryDoc } from "../lib/session-docs";
@@ -173,6 +173,14 @@ async function checkHookTarget(testing: string): Promise<boolean> {
         `${path} (or bring the webapi up), then recover the gap with \`claude-transcripts backfill\`.`,
     );
     return false;
+  }
+  // Harmless at run time (the hook skips it), but the config says otherwise, and a
+  // CLI older than the fix would write every event twice (#306).
+  for (const url of redundantMirrorsIn(path)) {
+    console.log(
+      `doctor: mirror ${redactUrl(url)} is the hook's own webapi — ignored; ` +
+        `remove it from \`mirrors\` in ${path} (or re-run \`claude-transcripts setup\`)`,
+    );
   }
   const same = redactUrl(testing).replace(/\/+$/, "") === target.replace(/\/+$/, "");
   console.log(

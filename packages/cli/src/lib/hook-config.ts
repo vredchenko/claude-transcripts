@@ -13,6 +13,7 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { AppConfigFile, EnvLike } from "@claude-transcripts/shared";
+import { redundantMirrors } from "../hook/ingest";
 
 /** Where a local instance's webapi listens by default (`.env.template`, installation.md). */
 export const DEFAULT_WEBAPI_URL = "http://127.0.0.1:7650";
@@ -89,12 +90,31 @@ export function mergePreserved(
   return merged;
 }
 
-export function writeHookConfig(path: string, config: unknown): void {
+/**
+ * Write the hook config, carrying {@link PRESERVED_KEYS} forward.
+ *
+ * Returns the mirror URLs it dropped for being the instance itself (#306): a pre-0.11
+ * client commonly had its own instance in both `mirrors` and `webapi`, harmless while
+ * the hook wrote the stores, a double write now that `webapi` is the write target.
+ */
+export function writeHookConfig(path: string, config: unknown): string[] {
   const merged = mergePreserved((config ?? {}) as Record<string, unknown>, readExisting(path));
   // A hook with no webapi records nothing, so never write one: a fresh machine whose env
   // names no webapi gets the local default rather than a config that silently can't.
   merged.webapi ??= { url: DEFAULT_WEBAPI_URL };
+  const webapi = merged.webapi as { url?: unknown };
+  let dropped: string[] = [];
+  if (Array.isArray(merged.mirrors)) {
+    const mirrors = merged.mirrors as { url?: unknown }[];
+    dropped = redundantMirrors(webapi, mirrors);
+    if (dropped.length) {
+      const kept = mirrors.filter((m) => redundantMirrors(webapi, [m]).length === 0);
+      if (kept.length) merged.mirrors = kept;
+      else delete merged.mirrors;
+    }
+  }
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`);
   chmodSync(path, 0o600);
+  return dropped;
 }

@@ -30,7 +30,8 @@ import { type AppConfigFile, hookLaunch } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { setWebapiUrl } from "../api/http";
 import { probeWebapi } from "../hook/ingest";
-import { hookConfigProblem, loadHookConfig, redactUrl } from "../hook/runtime";
+import { hookConfigProblem, loadHookConfig, redactUrl, redundantMirrorsIn } from "../hook/runtime";
+import { loadAppConfig } from "../lib/app-config";
 import { parseFlags, strOpt } from "../lib/args";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
 import { installPaths } from "../lib/paths";
@@ -46,10 +47,22 @@ const HOOK_CONFIG_PATH =
 const GLOBAL_SETTINGS = installPaths().claudeSettings;
 const PROJECT_SETTINGS = join(process.cwd(), ".claude", "settings.json");
 
-function loadRepoConfig(): AppConfigFile {
-  const live = join(REPO_ROOT, "config", "config.json");
-  const template = join(REPO_ROOT, "config", "config.template.json");
-  return JSON.parse(readFileSync(existsSync(live) ? live : template, "utf8")) as AppConfigFile;
+/** True when this runs from a source checkout, not a compiled binary. */
+const IN_CHECKOUT = existsSync(join(REPO_ROOT, "config", "config.template.json"));
+
+/**
+ * The app config the hook config is projected from: the checkout's `config/` when there
+ * is one, else whatever {@link loadAppConfig} finds — an installed instance's
+ * `app.json`, then the template embedded in the binary. A release binary has no
+ * checkout (`REPO_ROOT` resolves to `/`), and reading the template from disk there is
+ * what made `setup` crash on every client-only machine (#306).
+ */
+export function loadSetupConfig(root: string = REPO_ROOT): AppConfigFile {
+  for (const name of ["config.json", "config.template.json"]) {
+    const path = join(root, "config", name);
+    if (existsSync(path)) return JSON.parse(readFileSync(path, "utf8")) as AppConfigFile;
+  }
+  return loadAppConfig();
 }
 
 // ── Write target ─────────────────────────────────────────────────────────────
@@ -65,6 +78,11 @@ async function checkWebapi(): Promise<boolean> {
     return false;
   }
   const target = redactUrl(config.webapi.url);
+  for (const url of redundantMirrorsIn(HOOK_CONFIG_PATH)) {
+    console.log(
+      `  ! mirror ${redactUrl(url)} is the webapi itself — ignored; re-run setup to drop it`,
+    );
+  }
   const probe = await probeWebapi(config.webapi);
   if (probe.ok) {
     console.log(`  ✓ webapi ${target} takes writes`);
@@ -238,9 +256,9 @@ export async function runSetup(argv: string[]): Promise<number> {
   const explicit = strOpt(options, "webapi")?.replace(/\/+$/, "");
   if (explicit) setWebapiUrl(explicit);
 
-  console.log(`setup: repo ${REPO_ROOT}`);
+  if (IN_CHECKOUT) console.log(`setup: repo ${REPO_ROOT}`);
   const hookConfig = {
-    ...buildHookConfig(loadRepoConfig(), process.env),
+    ...buildHookConfig(loadSetupConfig(), process.env),
     ...(explicit ? { webapi: { url: explicit } } : {}),
   };
   reportExisting();
@@ -254,8 +272,11 @@ export async function runSetup(argv: string[]): Promise<number> {
   }
 
   // 1. runtime config — webapi only; a legacy store block is dropped with its credentials.
-  writeHookConfig(HOOK_CONFIG_PATH, hookConfig);
+  const dropped = writeHookConfig(HOOK_CONFIG_PATH, hookConfig);
   console.log(`  wrote hook config → ${HOOK_CONFIG_PATH} (mode 600)`);
+  for (const url of dropped) {
+    console.log(`  dropped mirror ${url} — it is the webapi itself, and would write twice`);
+  }
 
   // 2. the write target. Search is reported the same way: the indexes are the
   // webapi's (ADR 0016), so setup says where they stand rather than configuring them.

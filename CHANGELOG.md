@@ -8,6 +8,21 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`setup` works from a release binary** ([#306]). It read `config/config.template.json`
+  from disk, which only exists in a source checkout, so `setup` and `setup --check`
+  crashed on every binary install — including the v0.11.0 upgrade path. With no
+  checkout it now uses the installed instance's `app.json`, else the template embedded
+  in the binary.
+- **A mirror that is the instance itself no longer doubles every write** ([#306]).
+  Pre-0.11 client configs often listed their own instance under both `mirrors` and
+  `webapi`; since 0.11 made `webapi` the write target, that sent every event twice.
+  The hook now skips such a mirror (URLs compared case-insensitively, ignoring a
+  trailing slash and a default port), `setup` and `install` drop it when they rewrite
+  the config, and `hook status`, `doctor` and `setup --check` name it. If you edit the
+  config by hand, remove any `mirrors` entry equal to `webapi.url`.
+
 ## [0.11.0] — 2026-11-19
 
 The hook now records only through the webapi, the same gateway every other client
@@ -2190,6 +2205,7 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#306]: https://github.com/vredchenko/claude-transcripts/issues/306
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283

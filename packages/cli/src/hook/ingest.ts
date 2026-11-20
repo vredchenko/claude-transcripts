@@ -44,6 +44,37 @@ export interface WebapiTarget {
 /** Kept for configs and docs that say "mirror": a mirror is just another webapi. */
 export type MirrorTarget = WebapiTarget;
 
+/**
+ * A webapi URL reduced to what identifies the instance: scheme, host and port
+ * lowercased (by `URL`), default ports dropped, credentials ignored, trailing slashes
+ * stripped. A string that does not parse is compared trimmed and lowercased.
+ */
+export function webapiKey(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return url.trim().replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+/**
+ * The mirrors that are really the instance itself: same URL as `webapi`, once
+ * normalised. Such an entry was harmless before #288, when the hook wrote the stores
+ * and the mirror was its only webapi write; now the webapi is the write target, so it
+ * doubles every write into the same instance (#306).
+ */
+export function redundantMirrors(
+  webapi: { url?: unknown } | undefined,
+  mirrors: readonly { url?: unknown }[] | undefined,
+): string[] {
+  if (typeof webapi?.url !== "string" || !Array.isArray(mirrors)) return [];
+  const own = webapiKey(webapi.url);
+  return mirrors
+    .map((m) => m?.url)
+    .filter((u): u is string => typeof u === "string" && webapiKey(u) === own);
+}
+
 /** One write's outcome. `reason` is short enough for a statusline. */
 export type WriteOutcome = { ok: true } | { ok: false; reason: string };
 
