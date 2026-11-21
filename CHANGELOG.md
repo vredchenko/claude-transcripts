@@ -15,6 +15,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   crashed on every binary install — including the v0.11.0 upgrade path. With no
   checkout it now uses the installed instance's `app.json`, else the template embedded
   in the binary.
+- **`setup` registers the hook the way `hook install` does** ([#308]). It registered
+  the plugin's `bun run …/hooks/scripts/dispatch.ts` from the checkout, so on a release
+  binary it crashed looking for `hooks.json`, and would have registered a path that
+  doesn't exist. It now registers `claude-transcripts hook run`, the same command
+  `install` and `hook install` write, and `hook install` replaces an old `dispatch.ts`
+  registration instead of adding a second logger next to it.
 - **A mirror that is the instance itself no longer doubles every write** ([#306]).
   Pre-0.11 client configs often listed their own instance under both `mirrors` and
   `webapi`; since 0.11 made `webapi` the write target, that sent every event twice.
@@ -2207,6 +2213,7 @@ of them had ever executed:
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
 [#306]: https://github.com/vredchenko/claude-transcripts/issues/306
+[#308]: https://github.com/vredchenko/claude-transcripts/issues/308
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
 [#285]: https://github.com/vredchenko/claude-transcripts/pull/285
 [#283]: https://github.com/vredchenko/claude-transcripts/pull/283

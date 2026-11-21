@@ -11,6 +11,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isOurCommand } from "./hook";
 import { globalRegistrationBlockedBy, loadSetupConfig } from "./setup";
 
 /** A settings.json at a throwaway path, laid out as Claude Code would. */
@@ -138,4 +139,53 @@ describe("loadSetupConfig (#306)", () => {
     writeFileSync(join(root, "config", "config.json"), JSON.stringify({ tag: "live" }));
     expect((loadSetupConfig(root) as unknown as { tag: string }).tag).toBe("live");
   });
+});
+
+describe("setup registers the hook the way `hook install` does (#308)", () => {
+  const ENTRY = join(import.meta.dir, "..", "cli.tsx");
+  // What `setup` used to write: the plugin shim, from a checkout a binary doesn't have.
+  const LEGACY = 'cd / && bun run "/src/claude-transcripts/hooks/scripts/dispatch.ts"';
+
+  test("the legacy dispatch form counts as ours; other tools' hooks don't", () => {
+    expect(isOurCommand(LEGACY)).toBe(true);
+    expect(isOurCommand('bun run "/opt/other-tool/scripts/dispatch.ts"')).toBe(false);
+    // The plugin's own command, its root variable unexpanded as in hooks.json.
+    const plugin = ['cd / && bun run "$', '{CLAUDE_PLUGIN_ROOT}/scripts/dispatch.ts"'].join("");
+    expect(isOurCommand(plugin)).toBe(false);
+  });
+
+  test("registers `hook run`, replacing a legacy registration instead of adding to it", async () => {
+    const home = mkdtempSync(join(tmpdir(), "ct-setup-reg-"));
+    const settings = join(home, "claude", "settings.json");
+    mkdirSync(join(home, "claude"));
+    writeFileSync(
+      settings,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: LEGACY }] },
+            { hooks: [{ type: "command", command: "other-tool --start" }] },
+          ],
+        },
+      }),
+    );
+    const proc = Bun.spawn(["bun", "run", ENTRY, "setup", "--webapi", "http://127.0.0.1:1"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, CT_HOME: home, CT_HOOK_CONFIG: join(home, "c.json") },
+    });
+    await proc.exited;
+    const hooks = JSON.parse(readFileSync(settings, "utf8")).hooks as Record<
+      string,
+      { hooks: { command: string }[] }[]
+    >;
+    const commands = Object.values(hooks).flatMap((gs) =>
+      gs.flatMap((g) => g.hooks.map((h) => h.command)),
+    );
+    expect(commands).not.toContain(LEGACY);
+    expect(commands).toContain("other-tool --start");
+    const ours = commands.filter((c) => c.includes("hook run"));
+    expect(ours.length).toBe(Object.keys(hooks).length);
+    expect(new Set(ours).size).toBe(1);
+  }, 20_000);
 });

@@ -75,12 +75,15 @@ export function cliInvocation(): string {
  * Is this command one of ours?
  *
  * Matches every form the registration has taken — the installed binary
- * (`…/claude-transcripts hook run`) and a checkout running from source
- * (`bun run …/cli.tsx hook run`) — because `install` has to recognise, and replace, a
- * registration it didn't itself write.
+ * (`…/claude-transcripts hook run`), a checkout running from source
+ * (`bun run …/cli.tsx hook run`), and the plugin shim run from a checkout
+ * (`bun run "…/hooks/scripts/dispatch.ts"`, what `setup` registered before #308) —
+ * because `install` has to recognise, and replace, a registration it didn't itself write.
  */
-function isOurCommand(command: string | undefined): boolean {
-  if (!command?.includes("hook run")) return false;
+export function isOurCommand(command: string | undefined): boolean {
+  if (!command) return false;
+  if (/bun run "?[^"]*\/hooks\/scripts\/dispatch\.ts/.test(command)) return true;
+  if (!command.includes("hook run")) return false;
   return command.includes("claude-transcripts") || command.includes("cli.tsx");
 }
 
