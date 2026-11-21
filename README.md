@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="brand/logo.svg" alt="Claude Transcripts" width="360" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/logo-dark.svg" />
+    <img src="brand/logo-light.svg" alt="Claude Transcripts" width="360" />
+  </picture>
 </p>
 
 # Claude Transcripts
