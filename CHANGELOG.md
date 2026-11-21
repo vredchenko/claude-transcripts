@@ -32,8 +32,9 @@ URL (`claude-transcripts setup --webapi <url>`). Failures are loud instead of si
 the session-start banner and the statusline say when writes are not landing, and
 `claude-transcripts backfill` recovers the gap. The statusline also shows the session's
 link. **Upgrading:** a hook config that names CouchDB/S3 but no webapi stops recording
-until you re-run `claude-transcripts setup` (or `install`). The omnibus image now
-reports its real version.
+until you re-run `claude-transcripts setup` (or `install`). If you edit the config by
+hand instead, remove any `mirrors` entry equal to `webapi.url`: it now doubles every
+write ([#306]). The omnibus image now reports its real version.
 
 ### Breaking
 
