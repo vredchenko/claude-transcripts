@@ -8,6 +8,13 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-11-21
+
+Fixes the v0.11.0 upgrade path for machines running a release binary. `setup` now
+works without a source checkout, both writing the config and registering the hook, and
+a mirror that names the machine's own instance no longer doubles every write. No action
+is needed beyond what the 0.11.0 note asks: re-run `claude-transcripts setup`.
+
 ### Fixed
 
 - **`setup` works from a release binary** ([#306]). It read `config/config.template.json`
@@ -2224,6 +2231,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.11.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.1
 [0.11.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.0
 [0.10.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.2
 [0.10.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.1
