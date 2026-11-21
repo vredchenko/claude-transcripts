@@ -28,7 +28,7 @@ so the font builder can read them) and run `bun run gen:brand`.
 | `mark/mark-adaptive.svg` | Follows `prefers-color-scheme` by itself. For `<img>` on a page that does too. |
 | `mark/mark-light.svg`, `mark/mark-dark.svg` | Fixed colours for a known background (and for tools that ignore CSS). |
 | `mark/mark-favicon-*.svg` | The same five variants of the heavier cut. |
-| `logo.svg`, `logo-light.svg`, `logo-dark.svg` | Horizontal lockup, mark + wordmark. `logo.svg` adapts. README, site, docs. |
+| `logo.svg`, `logo-light.svg`, `logo-dark.svg` | Horizontal lockup, mark + wordmark. `logo.svg` follows the OS scheme; the README pairs the fixed two in a `<picture>`, because GitHub picks by its own theme, which an SVG cannot see. |
 | `png/mark-{light,dark}-{16…512}.png` | Transparent rasters. `light` = for light backgrounds. |
 | `png/icon-{192,512}.png`, `icon-512-dark.png` | Rounded opaque tiles: PWA icons, avatars. |
 | `png/icon-maskable-512.png` | Full-bleed, mark inside the maskable safe zone. |
