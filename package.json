@@ -23,6 +23,7 @@
     "gen:hooks": "bun run scripts/sync-hooks.ts",
     "gen:hook-events": "bun run scripts/gen-hook-events.ts",
     "gen:diagram": "bun run scripts/gen-diagram.ts",
+    "diagram:stack": "bun run scripts/stack-diagram.ts",
     "gen:assets": "bun run scripts/gen-assets.ts",
     "gen:mock": "bun run scripts/regenerate-mock-fixtures.ts",
     "gen:compose": "bun run scripts/gen-compose.ts",

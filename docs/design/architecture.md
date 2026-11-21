@@ -32,6 +32,23 @@ Scope is Claude Code only, not agent sessions in general
   the stack it brings up. `setup` touches no store: it writes a client config naming
   the webapi.
 
+## Where things run
+
+- **Client side, on each machine that runs Claude Code:** Claude Code, the plugin
+  (`hooks/`, a shim that pipes every hook event to `claude-transcripts hook run`, plus
+  skills and the statusline), the hook, and the CLI. Each of them reaches the
+  server only through the webapi; none opens a store.
+- **Server side:** the webapi, the webui it serves, and the stores (CouchDB, Garage,
+  Meilisearch, Fossil). They run as a Compose stack, a Kubernetes base or Helm chart, or
+  all in one omnibus container ([distributions.md](../reference/distributions.md)).
+  Any store can instead be one you already run
+  ([ADR 0020](decisions/0020-bundled-services-default-no-auth.md),
+  [ADR 0028](decisions/0028-external-vs-bundled-meilisearch.md)).
+- **GitHub:** CI runs on GitHub Actions. A release publishes the app and omnibus images
+  and the Helm chart to GHCR, and the CLI as self-contained binaries on GitHub Releases,
+  which `install.sh` fetches; the same binary ships inside the app and omnibus images.
+  The landing page and these docs deploy to GitHub Pages.
+
 ## Components
 
 | Component | Path | Role | Reference |
@@ -104,6 +121,10 @@ Three tiers, each a superset of the one below and none allowed to break it
 What is planned within each: [roadmap.md](roadmap.md).
 
 ## Stack
+
+![The same system by where it runs: on your machine Claude Code, its plugin, the hook and the CLI all reach the server only through the webapi; on the server the webapi serves the webui and fronts CouchDB, Garage, Meilisearch and Fossil; on GitHub, Actions runs CI and publishes images to GHCR, CLI binaries to Releases and the docs to Pages.](../assets/architecture-stack.png)
+
+[Open the diagram on its own](../assets/architecture-stack.html); it follows your light or dark theme.
 
 Bun + TypeScript (ESM, strict) throughout, in one workspace
 ([ADR 0004](decisions/0004-bun-monorepo-hook-as-standalone-plugin.md)). webapi: Hono,

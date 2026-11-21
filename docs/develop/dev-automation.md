@@ -27,6 +27,23 @@ Output must not depend on your local `config.json` or `.env`, or CI fails for a 
 it can't reproduce: `gen-diagram` reads `config.template.json` with an empty
 environment, and `gen-compose` emits `${VAR}` placeholders rather than resolved values.
 
+### The stack diagram
+
+[architecture.md](../design/architecture.md#stack) carries a second, hand-drawn diagram
+next to the generated one: the same system by technology, with brand logos. It is drawn
+from that doc's prose with the [stack-diagram](https://github.com/caru-ini/stack-diagram)
+agent skill (vendored in `.claude/skills/`, pinned in `skills-lock.json`), so it is not
+in `gen:all` and CI never redraws it.
+
+| Alias | Script | Does |
+|-------|--------|------|
+| `diagram:stack` | `stack-diagram.ts` | renders `scripts/stack-diagram/architecture.html` to `docs/assets/architecture-stack{.html,.png,-dark.png}` and stamps it with a hash of architecture.md |
+| `diagram:stack stamp` | | records that the drawing still matches the doc, without redrawing |
+| `diagram:stack check` | | says whether the doc changed since the stamp; lefthook runs it on commit and CI as a warning |
+
+Rendering needs Python 3.9+, network access to the logo sources, and a Chromium
+(`CHROMIUM_PATH` to use your own).
+
 ### API clients
 
 `gen:clients` emits the spec offline (`packages/webapi/src/write-openapi.ts` registers

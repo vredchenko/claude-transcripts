@@ -1,0 +1,21 @@
+{
+  "$comment": "Every %%ICON_<name>%% in architecture.html, by name. A value starting with ./ is a file in this repo (relative to the repo root); anything else is a stack-diagram fetch_icons.py spec (slug, svgl/devicon/logos, or lucide/<icon>).",
+  "actions": "githubactions",
+  "ghcr": "lucide/package",
+  "github": "github",
+  "docker": "docker",
+  "hono": "hono",
+  "react": "react",
+  "terminal": "lucide/terminal",
+  "webhook": "lucide/webhook",
+  "you": "lucide/user",
+  "claude": "./brand/icons/claude.svg",
+  "couchdb": "./brand/icons/couchdb.svg",
+  "garage": "./brand/icons/garage.svg",
+  "meilisearch": "./brand/icons/meilisearch.svg",
+  "fossil": "./brand/icons/fossil.svg",
+  "pages": "lucide/book-open",
+  "releases": "lucide/tag",
+  "plugin": "lucide/puzzle",
+  "laptop": "lucide/laptop"
+}
