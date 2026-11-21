@@ -447,6 +447,10 @@ export type IngestEventsBodyDocsItem = {
   timestamp: string;
   hostname: string;
   cwd: string;
+  from_model?: string;
+  to_model?: string;
+  new_cwd?: string;
+  directory?: string;
   [key: string]: unknown | null;
 };
 
