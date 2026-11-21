@@ -63,8 +63,15 @@ export const EventDocSchema = z
     timestamp: z.string(),
     hostname: z.string(),
     cwd: z.string(),
+    // Event-specific fields that session_index/aggregate uses as map keys: a non-string
+    // would be stored as a key like "[object Object]", or throw in the view and drop the
+    // doc's whole row. Everything else passes through unchecked.
+    from_model: z.string().optional(),
+    to_model: z.string().optional(),
+    new_cwd: z.string().optional(),
+    directory: z.string().optional(),
   })
-  .passthrough(); // event-specific marker fields
+  .passthrough();
 
 // A parsed transcript turn embedded in a full-content chunk (ADR 0027). Present
 // only when `couchFullContentChunks` is on; kept permissive as the shape evolves.

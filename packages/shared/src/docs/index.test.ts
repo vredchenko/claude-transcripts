@@ -138,4 +138,19 @@ describe("EventDocSchema", () => {
     expect(EventDocSchema.parse(doc)).toEqual(doc);
     expect(EventDocSchema.safeParse({ ...doc, session_id: 1 }).success).toBe(false);
   });
+
+  test("rejects a non-string in a field the session index keys on", () => {
+    const base = { type: "event", session_id: "s-1", timestamp: "t", hostname: "h", cwd: "/p" };
+    const ok = { ...base, event: "PostModelSwitch", from_model: "opus", to_model: "sonnet" };
+    expect(EventDocSchema.safeParse(ok).success).toBe(true);
+    const cases: [string, string][] = [
+      ["PostModelSwitch", "from_model"],
+      ["PostModelSwitch", "to_model"],
+      ["CwdChanged", "new_cwd"],
+      ["DirectoryAdded", "directory"],
+    ];
+    for (const [event, field] of cases) {
+      expect(EventDocSchema.safeParse({ ...base, event, [field]: { x: 1 } }).success).toBe(false);
+    }
+  });
 });

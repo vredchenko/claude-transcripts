@@ -174,4 +174,8 @@ describe("modelsLabel", () => {
     expect(modelsLabel({ model: "opus" })).toBe("opus");
     expect(modelsLabel({})).toBe("—");
   });
+  test("with no switch, shows the model as recorded, context suffix included", () => {
+    expect(modelsLabel({ model: "opus[1m]", models: ["opus"] })).toBe("opus[1m]");
+    expect(modelsLabel({ models: ["opus"] })).toBe("opus");
+  });
 });

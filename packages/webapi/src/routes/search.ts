@@ -44,13 +44,18 @@ const SESSION_HIGHLIGHT_ATTRS = ["cwd", "model", "models", "hostname", "endReaso
  * presence proves nothing — only a mark does. `tools` is an array, so its values are
  * checked individually rather than stringified.
  */
-function matchedAttributes(formatted: Record<string, unknown> | undefined): string[] {
+export function matchedAttributes(formatted: Record<string, unknown> | undefined): string[] {
   if (!formatted) return [];
   const marked = (value: unknown): boolean =>
     typeof value === "string"
       ? value.includes(HIGHLIGHT_PRE)
       : Array.isArray(value) && value.some(marked);
-  return SESSION_HIGHLIGHT_ATTRS.filter((attr) => marked(formatted[attr]));
+  // `models` holds every model the session used, `model` the first, so a query for the
+  // first marks both. They are one field to a reader: report it once, as `model`.
+  const hits = SESSION_HIGHLIGHT_ATTRS.filter((attr) => marked(formatted[attr])).map((attr) =>
+    attr === "models" ? "model" : attr,
+  );
+  return [...new Set(hits)];
 }
 
 const SearchHitSchema = z
