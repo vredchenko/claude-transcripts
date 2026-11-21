@@ -8,6 +8,11 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#1d2021" />
+    <!-- Home-screen web app on iOS: its own short name, and an opaque status bar over
+         the dark header (not black-translucent, which would need safe-area padding). -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Transcripts" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="description" content="Self-hosted history for your Claude Code sessions." />
     <title>Claude Transcripts</title>
   </head>
