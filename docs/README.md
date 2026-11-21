@@ -19,6 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/
 | change ports, stores, feature flags | [Configuration](start/configuration.md) |
 | wire the hook by hand | [Hook setup](start/hook-setup.md) |
 | use the CLI | [CLI reference](reference/cli.md) |
+| open it from your phone, install it as an app | [HTTPS and installing the web UI](operate/https.md) |
 | back up, restore, mirror | [Migrations, export and import](operate/migrations.md), [Mirrors](operate/mirrors.md) |
 | work on the code | [Getting started (development)](develop/getting-started.md) |
 | understand how it fits together | [Architecture](design/architecture.md), [ADRs](design/decisions/README.md) |
