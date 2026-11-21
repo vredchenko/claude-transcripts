@@ -371,7 +371,7 @@ export type TopologyNodeRole =
   | "index" // Meilisearch — derived, rebuildable
   | "admin-ui"; // Fauxton / garage-ui / meilisearch-ui (expanded only)
 
-/** A vendored mark under `brand/icons/`, or `mark` for our own `brand/logo-mark.svg`. */
+/** A vendored mark under `brand/icons/`, or `mark` for our own (`brand/mark/`). */
 export type IconKey = "claude" | "mark" | "couchdb" | "garage" | "meilisearch" | "fossil";
 
 /**

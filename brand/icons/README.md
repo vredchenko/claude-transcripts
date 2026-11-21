@@ -25,7 +25,7 @@ rather than a silently broken picture.
 | `meilisearch.svg` | [Meilisearch](https://www.meilisearch.com) brand mark, Simple Icons house style. As published. |
 | `fossil.svg` | [Fossil SCM](https://fossil-scm.org) mark from [Simple Icons](https://simpleicons.org) (`fossilscm`, CC0). Fossil publishes its logo only as a GIF. **One edit**: Simple Icons' brand colour `#548294` set as `fill`, matching `meilisearch.svg`. |
 
-Our own mark (`../logo-mark.svg`) stands in for the webapi and is referenced in
+Our own mark (`../mark/mark-colour.svg`) stands in for the webapi and is referenced in
 place, not copied.
 
 **Policy:** upstream brand marks are used as the projects publish them. If one is

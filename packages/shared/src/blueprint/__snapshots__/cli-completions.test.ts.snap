@@ -46,7 +46,7 @@ _claude_transcripts_flags() {
     doctor) printf '%s' "--keep --webapi --help --version" ;;
     compat) printf '%s' "--cc-version --webapi --help --version" ;;
     hook) printf '%s' "--dry-run --force --session --transcript --webapi --help --version" ;;
-    statusline) printf '%s' "--dry-run --webapi --help --version" ;;
+    statusline) printf '%s' "--dry-run --glyph --webapi --help --version" ;;
     completions) printf '%s' "--webapi --help --version" ;;
   esac
 }
@@ -153,7 +153,7 @@ _claude_transcripts_flags() {
     (doctor) reply=('--keep:leave the synthetic session behind for inspection' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (compat) reply=('--cc-version:the Claude Code version to check (default: the installed one)' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (hook) reply=('--dry-run:with \`install\`: show the change without writing' '--force:with \`install\`: register even if the plugin already does' '--session:with \`upload\`: the session id' '--transcript:with \`upload\`: the transcript file to ship' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
-    (statusline) reply=('--dry-run:with \`install\`: show the change without writing' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
+    (statusline) reply=('--dry-run:with \`install\`: show the change without writing' '--glyph:lead with the project mark (U+E010) — needs brand/font/claude-transcripts-glyph.ttf installed' '--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
     (completions) reply=('--webapi:webapi base URL (default: $CT_WEBAPI_URL)' '--help:show help for a command (alias: -h)' '--version:print the CLI version (alias: -V)') ;;
   esac
 }
@@ -439,6 +439,7 @@ complete -c claude-transcripts -n '_claude_transcripts_in hook' -l version -d 'p
 
 complete -c claude-transcripts -n '_claude_transcripts_at_positional statusline 1' -a 'render install uninstall status'
 complete -c claude-transcripts -n '_claude_transcripts_in statusline' -l dry-run -d 'with \`install\`: show the change without writing'
+complete -c claude-transcripts -n '_claude_transcripts_in statusline' -l glyph -d 'lead with the project mark (U+E010) — needs brand/font/claude-transcripts-glyph.ttf installed'
 complete -c claude-transcripts -n '_claude_transcripts_in statusline' -l webapi -x -d 'webapi base URL (default: $CT_WEBAPI_URL)'
 complete -c claude-transcripts -n '_claude_transcripts_in statusline' -l help -d 'show help for a command (alias: -h)'
 complete -c claude-transcripts -n '_claude_transcripts_in statusline' -l version -d 'print the CLI version (alias: -V)'

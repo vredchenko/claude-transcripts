@@ -406,9 +406,11 @@ The Claude Code statusline indicator (recording / off), and its registration
 | Option | |
 |---|---|
 | `--dry-run` | with `install`: show the change without writing |
+| `--glyph` | lead with the project mark (U+E010) — needs brand/font/claude-transcripts-glyph.ttf installed |
 
 ```bash
 claude-transcripts statusline install
+claude-transcripts statusline install --glyph
 claude-transcripts statusline status
 ```
 

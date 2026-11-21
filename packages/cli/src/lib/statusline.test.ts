@@ -8,6 +8,7 @@ import type { StoreHealth, Targets } from "../hook/runtime";
 import {
   HOOK_SILENT_AFTER_MS,
   hookSilent,
+  MARK_GLYPH,
   RECOVER_HINT,
   renderStatusline,
   shortWhere,
@@ -317,6 +318,17 @@ describe("renderStatusline, drawing", () => {
     const line = renderStatusline(rec, NOW, { color: true });
     expect(line).toContain("\x1b[32m●");
     expect(visible(line)).toBe(plain);
+  });
+
+  test("the glyph leads the line only when asked, and is counted against the width", () => {
+    expect(plain).not.toContain(MARK_GLYPH);
+    const line = renderStatusline(rec, NOW, { glyph: true });
+    expect(line).toBe(`${MARK_GLYPH}  ${plain}`);
+    // The same width that fits the plain line must now drop detail to make room.
+    const fits = [...plain].length;
+    const narrowed = renderStatusline(rec, NOW, { glyph: true, columns: fits });
+    expect([...narrowed].length).toBeLessThanOrEqual(fits);
+    expect(narrowed.startsWith(MARK_GLYPH)).toBe(true);
   });
 
   test("each state gets its own colour", () => {

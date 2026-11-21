@@ -1,7 +1,9 @@
 import { AppBar, Box, Toolbar, Typography } from "@mui/material";
 import { Link } from "@tanstack/react-router";
+// The app is dark-only (theme.ts), so the fixed dark variant, not the adaptive one —
+// that would follow the OS scheme and draw dark ink on a dark header.
+import logoMark from "../../../../brand/mark/mark-dark.svg";
 import { useAppBlueprint } from "../api/blueprint";
-import logoMark from "../assets/logo-mark.svg";
 import { displayVersion } from "../format";
 import { MONO } from "../theme";
 import { DataFreshness } from "./DataFreshness";

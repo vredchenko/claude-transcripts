@@ -275,10 +275,22 @@ export interface FormatOptions {
   link?: string | null;
   /** Fit the line into this many columns by dropping detail, least useful first. */
   columns?: number;
+  /**
+   * Lead with the project mark, {@link MARK_GLYPH}. Opt-in: it is a Private Use Area
+   * codepoint, so it draws only where `brand/font/claude-transcripts-glyph.ttf` is
+   * installed — anywhere else it is a tofu box.
+   */
+  glyph?: boolean;
 }
+
+/** The mark in `brand/font/claude-transcripts-glyph.ttf` (`scripts/gen-brand.ts`). */
+export const MARK_GLYPH = "\uE010";
 
 const SGR = {
   reset: "\x1b[0m",
+  // Plain ANSI red rather than the brand hex: the terminal's theme picks the shade, so
+  // the mark stays legible on a light or a dark background alike.
+  red: "\x1b[31m",
   dim: "\x1b[2m",
   green: "\x1b[32m",
   yellow: "\x1b[33m",
@@ -350,7 +362,7 @@ export function formatStatusline(line: StatuslineLine, opts: FormatOptions = {})
   if (opts.columns && opts.columns > 0) {
     for (const shrink of SHRINK) {
       // Measured on the plain drawing: escapes take no columns.
-      if ([...draw(l, {})].length <= opts.columns) break;
+      if ([...draw(l, { glyph: opts.glyph })].length <= opts.columns) break;
       l = shrink(l);
     }
   }
@@ -363,6 +375,9 @@ function draw(l: StatuslineLine, opts: FormatOptions): string {
 
   const color = STATE_COLOR[l.state];
   const head = [
+    // A trailing space: the mark is square, so a terminal that draws it at its natural
+    // width spills it into the next cell; the extra column keeps it off the dot.
+    ...(opts.glyph ? [`${paint(SGR.red, MARK_GLYPH)} `] : []),
     paint(color, `${GLYPH[l.state]}`),
     l.version,
     paint(color, l.state),

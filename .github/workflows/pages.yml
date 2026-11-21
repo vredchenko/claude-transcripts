@@ -6,12 +6,12 @@ on:
   push:
     branches: [main]
     # Every input the deployed site is built from — keep in sync with the assemble
-    # step below (site/ is copied verbatim; docs/ + brand/logo-mark.svg feed the
+    # step below (site/ is copied verbatim; docs/ + brand/ feed the
     # docs renderer). A change outside these paths does not affect the output.
     paths:
       - "site/**"
       - "docs/**"
-      - "brand/**" # build-docs.ts embeds brand/logo-mark.svg as the docs favicon
+      - "brand/**" # build-docs.ts takes the docs header mark + favicons from brand/
       - "scripts/build-docs.ts"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
