@@ -17,16 +17,16 @@
  *     databases, bucket and indexes is the webapi's and `install`/`provision`'s job.
  *  3. Register the hook with Claude Code. Scope is flexible: we inspect BOTH the
  *     project (`.claude/settings.json`) and global (~/.claude/settings.json) config
- *     to see what's already wired, then act. Only global is implemented today;
- *     per-repo is stubbed (registerProject).
+ *     to see what's already wired, then act. Global registration is `hook install`'s
+ *     (the same command `install` registers); per-repo is stubbed (registerProject).
  *
  * A client machine needs nothing but the instance's webapi URL. In a source checkout, use `--no-hook` so a dev run never registers a second
  * logger alongside the one already recording.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { type AppConfigFile, hookLaunch } from "@claude-transcripts/shared";
+import { join } from "node:path";
+import type { AppConfigFile } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { setWebapiUrl } from "../api/http";
 import { probeWebapi } from "../hook/ingest";
@@ -36,9 +36,9 @@ import { parseFlags, strOpt } from "../lib/args";
 import { buildHookConfig, writeHookConfig } from "../lib/hook-config";
 import { installPaths } from "../lib/paths";
 import { type PluginRegistration, pluginRegistration } from "../lib/plugin";
+import { isOurCommand, runHook } from "./hook";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..");
-const HOOK_DIR = join(REPO_ROOT, "hooks");
 const HOOK_CONFIG_PATH =
   process.env.CT_HOOK_CONFIG ?? join(homedir(), ".config", "claude-transcripts", "config.json");
 // Via installPaths, not homedir(), so `CT_HOME` relocates it. `plugin.ts` derives the
@@ -128,70 +128,11 @@ export function globalRegistrationBlockedBy(
   return pluginRegistration(settingsPath, readSettings(settingsPath));
 }
 
-/** The dispatch shim's absolute path — settings.json can't use ${CLAUDE_PLUGIN_ROOT}. */
-const DISPATCH_PATH = join(HOOK_DIR, "scripts", "dispatch.ts");
-
-/** Our dispatch command, started from `/` so a deleted session cwd can't stop it (#171). */
-function dispatchCommand(): string {
-  return hookLaunch(`bun run "${DISPATCH_PATH}"`);
-}
-
-/** Is our hook already registered in the given settings file? */
+/** Is our hook already registered in the given settings file, in any of its forms? */
 function isRegistered(path: string): boolean {
-  const cmd = dispatchCommand();
   const hooks = readSettings(path).hooks ?? {};
   return Object.values(hooks).some((groups) =>
-    groups.some((g) => g.hooks.some((h) => h.command === cmd)),
-  );
-}
-
-/**
- * Register the hook globally (~/.claude/settings.json). Reads the generated
- * registration (hooks/hooks/hooks.json) for the event set + per-event timeouts,
- * substitutes the absolute dispatch path, and MERGES (appends our group per event
- * — never clobbers other tools' hooks).
- */
-function registerGlobal(dryRun: boolean): void {
-  const cmd = dispatchCommand();
-  const generated = JSON.parse(readFileSync(join(HOOK_DIR, "hooks", "hooks.json"), "utf8")) as {
-    hooks: Record<
-      string,
-      Array<{ hooks: Array<{ type: string; command: string; timeout?: number }> }>
-    >;
-  };
-  const settings = readSettings(GLOBAL_SETTINGS);
-  const hooks: SettingsHooks = settings.hooks ?? {};
-
-  for (const [event, groups] of Object.entries(generated.hooks)) {
-    const timeout = groups[0]?.hooks[0]?.timeout;
-    const ours = { hooks: [{ type: "command", command: cmd, ...(timeout ? { timeout } : {}) }] };
-    // Drop any older spelling of this same command (before the `cd /` prefix), so
-    // re-running setup upgrades a registration instead of adding a second writer.
-    const existing = (hooks[event] ?? [])
-      .map((g) => ({
-        ...g,
-        hooks: g.hooks.filter((h) => {
-          const c = (h as { command?: string }).command;
-          return c === cmd || !c?.includes(DISPATCH_PATH);
-        }),
-      }))
-      .filter((g) => g.hooks.length > 0);
-    const present = existing.some((g) =>
-      g.hooks.some((h) => (h as { command?: string }).command === cmd),
-    );
-    hooks[event] = present ? existing : [...existing, ours];
-  }
-
-  if (dryRun) {
-    console.log(
-      `  [check] would register ${Object.keys(generated.hooks).length} events in ${GLOBAL_SETTINGS}`,
-    );
-    return;
-  }
-  mkdirSync(dirname(GLOBAL_SETTINGS), { recursive: true });
-  writeFileSync(GLOBAL_SETTINGS, `${JSON.stringify({ ...settings, hooks }, null, 2)}\n`);
-  console.log(
-    `  registered ${Object.keys(generated.hooks).length} events (system-wide) in ${GLOBAL_SETTINGS}`,
+    groups.some((g) => g.hooks?.some((h) => isOurCommand(h.command))),
   );
 }
 
@@ -308,7 +249,11 @@ export async function runSetup(argv: string[]): Promise<number> {
       console.log("  keep the plugin        → nothing to do (`hook status` explains it)");
       console.log("  use this binary instead → disable the plugin, then re-run setup");
     } else {
-      registerGlobal(false);
+      // The same registration `hook install` and `install` write: this binary (or the
+      // checkout's cli.tsx) running `hook run`. `setup` used to register the plugin's
+      // dispatch shim from the checkout instead, which a release binary doesn't have
+      // (#308); `hook install` replaces that older form in place.
+      if ((await runHook(["install"])) !== 0) return 1;
     }
   }
 
