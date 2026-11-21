@@ -36,7 +36,8 @@ and `recall` come from [`config/`](configuration.md):
 - Add `mirrors` to also write every session to more instances
   ([mirrors.md](../operate/mirrors.md)).
 - A rewrite by `setup` or `install` keeps `mirrors` and `webapi`; everything else is
-  regenerated. A `couch` or `blob` block left by an older release is dropped, along with
+  regenerated. A mirror whose URL is `webapi.url` itself is dropped, since it would
+  receive every write twice. A `couch` or `blob` block left by an older release is dropped, along with
   its credentials.
 - No config, or one without `webapi.url`, means the hook records nothing, and the
   session-start banner and statusline say so.
