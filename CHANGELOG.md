@@ -8,6 +8,19 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A new logo** ([#310], [#311]): a live pulse over a prompt and a cursor, replacing
+  the three-line card in the web UI, the docs, the site, the README and the
+  architecture diagram. `brand/source/` holds the masters; `bun run gen:brand` derives
+  every other format from them (SVG variants, PNGs, `favicon.ico`, app icons, a glyph
+  font).
+- **The web UI installs as an app** ([#311]), on a desktop browser or a phone's home
+  screen. Browsers offer that only over HTTPS: see
+  [HTTPS and installing the web UI](docs/operate/https.md).
+- **`statusline install --glyph`** ([#311]) leads the statusline with the logo, for
+  terminals that have `brand/font/claude-transcripts-glyph.ttf` installed.
+
 ## [0.11.1] — 2026-11-21
 
 Fixes the v0.11.0 upgrade path for machines running a release binary. `setup` now
@@ -2219,6 +2232,8 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#311]: https://github.com/vredchenko/claude-transcripts/pull/311
+[#310]: https://github.com/vredchenko/claude-transcripts/issues/310
 [#306]: https://github.com/vredchenko/claude-transcripts/issues/306
 [#308]: https://github.com/vredchenko/claude-transcripts/issues/308
 [#286]: https://github.com/vredchenko/claude-transcripts/pull/286
