@@ -13,7 +13,7 @@ import couchdb from "../../../../../brand/icons/couchdb.svg";
 import fossil from "../../../../../brand/icons/fossil.svg";
 import garage from "../../../../../brand/icons/garage.svg";
 import meilisearch from "../../../../../brand/icons/meilisearch.svg";
-import mark from "../../assets/logo-mark.svg";
+import mark from "../../../../../brand/mark/mark-dark.svg";
 
 const SRC: Record<IconKey, string> = { claude, couchdb, fossil, garage, meilisearch, mark };
 

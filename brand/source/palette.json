@@ -1,0 +1,5 @@
+{
+  "$comment": "Brand colours. Source of truth for scripts/gen-brand.ts; brand/README.md documents them.",
+  "light": { "ink": "#1a1817", "accent": "#c8371e", "paper": "#f4f1ec" },
+  "dark": { "ink": "#ece7df", "accent": "#ff6b4a", "paper": "#16130f" }
+}

@@ -392,8 +392,13 @@ export const CLI_SPEC: CliSpec = {
             "`render` reads Claude Code's statusline JSON from stdin and prints one line (no network)",
         },
         { name: "--dry-run", description: "with `install`: show the change without writing" },
+        {
+          name: "--glyph",
+          description:
+            "lead with the project mark (U+E010) — needs brand/font/claude-transcripts-glyph.ttf installed",
+        },
       ],
-      examples: ["statusline install", "statusline status"],
+      examples: ["statusline install", "statusline install --glyph", "statusline status"],
     },
     {
       name: "completions",

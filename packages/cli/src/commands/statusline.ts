@@ -4,6 +4,7 @@
  *
  *   claude-transcripts statusline render      # Claude Code calls this on every refresh
  *   claude-transcripts statusline install     # set `statusLine` in ~/.claude/settings.json
+ *   claude-transcripts statusline install --glyph   # …leading with the project mark
  *   claude-transcripts statusline uninstall   # remove it (only if it is ours)
  *   claude-transcripts statusline status      # what's registered
  *
@@ -46,9 +47,13 @@ function readSettings(path: string): Settings {
   }
 }
 
-/** Started from `/`, like the hook: a deleted session cwd must not blank the statusline (#171). */
-export function statuslineCommand(): string {
-  return hookLaunch(`${cliInvocation()} statusline render`);
+/**
+ * Started from `/`, like the hook: a deleted session cwd must not blank the statusline (#171).
+ * `glyph` bakes `--glyph` into the registered command: the choice lives in the one
+ * setting Claude Code already reads, not in a config file `render` would have to open.
+ */
+export function statuslineCommand(opts: { glyph?: boolean } = {}): string {
+  return hookLaunch(`${cliInvocation()} statusline render${opts.glyph ? " --glyph" : ""}`);
 }
 
 /** Ours in any form — the installed binary, a checkout, or the plugin's `bin/` wrapper. */
@@ -57,7 +62,9 @@ export function isOurStatusline(s: StatusLineSetting | undefined): boolean {
   return c.includes("claude-transcripts-statusline") || c.includes("statusline render");
 }
 
-async function render(): Promise<number> {
+async function render(argv: string[]): Promise<number> {
+  // Never let a flag problem blank the line: anything unparseable just means no glyph.
+  const glyph = argv.includes("--glyph");
   try {
     let input: StatuslineInput = {};
     try {
@@ -82,6 +89,7 @@ async function render(): Promise<number> {
         link: targets && id ? sessionLink(targets.webapiUrl, id) : null,
         // Claude Code sets COLUMNS for the statusline command; there is no tty to ask.
         columns: Number(process.env.COLUMNS) || undefined,
+        glyph,
       },
     );
     process.stdout.write(`${line}\n`);
@@ -97,7 +105,7 @@ function install(argv: string[]): number {
   const { options } = parseFlags(argv);
   const paths = installPaths();
   const settings = readSettings(paths.claudeSettings);
-  const command = statuslineCommand();
+  const command = statuslineCommand({ glyph: options.glyph === true });
   const next: StatusLineSetting = { type: "command", command };
 
   const existing = settings.statusLine;
@@ -148,9 +156,9 @@ function uninstall(): number {
 function status(): number {
   const paths = installPaths();
   const settings = readSettings(paths.claudeSettings);
-  console.log(`statusline: settings   ${paths.claudeSettings}`);
-  console.log(`statusline: command    ${statuslineCommand()}`);
   const s = settings.statusLine;
+  console.log(`statusline: settings   ${paths.claudeSettings}`);
+  console.log(`statusline: command    ${s?.command ?? statuslineCommand()}`);
   if (!s) {
     console.log("statusline: not registered (run `statusline install`).");
     return 1;
@@ -167,7 +175,7 @@ export async function runStatusline(argv: string[]): Promise<number> {
   const [sub = "status", ...rest] = argv;
   switch (sub) {
     case "render":
-      return render();
+      return render(rest);
     case "install":
       return install(rest);
     case "uninstall":

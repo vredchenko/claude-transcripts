@@ -266,7 +266,14 @@ function drawNode(node: Placed, icons: Map<string, Icon>, i: number): string {
     const icon = icons.get(node.icon);
     if (icon) {
       const slot: Box = { x: left, y: cy(box) - ICON / 2, w: ICON, h: ICON };
-      parts.push(placeIcon(icon, slot, `ct-i${i}-`, node.icon === "claude" ? v("ink") : undefined));
+      parts.push(
+        placeIcon(
+          icon,
+          slot,
+          `ct-i${i}-`,
+          node.icon === "claude" || node.icon === "mark" ? v("ink") : undefined,
+        ),
+      );
     }
   }
 
@@ -500,7 +507,7 @@ const diagram = toArchitectureDiagram(model, { level: "compact" });
 
 /** IconKey → file. `mark` is our own logo, referenced in place rather than copied. */
 const ICON_FILES: Record<string, string> = {
-  mark: join(ROOT, "brand", "logo-mark.svg"),
+  mark: join(ROOT, "brand", "mark", "mark-colour.svg"),
   claude: join(ROOT, "brand", "icons", "claude.svg"),
   couchdb: join(ROOT, "brand", "icons", "couchdb.svg"),
   garage: join(ROOT, "brand", "icons", "garage.svg"),
