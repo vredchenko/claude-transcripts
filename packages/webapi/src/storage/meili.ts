@@ -5,7 +5,12 @@
  * by `features.meilisearch` + `MEILI_HOST`; in the bundled dev stack Meili runs with
  * no master key, so `apiKey` is optional.
  */
-import { HIGHLIGHT_POST, HIGHLIGHT_PRE } from "@claude-transcripts/shared";
+import {
+  baseModelId,
+  HIGHLIGHT_POST,
+  HIGHLIGHT_PRE,
+  sessionValuesInOrder,
+} from "@claude-transcripts/shared";
 
 export interface MeiliConfig {
   host: string;
@@ -323,10 +328,21 @@ export const SESSIONS_INDEX_KEY = "sessions";
 /** Index settings for the sessions index. */
 export const SESSIONS_INDEX_SETTINGS: IndexSettings = {
   primaryKey: "id",
-  searchableAttributes: ["cwd", "model", "hostname", "endReason", "tools", "sessionId"],
-  filterableAttributes: ["cwd", "model", "hostname", "endReason", "source"],
+  searchableAttributes: ["cwd", "model", "models", "hostname", "endReason", "tools", "sessionId"],
+  // `models` is every model the session used; `model` stays for documents indexed
+  // before it existed, so a filter on either finds them without a reindex (#296).
+  filterableAttributes: ["cwd", "model", "models", "hostname", "endReason", "source"],
   sortableAttributes: ["timestamp"],
 };
+
+/** Every model a session used; a doc from before `models` existed has only its `model`. */
+function usedModels(models: unknown, model: unknown): string[] {
+  const listed = Array.isArray(models) && models.length ? models : [model];
+  // Without the context suffix (`[1m]`), and without placeholders like `<synthetic>`
+  // that older backfills stored as a model.
+  const real = listed.filter((m): m is string => typeof m === "string" && !!m && m[0] !== "<");
+  return [...new Set(real.map(baseModelId))];
+}
 
 /** Project a stored `summary:` doc into a Meilisearch session document. */
 export function toSessionSearchDoc(doc: any): Record<string, unknown> {
@@ -336,6 +352,7 @@ export function toSessionSearchDoc(doc: any): Record<string, unknown> {
     timestamp: doc.timestamp,
     cwd: doc.cwd ?? "",
     model: doc.model ?? "",
+    models: usedModels(doc.models, doc.model),
     hostname: doc.hostname ?? "",
     endReason: doc.end_reason ?? "",
     source: doc.source ?? "live",
@@ -406,6 +423,7 @@ export function toRunningSessionSearchDoc(sessionId: string, agg: any): Record<s
     timestamp: agg?.last || agg?.first || "",
     cwd: agg?.cwd ?? "",
     model: agg?.model ?? "",
+    models: usedModels(sessionValuesInOrder(agg?.models), agg?.model),
     hostname: agg?.hostname ?? "",
     endReason: "",
     source: "live",

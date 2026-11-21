@@ -13,8 +13,8 @@ import { readFileSync, statSync } from "node:fs";
 import {
   buildChunkEntries,
   chunkDocId,
+  scanTranscript,
   sliceIntoChunks,
-  sumTranscriptTokens,
 } from "@claude-transcripts/shared";
 import { recordingBanner, unreachableBanner } from "./announce";
 import type { IngestClient } from "./ingest";
@@ -153,6 +153,21 @@ const writeEventMarker: Handler = async (ctx) => {
     case "PostCompact":
       doc.trigger = p.trigger;
       break;
+    case "PostModelSwitch":
+      doc.from_model = p.from_model;
+      doc.to_model = p.to_model;
+      doc.requested_model = p.requested_model;
+      doc.source = p.source;
+      doc.estimated_cache_write_usd = p.estimated_cache_write_usd;
+      break;
+    case "CwdChanged":
+      doc.old_cwd = p.old_cwd;
+      doc.new_cwd = p.new_cwd;
+      break;
+    case "DirectoryAdded":
+      doc.directory = p.directory;
+      doc.source = p.source;
+      break;
   }
   await ctx.writer.event(doc);
 };
@@ -245,6 +260,8 @@ const writeSummary: Handler = async (ctx) => {
     }
   }
 
+  // One pass for tokens and models: SessionEnd runs on a tight exit budget (#217).
+  const scan = scanTranscript(jsonl);
   const doc = {
     type: "summary",
     ...commonFields(ctx),
@@ -254,7 +271,8 @@ const writeSummary: Handler = async (ctx) => {
     error_count: counts.errors,
     tool_counts: counts.tools,
     transcript_bytes: transcriptBytes,
-    token_usage: sumTranscriptTokens(jsonl),
+    token_usage: scan.tokenUsage,
+    ...(scan.models.length ? { models: scan.models } : {}),
     system_checks: {},
     source: "live",
   };

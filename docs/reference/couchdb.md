@@ -65,6 +65,9 @@ S3):
 | `StopFailure` | `error_type`, `error_preview` |
 | `SubagentStart` / `SubagentStop` | `agent_id`, `agent_type` |
 | `PreCompact` / `PostCompact` | `trigger` (`manual`/`auto`) |
+| `PostModelSwitch` | `from_model`, `to_model`, `requested_model`, `source` (`auto`/`command`/`picker`/`resume`/`sdk`), `estimated_cache_write_usd` |
+| `CwdChanged` | `old_cwd`, `new_cwd` |
+| `DirectoryAdded` | `directory`, `source` (`slash_command`/`register_repo_root`) |
 
 ### `summary`
 
@@ -85,6 +88,7 @@ Written once per session. A session is `ended` exactly when this doc exists.
   "system_checks": {},            // hook-written docs; reserved, currently empty
   "source": "live | backfill | doctor | reconcile",
   "model": "…",                   // backfill/doctor/reconcile docs
+  "models": ["…", "…"],           // every main-chain model, in order of first use
   "backfilled_at": "…",           // backfill only; the session's own time stays in `timestamp`
   "reconciled_at": "…",           // reconcile only; `timestamp` is the session's last activity
   "actor": "…"                    // optional, from `backfill --actor`
@@ -124,7 +128,7 @@ write time; repeated streaming entries are a read-time concern.
 {
   "_id": "schema_version",
   "type": "schema_version",
-  "version": 10,                  // highest applied migration; 0 = pristine
+  "version": 11,                  // highest applied migration; 0 = pristine
   "applied": [ { "id": 1, "name": "initial-schema", "at": "2026-06-20T09:14:02.881Z" } ]
 }
 ```
@@ -164,7 +168,12 @@ Notes:
 - `session_index/aggregate` (`group=true`) returns one bounded object per session, so
   `reduce_limit` is disabled on the bundled CouchDB. `model`, `cwd` and `hostname` come
   from the session's earliest doc carrying each, so the result doesn't depend on how
-  CouchDB groups the re-reduce. The webapi caches it in memory
+  CouchDB groups the re-reduce. `models`, `cwds` and `addedDirs` map every model,
+  working directory and `/add-dir` directory the session used to when it first appeared
+  (from `PostModelSwitch`, `CwdChanged` and `DirectoryAdded` markers); the webapi lists
+  them in that order. `models` holds ids without the context suffix (`claude-opus-5-5[1m]`
+  is `claude-opus-5-5`) and never a placeholder like `<synthetic>`; the markers keep the
+  raw value. The webapi caches it in memory
   ([webapi.md](webapi.md#session-index)).
 - `entries_by_session` is transcript order across speakers; `by_role` groups by speaker
   and so can't interleave them. Byte-range-only chunks emit nothing to either.

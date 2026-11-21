@@ -153,7 +153,7 @@ The plugin contains no writer: it is a Bun shim (so this route needs **Bun** on
 still be installed. It adds the skills, `/claude-transcripts:status` and the subagent
 statusline ([plugin.md](../design/plugin.md)).
 
-**Pick one route.** Both register the same eleven events, so with both active every
+**Pick one route.** Both register the same fourteen events, so with both active every
 event is recorded twice. `hook install` and `setup` detect an enabled plugin and
 decline to register alongside it; `claude-transcripts hook status` shows which route a
 machine is on. Neither route auto-updates.

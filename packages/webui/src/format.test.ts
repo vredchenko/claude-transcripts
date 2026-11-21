@@ -13,6 +13,7 @@ import {
   durationSplitLabel,
   formatAgo,
   formatCompact,
+  modelsLabel,
   roleLabel,
   statusTime,
 } from "./format";
@@ -162,5 +163,15 @@ describe("clockTime", () => {
   test("is empty for missing or invalid input", () => {
     expect(clockTime(undefined)).toBe("");
     expect(clockTime("nope")).toBe("");
+  });
+});
+
+describe("modelsLabel", () => {
+  test("shows each model the session switched to, in order", () => {
+    expect(modelsLabel({ model: "opus", models: ["opus", "sonnet"] })).toBe("opus → sonnet");
+  });
+  test("falls back to the one model of an older session, else a dash", () => {
+    expect(modelsLabel({ model: "opus" })).toBe("opus");
+    expect(modelsLabel({})).toBe("—");
   });
 });

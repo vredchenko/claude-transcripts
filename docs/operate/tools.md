@@ -53,6 +53,17 @@ A subagent's own transcript file is not uploaded or chunked; the live hook doesn
 it either. Sidechain lines inside the session transcript are part of it, so they are.
 Sessions adopted by an older CLI have no subagent markers; `--force` rebuilds them.
 
+### Model switches and directory changes
+
+A `PostModelSwitch` marker (`from_model`, `to_model`) is written where the model that
+answers the session's main chain changes, and a `CwdChanged` marker (`old_cwd`,
+`new_cwd`) where its working directory does; each later marker carries the cwd in force
+then. Subagent lines and Claude Code's own placeholder turns (`<synthetic>`) are not
+switches. The summary lists every model as `models`. What a transcript can't give back:
+the switch's `source` and cost estimate, the exact moment (the marker takes the first
+line that shows the new value), and `DirectoryAdded`, which leaves no trace in the
+file. Sessions adopted by an older CLI have none of these; `--force` rebuilds them.
+
 ## Re-running
 
 - **Default** — sessions that already have a summary doc are skipped, so repeat runs

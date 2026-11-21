@@ -3,7 +3,8 @@
  * the map values it reduces and re-reduces (#119).
  */
 import { describe, expect, test } from "bun:test";
-import { SESSION_INDEX_DESIGN } from "./session-index";
+import { scanTranscript } from "../index";
+import { SESSION_INDEX_DESIGN, sessionValuesInOrder } from "./session-index";
 
 type Fn = (...args: any[]) => any;
 const view = SESSION_INDEX_DESIGN.views.aggregate as { map: string; reduce: string };
@@ -32,7 +33,22 @@ const DOCS = [
   doc("2026-01-01T00:00:05Z", { cwd: "/elsewhere", tool_name: "Bash", hostname: "host-a" }),
   doc("2026-01-01T00:00:01Z", { event: "UserPromptSubmit", cwd: "/a-tie", hostname: "" }),
   { session_id: "s", type: "chunk", entries: [{}, {}], byte_end: 40 },
-  doc("2026-01-01T00:00:09Z", { type: "summary", event: undefined, model: "m-2", cwd: "/z" }),
+  doc("2026-01-01T00:00:09Z", {
+    type: "summary",
+    event: undefined,
+    model: "m-2",
+    // m-4 is one no marker named (a session recorded before #296): it goes last.
+    models: ["m-1", "m-3", "m-4"],
+    cwd: "/z",
+  }),
+  doc("2026-01-01T00:00:04Z", {
+    event: "PostModelSwitch",
+    cwd: "/repo/sub",
+    from_model: "m-1",
+    to_model: "m-3",
+  }),
+  doc("2026-01-01T00:00:04Z", { event: "CwdChanged", cwd: "/repo/sub", new_cwd: "/elsewhere" }),
+  doc("2026-01-01T00:00:06Z", { event: "DirectoryAdded", cwd: "/elsewhere", directory: "/extra" }),
 ];
 
 /** Reduce `values` in randomly sized groups, then re-reduce the partials, recursively. */
@@ -78,6 +94,20 @@ describe("session_index/aggregate", () => {
     expect(baseline.chunkEntries).toBe(2);
   });
 
+  test("lists every model and directory in order of first use (#296)", () => {
+    // A switch target sorts just after the switch, so m-3 comes before the summary's m-2.
+    expect(sessionValuesInOrder(baseline.models)).toEqual(["m-1", "m-3", "m-2", "m-4"]);
+    // `/elsewhere` dates from the `cd` at :04, not from its first marker at :05.
+    expect(sessionValuesInOrder(baseline.cwds)).toEqual([
+      "/a-tie",
+      "/repo",
+      "/repo/sub",
+      "/elsewhere",
+      "/z",
+    ]);
+    expect(sessionValuesInOrder(baseline.addedDirs)).toEqual(["/extra"]);
+  });
+
   test("is identical under any value order and re-reduce grouping", () => {
     for (let seed = 1; seed <= 200; seed++) {
       const rand = rng(seed);
@@ -85,5 +115,47 @@ describe("session_index/aggregate", () => {
       // Stringify, so tool key order counts too.
       expect(JSON.stringify(out)).toBe(JSON.stringify(baseline));
     }
+  });
+});
+
+describe("session_index/aggregate models ignore the context suffix (#296 review)", () => {
+  const modelsOf = (docs: Record<string, unknown>[]) =>
+    sessionValuesInOrder(reduce(null, mapAll(docs), false).models);
+
+  test("a 1M-context SessionStart and its transcript's model are one model", () => {
+    const transcript = JSON.stringify({ type: "assistant", message: { model: "m-opus" } });
+    const { models } = scanTranscript(transcript);
+    expect(
+      modelsOf([
+        doc("2026-01-01T00:00:01Z", { event: "SessionStart", model: "m-opus[1m]" }),
+        doc("2026-01-01T00:00:09Z", { type: "summary", event: undefined, models }),
+      ]),
+    ).toEqual(["m-opus"]);
+  });
+
+  test("a switch to the same model at another context size is not a model switch", () => {
+    expect(
+      modelsOf([
+        doc("2026-01-01T00:00:01Z", { event: "SessionStart", model: "m-opus" }),
+        doc("2026-01-01T00:00:02Z", {
+          event: "PostModelSwitch",
+          from_model: "m-opus",
+          to_model: "m-opus[1m]",
+        }),
+      ]),
+    ).toEqual(["m-opus"]);
+  });
+
+  test("a stored placeholder model is not a model", () => {
+    const agg = reduce(
+      null,
+      mapAll([
+        doc("2026-01-01T00:00:01Z", { event: "SessionStart", model: "<synthetic>" }),
+        doc("2026-01-01T00:00:09Z", { type: "summary", event: undefined, models: ["<synthetic>"] }),
+      ]),
+      false,
+    );
+    expect(sessionValuesInOrder(agg.models)).toEqual([]);
+    expect(agg.model).toBe("");
   });
 });

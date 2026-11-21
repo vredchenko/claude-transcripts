@@ -31,6 +31,9 @@ export interface SessionSummary {
   durationMs?: number;
   activeMs?: number;
   model?: string;
+  models?: string[];
+  cwds?: string[];
+  addedDirs?: string[];
   cwd: string;
   hostname: string;
   eventCount: number;
@@ -192,6 +195,7 @@ export interface SearchHit {
   timestamp?: string;
   cwd?: string;
   model?: string;
+  models?: string[];
   hostname?: string;
   endReason?: string;
   source?: string;
@@ -300,7 +304,7 @@ export type ListSessionsParams = {
    */
   hostname?: string;
   /**
-   * Exact model id. Sessions with no recorded model never match.
+   * Exact model id, matched against every model the session used. Sessions with no recorded model never match.
    */
   model?: string;
   /**
@@ -410,6 +414,7 @@ export type IngestSummaryBody = {
   hostname: string;
   cwd: string;
   model?: string;
+  models?: string[];
   end_reason: string;
   event_count: number;
   prompt_count: number;
@@ -610,7 +615,7 @@ export type SearchParams = {
    */
   cwd?: string;
   /**
-   * Exact model id (sessions only).
+   * Exact model id, any the session used (sessions only).
    */
   model?: string;
   /**

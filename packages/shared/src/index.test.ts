@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { chunkDocId, sliceIntoChunks, sumTranscriptTokens } from "./index";
+import {
+  baseModelId,
+  chunkDocId,
+  scanTranscript,
+  sliceIntoChunks,
+  sumTranscriptTokens,
+} from "./index";
 
 describe("sumTranscriptTokens", () => {
   test("dedupes by message id, keeping the heaviest usage per id", () => {
@@ -72,5 +78,37 @@ describe("chunkDocId", () => {
     expect(chunkDocId("sess", 4096)).toBe("chunk:sess:000000004096");
     // lexical order matches numeric order
     expect(chunkDocId("s", 10) < chunkDocId("s", 100)).toBe(true);
+  });
+});
+
+describe("scanTranscript", () => {
+  const line = (o: Record<string, unknown>) => JSON.stringify(o);
+  const jsonl = [
+    line({ type: "assistant", message: { id: "a", model: "m-1[1m]", usage: { input_tokens: 3 } } }),
+    line({ type: "assistant", isSidechain: true, message: { model: "m-sub" } }),
+    line({ type: "assistant", message: { model: "<synthetic>" } }),
+    line({ type: "assistant", message: { id: "b", model: "m-2", usage: { output_tokens: 4 } } }),
+  ].join("\n");
+
+  test("yields token usage and the main chain's models in one pass", () => {
+    const scan = scanTranscript(jsonl);
+    expect(scan.models).toEqual(["m-1", "m-2"]);
+    expect(scan.tokenUsage).toEqual(sumTranscriptTokens(jsonl));
+    expect(scan.tokenUsage.total).toBe(7);
+  });
+
+  test("baseModelId drops only a trailing context suffix", () => {
+    expect(baseModelId("claude-opus-5-5[1m]")).toBe("claude-opus-5-5");
+    expect(baseModelId("claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(baseModelId("a[b]c]")).toBe("a[b]c]");
+    expect(baseModelId("a[]")).toBe("a");
+  });
+
+  test("baseModelId is linear on a hostile id", () => {
+    const hostile = `${"[".repeat(200_000)}x`;
+    const t = performance.now();
+    expect(baseModelId(`${hostile}]`)).toBe("[".repeat(199_999));
+    expect(baseModelId(hostile)).toBe(hostile);
+    expect(performance.now() - t).toBeLessThan(100);
   });
 });

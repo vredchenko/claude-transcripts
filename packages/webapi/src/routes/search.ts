@@ -1,4 +1,4 @@
-import { HIGHLIGHT_PRE } from "@claude-transcripts/shared";
+import { baseModelId, HIGHLIGHT_PRE } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { indexName } from "../config";
 import type { AppContext } from "../context";
@@ -34,7 +34,7 @@ const SNIPPET_WORDS = 90;
  * minus `sessionId` — an id match highlights a hex string, which tells the reader
  * nothing they can't already see.
  */
-const SESSION_HIGHLIGHT_ATTRS = ["cwd", "model", "hostname", "endReason", "tools"];
+const SESSION_HIGHLIGHT_ATTRS = ["cwd", "model", "models", "hostname", "endReason", "tools"];
 
 /**
  * Which of a session's fields the query actually hit, read back out of Meilisearch's
@@ -59,6 +59,8 @@ const SearchHitSchema = z
     timestamp: z.string().optional(),
     cwd: z.string().optional(),
     model: z.string().optional(),
+    /** Every model the session used, in order of first use. */
+    models: z.array(z.string()).optional(),
     hostname: z.string().optional(),
     endReason: z.string().optional(),
     source: z.string().optional(),
@@ -66,8 +68,8 @@ const SearchHitSchema = z
     promptCount: z.number().optional(),
     eventCount: z.number().optional(),
     /**
-     * Which fields the query matched (`cwd`, `model`, `hostname`, `endReason`,
-     * `tools`) — the answer to "why is this session in my results?", which a row of
+     * Which fields the query matched (`cwd`, `model`, `models`, `hostname`,
+     * `endReason`, `tools`) — the answer to "why is this session in my results?", which a row of
      * metadata otherwise leaves the reader to guess at.
      */
     matchedIn: z.array(z.string()).optional(),
@@ -178,7 +180,10 @@ const searchRoute = createRoute({
       cwd: z.string().optional().openapi({
         description: "Exact project directory. Applies to sessions and turns.",
       }),
-      model: z.string().optional().openapi({ description: "Exact model id (sessions only)." }),
+      model: z
+        .string()
+        .optional()
+        .openapi({ description: "Exact model id, any the session used (sessions only)." }),
       hostname: z.string().optional().openapi({ description: "Exact hostname (sessions only)." }),
       source: z.string().optional().openapi({ description: "Exact provenance (sessions only)." }),
     }),
@@ -219,7 +224,13 @@ export function searchRoutes(ctx: AppContext) {
       value ? `${attr} = ${JSON.stringify(value)}` : null;
     const sessionFilter = [
       eq("cwd", cwd),
-      eq("model", model),
+      // Any model the session used. `model` alone covers documents indexed before
+      // `models` existed, which carry only the first one.
+      // `models` holds ids without the context suffix (`[1m]`), so it is asked for the
+      // base id; `model` is the raw first one, so it is asked for both.
+      model
+        ? `(${eq("model", model)} OR ${eq("model", baseModelId(model))} OR ${eq("models", baseModelId(model))})`
+        : null,
       eq("hostname", hostname),
       eq("source", source),
     ].filter((f): f is string => f !== null);
@@ -265,6 +276,7 @@ export function searchRoutes(ctx: AppContext) {
       ctx.meili.facets(indexName(ctx.config, SESSIONS_INDEX_KEY), [
         "cwd",
         "model",
+        "models",
         "hostname",
         "source",
       ]),
@@ -304,7 +316,14 @@ export function searchRoutes(ctx: AppContext) {
       totals: { sessions: sessionRes.estimatedTotalHits, turns: turnRes.estimatedTotalHits },
       facets: {
         cwd: facets.cwd ?? [],
-        model: facets.model ?? [],
+        // One entry per model, whatever context size it ran at.
+        model: [
+          ...new Set(
+            [...(facets.model ?? []), ...(facets.models ?? [])]
+              .filter((m) => !m.startsWith("<"))
+              .map(baseModelId),
+          ),
+        ].sort(),
         hostname: facets.hostname ?? [],
         source: facets.source ?? [],
       },

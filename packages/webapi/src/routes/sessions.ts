@@ -1,8 +1,10 @@
 import {
+  baseModelId,
   buildChunkEntries,
   type SessionAggregate,
   type SessionStatus,
   type SessionSummary,
+  sessionValuesInOrder,
 } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, idleThresholdMs, liveWindowMs } from "../config";
@@ -47,6 +49,12 @@ const SessionSummarySchema = z
     durationMs: z.number().optional(),
     activeMs: z.number().optional(),
     model: z.string().optional(),
+    // Every model / working directory / `/add-dir` directory the session used, in
+    // order of first use (`model` and `cwd` are the first of each). Absent when the
+    // index predates them (migration v11) or the session is read from its summary doc.
+    models: z.array(z.string()).optional(),
+    cwds: z.array(z.string()).optional(),
+    addedDirs: z.array(z.string()).optional(),
     cwd: z.string(),
     hostname: z.string(),
     eventCount: z.number(),
@@ -204,6 +212,26 @@ function docToSummary(doc: any, firstTs?: string, chunkEntries = 0): SessionSumm
   };
 }
 
+/** Whether a session used `model`, context suffix (`[1m]`) ignored on both sides. */
+function usedModel(s: SessionSummary, model: string): boolean {
+  const want = baseModelId(model);
+  return (
+    (s.model !== undefined && baseModelId(s.model) === want) || (s.models?.includes(want) ?? false)
+  );
+}
+
+/** The ordered model / cwd / added-dir lists of an aggregate row; empty ones omitted. */
+function usedValues(
+  agg: SessionAggregate | undefined,
+): Pick<SessionSummary, "models" | "cwds" | "addedDirs"> {
+  const out: Pick<SessionSummary, "models" | "cwds" | "addedDirs"> = {};
+  for (const key of ["models", "cwds", "addedDirs"] as const) {
+    const list = sessionValuesInOrder(agg?.[key]);
+    if (list.length) out[key] = list;
+  }
+  return out;
+}
+
 /**
  * Map a `session_index/aggregate` reduce row to the response contract. Ended
  * sessions carry their full rollup in `agg.summary` (fidelity equal to the summary
@@ -226,6 +254,7 @@ function aggregateToSummary(
       startTimestamp: agg.first || undefined,
       durationMs: durationBetween(agg.first, s.timestamp || agg.last),
       model: agg.model || undefined,
+      ...usedValues(agg),
       cwd: agg.cwd ?? "",
       hostname: agg.hostname ?? "",
       eventCount: s.event_count ?? 0,
@@ -248,6 +277,7 @@ function aggregateToSummary(
     startTimestamp: agg.first || undefined,
     durationMs: durationBetween(agg.first, agg.last),
     model: agg.model || undefined,
+    ...usedValues(agg),
     cwd: agg.cwd ?? "",
     hostname: agg.hostname ?? "",
     eventCount: agg.events ?? 0,
@@ -430,15 +460,17 @@ const listRoute = createRoute({
        * What the recall primer asks at session start ("how many sessions does this
        * cwd have?"), and what a "this project only" view needs without pulling the
        * corpus. `cwd` is compared with a trailing slash normalised away; the rest are
-       * literal. A session with no recorded `model` matches no `model` filter —
-       * asking for a value is asking for the sessions that have it.
+       * literal. `model` matches any model the session used, not only its first. A
+       * session with no recorded model matches no `model` filter — asking for a value
+       * is asking for the sessions that have it.
        */
       cwd: z.string().optional().openapi({
         description: "Exact project directory; a trailing slash is ignored.",
       }),
       hostname: z.string().optional().openapi({ description: "Exact hostname." }),
       model: z.string().optional().openapi({
-        description: "Exact model id. Sessions with no recorded model never match.",
+        description:
+          "Exact model id, matched against every model the session used. Sessions with no recorded model never match.",
       }),
       source: z.string().optional().openapi({ description: "Exact provenance (`source`)." }),
       status: SessionStatusSchema.optional().openapi({
@@ -651,7 +683,7 @@ export function sessionRoutes(ctx: AppContext) {
         overlapsRange(s, from, to) &&
         (!cwd || sameDir(s.cwd, cwd)) &&
         (!hostname || s.hostname === hostname) &&
-        (!model || s.model === model) &&
+        (!model || usedModel(s, model)) &&
         (!source || s.source === source) &&
         (!status || s.status === status),
     );
@@ -685,7 +717,9 @@ export function sessionRoutes(ctx: AppContext) {
       // No summary: not ended.
     }
     if (doc && !reconciledThenResumed(doc, agg?.last)) {
-      summary = docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0);
+      // The lists come from the aggregate: it has the markers' cwds and added dirs,
+      // which the summary doesn't record.
+      summary = { ...docToSummary(doc, agg?.first, agg?.chunkEntries ?? 0), ...usedValues(agg) };
     } else {
       // Not ended, or resumed since it was reconciled — the live aggregate (running /
       // incomplete).
