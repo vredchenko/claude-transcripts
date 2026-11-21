@@ -72,7 +72,9 @@ type Weight = keyof typeof WEIGHTS;
 
 // ── SVG variants ─────────────────────────────────────────────────────────────
 
-const OPEN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="${NAME}">`;
+/** The root tag; `extra` adds attributes (the mono variant's root `fill`). */
+const open = (extra = "") =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="${NAME}"${extra}>`;
 type Variant = "colour" | "mono" | "adaptive" | "light" | "dark";
 
 /** The two paths, painted. Shared by the standalone variants and the composites. */
@@ -88,14 +90,14 @@ function variant(g: Geometry, v: Variant): string {
   switch (v) {
     case "colour":
       // Base follows the surrounding text; the accent is a CSS hook with a fallback.
-      return `${OPEN}${paths(g, "currentColor", `var(--icon-accent, ${palette.light.accent})`)}</svg>\n`;
+      return `${open()}${paths(g, "currentColor", `var(--icon-accent, ${palette.light.accent})`)}</svg>\n`;
     case "mono":
-      return `${OPEN.replace(">", ' fill="currentColor">')}<path d="${g.base}${g.accent}"/></svg>\n`;
+      return `${open(' fill="currentColor"')}<path d="${g.base}${g.accent}"/></svg>\n`;
     case "adaptive":
-      return `${OPEN}${ADAPTIVE_STYLE}<path class="b" d="${g.base}"/><path class="a" d="${g.accent}"/></svg>\n`;
+      return `${open()}${ADAPTIVE_STYLE}<path class="b" d="${g.base}"/><path class="a" d="${g.accent}"/></svg>\n`;
     case "light":
     case "dark":
-      return `${OPEN}${paths(g, palette[v].ink, palette[v].accent)}</svg>\n`;
+      return `${open()}${paths(g, palette[v].ink, palette[v].accent)}</svg>\n`;
   }
 }
 
