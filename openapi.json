@@ -1335,6 +1335,18 @@
                         },
                         "cwd": {
                           "type": "string"
+                        },
+                        "from_model": {
+                          "type": "string"
+                        },
+                        "to_model": {
+                          "type": "string"
+                        },
+                        "new_cwd": {
+                          "type": "string"
+                        },
+                        "directory": {
+                          "type": "string"
                         }
                       },
                       "required": ["type", "event", "session_id", "timestamp", "hostname", "cwd"],
