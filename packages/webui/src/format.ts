@@ -218,9 +218,12 @@ export function clockTime(iso: string | undefined, reference?: string): string {
 
 /**
  * A session's models as one line: the first, then each it switched to (`opus → sonnet`).
- * Falls back to the single `model` for a session indexed before `models` existed.
+ * With no switch it is the single `model` as recorded — `models` holds base ids, so a
+ * 1M-context session would otherwise lose its `[1m]` here while the detail page shows
+ * it. `model` is also the fallback for a session indexed before `models` existed.
  */
 export function modelsLabel(s: { model?: string; models?: string[] }): string {
-  const models = s.models?.length ? s.models : s.model ? [s.model] : [];
+  const switched = (s.models?.length ?? 0) > 1;
+  const models = switched ? (s.models as string[]) : s.model ? [s.model] : (s.models ?? []);
   return models.length ? models.join(" → ") : "—";
 }

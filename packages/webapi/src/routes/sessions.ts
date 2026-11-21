@@ -209,6 +209,9 @@ function docToSummary(doc: any, firstTs?: string, chunkEntries = 0): SessionSumm
     status: "ended",
     source: doc.source || "live",
     tokenUsage: doc.token_usage,
+    // The transcript's models, written at SessionEnd. The index's lists (`usedValues`)
+    // override this when present; it covers a session whose index row predates them.
+    ...(Array.isArray(doc.models) && doc.models.length ? { models: doc.models } : {}),
   };
 }
 
