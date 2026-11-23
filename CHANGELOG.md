@@ -36,9 +36,9 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - **Heading links on the docs site land where they do on GitHub** ([#312]). A heading
-  with punctuation between two spaces got a different anchor on the site, so a link
-  that worked in the repository went nowhere there.
-
+  with punctuation between two spaces, or an underscore, got a different anchor on the
+  site, so a link that worked in the repository went nowhere there. The docs build now
+  fails on a link to a heading that doesn't exist, the landing page's links included.
 - **The plugin no longer sets `subagentStatusLine`** ([#295]). Claude Code removed the
   setting, so it did nothing but make `claude plugin list` print a deprecation note.
   The plugin's `settings.json` is gone; `bin/claude-transcripts-statusline` stays on
