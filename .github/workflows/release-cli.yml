@@ -3,7 +3,7 @@ name: release-cli
 # (Linux + macOS, x64 + arm64), attach them to the GitHub Release, and publish the
 # npm package (@claude-transcripts/cli, a bun-runnable bundle). A manual dispatch
 # builds the binaries and uploads them as workflow artifacts only (no publish).
-# Lockstep-versioned with the app image (ADR 0023); see docs/operate/releasing.md.
+# Lockstep-versioned with the app image (ADR 0023); see docs/develop/releasing.md.
 on:
   push:
     tags: ["v*.*.*"]
@@ -87,7 +87,7 @@ jobs:
           bun run scripts/build-cli-npm.ts
 
       # npm is the one artifact needing a secret. Until NPM_TOKEN is configured
-      # (docs/operate/releasing.md → one-time setup), skip it with a warning rather
+      # (docs/develop/releasing.md → one-time setup), skip it with a warning rather
       # than failing the release — the binaries and images publish either way.
       - name: Publish to npm
         if: startsWith(github.ref, 'refs/tags/')
@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning title=npm publish skipped::NPM_TOKEN is not configured; see docs/operate/releasing.md"
+            echo "::warning title=npm publish skipped::NPM_TOKEN is not configured; see docs/develop/releasing.md"
             exit 0
           fi
           # From the package directory, not `--workspace`: the latter pulls npm into
