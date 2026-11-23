@@ -272,13 +272,15 @@ default (non-`--upstream`) stack mode pulls mirrored backing images from your ow
 
 ### Docs & conventions
 
-- [`docs/`](docs/) — organised into
-  [getting started](docs/start/installation.md),
-  [development](docs/develop/getting-started.md),
-  [operations](docs/develop/releasing.md), [reference](docs/reference/webapi.md),
-  and [design](docs/design/architecture.md) (with the
-  [ADRs](docs/design/decisions/README.md) nested under it). Published at
-  [vredchenko.github.io/claude-transcripts/docs](https://vredchenko.github.io/claude-transcripts/docs/).
+- [`docs/`](docs/) — split by reader. For people running it:
+  [getting started](docs/start/installation.md), [using it](docs/use/in-claude-code.md),
+  [operations](docs/operate/containers.md) and [reference](docs/reference/cli.md),
+  published at
+  [vredchenko.github.io/claude-transcripts/docs](https://vredchenko.github.io/claude-transcripts/docs/)
+  and served by every instance at `/docs`. For people changing it:
+  [development](docs/develop/README.md) and [design](docs/design/architecture.md)
+  (with the [ADRs](docs/design/decisions/README.md) nested under it), read here in
+  the repository.
 - [`CHANGELOG.md`](CHANGELOG.md) — what shipped in each release (lockstep-versioned;
   see [releasing.md](docs/develop/releasing.md)).
 - [`CLAUDE.md`](CLAUDE.md) — build conventions and repo invariants for agents.

@@ -1,9 +1,15 @@
 /**
- * Static docs builder — renders `docs/*.md` (+ `docs/design/decisions/*.md`) into a
+ * Static docs builder — renders the **published** part of `docs/` into a
  * self-contained, theme-aware HTML site. Dependency-free on purpose: it uses only
  * Bun + Node built-ins so it needs no npm install (keeps CI's `--frozen-lockfile`
  * green) and produces fully offline output — the same output feeds both GitHub
- * Pages (`site/docs/`) and the combined app image (served by the webapi at `/docs`).
+ * Pages (`/docs` on the project site) and the combined app image (served by the
+ * webapi at `/docs`).
+ *
+ * Both of those are read by people *running* Claude Transcripts, so only the
+ * sections written for them are published (`SECTIONS`). The rest of `docs/` —
+ * contributor guides, design notes, ADRs — is read in the repository: this build
+ * still link-checks it, and a published page that cites it links to GitHub.
  *
  * The Markdown renderer is a deliberately small GFM subset (headings, paragraphs,
  * fenced/inline code, bold/italic, links, images, tables, blockquotes, nested
@@ -38,10 +44,16 @@ function parseOutDir(argv: string[]): string {
 }
 
 /**
- * The published section order + labels. `dir` is a directory under `docs/`
- * (empty string = the docs root, i.e. the overview page); `lead` names the files
- * that should sort first within a section — everything else follows
- * alphabetically. Adding a doc needs no change here; adding a *section* does.
+ * The publish manifest: which of `docs/` reaches the site, in nav order. `dir` is a
+ * directory under `docs/` (empty string = the docs root, i.e. the overview page);
+ * `lead` names the files that should sort first within a section — everything else
+ * follows alphabetically.
+ *
+ * Directory = reader. A directory listed here is for people running the app, and a
+ * new doc in it is published with no change to this file. A directory that is not
+ * listed (`develop/`, `design/decisions/`, …) is for people changing the app and is
+ * repo-only. `only` publishes the named files of a directory and leaves the rest of
+ * it repo-only.
  */
 interface Section {
   dir: string;
@@ -49,6 +61,8 @@ interface Section {
   /** Blurb rendered under the section heading on the docs index. */
   blurb?: string;
   lead?: string[];
+  /** Publish just these files from `dir`. */
+  only?: string[];
 }
 
 const SECTIONS: Section[] = [
@@ -66,39 +80,30 @@ const SECTIONS: Section[] = [
     lead: ["in-claude-code.md", "web-ui.md", "search.md", "terminal.md", "api.md"],
   },
   {
-    dir: "develop",
-    title: "Development",
-    blurb: "Working on Claude Transcripts itself: setup, conventions, tests, automation.",
-    lead: ["getting-started.md"],
-  },
-  {
     dir: "operate",
     title: "Operations",
-    blurb: "Running and shipping it: releases, containers, migrations, logs.",
+    blurb: "Running an instance: containers, HTTPS, backups, mirrors, backfill.",
     lead: ["containers.md", "omnibus.md"],
   },
   {
     dir: "reference",
     title: "Reference",
-    blurb: "Per-component and per-surface detail — the codebase as documented.",
+    blurb: "Every command, route, hook event and stored document.",
     lead: ["cli.md", "webapi.md", "routes.md"],
   },
   {
     dir: "design",
-    title: "Design & specification",
-    blurb: "What the system is meant to be, and the reasoning behind it.",
-    lead: ["architecture.md", "roadmap.md"],
-  },
-  {
-    dir: "design/decisions",
-    title: "Decisions (ADRs)",
-    blurb: "One record per architectural decision, in the order they were taken.",
+    title: "How it works",
+    blurb: "The parts, the data flow between them, and what each store holds.",
+    only: ["architecture.md"],
   },
 ];
 
 interface Page {
   /** Absolute source path. */
   src: string;
+  /** Source path relative to `docs/`, e.g. "design/architecture.md". */
+  srcRel: string;
   /** Output path relative to the out dir, e.g. "design/tiers.html". */
   outRel: string;
   /** Nesting depth of the output file (0 = root, 1 = start/, 2 = design/decisions/). */
@@ -146,9 +151,16 @@ function collectPages(): Page[] {
 
   for (const section of SECTIONS) {
     const dir = section.dir ? join(DOCS_DIR, section.dir) : DOCS_DIR;
-    if (!existsSync(dir)) continue;
+    // A section that names a missing directory or file is a typo or a stale entry;
+    // skipping it would silently unpublish a whole section.
+    if (!existsSync(dir)) throw new Error(`SECTIONS names docs/${section.dir}, which is missing`);
+    for (const file of section.only ?? []) {
+      if (!existsSync(join(dir, file))) {
+        throw new Error(`SECTIONS names docs/${join(section.dir, file)}, which is missing`);
+      }
+    }
     const files = orderFiles(
-      readdirSync(dir).filter((f) => f.endsWith(".md")),
+      section.only ?? readdirSync(dir).filter((f) => f.endsWith(".md")),
       section.lead,
     );
 
@@ -163,6 +175,7 @@ function collectPages(): Page[] {
       const outRel = section.dir ? `${section.dir}/${stem}.html` : `${stem}.html`;
       pages.push({
         src,
+        srcRel: join(section.dir, file),
         outRel,
         depth: outRel.split("/").length - 1,
         title:
@@ -173,6 +186,20 @@ function collectPages(): Page[] {
   }
 
   return pages;
+}
+
+/**
+ * Every other `*.md` under `docs/`, relative to it: the repo-only pages. They are
+ * never written, but they are still rendered once so their links are checked.
+ */
+function collectRepoOnly(published: Set<string>, dir = ""): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(join(DOCS_DIR, dir), { withFileTypes: true })) {
+    const rel = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...collectRepoOnly(published, rel));
+    else if (entry.name.endsWith(".md") && !published.has(rel)) found.push(rel);
+  }
+  return found.sort();
 }
 
 // ── Markdown → HTML ─────────────────────────────────────────────────────────
@@ -193,19 +220,29 @@ function slugify(text: string): string {
 const GITHUB_BLOB = "https://github.com/vredchenko/claude-transcripts/blob/main";
 
 /**
- * Directory (relative to `docs/`) of the page currently being rendered, and the
- * broken links found so far. Module-level because the renderer is a synchronous
- * pipeline of pure string functions — threading a context object through every
- * inline/block helper would cost more than it buys.
+ * The page currently being rendered (source path relative to `docs/`) and its
+ * directory, the set of published source paths, and the broken links found so far.
+ * Module-level because the renderer is a synchronous pipeline of pure string
+ * functions — threading a context object through every inline/block helper would
+ * cost more than it buys.
  */
+let currentPage = "";
 let currentDir = "";
+let published = new Set<string>();
 const brokenLinks: string[] = [];
+
+function enterPage(srcRel: string): void {
+  currentPage = srcRel;
+  currentDir = dirname(srcRel) === "." ? "" : dirname(srcRel);
+}
 
 /**
  * Rewrite a relative link for the published site:
- *  - `*.md` inside docs/ → the corresponding `.html` (existence-checked)
+ *  - `*.md` in a published section → the corresponding `.html`
+ *  - `*.md` elsewhere in docs/ (a repo-only page) → its GitHub blob URL
  *  - anything that escapes docs/ (`../../config/…`) → a GitHub blob URL, since
  *    the published site contains only the docs tree
+ * Every target inside docs/ is existence-checked, published or not.
  */
 function rewriteLink(href: string): string {
   if (/^[a-z]+:/i.test(href) || href.startsWith("#") || href.startsWith("//")) return href;
@@ -224,13 +261,12 @@ function rewriteLink(href: string): string {
   // shipped as a broken <img> that nothing failed on and nobody saw until they
   // opened the page.
   if (!path.endsWith(".md")) {
-    if (!existsSync(join(DOCS_DIR, resolved))) {
-      brokenLinks.push(`${currentDir || "."}: ${href}`);
-    }
+    if (!existsSync(join(DOCS_DIR, resolved))) brokenLinks.push(`${currentPage}: ${href}`);
     return href;
   }
-  if (!existsSync(join(DOCS_DIR, resolved))) {
-    brokenLinks.push(`${currentDir || "."}: ${href}`);
+  if (!existsSync(join(DOCS_DIR, resolved))) brokenLinks.push(`${currentPage}: ${href}`);
+  if (!published.has(resolved)) {
+    return `${GITHUB_BLOB}/docs/${resolved}${anchor ? `#${anchor}` : ""}`;
   }
   // A directory's README.md is published as its index.html.
   const html = path.replace(/(^|\/)README\.md$/, "$1index.md").replace(/\.md$/, ".html");
@@ -585,6 +621,7 @@ function copyTree(from: string, to: string): void {
 function main(): void {
   const outDir = parseOutDir(process.argv.slice(2));
   const pages = collectPages();
+  published = new Set(pages.map((p) => p.srcRel));
 
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
@@ -601,15 +638,14 @@ function main(): void {
 
   // Static assets pages reference by relative path — today, the generated
   // architecture diagram. Copied as a tree rather than named file by file, so adding
-  // one needs no change here. `collectPages` only ever reads `*.md` from the SECTIONS
-  // directories, so `docs/assets/` yields no page and no nav entry.
+  // one needs no change here. It holds no `*.md`, so it yields no page.
   const assets = join(DOCS_DIR, "assets");
   if (existsSync(assets)) copyTree(assets, join(outDir, "assets"));
 
   for (const page of pages) {
     const md = readFileSync(page.src, "utf8");
     // Link rewriting resolves against the page's own directory (see rewriteLink).
-    currentDir = dirname(page.outRel) === "." ? "" : dirname(page.outRel);
+    enterPage(page.srcRel);
     const body = renderMarkdown(md);
     // The site index gets the generated section directory appended, so the full
     // page list is never hand-maintained.
@@ -620,7 +656,16 @@ function main(): void {
     writeFileSync(outPath, renderShell(page, content, nav));
   }
 
-  console.log(`Rendered ${pages.length} docs pages → ${outDir}`);
+  // Repo-only pages are rendered for their link checks alone; nothing is written.
+  const repoOnly = collectRepoOnly(published);
+  for (const srcRel of repoOnly) {
+    enterPage(srcRel);
+    renderMarkdown(readFileSync(join(DOCS_DIR, srcRel), "utf8"));
+  }
+
+  console.log(
+    `Rendered ${pages.length} docs pages → ${outDir} (${repoOnly.length} repo-only pages link-checked)`,
+  );
 
   if (brokenLinks.length > 0) {
     console.error(`\n${brokenLinks.length} broken internal doc link(s):`);
