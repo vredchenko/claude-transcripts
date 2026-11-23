@@ -208,13 +208,26 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** The text a reader sees in rendered inline HTML: tags dropped, entities decoded. */
-function textOf(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
+/**
+ * What a reader sees of a line of inline Markdown, as plain text: code spans and link
+ * labels stay, emphasis markers, link targets and images go. The same rules as
+ * `renderInline`, applied to the source so that no HTML is built and then taken apart
+ * again.
+ */
+function inlineText(text: string): string {
+  const codeSpans: string[] = [];
+  let out = text.replace(/`([^`]+)`/g, (_m, code: string) => {
+    codeSpans.push(code);
+    return `${CODE_OPEN}${codeSpans.length - 1}${CODE_CLOSE}`;
+  });
+  out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, "");
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1");
+  out = out.replace(/\*\*([^*]+)\*\*/g, "$1");
+  out = out.replace(/__([^_]+)__/g, "$1");
+  out = out.replace(/(^|[^*])\*([^*\s][^*]*?)\*/g, "$1$2");
+  out = out.replace(/(^|[^\w])_([^_\s][^_]*?)_/g, "$1$2");
+  const decode = new RegExp(`${CODE_OPEN}(\\d+)${CODE_CLOSE}`, "g");
+  return out.replace(decode, (_m, i: string) => codeSpans[Number(i)]);
 }
 
 /**
@@ -222,8 +235,9 @@ function textOf(html: string): string {
  * repository lands on the same heading here: lowercase, drop punctuation (letters of
  * any script, digits, `_` and `-` stay), then turn *each* space into a hyphen. So
  * "Topology — bundled" is `topology--bundled`, with two hyphens, and `schema_version`
- * keeps its underscore. Takes the rendered text, not the Markdown source, because
- * that is what GitHub slugs: emphasis markers and link targets are not part of it.
+ * keeps its underscore. Takes the text a reader sees (`inlineText`), not the Markdown
+ * source, because that is what GitHub slugs: emphasis markers and link targets are not
+ * part of it.
  */
 function slugify(text: string): string {
   return text
@@ -433,8 +447,8 @@ function renderMarkdown(md: string): string {
     const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
     if (heading) {
       const level = heading[1].length;
-      const inner = renderInline(heading[2]);
-      html.push(`<h${level} id="${headingId(textOf(inner))}">${inner}</h${level}>`);
+      const id = headingId(inlineText(heading[2]));
+      html.push(`<h${level} id="${id}">${renderInline(heading[2])}</h${level}>`);
       i++;
       continue;
     }
