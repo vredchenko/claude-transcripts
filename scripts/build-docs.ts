@@ -208,15 +208,27 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** The text a reader sees in rendered inline HTML: tags dropped, entities decoded. */
+function textOf(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 /**
- * Heading → anchor, the way GitHub does it: drop punctuation, then turn *each* space
- * into a hyphen. So "Topology — bundled" is `topology--bundled`, with two hyphens,
- * and a link written to work in the repository lands on the same heading here.
+ * Heading text → anchor, the way GitHub does it, so a link written to work in the
+ * repository lands on the same heading here: lowercase, drop punctuation (letters of
+ * any script, digits, `_` and `-` stay), then turn *each* space into a hyphen. So
+ * "Topology — bundled" is `topology--bundled`, with two hyphens, and `schema_version`
+ * keeps its underscore. Takes the rendered text, not the Markdown source, because
+ * that is what GitHub slugs: emphasis markers and link targets are not part of it.
  */
 function slugify(text: string): string {
-  return stripInlineMarkers(text)
+  return text
     .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}_\s-]/gu, "")
     .trim()
     .replace(/\s/g, "-");
 }
@@ -236,9 +248,28 @@ let currentDir = "";
 let published = new Set<string>();
 const brokenLinks: string[] = [];
 
+/** The heading ids of every rendered page, by source path: what a `#fragment` can name. */
+const headingIds = new Map<string, Set<string>>();
+/** The `#fragment` links met while rendering, checked once every page has its ids. */
+const fragmentLinks: { from: string; to: string; anchor: string; href: string }[] = [];
+
 function enterPage(srcRel: string): void {
   currentPage = srcRel;
   currentDir = dirname(srcRel) === "." ? "" : dirname(srcRel);
+  headingIds.set(srcRel, new Set());
+}
+
+/**
+ * A heading's id on the current page. A repeat gets GitHub's numeric suffix (`setup`,
+ * `setup-1`, `setup-2`), so a link to the second "Setup" lands on the second one.
+ */
+function headingId(text: string): string {
+  const ids = headingIds.get(currentPage) as Set<string>;
+  const base = slugify(text);
+  let id = base;
+  for (let n = 1; ids.has(id); n++) id = `${base}-${n}`;
+  ids.add(id);
+  return id;
 }
 
 /**
@@ -247,12 +278,17 @@ function enterPage(srcRel: string): void {
  *  - `*.md` elsewhere in docs/ (a repo-only page) → its GitHub blob URL
  *  - anything that escapes docs/ (`../../config/…`) → a GitHub blob URL, since
  *    the published site contains only the docs tree
- * Every target inside docs/ is existence-checked, published or not.
+ * Every target inside docs/ is existence-checked, published or not, and so is the
+ * heading a `#fragment` names (`checkFragments`, once every page has been rendered).
  */
 function rewriteLink(href: string): string {
-  if (/^[a-z]+:/i.test(href) || href.startsWith("#") || href.startsWith("//")) return href;
+  if (/^[a-z]+:/i.test(href) || href.startsWith("//")) return href;
   const [path, anchor] = href.split("#");
-  if (!path) return href;
+  if (!path) {
+    // A link to a heading on this page.
+    if (anchor) fragmentLinks.push({ from: currentPage, to: currentPage, anchor, href });
+    return href;
+  }
 
   // Resolve against the page's own directory to see where it lands.
   const resolved = normalize(join(currentDir, path));
@@ -270,6 +306,7 @@ function rewriteLink(href: string): string {
     return href;
   }
   if (!existsSync(join(DOCS_DIR, resolved))) brokenLinks.push(`${currentPage}: ${href}`);
+  else if (anchor) fragmentLinks.push({ from: currentPage, to: resolved, anchor, href });
   if (!published.has(resolved)) {
     return `${GITHUB_BLOB}/docs/${resolved}${anchor ? `#${anchor}` : ""}`;
   }
@@ -396,8 +433,8 @@ function renderMarkdown(md: string): string {
     const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
     if (heading) {
       const level = heading[1].length;
-      const id = slugify(heading[2]);
-      html.push(`<h${level} id="${id}">${renderInline(heading[2])}</h${level}>`);
+      const inner = renderInline(heading[2]);
+      html.push(`<h${level} id="${headingId(textOf(inner))}">${inner}</h${level}>`);
       i++;
       continue;
     }
@@ -623,6 +660,46 @@ function copyTree(from: string, to: string): void {
   }
 }
 
+/**
+ * A `#fragment` must name a heading on the page it points at. Run after every page,
+ * published or repo-only, has been rendered: the ids are GitHub's, so the same check
+ * covers a link that will be followed on the site and one followed in the repository.
+ */
+function checkFragments(): void {
+  for (const { from, to, anchor, href } of fragmentLinks) {
+    if (!headingIds.get(to)?.has(anchor)) brokenLinks.push(`${from}: ${href} (no such heading)`);
+  }
+}
+
+/**
+ * The landing page (`site/index.html`) deep-links into this build's output, and is the
+ * one thing outside `docs/` that does. Its links are checked here, where the published
+ * pages and their heading ids are known; unpublishing a page it links to would
+ * otherwise break it silently. Skipped where there is no landing page (the app image
+ * builds the docs alone).
+ */
+function checkLandingLinks(pages: Page[]): void {
+  const landing = join(REPO_ROOT, "site", "index.html");
+  if (!existsSync(landing)) return;
+  const sources = new Map(pages.map((p) => [p.outRel, p.srcRel]));
+  const html = readFileSync(landing, "utf8");
+  for (const [link, path, anchor] of html.matchAll(
+    /(?:href|src)="\.\/docs\/([^"#]*)(?:#([^"]*))?"/g,
+  )) {
+    const where = `site/index.html: ${link}`;
+    if (path !== "" && !path.endsWith("/") && !path.endsWith(".html")) {
+      // Not a page: only `docs/assets/` is copied into the output.
+      if (!path.startsWith("assets/") || !existsSync(join(DOCS_DIR, path))) brokenLinks.push(where);
+      continue;
+    }
+    const srcRel = sources.get(path.endsWith(".html") ? path : `${path}index.html`);
+    if (!srcRel) brokenLinks.push(`${where} (not a published page)`);
+    else if (anchor && !headingIds.get(srcRel)?.has(anchor)) {
+      brokenLinks.push(`${where} (no such heading)`);
+    }
+  }
+}
+
 function main(): void {
   const outDir = parseOutDir(process.argv.slice(2));
   const pages = collectPages();
@@ -667,6 +744,9 @@ function main(): void {
     enterPage(srcRel);
     renderMarkdown(readFileSync(join(DOCS_DIR, srcRel), "utf8"));
   }
+
+  checkFragments();
+  checkLandingLinks(pages);
 
   console.log(
     `Rendered ${pages.length} docs pages → ${outDir} (${repoOnly.length} repo-only pages link-checked)`,

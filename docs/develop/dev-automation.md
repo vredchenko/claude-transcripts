@@ -53,7 +53,7 @@ from `brand/icons/`, since an SVG served this way can't fetch anything.
 
 | Alias | Script | Does | Where it runs |
 |-------|--------|------|---------------|
-| `build:docs` | `build-docs.ts` | Renders the published part of `docs/` into a static site (`build/docs/`, `--out <dir>`). Dependency-free, small GFM subset. The section list in the script is the publish manifest: pages in a listed directory are picked up automatically, and everything else (`develop/`, `design/` bar the architecture page) is repo-only, linked from published pages as GitHub URLs. Fails on a broken relative link anywhere in `docs/`, published or not. | CI, `pages.yml`, the app image (`/docs`) |
+| `build:docs` | `build-docs.ts` | Renders the published part of `docs/` into a static site (`build/docs/`, `--out <dir>`). Dependency-free, small GFM subset. The section list in the script is the publish manifest: pages in a listed directory are picked up automatically, and everything else (`develop/`, `design/` bar the architecture page) is repo-only, linked from published pages as GitHub URLs. Fails on a broken relative link or `#heading` anchor anywhere in `docs/`, published or not, and on a landing-page link to a page or heading the site doesn't have. Heading anchors follow GitHub's rules, so one link works in both places. | CI, `pages.yml`, the app image (`/docs`) |
 | `check:contract` | `check-contract.ts` | Fails on a breaking OpenAPI change ([testing.md](testing.md#contract)) | CI |
 | — | `mirror-images.ts` | Copies the pinned backing-service images to GHCR ([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md)) | `mirror-images.yml` |
 | — | `build-cli-npm.ts` | Bundles the CLI for npm | `release-cli.yml` |
