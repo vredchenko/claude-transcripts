@@ -20,8 +20,24 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   [HTTPS and installing the web UI](docs/operate/https.md).
 - **`statusline install --glyph`** ([#311]) leads the statusline with the logo, for
   terminals that have `brand/font/claude-transcripts-glyph.ttf` installed.
+- **Docs on using it** ([#312]): what the session-start note and each statusline state
+  mean, the web UI, search, the terminal and the API, in a new
+  [Using it](docs/use/in-claude-code.md) section.
+
+### Changed
+
+- **The docs site and `/docs` carry only the pages for people running the app**
+  ([#312]): 25 pages where there were 65. Contributor guides, design notes and ADRs are
+  read in the repository, indexed by [docs/develop/README.md](docs/develop/README.md);
+  a published page that cites one links to GitHub. `releasing.md` moved to
+  `docs/develop/`, `app-logging.md` to `docs/design/`, and `reference/webui.md` became
+  [use/web-ui.md](docs/use/web-ui.md) plus the package's README.
 
 ### Fixed
+
+- **Heading links on the docs site land where they do on GitHub** ([#312]). A heading
+  with punctuation between two spaces got a different anchor on the site, so a link
+  that worked in the repository went nowhere there.
 
 - **The plugin no longer sets `subagentStatusLine`** ([#295]). Claude Code removed the
   setting, so it did nothing but make `claude plugin list` print a deprecation note.
@@ -2239,6 +2255,7 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#312]: https://github.com/vredchenko/claude-transcripts/pull/312
 [#311]: https://github.com/vredchenko/claude-transcripts/pull/311
 [#310]: https://github.com/vredchenko/claude-transcripts/issues/310
 [#306]: https://github.com/vredchenko/claude-transcripts/issues/306
