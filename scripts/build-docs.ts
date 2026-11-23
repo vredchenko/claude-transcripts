@@ -208,12 +208,17 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Heading → anchor, the way GitHub does it: drop punctuation, then turn *each* space
+ * into a hyphen. So "Topology — bundled" is `topology--bundled`, with two hyphens,
+ * and a link written to work in the repository lands on the same heading here.
+ */
 function slugify(text: string): string {
   return stripInlineMarkers(text)
     .toLowerCase()
     .replace(/[^\w\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/\s/g, "-");
 }
 
 /** Blob root for links that point at repo files rather than docs pages. */
