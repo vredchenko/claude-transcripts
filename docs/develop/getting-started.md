@@ -47,7 +47,7 @@ running stack and webapi ([testing.md](testing.md)).
   PR, and let CI go green before merging.
 - Rebase is the only merge strategy enabled. Rebase adds no `(#N)` suffix, so reference
   the PR or issue in the commit message.
-- Releases are cut from `main` by tag ([releasing.md](../operate/releasing.md)).
+- Releases are cut from `main` by tag ([releasing.md](releasing.md)).
 
 ## Layout
 

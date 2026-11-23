@@ -8,7 +8,7 @@ The app image and the omnibus image are the artefacts with the app's own parts i
 them; the omnibus also carries every backing service, in one container. The compose
 stack, the Kubernetes base and the Helm chart don't contain software; they run images,
 the app image among them, and the table marks what they run. For how each is built and versioned, see
-[releasing.md](../operate/releasing.md) and [containers.md](../operate/containers.md).
+[releasing.md](../develop/releasing.md) and [containers.md](../operate/containers.md).
 
 <!-- gen:distributions:start — generated from DISTRIBUTIONS by `bun run gen:distributions`; do not edit -->
 | Distribution | webapi | webui | docs | CLI | plugin | CouchDB | Garage | Garage UI | Fossil | Meilisearch | Meili UI |

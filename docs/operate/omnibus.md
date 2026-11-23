@@ -19,8 +19,8 @@ docker run -d --name claude-transcripts \
   ghcr.io/<owner>/claude-transcripts-omnibus:latest
 ```
 
-Releases publish it to GHCR ([tags](releasing.md#omnibus-image-tags)). To build it from
-a checkout instead:
+Releases publish it to GHCR as `vX.Y.Z`, `latest` and `<short-sha>`, linux/amd64 only.
+To build it from a checkout instead:
 
 ```bash
 bun run omnibus:build     # → claude-transcripts-omnibus:local

@@ -13,8 +13,20 @@ reference at `/api/docs`, these docs at `/docs`, and the CLI binary at `/cli/dow
   copied into the runtime stage.
 - Carries `config/` with the committed template. Mount `/app/config/config.json` to
   override it. Secrets and backend endpoints come from the environment at run time.
-- Listens on 7650 inside the container. Published by `publish-image.yml`
-  ([releasing.md](releasing.md#app-image-tags)).
+- Listens on 7650 inside the container. Published to GHCR on each release
+  ([tags](#tags)).
+
+### Tags
+
+| Tag | Means | Pushed by |
+|-----|-------|-----------|
+| `vX.Y.Z` | that release | a `v*.*.*` tag |
+| `latest` | the newest release | a `v*.*.*` tag |
+| `<short-sha>` | one commit | a `v*.*.*` tag, and manual dispatch |
+
+Only release tags publish, so there is no image of unreleased code. `install` pins the
+app image to the CLI's own version and warns if the running app reports a different
+one. linux/amd64 only.
 
 What every artefact (images, compose, Kubernetes, CLI, plugin) carries is tabled in
 [distributions.md](../reference/distributions.md).
@@ -43,7 +55,7 @@ published, so the registry carries our own: CouchDB without its unused Nouveau s
 a rebuild of the same Garage web UI release (`deploy/garage-ui/`), and the Meilisearch UI
 as static files behind nginx (`deploy/meilisearch-ui/`). `--upstream` still pulls the
 upstream images. Every image passes the scan gate before
-it is pushed ([releasing.md](releasing.md#the-scan-gate)); `docker-compose.build.yml` (`--build`) builds the app from
+it is pushed ([releasing.md](../develop/releasing.md#the-scan-gate)); `docker-compose.build.yml` (`--build`) builds the app from
 the checkout.
 
 ## Other topologies

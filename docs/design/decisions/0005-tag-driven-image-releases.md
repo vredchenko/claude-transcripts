@@ -45,7 +45,7 @@ elsewhere (no per-commit image builds).
   `main`.
 - Manifests carry the lockstep `version`: `scripts/release.ts <ver>` stamps it into
   every manifest; `--check` verifies they match.
-- Tags are cut (since `v0.0.1`). Details: [releasing.md](../../operate/releasing.md).
+- Tags are cut (since `v0.0.1`). Details: [releasing.md](../../develop/releasing.md).
 
 ## Amendment: only tags publish, and the version is read from the tree
 

@@ -48,7 +48,7 @@ Both compose files are **generated from the blueprint** (`bun run gen:compose` +
 `gen:compose-override`); the upstream image for each service is the `image.upstream`
 field in `packages/shared/src/blueprint/services.ts`. The app image is built + published
 by the `publish-image` workflow (no upstream; tags in
-[releasing.md](../docs/operate/releasing.md#app-image-tags)).
+[containers.md](../docs/operate/containers.md#tags)).
 
 ## Ports (dev range `7650–7661`)
 

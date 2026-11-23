@@ -111,4 +111,4 @@ Bun + TypeScript (ESM, strict) throughout, in one workspace
 Ink. API clients are generated from the OpenAPI spec with orval
 ([ADR 0019](decisions/0019-openapi-source-of-truth-generated-clients.md)). Biome and
 lefthook. Releases on GitHub Actions to GHCR and GitHub Releases
-([releasing.md](../operate/releasing.md)).
+([releasing.md](../develop/releasing.md)).
