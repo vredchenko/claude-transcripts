@@ -37,7 +37,7 @@ CouchDB holds parsed, pruned turns on full-content chunks
 | — | `_local/search_checkpoint` | the webapi's search follower | written (a local doc: not in `_all_docs`, `_changes` or replication) |
 | `session_start` | `session_start:<sessionId>` | — | planned: a start record with session metadata |
 | `meta` | auto | — | planned: append-only enrichment (attribution, tags, extracted facts) |
-| `log` | auto, in the separate app-logs database | — | planned ([app-logging.md](../operate/app-logging.md)) |
+| `log` | auto, in the separate app-logs database | — | planned ([app-logging.md](../design/app-logging.md)) |
 
 ### `event`
 
@@ -165,7 +165,7 @@ Notes:
   `reduce_limit` is disabled on the bundled CouchDB. `model`, `cwd` and `hostname` come
   from the session's earliest doc carrying each, so the result doesn't depend on how
   CouchDB groups the re-reduce. The webapi caches it in memory
-  ([webapi.md](webapi.md#session-index)).
+  ([webapi.md](webapi.md#session-list)).
 - `entries_by_session` is transcript order across speakers; `by_role` groups by speaker
   and so can't interleave them. Byte-range-only chunks emit nothing to either.
 - Planned: feature views (`features/urls`, then repos, PRs, issues, slash commands,

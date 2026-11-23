@@ -35,7 +35,7 @@ operational log/error records there, through the webapi (per
 
 - One place to inspect cross-component failures (useful as the surface area grows).
 - Needs a light, bounded schema + retention/rotation policy (placeholder for now —
-  see [app-logging.md](../../operate/app-logging.md)).
+  see [app-logging.md](../app-logging.md)).
 - Components must degrade gracefully when the app-log DB is unreachable, exactly as
   the hook already does for session writes.
 - If a separate store ever suits operational logs better, the abstraction lives
@@ -48,4 +48,4 @@ operational log/error records there, through the webapi (per
 Not built yet. The webapi creates the app-logs DB at boot (as it does every
 `couchdb.databases` entry), but nothing writes to it: the `app-log` action is
 `implemented: false` and there is no ingest route. Components log to stderr (the webui
-to the console). Schema: [app-logging.md](../../operate/app-logging.md).
+to the console). Schema: [app-logging.md](../app-logging.md).

@@ -2128,7 +2128,7 @@ of them had ever executed:
   localhost or a private network only.
 - The npm publish of `@claude-transcripts/cli` is **skipped** until an `NPM_TOKEN`
   secret is configured; the compiled binaries and the images publish regardless.
-  See [docs/operate/releasing.md](docs/operate/releasing.md).
+  See [docs/develop/releasing.md](docs/develop/releasing.md).
 - GHCR packages start **private** — flip each to public once after the first
   publish if you want unauthenticated `docker pull`.
 

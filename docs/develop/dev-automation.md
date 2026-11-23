@@ -57,7 +57,7 @@ from `brand/icons/`, since an SVG served this way can't fetch anything.
 | `check:contract` | `check-contract.ts` | Fails on a breaking OpenAPI change ([testing.md](testing.md#contract)) | CI |
 | — | `mirror-images.ts` | Copies the pinned backing-service images to GHCR ([ADR 0024](../design/decisions/0024-mirror-backing-images-to-registry.md)) | `mirror-images.yml` |
 | — | `build-cli-npm.ts` | Bundles the CLI for npm | `release-cli.yml` |
-| — | `release.ts` | Stamps one version into every manifest ([releasing.md](../operate/releasing.md)) | local |
+| — | `release.ts` | Stamps one version into every manifest ([releasing.md](releasing.md)) | local |
 | `stack:*` | `stack.ts` | `up`/`down`/`restart`/`logs`/`ps` for the dev stack; `--upstream`, `--build`, `--app` | local |
 | `bootstrap:garage` | `bootstrap-garage.ts` | Garage layout, bucket and app key; writes the key into `.env` | local |
 | `seed` | `seed.ts` | Creates missing CouchDB databases and reports buckets (`--dry-run`) | local |

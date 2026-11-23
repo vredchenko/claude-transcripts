@@ -50,17 +50,13 @@ manual `release-cli` run uploads the binaries as workflow artifacts without publ
 
 ### App image tags
 
-| Tag | Means | Pushed by |
-|-----|-------|-----------|
-| `vX.Y.Z` | that release | a `v*.*.*` tag |
-| `latest` | the newest release | a `v*.*.*` tag |
-| `<short-sha>` | one commit | a `v*.*.*` tag, and manual dispatch |
+The tags a release pushes (`vX.Y.Z`, `latest`, `<short-sha>`) are tabled where the
+people pulling them look: [containers.md](../operate/containers.md#tags).
 
 Only release tags publish. A push to `main` builds and scans the image the same way but
 pushes nothing, so there is no image of unreleased code: to run it for real, cut a
-patch release. `install` pins the app image to the CLI's own version and warns if the
-running app reports a different one. Every build is scanned with grype and trivy and
-fails on HIGH severity, so a base-image CVE can block a merge build too.
+patch release. Every build is scanned with grype and trivy and fails on HIGH severity,
+so a base-image CVE can block a merge build too.
 
 The version every component reports (`--version`, `/health`, the OpenAPI document, the
 statusline, the omnibus downloads page) is read from the committed `package.json`;
@@ -81,7 +77,7 @@ against what is published, since pinned images pick up advisories between releas
 
 ### Omnibus image tags
 
-`claude-transcripts-omnibus` ([omnibus.md](omnibus.md)) is published on a release only:
+`claude-transcripts-omnibus` ([omnibus.md](../operate/omnibus.md)) is published on a release only:
 `vX.Y.Z`, `latest` and `<short-sha>`, by the `omnibus` job in `publish-image.yml`. It is
 assembled from the app image that workflow has just scanned and pushed, smoke-tested,
 and held to the same scan gate. linux/amd64 only, like the app image. Pull requests that

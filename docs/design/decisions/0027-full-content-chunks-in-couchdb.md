@@ -88,6 +88,6 @@ directly on turns.
   and the `schema_version` + migration path absorbs format changes.
 - A **migration** backfills content chunks for already-recorded sessions from their
   S3 transcripts, so history is not left behind.
-- Redaction/secrets-masking ([app-logging.md](../../operate/app-logging.md), #11) becomes more
+- Redaction/secrets-masking ([app-logging.md](../app-logging.md), #11) becomes more
   load-bearing: parsed content in Couch is more directly queryable than an opaque
   blob, so masking-on-write matters more here.

@@ -275,12 +275,12 @@ default (non-`--upstream`) stack mode pulls mirrored backing images from your ow
 - [`docs/`](docs/) — organised into
   [getting started](docs/start/installation.md),
   [development](docs/develop/getting-started.md),
-  [operations](docs/operate/releasing.md), [reference](docs/reference/webapi.md),
+  [operations](docs/develop/releasing.md), [reference](docs/reference/webapi.md),
   and [design](docs/design/architecture.md) (with the
   [ADRs](docs/design/decisions/README.md) nested under it). Published at
   [vredchenko.github.io/claude-transcripts/docs](https://vredchenko.github.io/claude-transcripts/docs/).
 - [`CHANGELOG.md`](CHANGELOG.md) — what shipped in each release (lockstep-versioned;
-  see [releasing.md](docs/operate/releasing.md)).
+  see [releasing.md](docs/develop/releasing.md)).
 - [`CLAUDE.md`](CLAUDE.md) — build conventions and repo invariants for agents.
 - **Bun** workspace monorepo, TypeScript (ESM, strict); **Biome** formatting;
   **lefthook** pre-commit. `bun run lint`, `bun run typecheck`, `bun run build`.

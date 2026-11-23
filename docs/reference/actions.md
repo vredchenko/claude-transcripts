@@ -35,7 +35,7 @@ The current event → actions table is generated into [hook-events.md](hook-even
 Planned, with no handler yet: `enrich-metadata` (post host and harness metadata),
 `extract-feature` (URLs, repos, PRs, slash commands, models), `detect-memory-write`
 (`Edit`/`Write` to memory files, `CLAUDE.md`, `AGENTS.md`), `app-log`
-([app-logging.md](../operate/app-logging.md)), `index-for-search` (search indexing
+([app-logging.md](../design/app-logging.md)), `index-for-search` (search indexing
 already happens in the webapi's change follower).
 
 ## What is wired

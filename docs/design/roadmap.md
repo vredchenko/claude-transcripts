@@ -23,7 +23,7 @@ Tier 1 (capture, browse, search, export/import, one-command install) is built. O
 - **Claude Code compatibility generator** — still a placeholder
   ([compatibility.md](../start/compatibility.md)).
 - **Application logging** into its own database — designed, not built
-  ([app-logging.md](../operate/app-logging.md)).
+  ([app-logging.md](app-logging.md)).
 - **Leaked secrets: detection and scrubbing** ([secrets.md](secrets.md)). Today it is
   only `features.secretsMasking`, a flag with no implementation behind it. Scope:
   in-session detection by Claude with plugin and CLI commands, deterministic scanners,

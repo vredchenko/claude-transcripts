@@ -3,7 +3,7 @@
  * Release: stamp one lockstep semver across every component manifest (ADR 0023),
  * so a `vX.Y.Z` tag and the versions in the tree always agree. Dev-only tooling —
  * the actual building and publishing runs in GitHub Actions on the tag
- * (publish-image, mirror-images, release-cli; see docs/operate/releasing.md).
+ * (publish-image, mirror-images, release-cli; see docs/develop/releasing.md).
  *
  *   bun run scripts/release.ts 0.1.0     # bump, then commit + tag by hand
  *   bun run scripts/release.ts 0.1.0 --check   # verify only, no writes
