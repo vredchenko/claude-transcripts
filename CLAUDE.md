@@ -93,9 +93,15 @@ Plus:
   release). Run via `bun run scripts/<name>`; most are wrapped in CI.
 - `deploy/` — Docker Compose: CouchDB + Garage + Fossil + Meilisearch + admin UIs; `deploy/k8s/`
   the same stack as a generated kustomize base (ADR 0030).
-- `docs/` — design docs + ADRs: the **published** documentation (GitHub Pages, `/docs`),
-  so only what the project *is*. Proposals, evaluations and working notes go in
-  `rfcs/` (dated, unpublished; see `rfcs/README.md`) until decided.
+- `docs/` — the documentation, so only what the project *is*. **Directory = reader**:
+  `start/`, `use/`, `operate/`, `reference/` (and `design/architecture.md`) are for
+  people *running* the app and are **published** (GitHub Pages, every instance's
+  `/docs`) — write them for someone who has never seen the source. `develop/` and
+  `design/` (ADRs included) are for people *changing* it and are read in the repo;
+  one package's internals go in that package's `README.md`. A page that serves both
+  readers is two pages. The publish list is `SECTIONS` in `scripts/build-docs.ts`.
+  Proposals, evaluations and working notes go in `rfcs/` (dated, unpublished; see
+  `rfcs/README.md`) until decided.
   `tests/` — e2e, Playwright, mock Claude Code. Also:
   `site/` (landing page), `brand/`, `.claude-plugin/` (marketplace), `install.sh`.
 

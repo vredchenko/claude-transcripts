@@ -4,10 +4,11 @@ Ideas that are still being argued about: design proposals, evaluations and dated
 notes. They live with the code, so they're versioned, reviewed through pull requests, and
 kept in step across every remote. **They are not documentation.**
 
-`docs/` is the public, published documentation: the docs site on GitHub Pages and `/docs`
-in the app. Anything in `docs/` reads as how the project *is*. This folder is how it
-*might be*: `scripts/build-docs.ts` never renders it, and nothing in `docs/` should link
-here.
+`docs/` is the documentation: its user-facing sections are published (the docs site on
+GitHub Pages and `/docs` in the app), and its contributor sections are read in the
+repository. Either way, anything in `docs/` reads as how the project *is*. This folder is
+how it *might be*: `scripts/build-docs.ts` never reads it, and nothing in `docs/` should
+link here.
 
 ## Writing one
 

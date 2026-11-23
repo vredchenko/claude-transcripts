@@ -18,12 +18,17 @@ curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/
 | install it | [Installation](start/installation.md) |
 | change ports, stores, feature flags | [Configuration](start/configuration.md) |
 | wire the hook by hand | [Hook setup](start/hook-setup.md) |
-| use the CLI | [CLI reference](reference/cli.md) |
+| know what the banner and statusline are telling you | [In Claude Code](use/in-claude-code.md) |
+| browse and search your history | [The web UI](use/web-ui.md), [Search](use/search.md) |
+| script against it, or point an agent at it | [From the terminal](use/terminal.md), [The API](use/api.md) |
 | open it from your phone, install it as an app | [HTTPS and installing the web UI](operate/https.md) |
 | back up, restore, mirror | [Migrations, export and import](operate/migrations.md), [Mirrors](operate/mirrors.md) |
-| work on the code | [Getting started (development)](develop/getting-started.md) |
-| understand how it fits together | [Architecture](design/architecture.md), [ADRs](design/decisions/README.md) |
+| adopt sessions from before you installed | [Backfill](operate/tools.md) |
+| look up a command, route or stored document | [CLI](reference/cli.md), [HTTP routes](reference/routes.md), [CouchDB documents](reference/couchdb.md) |
+| understand how it fits together | [Architecture](design/architecture.md) |
+| work on the code | [Contributor docs](develop/README.md) |
 
-The same tree is published at
+These pages, the ones for people running Claude Transcripts, are published at
 [vredchenko.github.io/claude-transcripts/docs](https://vredchenko.github.io/claude-transcripts/docs/)
-and served by every instance at `/docs`.
+and served by every instance at `/docs`. The contributor docs are read in the
+repository.
