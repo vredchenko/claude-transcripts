@@ -25,6 +25,9 @@ plugin's `scripts/dispatch.ts`.
 
 ## What you see
 
+Each indicator and what to do about it, for people using the app:
+[docs/use/in-claude-code.md](../docs/use/in-claude-code.md).
+
 - **At session start**, a note in the transcript:
   `● Claude Transcripts recording → claude-transcripts-sessions@127.0.0.1:7652 (+ s3://…)`
   with the session's webui link on the line below — or, with no instance configured,

@@ -150,8 +150,8 @@ a second route to the same writer:
 
 The plugin contains no writer: it is a Bun shim (so this route needs **Bun** on
 `PATH`) that pipes each payload to `claude-transcripts hook run`, so the CLI must
-still be installed. It adds the skills, `/claude-transcripts:status` and the subagent
-statusline ([plugin.md](../design/plugin.md)).
+still be installed. It adds the skills and `/claude-transcripts:status`
+([In Claude Code](../use/in-claude-code.md#with-the-plugin)).
 
 **Pick one route.** Both register the same eleven events, so with both active every
 event is recorded twice. `hook install` and `setup` detect an enabled plugin and

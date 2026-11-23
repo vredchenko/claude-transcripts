@@ -60,6 +60,12 @@ const SECTIONS: Section[] = [
     lead: ["installation.md", "configuration.md", "hook-setup.md"],
   },
   {
+    dir: "use",
+    title: "Using it",
+    blurb: "What a recorded session shows you, and the ways to read history back.",
+    lead: ["in-claude-code.md", "web-ui.md", "search.md", "terminal.md", "api.md"],
+  },
+  {
     dir: "develop",
     title: "Development",
     blurb: "Working on Claude Transcripts itself: setup, conventions, tests, automation.",
@@ -69,13 +75,13 @@ const SECTIONS: Section[] = [
     dir: "operate",
     title: "Operations",
     blurb: "Running and shipping it: releases, containers, migrations, logs.",
-    lead: ["releasing.md", "containers.md"],
+    lead: ["containers.md", "omnibus.md"],
   },
   {
     dir: "reference",
     title: "Reference",
     blurb: "Per-component and per-surface detail — the codebase as documented.",
-    lead: ["webapi.md", "webui.md", "cli.md"],
+    lead: ["cli.md", "webapi.md", "routes.md"],
   },
   {
     dir: "design",

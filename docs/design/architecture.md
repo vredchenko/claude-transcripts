@@ -38,9 +38,9 @@ Scope is Claude Code only, not agent sessions in general
 |-----------|------|------|-----------|
 | hook | `packages/cli/src/hook/`, plugin shim in `hooks/` | The writer | [hook.md](../reference/hook.md) |
 | webapi | `packages/webapi/` | Gateway; applies migrations on boot; serves the SPA, docs and CLI binary in production | [webapi.md](../reference/webapi.md) |
-| webui | `packages/webui/` | Optional React SPA | [webui.md](../reference/webui.md) |
+| webui | `packages/webui/` | Optional React SPA | [web-ui.md](../use/web-ui.md) |
 | CLI | `packages/cli/` | Installer, admin tool, terminal client, and the hook | [cli.md](../reference/cli.md) |
-| shared | `packages/shared/` | The blueprint, migrations, cross-cutting types, `sumTranscriptTokens` | [webapi.md](../reference/webapi.md#packagesshared) |
+| shared | `packages/shared/` | The blueprint, migrations, cross-cutting types, `sumTranscriptTokens` | [README](../../packages/shared/README.md) |
 | plugin | `hooks/` | Skills, status command, statusline for Claude Code | [plugin.md](plugin.md) |
 
 **The blueprint** (`packages/shared/src/blueprint/`) is the central description of the

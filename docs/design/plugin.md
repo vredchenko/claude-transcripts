@@ -3,7 +3,8 @@
 `hooks/` is a Claude Code plugin that does three things beyond pointing Claude Code at
 the writer: it shows that a session is being recorded and where, gives Claude skills
 for reading history back, and carries the policy that tells Claude when to look without
-being asked. Usage: [`hooks/README.md`](../../hooks/README.md).
+being asked. Usage: [`hooks/README.md`](../../hooks/README.md); what a user sees:
+[In Claude Code](../use/in-claude-code.md).
 
 ```
 .claude-plugin/marketplace.json        the repo is its own marketplace
