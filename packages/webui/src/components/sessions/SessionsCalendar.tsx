@@ -246,10 +246,13 @@ export function SessionsCalendar({
   onMonth: (monthStart: number) => void;
   onDay: (dayStart: number | undefined) => void;
 }) {
-  const placed: Placed[] = sessions.map((session) => ({
-    session,
-    interval: toInterval(session, now),
-  }));
+  const placed: Placed[] = [];
+  let undated = 0;
+  for (const session of sessions) {
+    const interval = toInterval(session, now);
+    if (interval) placed.push({ session, interval });
+    else undated += 1;
+  }
 
   const monthLabel = new Date(monthStart).toLocaleDateString(undefined, {
     month: "long",
@@ -329,6 +332,18 @@ export function SessionsCalendar({
           ))
         )}
       </Paper>
+      {undated > 0 && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          data-testid="calendar-undated"
+          sx={{ display: "block", mt: 1 }}
+        >
+          {undated === 1
+            ? "1 session has no start time and isn't shown; it is in the list view."
+            : `${undated} sessions have no start time and aren't shown; they are in the list view.`}
+        </Typography>
+      )}
     </Box>
   );
 }

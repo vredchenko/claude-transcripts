@@ -48,12 +48,16 @@ function parse(iso: string | undefined): number {
  * The API reports these three ways and all of them occur: an ended session has a start
  * and a duration; a running one has a start and a `lastActivity` that keeps moving; and
  * a session that crashed before its summary was written has a start and nothing else.
- * The last case is why the fallback is `now` rather than zero — drawing a crashed
- * session as instantaneous would hide it entirely on a time axis.
+ * The last case is why the end falls back to `now` rather than to the start — drawing a
+ * crashed session as instantaneous would hide it entirely on a time axis.
+ *
+ * A session with no usable start has no place on a time axis at all, so it gets no
+ * interval (`undefined`). Drawing it at `now` instead, as this once did, put a record
+ * with no timestamps on today's row whatever day it came from.
  */
-export function toInterval(session: PlaceableSession, now: number): Interval {
-  const start = parse(session.startTimestamp ?? session.timestamp);
-  const safeStart = Number.isNaN(start) ? now : start;
+export function toInterval(session: PlaceableSession, now: number): Interval | undefined {
+  const safeStart = parse(session.startTimestamp || session.timestamp);
+  if (Number.isNaN(safeStart)) return undefined;
 
   const byDuration = session.durationMs ? safeStart + session.durationMs : Number.NaN;
   const byActivity = parse(session.lastActivity);
