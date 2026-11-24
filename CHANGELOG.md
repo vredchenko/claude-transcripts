@@ -8,14 +8,20 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-11-24
+
+Fixes for sessions with no start time. The calendar no longer shows them on today's row,
+and backfill no longer records them. No action is needed beyond upgrading. To remove a
+record an earlier backfill left this way, call `DELETE /api/ingest/{id}`.
+
 ### Fixed
 
-- **The calendar no longer puts a session with no start time on today.** A record with
+- **The calendar no longer puts a session with no start time on today** ([#314]). A record with
   no timestamps, such as a backfill of a transcript holding no dated entries, was drawn
   at the current moment, so it showed on today's row whatever day it came from. The
   calendar now leaves such sessions out and says how many it left out; the list view
   still shows them.
-- **`backfill` skips a transcript with no dated entries.** Claude Code leaves files
+- **`backfill` skips a transcript with no dated entries** ([#315]). Claude Code leaves files
   that hold only file-history snapshots; backfill recorded each one as a session with
   no start, cwd or turns. It now reports them as skipped and writes nothing, even with
   `--force`, which also no longer clears a record before finding it has nothing to
@@ -2288,6 +2294,8 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#315]: https://github.com/vredchenko/claude-transcripts/pull/315
+[#314]: https://github.com/vredchenko/claude-transcripts/pull/314
 [#312]: https://github.com/vredchenko/claude-transcripts/pull/312
 [#300]: https://github.com/vredchenko/claude-transcripts/pull/300
 [#296]: https://github.com/vredchenko/claude-transcripts/issues/296
@@ -2306,6 +2314,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.12.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.1
 [0.12.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.0
 [0.11.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.1
 [0.11.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.0
