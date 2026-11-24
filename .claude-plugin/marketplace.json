@@ -9,7 +9,7 @@
       "name": "claude-transcripts",
       "source": "./hooks",
       "description": "Record every session through your instance's webapi, show that it's recording, and read the history back.",
-      "version": "0.12.0",
+      "version": "0.12.1",
       "category": "productivity"
     }
   ]
