@@ -8,8 +8,23 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-24
+
+A new logo, an installable web UI, and history that follows a session through
+`/model`, `cd` and `/add-dir`. To upgrade, pull the new image or binary and re-run
+`claude-transcripts setup` so the hook records the three new events. The webapi applies
+migration v11 on boot. Then run `claude-transcripts reindex` once, so the model filter
+in search finds older sessions whose stored model carries a context suffix such as `[1m]`.
+
 ### Added
 
+- **Model switches and directory changes are recorded** ([#300], closes [#296]). The
+  hook now records `PostModelSwitch` (from, to, requested model, source, cost estimate),
+  `CwdChanged` and `DirectoryAdded`. A session's summary lists every model it used, in
+  order. `backfill` reconstructs model switches and directory changes from a transcript,
+  but not `/add-dir`, which leaves no trace in the file. Sessions, search results and
+  session detail show a switch as `opus → sonnet`. Session detail also lists the
+  directories a session moved through and the ones it added.
 - **A new logo** ([#310], [#311]): a live pulse over a prompt and a cursor, replacing
   the three-line card in the web UI, the docs, the site, the README and the
   architecture diagram. `brand/source/` holds the masters; `bun run gen:brand` derives
@@ -26,6 +41,10 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The `model` filter matches any model a session used** ([#300]), in both
+  `GET /api/sessions` and `GET /api/search`. Context suffixes are ignored, so a
+  `claude-opus-5-5[1m]` session counts as `claude-opus-5-5`, and switching between the
+  two is not a model switch.
 - **The docs site and `/docs` carry only the pages for people running the app**
   ([#312]): 25 pages where there were 65. Contributor guides, design notes and ADRs are
   read in the repository, indexed by [docs/develop/README.md](docs/develop/README.md);
@@ -2256,6 +2275,8 @@ of them had ever executed:
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
 [#312]: https://github.com/vredchenko/claude-transcripts/pull/312
+[#300]: https://github.com/vredchenko/claude-transcripts/pull/300
+[#296]: https://github.com/vredchenko/claude-transcripts/issues/296
 [#311]: https://github.com/vredchenko/claude-transcripts/pull/311
 [#310]: https://github.com/vredchenko/claude-transcripts/issues/310
 [#306]: https://github.com/vredchenko/claude-transcripts/issues/306
@@ -2271,6 +2292,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.12.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.0
 [0.11.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.1
 [0.11.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.0
 [0.10.2]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.10.2
