@@ -12,7 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { planReingest, type ReingestPlan, runBackfill } from "./backfill";
+import { isUndated, planReingest, type ReingestPlan, runBackfill } from "./backfill";
 
 const live = { source: "live", status: "ended" };
 const backfilled = { source: "backfill" };
@@ -100,6 +100,8 @@ describe("runBackfill output", () => {
   const stored = new Set<string>();
   /** Status every ingest write answers with. */
   let ingestStatus = 200;
+  /** Ingest requests the fake webapi has answered. */
+  let ingested = 0;
   const server = Bun.serve({
     port: 0,
     fetch(req) {
@@ -112,6 +114,7 @@ describe("runBackfill output", () => {
           : new Response("not found", { status: 404 });
       }
       if (pathname.startsWith("/api/ingest")) {
+        ingested++;
         return ingestStatus === 200
           ? Response.json({ ok: true })
           : Response.json({ error: "boom" }, { status: ingestStatus });
@@ -144,10 +147,15 @@ describe("runBackfill output", () => {
   beforeEach(() => {
     stored.clear();
     ingestStatus = 200;
+    ingested = 0;
   });
 
   /** Every line the command printed, on any stream, in order. */
   async function run(...args: string[]): Promise<{ code: number; lines: string[] }> {
+    return runIn(root, ...args);
+  }
+
+  async function runIn(dir: string, ...args: string[]): Promise<{ code: number; lines: string[] }> {
     const lines: string[] = [];
     const saved = { log: console.log, warn: console.warn, error: console.error };
     const capture = (...a: unknown[]) => {
@@ -157,7 +165,7 @@ describe("runBackfill output", () => {
     console.warn = capture;
     console.error = capture;
     try {
-      const code = await runBackfill(["--dir", root, "--host", "test-host", ...args]);
+      const code = await runBackfill(["--dir", dir, "--host", "test-host", ...args]);
       return { code, lines };
     } finally {
       Object.assign(console, saved);
@@ -205,5 +213,34 @@ describe("runBackfill output", () => {
     expect(code).toBe(0);
     expect(lines.some((l) => l.includes("1 backfilled"))).toBe(true);
     expect(lines.some((l) => l.startsWith(NOTE))).toBe(true);
+  });
+
+  test("a transcript with no dated entries is skipped, not recorded", async () => {
+    // What Claude Code leaves for a session that only snapshotted file history: no
+    // entry has a timestamp, a cwd or a message.
+    const dir = await mkdtemp(join(tmpdir(), "ct-backfill-undated-"));
+    try {
+      await mkdir(join(dir, "-srv-proj"));
+      const snapshot = { type: "file-history-snapshot", messageId: "m1", snapshot: {} };
+      await writeFile(
+        join(dir, "-srv-proj", "s-undated.jsonl"),
+        `${JSON.stringify(snapshot)}\n${JSON.stringify(snapshot)}\n`,
+      );
+      const { code, lines } = await runIn(dir, "--webapi", LIVE);
+      expect(code).toBe(0);
+      expect(ingested).toBe(0);
+      expect(lines.some((l) => l.includes("s-undated: skipped — no dated entries"))).toBe(true);
+      expect(lines.some((l) => l.includes("1 skipped (1 with no dated entries)"))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("isUndated", () => {
+  test("a transcript is a session only when some entry is dated", () => {
+    expect(isUndated({ startTimestamp: undefined })).toBe(true);
+    expect(isUndated({ startTimestamp: "" })).toBe(true);
+    expect(isUndated({ startTimestamp: "2026-08-20T14:03:11.000Z" })).toBe(false);
   });
 });
