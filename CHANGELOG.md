@@ -8,6 +8,14 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The calendar no longer puts a session with no start time on today.** A record with
+  no timestamps, such as a backfill of a transcript holding no dated entries, was drawn
+  at the current moment, so it showed on today's row whatever day it came from. The
+  calendar now leaves such sessions out and says how many it left out; the list view
+  still shows them.
+
 ## [0.12.0] — 2026-11-24
 
 A new logo, an installable web UI, and history that follows a session through

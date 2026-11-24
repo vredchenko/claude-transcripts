@@ -38,8 +38,8 @@ describe("toInterval", () => {
       },
       NOW,
     );
-    expect(i.start).toBe(at(2026, 3, 18, 9));
-    expect(i.end).toBe(at(2026, 3, 18, 11));
+    expect(i?.start).toBe(at(2026, 3, 18, 9));
+    expect(i?.end).toBe(at(2026, 3, 18, 11));
   });
 
   it("runs a running session up to now", () => {
@@ -54,7 +54,7 @@ describe("toInterval", () => {
       },
       NOW,
     );
-    expect(i.end).toBe(NOW);
+    expect(i?.end).toBe(NOW);
   });
 
   it("falls back to the timestamp when there is no duration", () => {
@@ -67,7 +67,7 @@ describe("toInterval", () => {
       },
       NOW,
     );
-    expect(i.end).toBe(at(2026, 3, 18, 12));
+    expect(i?.end).toBe(at(2026, 3, 18, 12));
   });
 
   it("never ends before it starts", () => {
@@ -80,13 +80,27 @@ describe("toInterval", () => {
       },
       NOW,
     );
-    expect(i.end).toBeGreaterThanOrEqual(i.start);
+    expect(i?.end).toBeGreaterThanOrEqual(i?.start ?? Number.POSITIVE_INFINITY);
   });
 
-  it("survives an unparseable start", () => {
-    const i = toInterval({ sessionId: "a", timestamp: "not a date" }, NOW);
-    expect(Number.isNaN(i.start)).toBe(false);
-    expect(i.end).toBeGreaterThanOrEqual(i.start);
+  it("gives no interval for an unparseable start", () => {
+    expect(toInterval({ sessionId: "a", timestamp: "not a date" }, NOW)).toBeUndefined();
+  });
+
+  it("gives no interval, rather than today, for a session with no timestamps", () => {
+    // A backfilled record with no dated entries comes back with an empty timestamp and
+    // a null start; it used to be drawn at `now`, on today's row.
+    expect(
+      toInterval({ sessionId: "a", timestamp: "", startTimestamp: undefined }, NOW),
+    ).toBeUndefined();
+  });
+
+  it("falls back to timestamp when startTimestamp is empty", () => {
+    const i = toInterval(
+      { sessionId: "a", startTimestamp: "", timestamp: new Date(at(2026, 3, 18, 9)).toISOString() },
+      NOW,
+    );
+    expect(i?.start).toBe(at(2026, 3, 18, 9));
   });
 });
 
