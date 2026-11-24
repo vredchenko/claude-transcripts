@@ -68,6 +68,9 @@ file. Sessions adopted by an older CLI have none of these; `--force` rebuilds th
 
 - **Default** — sessions that already have a summary doc are skipped, so repeat runs
   are cheap.
+- **A transcript with no dated entries is always skipped**, `--force` or not. Claude
+  Code leaves such files behind, holding only file-history snapshots; they have no
+  start, cwd or turns, so they would make a session no view can place in time.
 - **`--dry-run`** reads the store and writes nothing, so the preview shows exactly what
   a real run would skip. If the webapi is unreachable it says the preview is a guess.
 - **`--force`** re-processes adopted sessions, for example ones adopted with

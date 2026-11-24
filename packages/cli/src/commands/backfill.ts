@@ -63,7 +63,7 @@ import {
   reconstructSubagents,
   withSubagentTools,
 } from "../lib/subagents";
-import { deriveSessionFacts } from "../lib/transcript";
+import { deriveSessionFacts, type SessionFacts } from "../lib/transcript";
 
 /**
  * What re-ingesting this session may do, given what is already stored.
@@ -123,6 +123,18 @@ export function planReingest(
     return { action: "skip", reason: "live-record" };
   }
   return { action: "adopt" };
+}
+
+/**
+ * A transcript none of whose entries carries a timestamp is not a session.
+ *
+ * Claude Code writes such a file when it only snapshots file history (for a session
+ * that was resumed, rewound or opened and closed with nothing said) and when a file is
+ * cut short. Recording it would give a summary with no start, no cwd and no turns,
+ * which no view can place in time.
+ */
+export function isUndated(facts: Pick<SessionFacts, "startTimestamp">): boolean {
+  return !facts.startTimestamp;
 }
 
 export async function runBackfill(argv: string[]): Promise<number> {
@@ -214,6 +226,8 @@ export async function runBackfill(argv: string[]): Promise<number> {
   let reprocessed = 0;
   let refusedLive = 0;
   let repaired = 0;
+  /** Transcripts with no dated entry at all, which make no session. */
+  let undated = 0;
   for (const t of found) {
     try {
       if (only.size && !only.has(t.sessionId)) {
@@ -268,6 +282,20 @@ export async function runBackfill(argv: string[]): Promise<number> {
         repaired++;
         continue;
       }
+      const jsonl = await readTranscript(t.path);
+      const sub = reconstructSubagents(jsonl, await loadSubagents(t.subagents));
+      const facts = withSubagentTools(
+        deriveSessionFacts(jsonl, { hostname: host, sessionIdHint: t.sessionId }),
+        sub,
+      );
+      // Decided before anything is cleared, so --force never empties a record it then
+      // has nothing to replace with.
+      if (isUndated(facts)) {
+        console.log(`  · ${t.sessionId}: skipped — no dated entries, so not a session`);
+        undated++;
+        skipped++;
+        continue;
+      }
       if (existing) {
         // Clear first: an upsert only covers the summary, so without this the old
         // events and chunks would survive the rewrite and be read back alongside.
@@ -278,12 +306,6 @@ export async function runBackfill(argv: string[]): Promise<number> {
         );
         reprocessed++;
       }
-      const jsonl = await readTranscript(t.path);
-      const sub = reconstructSubagents(jsonl, await loadSubagents(t.subagents));
-      const facts = withSubagentTools(
-        deriveSessionFacts(jsonl, { hostname: host, sessionIdHint: t.sessionId }),
-        sub,
-      );
 
       await sink.putSummary(buildSummaryDoc(facts, "backfill", { actor, backfilledAt }));
       await sink.putEvents([
@@ -318,7 +340,8 @@ export async function runBackfill(argv: string[]): Promise<number> {
   console.log(
     `backfill: ${written} backfilled${repaired ? `, ${repaired} repaired` : ""}` +
       `${reprocessed ? ` (${reprocessed} re-processed)` : ""}, ` +
-      `${skipped} skipped${refusedLive ? ` (${refusedLive} live, not replaced)` : ""}, ` +
+      `${skipped} skipped${refusedLive ? ` (${refusedLive} live, not replaced)` : ""}` +
+      `${undated ? ` (${undated} with no dated entries)` : ""}, ` +
       `${failed} failed`,
   );
   // Once, not per session: the same URL and remedy repeated for every transcript on the

@@ -15,6 +15,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   at the current moment, so it showed on today's row whatever day it came from. The
   calendar now leaves such sessions out and says how many it left out; the list view
   still shows them.
+- **`backfill` skips a transcript with no dated entries.** Claude Code leaves files
+  that hold only file-history snapshots; backfill recorded each one as a session with
+  no start, cwd or turns. It now reports them as skipped and writes nothing, even with
+  `--force`, which also no longer clears a record before finding it has nothing to
+  rebuild it from. Records already written this way can be removed with
+  `DELETE /api/ingest/{id}`.
 
 ## [0.12.0] — 2026-11-24
 
