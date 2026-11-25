@@ -18,8 +18,10 @@ The start page lists every recorded session, in one of two views chosen in the U
   time of an ended session, the last write of a live or abandoned one), and the short
   session id with a copy button and a `⋯` menu of links to the session's raw data.
   Columns are not sortable.
-- **Calendar**: one month as 24-hour lanes per day, bars placed by clock time and
-  coloured per project, opacity showing the active share. Each lane is shaded by
+- **Calendar**: a 24-hour lane per day, bars placed by clock time and coloured per
+  project, opacity showing the active share. It opens on all of history, newest day
+  first, loading more as you scroll; **Month** narrows it to one month (`&month=`)
+  with ‹ › and Today to page through. Each lane is shaded by
   that day's daylight (night, civil twilight, day), worked out for
   [`userSettings.location`](../start/configuration.md#settings) or, if that's unset,
   for your browser's time zone's reference city.

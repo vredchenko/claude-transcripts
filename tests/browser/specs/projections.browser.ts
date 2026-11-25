@@ -60,6 +60,33 @@ test.describe("calendar", () => {
     await expect(bars).not.toHaveCount(0);
   });
 
+  test("opens on all of history, and Month / All narrow and widen it", async ({ page }) => {
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto();
+    await list.selectView("Calendar");
+
+    // No month chosen: the whole history, so no month in the URL and no month nav.
+    await expect(list.calendarLanes).toBeVisible();
+    await expect(page).not.toHaveURL(/month=/);
+    await expect(page.getByRole("button", { name: "next month" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Month", exact: true }).click();
+    await expect(page).toHaveURL(/month=\d{4}-\d{2}/);
+    await expect(page.getByRole("button", { name: "next month" })).toBeVisible();
+
+    await page.getByRole("button", { name: "All", exact: true }).click();
+    await expect(page).not.toHaveURL(/month=/);
+  });
+
+  test("all of history draws the fixture's sessions", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto("?view=calendar");
+    await expect(list.calendarSessionBars.first()).toBeVisible();
+  });
+
   test("pages between months", async ({ page }) => {
     await setupPage(page);
     const list = new SessionsListPage(page);
