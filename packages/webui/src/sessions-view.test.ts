@@ -4,6 +4,7 @@ import {
   dayPlacements,
   dayRollup,
   groupByDay,
+  groupByOverlap,
   HOUR_MS,
   type Interval,
   monthKey,
@@ -245,6 +246,41 @@ describe("dayPlacements", () => {
     expect(placed.get("a")!.lane).toBe(0);
     expect(placed.get("b")!.lane).toBe(0);
     expect(placed.get("a")!.laneCount).toBe(1);
+  });
+});
+
+describe("groupByOverlap", () => {
+  it("files a session that crosses midnight under both days", () => {
+    const late = interval("late", at(2026, 3, 17, 22), at(2026, 3, 18, 2));
+    const groups = groupByOverlap([late], (i) => i);
+    expect(groups.map((g) => g.key)).toEqual(["2026-03-18", "2026-03-17"]);
+  });
+
+  it("covers every day of a multi-day session, newest day first", () => {
+    const long = interval("long", at(2026, 3, 14, 9), at(2026, 3, 17, 9));
+    expect(groupByOverlap([long], (i) => i).map((g) => g.key)).toEqual([
+      "2026-03-17",
+      "2026-03-16",
+      "2026-03-15",
+      "2026-03-14",
+    ]);
+  });
+
+  it("doesn't spill a session ending exactly at midnight into the next day", () => {
+    const evening = interval("evening", at(2026, 3, 17, 20), at(2026, 3, 18, 0));
+    expect(groupByOverlap([evening], (i) => i).map((g) => g.key)).toEqual(["2026-03-17"]);
+  });
+
+  it("keeps an instantaneous session on its own day", () => {
+    const blip = interval("blip", at(2026, 3, 17, 12), at(2026, 3, 17, 12));
+    expect(groupByOverlap([blip], (i) => i).map((g) => g.key)).toEqual(["2026-03-17"]);
+  });
+
+  it("orders a day's sessions newest start first", () => {
+    const a = interval("a", at(2026, 3, 16, 23), at(2026, 3, 17, 1));
+    const b = interval("b", at(2026, 3, 17, 10), at(2026, 3, 17, 11));
+    const day = groupByOverlap([a, b], (i) => i).find((g) => g.key === "2026-03-17");
+    expect(day?.items.map((i) => i.sessionId)).toEqual(["b", "a"]);
   });
 });
 

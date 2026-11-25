@@ -44,7 +44,7 @@ import {
 import {
   dayKey,
   dayPlacements,
-  groupByDay,
+  groupByOverlap,
   type Interval,
   shiftMonth,
   toInterval,
@@ -205,7 +205,11 @@ function DayLane({
   const intervals = placed.map((p) => p.interval);
   const placements = dayPlacements(dayStart, intervals);
   const sessionsOnDay = placed.filter((p) => placements.has(p.interval.sessionId));
-  const activeMs = sessionsOnDay.reduce((sum, p) => sum + (p.session.activeMs ?? 0), 0);
+  // The day's figures count the sessions that *started* on it: one that carried on past
+  // midnight is drawn on both lanes, but its active time belongs to one day, not two.
+  const startedOnDay = sessionsOnDay.filter((p) => p.interval.start >= dayStart);
+  const continuing = sessionsOnDay.length - startedOnDay.length;
+  const activeMs = startedOnDay.reduce((sum, p) => sum + (p.session.activeMs ?? 0), 0);
 
   return (
     <Box
@@ -238,9 +242,16 @@ function DayLane({
         </Typography>
         {/* Count and active time on lines of their own: run together they wrapped
             mid-figure ("56m" / "14s") in a cell this narrow. */}
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-          {sessionsOnDay.length} session{sessionsOnDay.length === 1 ? "" : "s"}
-        </Typography>
+        {(startedOnDay.length > 0 || continuing === 0) && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+            {startedOnDay.length} session{startedOnDay.length === 1 ? "" : "s"}
+          </Typography>
+        )}
+        {continuing > 0 && (
+          <Typography variant="caption" color="text.disabled" sx={{ display: "block" }}>
+            +{continuing} from before
+          </Typography>
+        )}
         {activeMs > 0 && (
           <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
             {formatDuration(activeMs)} active
@@ -360,8 +371,8 @@ export function SessionsCalendar({
       ? undefined
       : new Date(monthStart).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
-  // Group sessions by day for the vertical stack.
-  const dayGroups = groupByDay(placed, (p) => p.interval.start);
+  // Every day each session ran on, not just the day it started.
+  const dayGroups = groupByOverlap(placed, (p) => p.interval);
 
   return (
     <Box data-testid="calendar-lanes">

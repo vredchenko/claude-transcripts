@@ -341,6 +341,36 @@ export function groupByDay<T>(items: T[], startOf: (item: T) => number): DayGrou
     }));
 }
 
+/**
+ * Group intervals under **every** local day they overlap, most recent day first.
+ *
+ * The calendar's counterpart to {@link groupByDay}: a lane per day shows what was
+ * *running* that day, so a session that started at 22:00 belongs on the next day's lane
+ * too — grouped by start alone, the hours after midnight were silently not drawn.
+ * Within a day, items are ordered newest start first.
+ */
+export function groupByOverlap<T>(items: T[], intervalOf: (item: T) => Interval): DayGroup<T>[] {
+  const groups = new Map<string, DayGroup<T>>();
+  for (const item of items) {
+    const { start, end } = intervalOf(item);
+    // Walk local midnights by calendar date, not by adding 24h, so DST can't skip a day.
+    for (let day = startOfDay(start); day < Math.max(end, start + 1); ) {
+      const key = dayKey(day);
+      const group = groups.get(key) ?? { dayStart: day, key, items: [] };
+      group.items.push(item);
+      groups.set(key, group);
+      const d = new Date(day);
+      day = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+    }
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.dayStart - a.dayStart)
+    .map((group) => ({
+      ...group,
+      items: group.items.sort((a, b) => intervalOf(b).start - intervalOf(a).start),
+    }));
+}
+
 /** Rollup stats for a day group: sum of active time and total tokens. */
 export function dayRollup<T extends { activeMs?: number; tokenUsage?: { total: number } }>(
   sessions: T[],
