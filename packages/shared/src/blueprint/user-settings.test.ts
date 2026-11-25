@@ -33,4 +33,24 @@ describe("resolveUserSettings", () => {
       );
     }
   });
+
+  test("a location in range is kept", () => {
+    expect(
+      resolveUserSettings({ location: { latitude: 51.5, longitude: -0.12 } }).location,
+    ).toEqual({ latitude: 51.5, longitude: -0.12 });
+  });
+
+  test("an unusable location is dropped whole, never half-kept", () => {
+    for (const bad of [
+      { latitude: 91, longitude: 0 },
+      { latitude: 0, longitude: 181 },
+      { latitude: "51", longitude: 0 },
+      { latitude: 51 },
+      { latitude: Number.NaN, longitude: 0 },
+      "London",
+      null,
+    ]) {
+      expect(resolveUserSettings({ location: bad }).location).toBeNull();
+    }
+  });
 });

@@ -26,6 +26,7 @@
     "gen:diagram": "bun run scripts/gen-diagram.ts",
     "gen:assets": "bun run scripts/gen-assets.ts",
     "gen:mock": "bun run scripts/regenerate-mock-fixtures.ts",
+    "gen:tz": "bun run scripts/gen-tz-coordinates.ts",
     "gen:compose": "bun run scripts/gen-compose.ts",
     "gen:compose-override": "bun run scripts/gen-compose-override.ts",
     "gen:k8s": "bun run scripts/gen-k8s.ts",

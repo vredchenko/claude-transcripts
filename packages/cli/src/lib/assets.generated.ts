@@ -444,7 +444,8 @@ exec fossil server "$@"
   "userSettings": {
     "sessionListPageSize": 100,
     "transcriptPageSize": 100,
-    "transcriptAutoLoadMax": 2000
+    "transcriptAutoLoadMax": 2000,
+    "location": null
   },
   "recall": {
     "mode": "auto",

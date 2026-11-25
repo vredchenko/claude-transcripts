@@ -27,12 +27,26 @@ export interface UserSettings {
    * DOM. Past this point the reader is told what is left and asks for it explicitly.
    */
   transcriptAutoLoadMax: number;
+  /**
+   * Where the calendar works out sunrise and sunset, for shading each day's lane by
+   * daylight. `null` (the default) leaves it to the browser, which takes the reference
+   * coordinates of its own time zone — near enough for shading, and right for anyone
+   * who lives in the zone's city or close to it. Set it to be exact.
+   */
+  location: GeoLocation | null;
+}
+
+/** A point on the Earth, in decimal degrees (north and east positive). */
+export interface GeoLocation {
+  latitude: number;
+  longitude: number;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   sessionListPageSize: 100,
   transcriptPageSize: 100,
   transcriptAutoLoadMax: 2_000,
+  location: null,
 };
 
 /**
@@ -40,11 +54,13 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
  * capped at something a gateway can answer promptly; the auto-load ceiling is capped
  * at what a browser can hold without virtual scrolling.
  */
-const LIMITS = {
+type NumericSetting = Exclude<keyof UserSettings, "location">;
+
+const LIMITS: Record<NumericSetting, number> = {
   sessionListPageSize: 500,
   transcriptPageSize: 500,
   transcriptAutoLoadMax: 50_000,
-} as const;
+};
 
 /**
  * Config over defaults, with every value clamped to a usable range.
@@ -53,16 +69,29 @@ const LIMITS = {
  * on the path that builds the blueprint, and a stray `0` in one field should not stop
  * the whole instance from starting.
  */
-export function resolveUserSettings(fromConfig?: Partial<UserSettings>): UserSettings {
+export function resolveUserSettings(
+  fromConfig?: Partial<Omit<UserSettings, "location">> & { location?: unknown },
+): UserSettings {
   const c = fromConfig ?? {};
   return {
     sessionListPageSize: clamp(c.sessionListPageSize, "sessionListPageSize"),
     transcriptPageSize: clamp(c.transcriptPageSize, "transcriptPageSize"),
     transcriptAutoLoadMax: clamp(c.transcriptAutoLoadMax, "transcriptAutoLoadMax"),
+    location: resolveLocation(c.location),
   };
 }
 
-function clamp(value: number | undefined, key: keyof UserSettings): number {
+/** A location with both coordinates in range, or `null` — never a half-set one. */
+function resolveLocation(value: unknown): GeoLocation | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { latitude, longitude } = value as Record<string, unknown>;
+  if (typeof latitude !== "number" || typeof longitude !== "number") return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return { latitude, longitude };
+}
+
+function clamp(value: number | undefined, key: NumericSetting): number {
   const fallback = DEFAULT_USER_SETTINGS[key];
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   const rounded = Math.floor(value);
