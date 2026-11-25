@@ -8,6 +8,33 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-25
+
+A calendar that covers your whole history and shows day and night. No action is needed
+beyond upgrading. To shade by an exact location instead of your time zone's city, set
+`userSettings.location` in `config/config.json`.
+
+### Added
+
+- **The calendar shades each day by daylight** ([#317]). Each lane runs from night
+  through civil twilight to day, using that date's sunrise and sunset, so you can see
+  whether a session ran in daylight or after dark, and day length changes with the
+  seasons. The location comes from the new `userSettings.location`
+  (`{ "latitude", "longitude" }`) or, when that's unset, from the reference city of the
+  browser's time zone. A browser set to UTC gets no shading.
+- **The calendar opens on all of history** ([#318]). `?view=calendar` without `month`
+  shows every day, newest first, and loads more as you scroll, like the list. An
+  **All / Month** switch narrows it to one month with the ‹ › and Today controls as
+  before. The hour axis now stays visible below the header while you scroll.
+
+### Fixed
+
+- **A session that runs past midnight is drawn on every day it ran** ([#319]). The
+  calendar placed each session on the day it started and cut it off at midnight, so the
+  hours after midnight weren't shown. A day covered only by a session that began the
+  day before had no row at all. A day's session count and active time still include
+  only the sessions that started on it, and carry-overs show as "+N from before".
+
 ## [0.12.1] — 2026-11-24
 
 Fixes for sessions with no start time. The calendar no longer shows them on today's row,
@@ -2294,6 +2321,9 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#319]: https://github.com/vredchenko/claude-transcripts/pull/319
+[#318]: https://github.com/vredchenko/claude-transcripts/pull/318
+[#317]: https://github.com/vredchenko/claude-transcripts/pull/317
 [#315]: https://github.com/vredchenko/claude-transcripts/pull/315
 [#314]: https://github.com/vredchenko/claude-transcripts/pull/314
 [#312]: https://github.com/vredchenko/claude-transcripts/pull/312
@@ -2314,6 +2344,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.13.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.13.0
 [0.12.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.1
 [0.12.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.0
 [0.11.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.11.1
