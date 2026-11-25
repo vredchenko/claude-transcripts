@@ -4,10 +4,24 @@
  * right cell (24h lane with session bars positioned by clock time).
  *
  * Month navigation (‹ ›, TODAY) retained. Click a bar to open the session detail.
+ *
+ * Each lane is shaded by daylight — night, civil twilight, day — at the configured
+ * location or the browser's time zone's reference point (see `daylight.ts`), so a
+ * session's bar shows whether it ran in the light or the dark, and the days visibly
+ * lengthen and shorten as you scroll through the year.
  */
 import { Box, Button, IconButton, Paper, Stack, Tooltip, Typography } from "@mui/material";
 import { Link } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { useUserSettings } from "../../api/blueprint";
 import type { SessionSummary } from "../../api/generated";
+import {
+  browserTimeZone,
+  type DaylightPlace,
+  daylightPlace,
+  type LightStop,
+  lightStops,
+} from "../../daylight";
 import {
   durationSplit,
   formatCount,
@@ -36,6 +50,22 @@ function projectHue(cwd: string | undefined): number {
   return Math.abs(hash * 137.508) % 360;
 }
 
+/** Lane tint at full night and full day; twilight is mixed between them. */
+const NIGHT_RGBA = [10, 14, 40, 0.45] as const;
+const DAY_RGBA = [255, 214, 140, 0.07] as const;
+
+function lightColour(light: number): string {
+  const mix = NIGHT_RGBA.map((n, i) => n + ((DAY_RGBA[i] ?? n) - n) * light);
+  const [r, g, b, a] = mix as [number, number, number, number];
+  return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${a.toFixed(3)})`;
+}
+
+/** A day's light as a left-to-right CSS gradient behind its lane. */
+function daylightGradient(stops: LightStop[]): string {
+  const parts = stops.map((s) => `${lightColour(s.light)} ${s.pct.toFixed(2)}%`);
+  return `linear-gradient(to right, ${parts.join(", ")})`;
+}
+
 /** How many projects the legend names before summing the rest as "+N more". */
 const LEGEND_SHOWN = 8;
 
@@ -45,7 +75,13 @@ function projectColour(cwd: string | undefined, opacity: number): string {
 }
 
 /** The month's projects, busiest first: what each bar colour means. */
-function ProjectLegend({ sessions }: { sessions: SessionSummary[] }) {
+function ProjectLegend({
+  sessions,
+  place,
+}: {
+  sessions: SessionSummary[];
+  place: DaylightPlace | undefined;
+}) {
   const counts = new Map<string, number>();
   for (const s of sessions) counts.set(s.cwd ?? "", (counts.get(s.cwd ?? "") ?? 0) + 1);
   const projects = [...counts.entries()].sort((a, b) => b[1] - a[1]);
@@ -81,7 +117,38 @@ function ProjectLegend({ sessions }: { sessions: SessionSummary[] }) {
       <Typography variant="caption" color="text.disabled" sx={{ ml: "auto" }}>
         brighter bar = more of its runtime active
       </Typography>
+      <DaylightKey place={place} />
     </Stack>
+  );
+}
+
+/** What the lane shading means, and where its sun is. */
+function DaylightKey({ place }: { place: DaylightPlace | undefined }) {
+  const where = !place
+    ? "No daylight shading: set userSettings.location in config/config.json, or use a browser whose time zone names a place."
+    : place.source === "config"
+      ? `Daylight at ${place.location.latitude.toFixed(2)}, ${place.location.longitude.toFixed(2)} (userSettings.location).`
+      : `Daylight at the reference point of your time zone, ${place.source.timeZone}. Set userSettings.location in config/config.json to be exact.`;
+  return (
+    <Tooltip title={where}>
+      <Stack direction="row" spacing={0.5} alignItems="center" data-testid="calendar-daylight-key">
+        <Box
+          sx={{
+            width: 28,
+            height: 10,
+            borderRadius: 0.5,
+            border: 1,
+            borderColor: "divider",
+            background: place
+              ? `linear-gradient(to right, ${lightColour(0)}, ${lightColour(1)}, ${lightColour(0)})`
+              : undefined,
+          }}
+        />
+        <Typography variant="caption" color="text.disabled">
+          {place ? "night · day" : "no daylight"}
+        </Typography>
+      </Stack>
+    </Tooltip>
   );
 }
 
@@ -107,7 +174,17 @@ interface Placed {
 }
 
 /** One day's 24h lane with positioned session bars. */
-function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]; now: number }) {
+function DayLane({
+  dayStart,
+  placed,
+  now,
+  place,
+}: {
+  dayStart: number;
+  placed: Placed[];
+  now: number;
+  place: DaylightPlace | undefined;
+}) {
   const todayKey = dayKey(now);
   const thisKey = dayKey(dayStart);
   const isToday = thisKey === todayKey;
@@ -159,8 +236,16 @@ function DayLane({ dayStart, placed, now }: { dayStart: number; placed: Placed[]
         )}
       </Box>
 
-      {/* 24h lane */}
-      <Box sx={{ flex: 1, position: "relative", minHeight: 36, minWidth: 0 }}>
+      {/* 24h lane, shaded by that day's daylight */}
+      <Box
+        sx={{
+          flex: 1,
+          position: "relative",
+          minHeight: 36,
+          minWidth: 0,
+          background: place ? daylightGradient(lightStops(dayStart, place.location)) : undefined,
+        }}
+      >
         {/* Hour gridlines at even hours */}
         {HOUR_LABELS.map((h) => (
           <Box
@@ -246,6 +331,9 @@ export function SessionsCalendar({
   onMonth: (monthStart: number) => void;
   onDay: (dayStart: number | undefined) => void;
 }) {
+  const { location } = useUserSettings();
+  const place = useMemo(() => daylightPlace(location, browserTimeZone()), [location]);
+
   const placed: Placed[] = [];
   let undated = 0;
   for (const session of sessions) {
@@ -295,7 +383,7 @@ export function SessionsCalendar({
 
       {/* Bars are coloured by project and brightened by their active share; the old
           "active / idle" swatches showed the primary colour, which no bar uses. */}
-      <ProjectLegend sessions={sessions} />
+      <ProjectLegend sessions={sessions} place={place} />
 
       {/* Hour axis header */}
       <Box sx={{ display: "flex", borderBottom: 2, borderColor: "divider" }}>
@@ -328,7 +416,13 @@ export function SessionsCalendar({
           </Typography>
         ) : (
           dayGroups.map((group) => (
-            <DayLane key={group.key} dayStart={group.dayStart} placed={group.items} now={now} />
+            <DayLane
+              key={group.key}
+              dayStart={group.dayStart}
+              placed={group.items}
+              now={now}
+              place={place}
+            />
           ))
         )}
       </Paper>

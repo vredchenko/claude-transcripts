@@ -54,7 +54,8 @@ The committed template:
   "userSettings": {
     "sessionListPageSize": 100,
     "transcriptPageSize": 100,
-    "transcriptAutoLoadMax": 2000
+    "transcriptAutoLoadMax": 2000,
+    "location": null
   },
   "recall": {
     "mode": "auto",
@@ -85,7 +86,7 @@ The committed template:
 | `features.meilisearch` | Full-text search. Off: no search, nothing else changes. |
 | `features.secretsMasking` | Placeholder; nothing is masked yet. |
 | `servicesMenu` | Admin-UI links in the webui (keys `couchdbFauxton`, `garageWebui`, `meilisearch`, `meilisearchUi`, `fossil`; any other key is an extra link). Unset keys are derived as `http://127.0.0.1:<host port>`; set one when the dashboards live elsewhere, e.g. `{ "couchdbFauxton": "https://couch.example.org/_utils/" }`. |
-| `userSettings` | How much the webui fetches: page sizes per request, and how many transcript entries load before the viewer offers a "load the rest" button (the list isn't virtualised). Values above a per-key ceiling are capped; missing, non-numeric or below-1 values use the default. |
+| `userSettings` | How much the webui fetches: page sizes per request, and how many transcript entries load before the viewer offers a "load the rest" button (the list isn't virtualised). Values above a per-key ceiling are capped; missing, non-numeric or below-1 values use the default. `location` (`{ "latitude": 51.5, "longitude": -0.12 }`, decimal degrees, north and east positive) is where the calendar works out sunrise and sunset; `null` uses the reference city of the browser's time zone, and an out-of-range value is ignored. |
 | `recall` | When a live session consults its own history ([ADR 0029](../design/decisions/0029-recall-policy-config-driven-session-start.md)). `mode`: `off`/`suggest`/`auto`; `scope`: `project`/`host`/`all`. Keep `scope: project` while `secretsMasking` is off. The plugin's `recall_mode`, `recall_scope` and `max_results` options override it per user. |
 
 Omit a section to get its defaults.
