@@ -16,14 +16,17 @@ import { groupByDay } from "../sessions-view";
  * one arrive unfiltered underneath it, and `totalCount` would still count the corpus.
  * They are part of the query key, so changing one starts a fresh list.
  */
-export function useInfiniteSessionList(params?: {
-  from?: string;
-  to?: string;
-  cwd?: string;
-  model?: string;
-  hostname?: string;
-  source?: string;
-}) {
+export function useInfiniteSessionList(
+  params?: {
+    from?: string;
+    to?: string;
+    cwd?: string;
+    model?: string;
+    hostname?: string;
+    source?: string;
+  },
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const { sessionListPageSize: pageSize } = useUserSettings();
 
   const query = useInfiniteQuery<SessionsResponse>({
@@ -33,6 +36,7 @@ export function useInfiniteSessionList(params?: {
     queryFn: ({ pageParam }) =>
       listSessions({ limit: pageSize, skip: pageParam as number, ...params }),
     initialPageParam: 0,
+    enabled,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((n, p) => n + p.sessions.length, 0);
       return loaded < lastPage.totalCount ? loaded : undefined;

@@ -3,14 +3,25 @@
  * per day. Each day is a row: left cell (day label + session count + active time),
  * right cell (24h lane with session bars positioned by clock time).
  *
- * Month navigation (‹ ›, TODAY) retained. Click a bar to open the session detail.
+ * Opens on all of history, newest day first, loaded as you scroll; **Month** narrows
+ * it to one month with ‹ › / Today navigation. Click a bar to open the session detail.
  *
  * Each lane is shaded by daylight — night, civil twilight, day — at the configured
  * location or the browser's time zone's reference point (see `daylight.ts`), so a
  * session's bar shows whether it ran in the light or the dark, and the days visibly
  * lengthen and shorten as you scroll through the year.
  */
-import { Box, Button, IconButton, Paper, Stack, Tooltip, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  IconButton,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useUserSettings } from "../../api/blueprint";
@@ -39,6 +50,7 @@ import {
   toInterval,
 } from "../../sessions-view";
 import { MONO } from "../../theme";
+import { BELOW_HEADER_STICKY } from "../Header";
 
 /** Even-hour labels for the axis header. */
 const HOUR_LABELS = Array.from({ length: 12 }, (_, i) => i * 2);
@@ -325,10 +337,11 @@ export function SessionsCalendar({
   onDay: _onDay,
 }: {
   sessions: SessionSummary[];
-  monthStart: number;
+  /** The month shown, or undefined for all of history. */
+  monthStart: number | undefined;
   daySelected?: number;
   now: number;
-  onMonth: (monthStart: number) => void;
+  onMonth: (monthStart: number | undefined) => void;
   onDay: (dayStart: number | undefined) => void;
 }) {
   const { location } = useUserSettings();
@@ -342,51 +355,78 @@ export function SessionsCalendar({
     else undated += 1;
   }
 
-  const monthLabel = new Date(monthStart).toLocaleDateString(undefined, {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel =
+    monthStart === undefined
+      ? undefined
+      : new Date(monthStart).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
   // Group sessions by day for the vertical stack.
   const dayGroups = groupByDay(placed, (p) => p.interval.start);
 
   return (
     <Box data-testid="calendar-lanes">
-      {/* Month navigation */}
+      {/* Range: all of history, or one month with its navigation */}
       <Stack
         direction="row"
         spacing={1}
         alignItems="center"
         sx={{ mb: 1.5, flexWrap: "wrap", gap: 1 }}
       >
-        <IconButton
+        <ToggleButtonGroup
           size="small"
-          aria-label="previous month"
-          onClick={() => onMonth(shiftMonth(monthStart, -1))}
+          exclusive
+          value={monthStart === undefined ? "all" : "month"}
+          onChange={(_e, value: "all" | "month" | null) => {
+            if (value === "all") onMonth(undefined);
+            // Into a month: the one the newest loaded day is in, else this one.
+            else if (value === "month") onMonth(dayGroups[0]?.dayStart ?? now);
+          }}
+          aria-label="calendar range"
         >
-          ‹
-        </IconButton>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 150 }}>
-          {monthLabel}
-        </Typography>
-        <IconButton
-          size="small"
-          aria-label="next month"
-          onClick={() => onMonth(shiftMonth(monthStart, 1))}
-        >
-          ›
-        </IconButton>
-        <Button size="small" onClick={() => onMonth(now)}>
-          Today
-        </Button>
+          <ToggleButton value="all">All</ToggleButton>
+          <ToggleButton value="month">Month</ToggleButton>
+        </ToggleButtonGroup>
+        {monthStart !== undefined && (
+          <>
+            <IconButton
+              size="small"
+              aria-label="previous month"
+              onClick={() => onMonth(shiftMonth(monthStart, -1))}
+            >
+              ‹
+            </IconButton>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, minWidth: 150 }}>
+              {monthLabel}
+            </Typography>
+            <IconButton
+              size="small"
+              aria-label="next month"
+              onClick={() => onMonth(shiftMonth(monthStart, 1))}
+            >
+              ›
+            </IconButton>
+            <Button size="small" onClick={() => onMonth(now)}>
+              Today
+            </Button>
+          </>
+        )}
       </Stack>
 
       {/* Bars are coloured by project and brightened by their active share; the old
           "active / idle" swatches showed the primary colour, which no bar uses. */}
       <ProjectLegend sessions={sessions} place={place} />
 
-      {/* Hour axis header */}
-      <Box sx={{ display: "flex", borderBottom: 2, borderColor: "divider" }}>
+      {/* Hour axis header — sticky, like the list's column header, so a long scroll
+          through history keeps its clock */}
+      <Box
+        sx={{
+          display: "flex",
+          borderBottom: 2,
+          borderColor: "divider",
+          bgcolor: "background.paper",
+          ...BELOW_HEADER_STICKY,
+        }}
+      >
         <Box sx={{ width: 120, flexShrink: 0 }} />
         <Box sx={{ flex: 1, position: "relative", height: 20 }}>
           {HOUR_LABELS.map((h) => (
@@ -412,7 +452,7 @@ export function SessionsCalendar({
       <Paper variant="outlined" sx={{ borderTop: 0 }}>
         {dayGroups.length === 0 ? (
           <Typography color="text.secondary" variant="body2" sx={{ p: 3, textAlign: "center" }}>
-            No sessions this month.
+            {monthStart === undefined ? "No sessions recorded yet." : "No sessions this month."}
           </Typography>
         ) : (
           dayGroups.map((group) => (

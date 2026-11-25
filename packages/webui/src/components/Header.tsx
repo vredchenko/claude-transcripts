@@ -17,6 +17,17 @@ import { SettingsMenu } from "./SettingsMenu";
  * and settings (right). Title/version come from
  * `GET /api/blueprint`, falling back to sensible defaults while it loads.
  */
+/**
+ * Where a page's own sticky header should stick: just below this bar, which is sticky
+ * too and would otherwise cover it. Only from `sm` up — below that the toolbar wraps to
+ * a height that depends on its contents, so a page header stays in the flow instead.
+ */
+export const BELOW_HEADER_STICKY = {
+  position: { xs: "static", sm: "sticky" },
+  top: { sm: 49 },
+  zIndex: 1,
+} as const;
+
 export function Header() {
   const { data } = useAppBlueprint();
   const title = data?.identity?.title ?? "Claude Transcripts";

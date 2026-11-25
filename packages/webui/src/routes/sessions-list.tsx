@@ -3,8 +3,8 @@
  *
  * Two projections: a day-grouped list (the default, replacing the old table and
  * timeline) and a calendar. The list uses infinite scroll, newest first — its one
- * order, since the day grouping *is* the ordering; the calendar fetches the month's
- * range. All URL state is linkable and back-button-navigable.
+ * order, since the day grouping *is* the ordering. The calendar scrolls the same way
+ * through all of history, or — with `month` set — fetches just that month's range. All URL state is linkable and back-button-navigable.
  */
 import {
   Box,
@@ -43,7 +43,10 @@ export type SessionsView = "list" | "calendar";
 /** Query-string state this route owns. */
 export interface SessionsRouteSearch {
   view?: SessionsView;
-  /** Calendar only: `YYYY-MM`, and `YYYY-MM-DD` once a day is opened. */
+  /**
+   * Calendar only: `YYYY-MM` narrows it to one month (absent: all of history, loaded as
+   * you scroll), and `YYYY-MM-DD` once a day is opened.
+   */
   month?: string;
   day?: string;
   /** Filter params. */
@@ -80,12 +83,18 @@ export function SessionsListPage() {
    */
   const now = useMemo(() => Date.now(), []);
 
-  const monthStart = parseMonth(routeSearch.month, now);
+  /** The calendar's month, or undefined for the whole history. */
+  const monthStart = routeSearch.month ? parseMonth(routeSearch.month, now) : undefined;
+  const calendarMonth = view === "calendar" && monthStart !== undefined;
+  /** The list, or the calendar across all of history: both scroll one infinite query. */
+  const infinite = view === "list" || (view === "calendar" && monthStart === undefined);
   const daySelected = parseDay(routeSearch.day);
   useDocumentTitle(
-    view === "calendar"
-      ? `Calendar · ${new Date(monthStart).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`
-      : "Sessions",
+    view !== "calendar"
+      ? "Sessions"
+      : monthStart === undefined
+        ? "Calendar"
+        : `Calendar · ${new Date(monthStart).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`,
   );
 
   // ── Filters ─────────────────────────────────────────────────────────────────
@@ -93,8 +102,8 @@ export function SessionsListPage() {
   // The four attribute filters go to the gateway, which matches them exactly, rather
   // than being applied to whatever pages happen to be loaded: the list is
   // infinite-scrolled, so a client-side filter would narrow the first page and let
-  // the next one arrive unfiltered underneath it. `from`/`to` ride along on the list
-  // but not the calendar, whose range *is* the month it is drawing.
+  // the next one arrive unfiltered underneath it. `from`/`to` ride along on the
+  // infinite views but not a calendar month, whose range *is* the month it is drawing.
   const filters = useMemo(
     () => ({
       cwd: routeSearch.cwd,
@@ -107,6 +116,7 @@ export function SessionsListPage() {
 
   // ── Calendar data ───────────────────────────────────────────────────────────
   const calendarRange = useMemo(() => {
+    if (monthStart === undefined) return undefined;
     const weeks = monthWeeks(monthStart);
     const first = weeks[0]?.[0] ?? monthStart;
     const lastDay = weeks[5]?.[6] ?? monthStart;
@@ -122,8 +132,8 @@ export function SessionsListPage() {
     () => ({
       limit: CALENDAR_LIMIT,
       skip: 0,
-      from: calendarRange.from,
-      to: calendarRange.to,
+      from: calendarRange?.from,
+      to: calendarRange?.to,
       ...filters,
     }),
     [calendarRange, filters],
@@ -133,18 +143,19 @@ export function SessionsListPage() {
     query: {
       queryKey: getListSessionsQueryKey(calendarParams),
       placeholderData: (prev) => prev,
-      enabled: view === "calendar",
+      enabled: calendarMonth,
     },
   });
 
-  // ── List data (infinite scroll) ─────────────────────────────────────────────
+  // ── List data (infinite scroll; also the all-time calendar) ─────────────────
   const listData = useInfiniteSessionList(
-    view === "list" ? { from: routeSearch.from, to: routeSearch.to, ...filters } : undefined,
+    infinite ? { from: routeSearch.from, to: routeSearch.to, ...filters } : undefined,
+    { enabled: infinite },
   );
 
   const sentinelRef = useIntersectionObserver(
     () => listData.fetchNextPage(),
-    view === "list" && listData.hasNextPage === true && !listData.isFetchingNextPage,
+    infinite && listData.hasNextPage === true && !listData.isFetchingNextPage,
   );
 
   // ── Row selection ───────────────────────────────────────────────────────────
@@ -180,19 +191,34 @@ export function SessionsListPage() {
   const activeFilters = FILTER_KEYS.filter((k) => routeSearch[k]);
 
   // ── Pending / error states ──────────────────────────────────────────────────
-  if (view === "list" && listData.isPending) return <Loading label="Loading sessions…" />;
-  if (view === "list" && listData.isError) return <ErrorState error={listData.error!} />;
-  if (view === "calendar" && calendarQuery.isPending) return <Loading label="Loading sessions…" />;
-  if (view === "calendar" && calendarQuery.isError)
-    return <ErrorState error={calendarQuery.error!} />;
+  if (infinite && listData.isPending) return <Loading label="Loading sessions…" />;
+  if (infinite && listData.isError) return <ErrorState error={listData.error!} />;
+  if (calendarMonth && calendarQuery.isPending) return <Loading label="Loading sessions…" />;
+  if (calendarMonth && calendarQuery.isError) return <ErrorState error={calendarQuery.error!} />;
 
-  // Counts for whichever projection is showing. The list query is disabled in
-  // calendar view (and vice versa), so reading the wrong one reports zero — which is
-  // what "N of M shown" did on a filtered calendar.
-  const shownCount =
-    view === "calendar" ? (calendarQuery.data?.sessions.length ?? 0) : listData.sessions.length;
-  const totalCount =
-    view === "calendar" ? (calendarQuery.data?.totalCount ?? 0) : listData.totalCount;
+  // Counts for whichever query is feeding the page. Only one of the two is enabled at
+  // a time, so reading the other reports zero — which is what "N of M shown" did on a
+  // filtered calendar.
+  const shownCount = calendarMonth
+    ? (calendarQuery.data?.sessions.length ?? 0)
+    : listData.sessions.length;
+  const totalCount = calendarMonth ? (calendarQuery.data?.totalCount ?? 0) : listData.totalCount;
+
+  /** Infinite-scroll footer, shared by the list and the all-time calendar. */
+  const scrollFooter = (
+    <>
+      <div ref={sentinelRef} style={{ height: 1 }} />
+      {listData.isFetchingNextPage && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: "block", textAlign: "center", py: 2 }}
+        >
+          Loading more sessions…
+        </Typography>
+      )}
+    </>
+  );
 
   return (
     <Box>
@@ -210,8 +236,8 @@ export function SessionsListPage() {
             label={
               activeFilters.length > 0
                 ? `${formatCount(shownCount)} of ${formatCount(totalCount)} shown`
-                : view === "calendar"
-                  ? // The calendar fetches one month, so its total is the month's, not
+                : calendarMonth
+                  ? // A calendar month fetches one month, so its total is the month's, not
                     // the corpus's: say so, or it reads as a different "sessions" count.
                     `${formatCount(totalCount)} this month`
                   : `${formatCount(totalCount)} sessions`
@@ -240,7 +266,8 @@ export function SessionsListPage() {
               setSearch({
                 view: value === "list" ? undefined : value,
                 day: undefined,
-                month: value === "calendar" ? (routeSearch.month ?? monthKey(now)) : undefined,
+                // The calendar opens on all of history; a month is a narrowing you choose.
+                month: value === "calendar" ? routeSearch.month : undefined,
               })
             }
             aria-label="session view"
@@ -256,14 +283,19 @@ export function SessionsListPage() {
 
       {/* Calendar renders even with nothing — its month nav must remain reachable. */}
       {view === "calendar" ? (
-        <SessionsCalendar
-          sessions={calendarQuery.data?.sessions ?? []}
-          monthStart={monthStart}
-          daySelected={daySelected}
-          now={now}
-          onMonth={(next) => setSearch({ month: monthKey(next), day: undefined })}
-          onDay={(next) => setSearch({ day: next === undefined ? undefined : dayKey(next) })}
-        />
+        <>
+          <SessionsCalendar
+            sessions={calendarMonth ? (calendarQuery.data?.sessions ?? []) : listData.sessions}
+            monthStart={monthStart}
+            daySelected={daySelected}
+            now={now}
+            onMonth={(next) =>
+              setSearch({ month: next === undefined ? undefined : monthKey(next), day: undefined })
+            }
+            onDay={(next) => setSearch({ day: next === undefined ? undefined : dayKey(next) })}
+          />
+          {!calendarMonth && scrollFooter}
+        </>
       ) : listData.sessions.length === 0 ? (
         <EmptyState>
           {activeFilters.length > 0
@@ -309,19 +341,7 @@ export function SessionsListPage() {
             selection={selection}
           />
           <SessionsList dayGroups={listData.dayGroups} selection={selection} />
-
-          {/* Sentinel for infinite scroll */}
-          <div ref={sentinelRef} style={{ height: 1 }} />
-
-          {listData.isFetchingNextPage && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", textAlign: "center", py: 2 }}
-            >
-              Loading more sessions…
-            </Typography>
-          )}
+          {scrollFooter}
         </>
       )}
     </Box>
