@@ -16,6 +16,12 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   which needs no Bun, or take a binary from the GitHub Release. A release no longer needs
   an `NPM_TOKEN` secret.
 
+### Fixed
+
+- **The sessions list's column header stays in view as you scroll.** It, and the
+  selection bar, stuck at the very top of the window, behind the app bar. They now stick
+  just below it, one above the other.
+
 ## [0.13.0] — 2026-11-25
 
 A calendar that covers your whole history and shows day and night. No action is needed

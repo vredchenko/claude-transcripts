@@ -19,6 +19,7 @@ import {
 import { useNavigate, useSearch as useRouterSearch } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { getListSessionsQueryKey, useListSessions } from "../api/generated";
+import { BELOW_HEADER_STICKY } from "../components/Header";
 import { SessionsCalendar } from "../components/sessions/SessionsCalendar";
 import {
   type RowSelection,
@@ -304,42 +305,43 @@ export function SessionsListPage() {
         </EmptyState>
       ) : (
         <>
-          {selectedSessions.length > 0 && (
-            <Paper
-              variant="outlined"
-              data-testid="selection-bar"
-              sx={{
-                position: "sticky",
-                top: 0,
-                zIndex: 2,
-                mb: 1,
-                px: 1.5,
-                py: 0.75,
-                display: "flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 1.5,
-                borderColor: "primary.main",
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {formatCount(selectedSessions.length)} selected
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {formatDuration(selectedRollup.activeMs)} active ·{" "}
-                {formatCount(selectedRollup.tokens)} tokens ·{" "}
-                {formatCount(selectedSessions.reduce((n, s) => n + s.promptCount, 0))} turns
-              </Typography>
-              <Box sx={{ flex: 1 }} />
-              <Button size="small" onClick={() => setSelectedIds(new Set())}>
-                Clear selection
-              </Button>
-            </Paper>
-          )}
-          <SessionsListHeader
-            sessionIds={listData.sessions.map((s) => s.sessionId)}
-            selection={selection}
-          />
+          {/* The selection bar and the column header stick together, below the app
+              bar: stuck separately at the same offset they'd cover each other. */}
+          <Box sx={{ ...BELOW_HEADER_STICKY, zIndex: 2, bgcolor: "background.default" }}>
+            {selectedSessions.length > 0 && (
+              <Paper
+                variant="outlined"
+                data-testid="selection-bar"
+                sx={{
+                  mb: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 1.5,
+                  borderColor: "primary.main",
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatCount(selectedSessions.length)} selected
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {formatDuration(selectedRollup.activeMs)} active ·{" "}
+                  {formatCount(selectedRollup.tokens)} tokens ·{" "}
+                  {formatCount(selectedSessions.reduce((n, s) => n + s.promptCount, 0))} turns
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+                <Button size="small" onClick={() => setSelectedIds(new Set())}>
+                  Clear selection
+                </Button>
+              </Paper>
+            )}
+            <SessionsListHeader
+              sessionIds={listData.sessions.map((s) => s.sessionId)}
+              selection={selection}
+            />
+          </Box>
           <SessionsList dayGroups={listData.dayGroups} selection={selection} />
           {scrollFooter}
         </>

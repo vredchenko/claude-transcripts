@@ -16,7 +16,7 @@
  * and the header's search cell), which is the shape to suspect first when one of these
  * goes red again.
  */
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { MULTI_DAY_SESSION, SEARCH_QUERY } from "../fixtures/corpus";
 import {
   LIVE,
@@ -58,6 +58,33 @@ test("the sessions list stays inside its container", async ({ page }) => {
   const list = new SessionsListPage(page);
   await list.goto();
   await expectNoOverflow(page, "sessions list");
+});
+
+test("the list's column header sticks below the app bar, not under it", async ({ page }) => {
+  test.skip(test.info().project.name.endsWith("-mobile"), "the column header is wide-screen only");
+  // Short enough that even the fixture corpus scrolls.
+  await page.setViewportSize({ width: 1440, height: 400 });
+  await setupPage(page);
+  const list = new SessionsListPage(page);
+  await list.goto();
+  await list.rows.first().getByRole("checkbox").check();
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  // Each stuck at `top: 0`, both slid under the sticky app bar, and onto each other.
+  const span = async (el: Locator) => {
+    const box = (await el.boundingBox())!;
+    return { top: box.y, bottom: box.y + box.height };
+  };
+  const bar = await span(page.getByRole("banner"));
+  const selection = await span(page.getByTestId("selection-bar"));
+  const header = await span(page.getByRole("checkbox", { name: "Select every loaded session" }));
+  expect(selection.top, "the selection bar is under the app bar").toBeGreaterThanOrEqual(
+    bar.bottom - 1,
+  );
+  expect(header.top, "the column header is under the selection bar").toBeGreaterThanOrEqual(
+    selection.bottom - 1,
+  );
 });
 
 test("the conversation timeline contains its turns", async ({ page }) => {

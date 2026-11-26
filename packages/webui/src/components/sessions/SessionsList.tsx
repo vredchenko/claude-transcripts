@@ -482,9 +482,6 @@ export function SessionsListHeader({
         borderBottom: 2,
         borderColor: "divider",
         bgcolor: "background.paper",
-        position: "sticky",
-        top: 0,
-        zIndex: 1,
       }}
     >
       <SelectBox ids={sessionIds} selection={selection} label="Select every loaded session" />
