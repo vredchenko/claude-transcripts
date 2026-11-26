@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Claude Transcripts",
-    "version": "v0.13.0"
+    "version": "v0.14.0"
   },
   "components": {
     "schemas": {

@@ -8,9 +8,15 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-26
+
+Calendar bars you can hover and open in place, and the CLI is no longer on npm. Upgrade
+as usual. If you installed the CLI with `bunx` or `npx`, switch to `install.sh` (below)
+to keep getting new versions.
+
 ### Added
 
-- **Calendar bars show more of the session they stand for.** Hovering a bar shows a
+- **Calendar bars show more of the session they stand for** ([#324]). Hovering a bar shows a
   card with where and when the session ran, its tokens, turns, tools, errors and models,
   and how much of it was in daylight. Clicking a bar opens a side panel with the list's
   full row details and a **Copy resume command** button. The calendar stays where it
@@ -19,7 +25,7 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- **The CLI is no longer published to npm** ([ADR 0033](docs/design/decisions/0033-no-npm-package.md)).
+- **The CLI is no longer published to npm** ([#321], [ADR 0033](docs/design/decisions/0033-no-npm-package.md)).
   `@claude-transcripts/cli` stops at 0.12.1, and `bunx @claude-transcripts/cli` gets no new
   versions. Install with `curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/install.sh | sh`,
   which needs no Bun, or take a binary from the GitHub Release. A release no longer needs
@@ -27,7 +33,7 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **The sessions list's column header stays in view as you scroll.** It, and the
+- **The sessions list's column header stays in view as you scroll** ([#323]). It, and the
   selection bar, stuck at the very top of the window, behind the app bar. They now stick
   just below it, one above the other.
 
@@ -2344,6 +2350,9 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#324]: https://github.com/vredchenko/claude-transcripts/pull/324
+[#323]: https://github.com/vredchenko/claude-transcripts/pull/323
+[#321]: https://github.com/vredchenko/claude-transcripts/pull/321
 [#319]: https://github.com/vredchenko/claude-transcripts/pull/319
 [#318]: https://github.com/vredchenko/claude-transcripts/pull/318
 [#317]: https://github.com/vredchenko/claude-transcripts/pull/317
@@ -2367,6 +2376,7 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[0.14.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.14.0
 [0.13.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.13.0
 [0.12.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.1
 [0.12.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.0
