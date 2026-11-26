@@ -60,6 +60,54 @@ test.describe("calendar", () => {
     await expect(bars).not.toHaveCount(0);
   });
 
+  test("hovering a bar shows its figures", async ({ page }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    test.skip(test.info().project.name.endsWith("-mobile"), "no hover on a phone");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto(`?view=calendar&month=${MONTH}`);
+
+    // An ended session: a live one has no token count until its summary is written.
+    await page
+      .locator(`[data-testid="calendar-session-bar"][href*="${MULTI_DAY_SESSION.sessionId}"]`)
+      .first()
+      .hover();
+    const card = page.getByRole("tooltip");
+    await expect(card).toContainText("tokens");
+    await expect(card).toContainText("turns");
+    await expect(card).toContainText("Click for details");
+  });
+
+  test("clicking a bar opens its details beside the calendar, without navigating", async ({
+    page,
+  }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto(`?view=calendar&month=${MONTH}`);
+
+    const bar = page
+      .locator(`[data-testid="calendar-session-bar"][href*="${MULTI_DAY_SESSION.sessionId}"]`)
+      .first();
+    await bar.click();
+    await expect(page).not.toHaveURL(/\/sessions\//);
+    const panel = page.getByTestId("calendar-session-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByTestId("session-row-details")).toContainText(
+      MULTI_DAY_SESSION.sessionId,
+    );
+    await expect(bar).toHaveAttribute("aria-current", "true");
+    await expect(panel.getByRole("button", { name: "Copy resume command" })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+
+    // The panel's own way to the session still works.
+    await bar.click();
+    await panel.getByRole("button", { name: "Open session" }).click();
+    await expect(page).toHaveURL(new RegExp(`/sessions/${MULTI_DAY_SESSION.sessionId}`));
+  });
+
   test("opens on all of history, and Month / All narrow and widen it", async ({ page }) => {
     await setupPage(page);
     const list = new SessionsListPage(page);

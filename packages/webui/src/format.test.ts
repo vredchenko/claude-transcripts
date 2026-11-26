@@ -14,6 +14,7 @@ import {
   formatAgo,
   formatCompact,
   modelsLabel,
+  resumeCommand,
   roleLabel,
   statusTime,
 } from "./format";
@@ -177,5 +178,19 @@ describe("modelsLabel", () => {
   test("with no switch, shows the model as recorded, context suffix included", () => {
     expect(modelsLabel({ model: "opus[1m]", models: ["opus"] })).toBe("opus[1m]");
     expect(modelsLabel({ models: ["opus"] })).toBe("opus");
+  });
+});
+
+describe("resumeCommand", () => {
+  test("changes into the session's directory, quoted", () => {
+    expect(resumeCommand({ sessionId: "abc", cwd: "/home/me/my project" })).toBe(
+      "cd '/home/me/my project' && claude --resume abc",
+    );
+  });
+
+  test("survives a quote in the path", () => {
+    expect(resumeCommand({ sessionId: "abc", cwd: "/tmp/it's" })).toBe(
+      "cd '/tmp/it'\\''s' && claude --resume abc",
+    );
   });
 });

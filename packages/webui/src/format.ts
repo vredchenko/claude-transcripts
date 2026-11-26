@@ -227,3 +227,12 @@ export function modelsLabel(s: { model?: string; models?: string[] }): string {
   const models = switched ? (s.models as string[]) : s.model ? [s.model] : (s.models ?? []);
   return models.length ? models.join(" → ") : "—";
 }
+
+/**
+ * The shell line that resumes a session in Claude Code: `cd` into its directory (resume
+ * looks a session up by project) and `claude --resume`, quoted for a POSIX shell.
+ */
+export function resumeCommand(s: { sessionId: string; cwd: string }): string {
+  const quoted = `'${s.cwd.replaceAll("'", `'\\''`)}'`;
+  return `cd ${quoted} && claude --resume ${s.sessionId}`;
+}

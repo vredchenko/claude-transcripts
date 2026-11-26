@@ -142,6 +142,37 @@ function flat(light: number): LightStop[] {
   ];
 }
 
+/**
+ * The share of `[start, end)` that fell between sunrise and sunset at `location`, 0–1,
+ * walking it one local day at a time. Twilight counts as dark. Undefined for an empty
+ * interval.
+ */
+export function daylightShare(
+  start: number,
+  end: number,
+  location: GeoLocation,
+): number | undefined {
+  if (!(end > start)) return undefined;
+  let lit = 0;
+  let day = new Date(start);
+  day.setHours(0, 0, 0, 0);
+  while (day.getTime() < end) {
+    const dayStart = day.getTime();
+    const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+    const sun = sunDay(dayStart, location);
+    // The day's lit span, as an interval in epoch ms (empty when the sun stays down).
+    const [rise, set] =
+      sun.sunrise === "up"
+        ? [dayStart, next.getTime()]
+        : sun.sunrise === "down"
+          ? [0, 0]
+          : [sun.sunrise, sun.sunset as number];
+    lit += Math.max(0, Math.min(end, set) - Math.max(start, rise));
+    day = next;
+  }
+  return lit / (end - start);
+}
+
 /** Where the daylight is computed for, and why there. */
 export interface DaylightPlace {
   location: GeoLocation;

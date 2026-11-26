@@ -55,7 +55,11 @@ function Placeholder() {
   );
 }
 
-export function SessionRowDetails({ s }: { s: SessionSummary }) {
+/**
+ * `narrow` lays the fields out two to a row whatever the window's width, for a container
+ * narrower than the window (the calendar's side panel).
+ */
+export function SessionRowDetails({ s, narrow = false }: { s: SessionSummary; narrow?: boolean }) {
   const navigate = useNavigate();
   const ended = statusTime(s);
   const tools = Object.entries(s.toolCounts).sort((a, b) => b[1] - a[1]);
@@ -78,7 +82,9 @@ export function SessionRowDetails({ s }: { s: SessionSummary }) {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, minmax(0, 1fr))" },
+          gridTemplateColumns: narrow
+            ? "repeat(2, minmax(0, 1fr))"
+            : { xs: "1fr 1fr", md: "repeat(4, minmax(0, 1fr))" },
           gap: 1.5,
         }}
       >
@@ -110,7 +116,7 @@ export function SessionRowDetails({ s }: { s: SessionSummary }) {
         <Field label="Files touched">
           <Placeholder />
         </Field>
-        <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 2" } }}>
+        <Box sx={{ gridColumn: narrow ? "1 / -1" : { xs: "1 / -1", md: "span 2" } }}>
           <Field label="Tools">
             {tools.length === 0 ? (
               "—"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { daylightPlace, lightStops, sunDay } from "./daylight";
+import { daylightPlace, daylightShare, lightStops, sunDay } from "./daylight";
 import { startOfDay } from "./sessions-view";
 import { TZ_COORDINATES } from "./tz-coordinates";
 
@@ -62,6 +62,38 @@ describe("lightStops", () => {
 
   it("never lights the polar night past twilight", () => {
     expect(lightStops(dayOf(2026, 12, 21), TROMSO).every((s) => s.light <= 0.5)).toBe(true);
+  });
+});
+
+describe("daylightShare", () => {
+  const at = (y: number, m: number, d: number, h: number) => Date.UTC(y, m - 1, d, h);
+
+  it("is all light at midday and all dark at midnight", () => {
+    expect(daylightShare(at(2026, 6, 21, 11), at(2026, 6, 21, 13), LONDON)).toBe(1);
+    expect(daylightShare(at(2026, 12, 21, 0), at(2026, 12, 21, 2), LONDON)).toBe(0);
+  });
+
+  it("splits a session that runs into the evening", () => {
+    // London sets at 20:21 UTC at midsummer: 16:00–22:00 is about 73% light.
+    const share = daylightShare(at(2026, 6, 21, 16), at(2026, 6, 21, 22), LONDON)!;
+    expect(share).toBeGreaterThan(0.7);
+    expect(share).toBeLessThan(0.76);
+  });
+
+  it("counts every day of a session that runs for several", () => {
+    // Two whole midwinter days in London: about 7h50m of light out of each 24h.
+    const share = daylightShare(at(2026, 12, 20, 0), at(2026, 12, 22, 0), LONDON)!;
+    expect(share).toBeGreaterThan(0.3);
+    expect(share).toBeLessThan(0.36);
+  });
+
+  it("knows the polar extremes", () => {
+    expect(daylightShare(at(2026, 6, 21, 0), at(2026, 6, 22, 0), TROMSO)).toBe(1);
+    expect(daylightShare(at(2026, 12, 21, 0), at(2026, 12, 22, 0), TROMSO)).toBe(0);
+  });
+
+  it("has nothing to say about an empty interval", () => {
+    expect(daylightShare(at(2026, 6, 21, 12), at(2026, 6, 21, 12), LONDON)).toBeUndefined();
   });
 });
 
