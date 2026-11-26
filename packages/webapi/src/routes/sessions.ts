@@ -48,6 +48,16 @@ const SessionSummarySchema = z
     startTimestamp: z.string().optional(),
     durationMs: z.number().optional(),
     activeMs: z.number().optional(),
+    // When the session was active: [startOffsetS, endOffsetS] pairs in whole seconds from
+    // the session's start (`startTimestamp`, else `timestamp`), ascending, at most 48.
+    // Derived on read from every event's timestamp, like `activeMs`; absent with it.
+    activeSpans: z
+      .array(z.tuple([z.number(), z.number()]))
+      .optional()
+      .openapi({
+        description:
+          "When the session was active: [startOffsetS, endOffsetS] pairs, in whole seconds from the session's start (startTimestamp, else timestamp), ascending and non-overlapping, at most 48. A pair with equal ends is a single event. Absent when activeMs is.",
+      }),
     model: z.string().optional(),
     // Every model / working directory / `/add-dir` directory the session used, in
     // order of first use (`model` and `cwd` are the first of each). Absent when the
@@ -627,7 +637,18 @@ const crossTurnsRoute = createRoute({
 });
 
 /**
- * Attach `activeMs` to whichever of these sessions has one.
+ * `spans` (epoch ms) as whole-second offsets from `startMs`, start rounded down and end
+ * up, so a span never shrinks to nothing that wasn't a point to begin with.
+ */
+export function spanOffsets(spans: [number, number][], startMs: number): [number, number][] {
+  return spans.map(([start, end]) => [
+    Math.floor((start - startMs) / 1000),
+    Math.ceil((end - startMs) / 1000),
+  ]);
+}
+
+/**
+ * Attach `activeMs` and `activeSpans` to whichever of these sessions has them.
  *
  * `orderKey` is the session's newest known timestamp, which is exactly the handle the
  * memo needs: append-only docs mean an ended session's answer never changes, and a
@@ -646,8 +667,14 @@ async function withActiveDurations(
     cache,
   );
   return sessions.map((s) => {
-    const ms = active.get(s.sessionId);
-    return ms === undefined ? s : { ...s, activeMs: ms };
+    const activity = active.get(s.sessionId);
+    if (!activity) return s;
+    const startMs = Date.parse(s.startTimestamp ?? s.timestamp);
+    return {
+      ...s,
+      activeMs: activity.activeMs,
+      ...(Number.isNaN(startMs) ? {} : { activeSpans: spanOffsets(activity.spans, startMs) }),
+    };
   });
 }
 

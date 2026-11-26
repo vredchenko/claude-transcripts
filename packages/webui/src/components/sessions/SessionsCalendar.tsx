@@ -25,6 +25,7 @@ import {
 } from "@mui/material";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
+import { segmentsIn, sessionSpans } from "../../activity";
 import { useUserSettings } from "../../api/blueprint";
 import type { SessionSummary } from "../../api/generated";
 import {
@@ -127,7 +128,7 @@ function ProjectLegend({
         </Typography>
       )}
       <Typography variant="caption" color="text.disabled" sx={{ ml: "auto" }}>
-        brighter bar = more of its runtime active
+        filled = active · faint = open, idle
       </Typography>
       <DaylightKey place={place} />
     </Stack>
@@ -190,6 +191,7 @@ function DayLane({
   const isToday = thisKey === todayKey;
 
   const date = new Date(dayStart);
+  const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
   const intervals = placed.map((p) => p.interval);
   const placements = dayPlacements(dayStart, intervals);
   const sessionsOnDay = placed.filter((p) => placements.has(p.interval.sessionId));
@@ -277,9 +279,16 @@ function DayLane({
         {sessionsOnDay.map(({ session, interval }) => {
           const slot = placements.get(interval.sessionId);
           if (!slot) return null;
+          // With spans: a faint bar for the time the session was open, filled where it
+          // was active. Without (too few events, an older instance): one solid bar,
+          // brighter for a larger active share, as before spans existed.
+          const spans = sessionSpans(session);
+          const segments = spans
+            ? segmentsIn(spans, Math.max(interval.start, dayStart), Math.min(interval.end, dayEnd))
+            : undefined;
           const split = durationSplit(session.durationMs, session.activeMs);
           const activeRatio = split.activePct !== undefined ? split.activePct / 100 : 0.5;
-          const opacity = 0.2 + 0.35 * activeRatio;
+          const opacity = segments ? 0.12 : 0.2 + 0.35 * activeRatio;
           // Horizontal positioning: start_hour / 24 for left, runtime_hours / 24 for width.
           const leftPct = slot.topPct; // dayPlacements topPct = clock position as %
           const widthPct = Math.max(0.4, slot.heightPct); // floored at 0.4%
@@ -314,9 +323,14 @@ function DayLane({
                 }}
               >
                 <Box
+                  data-activity={segments ? "spans" : "share"}
                   sx={{
+                    position: "relative",
                     height: "100%",
                     bgcolor: projectColour(session.cwd, opacity),
+                    ...(segments && {
+                      boxShadow: `inset 0 0 0 1px ${projectColour(session.cwd, 0.35)}`,
+                    }),
                     borderRadius: 0.5,
                     px: 0.5,
                     fontSize: 10,
@@ -333,7 +347,26 @@ function DayLane({
                     }),
                   }}
                 >
-                  {widthPct > 3 ? projectName(session.cwd) : ""}
+                  {segments?.map((seg) => (
+                    <Box
+                      key={seg.leftPct}
+                      data-testid="calendar-active-span"
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        bottom: 0,
+                        left: `${seg.leftPct}%`,
+                        width: `${seg.widthPct}%`,
+                        // A single event, or a burst too short to see at this scale.
+                        minWidth: 2,
+                        bgcolor: projectColour(session.cwd, 0.7),
+                        pointerEvents: "none",
+                      }}
+                    />
+                  ))}
+                  <Box component="span" sx={{ position: "relative" }}>
+                    {widthPct > 3 ? projectName(session.cwd) : ""}
+                  </Box>
                 </Box>
               </Link>
             </Tooltip>
@@ -439,8 +472,8 @@ export function SessionsCalendar({
         )}
       </Stack>
 
-      {/* Bars are coloured by project and brightened by their active share; the old
-          "active / idle" swatches showed the primary colour, which no bar uses. */}
+      {/* Bars are coloured by project, filled where the session was active (see
+          `activity.ts`); the key says so. */}
       <ProjectLegend sessions={sessions} place={place} />
 
       {/* Hour axis header — sticky, like the list's column header, so a long scroll

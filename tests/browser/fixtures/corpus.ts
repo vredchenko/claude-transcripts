@@ -37,6 +37,8 @@ export interface Session {
   startTimestamp: string;
   durationMs?: number;
   activeMs?: number;
+  /** `[startOffsetS, endOffsetS]` from `startTimestamp`; see `SessionSummary`. */
+  activeSpans?: [number, number][];
   model?: string;
   cwd: string;
   hostname: string;
@@ -115,6 +117,17 @@ export const SESSIONS: Session[] = [
     sessionId: "22222222-2222-4222-8222-222222222222",
     startTimestamp: iso(-4 * DAY - 3 * HOUR),
     durationMs: 4 * DAY + 2 * HOUR,
+    // Worked in bursts on four of its five days, with one lone event: the calendar fills
+    // these and leaves the rest of the bar faint.
+    activeMs: 9 * HOUR,
+    activeSpans: [
+      [0, (2 * HOUR) / 1000],
+      [(5 * HOUR) / 1000, (6 * HOUR) / 1000],
+      [(26 * HOUR) / 1000, (28 * HOUR) / 1000],
+      [(74 * HOUR) / 1000, (76 * HOUR) / 1000],
+      [(80 * HOUR) / 1000, (80 * HOUR) / 1000],
+      [(96 * HOUR) / 1000, (98 * HOUR) / 1000],
+    ],
     cwd: "/srv/projects/beacon-service",
     eventCount: 612,
     promptCount: 24,

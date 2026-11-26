@@ -8,6 +8,17 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Bars show when a session was worked on, not just how long it was open**
+  ([ADR 0034](docs/design/decisions/0034-activity-spans.md)). A calendar bar is faint
+  across the time a session was open and filled where it was active, so a terminal left
+  open over a weekend no longer looks like a weekend of work. The list's runtime bar is
+  the same timeline in miniature, and the hover card's daylight figure now counts only
+  active time. The API serves the stretches as `activeSpans` on every session (second
+  offsets from its start), derived from the same event timestamps as `activeMs`, so
+  nothing new is stored and no migration runs.
+
 ## [0.14.0] — 2026-11-26
 
 Calendar bars you can hover and open in place, and the CLI is no longer on npm. Upgrade

@@ -39,6 +39,18 @@
           "activeMs": {
             "type": "number"
           },
+          "activeSpans": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "description": "When the session was active: [startOffsetS, endOffsetS] pairs, in whole seconds from the session's start (startTimestamp, else timestamp), ascending and non-overlapping, at most 48. A pair with equal ends is a single event. Absent when activeMs is."
+          },
           "model": {
             "type": "string"
           },

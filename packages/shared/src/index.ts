@@ -175,6 +175,12 @@ export interface SessionSummary {
    * timestamps; see `sumActiveDurationMs`.
    */
   activeMs?: number;
+  /**
+   * When the session was active, as `[startOffsetS, endOffsetS]` pairs in whole seconds
+   * from `startTimestamp`, ascending and non-overlapping (see `activeSpans`). Capped at
+   * `MAX_ACTIVE_SPANS`. Absent when not derivable, like `activeMs`.
+   */
+  activeSpans?: [number, number][];
   model?: string;
   /** Every model the session used, in order of first use; `model` is the first. */
   models?: string[];
@@ -237,20 +243,61 @@ export function sumActiveDurationMs(
   timestamps: string[],
   idleThresholdMs: number = DEFAULT_IDLE_THRESHOLD_MS,
 ): number {
+  return activeSpans(timestamps, idleThresholdMs).reduce((sum, [s, e]) => sum + (e - s), 0);
+}
+
+/** An active stretch of a session, in epoch ms: `[start, end]`, `end >= start`. */
+export type ActiveSpan = [number, number];
+
+/**
+ * When a session was active: its events, sorted, cut into runs wherever the gap between
+ * two consecutive events is longer than `idleThresholdMs`. Each run is one span from its
+ * first event to its last. A lone event between two long gaps is a span of zero length,
+ * a point — "came back, asked one thing, left" — and is kept.
+ *
+ * This is the one definition of "active": `sumActiveDurationMs` is the sum of these
+ * spans' lengths. Unparseable timestamps are skipped. Pure + isomorphic.
+ */
+export function activeSpans(
+  timestamps: string[],
+  idleThresholdMs: number = DEFAULT_IDLE_THRESHOLD_MS,
+): ActiveSpan[] {
   const ms = timestamps
     .map((t) => Date.parse(t))
     .filter((n) => !Number.isNaN(n))
     .sort((a, b) => a - b);
-  let active = 0;
-  let prev: number | undefined;
+  const spans: ActiveSpan[] = [];
   for (const t of ms) {
-    if (prev !== undefined) {
-      const gap = t - prev;
-      if (gap > 0 && gap <= idleThresholdMs) active += gap;
-    }
-    prev = t;
+    const last = spans.at(-1);
+    if (last && t - last[1] <= idleThresholdMs) last[1] = t;
+    else spans.push([t, t]);
   }
-  return active;
+  return spans;
+}
+
+/**
+ * The most spans a session reports. A guard, not a working limit: across a real corpus
+ * of ~800 sessions the median was 3, the 99th percentile 30 and the maximum 45.
+ */
+export const MAX_ACTIVE_SPANS = 48;
+
+/**
+ * `spans` reduced to at most `max` by closing the shortest gaps first, which keeps the
+ * shape of the day and drops jitter. For drawing only: the closed gaps were idle, so
+ * active time must be summed from the spans *before* this.
+ */
+export function capActiveSpans(spans: ActiveSpan[], max: number = MAX_ACTIVE_SPANS): ActiveSpan[] {
+  if (spans.length <= max) return spans;
+  const out = spans.map(([s, e]): ActiveSpan => [s, e]);
+  while (out.length > max) {
+    let shortest = 1;
+    for (let i = 2; i < out.length; i++) {
+      if (out[i]![0] - out[i - 1]![1] < out[shortest]![0] - out[shortest - 1]![1]) shortest = i;
+    }
+    out[shortest - 1]![1] = out[shortest]![1];
+    out.splice(shortest, 1);
+  }
+  return out;
 }
 
 // ── Transcript chunking ─────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { segmentsIn, sessionSpans } from "../../activity";
 import type { SessionSummary } from "../../api/generated";
 import {
   durationSplit,
@@ -151,16 +152,57 @@ function SelectBox({
   );
 }
 
-/** Active/idle progress bar. */
-function ActiveBar({ durationMs, activeMs }: { durationMs?: number; activeMs?: number }) {
+/**
+ * The runtime as a track, filled where the session was active: a miniature of its
+ * calendar bar. Without spans (too few events, an older instance) it falls back to the
+ * active share as one block from the left.
+ */
+function ActiveBar({ s }: { s: SessionSummary }) {
+  const { durationMs, activeMs } = s;
   const split = durationSplit(durationMs, activeMs);
   if (split.totalMs <= 0) return null;
+  const spans = sessionSpans(s);
+  const start = Date.parse(s.startTimestamp ?? s.timestamp);
+  const segments = spans && durationMs ? segmentsIn(spans, start, start + durationMs) : undefined;
   const pct = split.activePct ?? 100;
   return (
     <Tooltip title={durationSplitLabel(durationMs, activeMs)}>
-      <Box sx={{ display: "flex", height: 4, borderRadius: 2, overflow: "hidden", width: "100%" }}>
-        <Box sx={{ width: `${pct}%`, bgcolor: "primary.main", opacity: 0.85 }} />
-        <Box sx={{ flex: 1, bgcolor: "primary.main", opacity: 0.2 }} />
+      <Box
+        data-activity={segments ? "spans" : "share"}
+        sx={{
+          position: "relative",
+          display: "flex",
+          height: 4,
+          borderRadius: 2,
+          overflow: "hidden",
+          width: "100%",
+        }}
+      >
+        {segments ? (
+          <>
+            <Box sx={{ flex: 1, bgcolor: "primary.main", opacity: 0.2 }} />
+            {segments.map((seg) => (
+              <Box
+                key={seg.leftPct}
+                sx={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: `${seg.leftPct}%`,
+                  width: `${seg.widthPct}%`,
+                  minWidth: 2,
+                  bgcolor: "primary.main",
+                  opacity: 0.85,
+                }}
+              />
+            ))}
+          </>
+        ) : (
+          <>
+            <Box sx={{ width: `${pct}%`, bgcolor: "primary.main", opacity: 0.85 }} />
+            <Box sx={{ flex: 1, bgcolor: "primary.main", opacity: 0.2 }} />
+          </>
+        )}
       </Box>
     </Tooltip>
   );
@@ -353,7 +395,7 @@ function SessionRow({ s, selection }: { s: SessionSummary; selection: RowSelecti
             <Typography variant="body2" sx={{ fontFamily: MONO, fontSize: 12 }}>
               {formatDuration(s.durationMs)}
             </Typography>
-            <ActiveBar durationMs={s.durationMs} activeMs={s.activeMs} />
+            <ActiveBar s={s} />
           </Box>
 
           {/* Model */}
