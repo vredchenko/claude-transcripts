@@ -8,6 +8,15 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Calendar bars show more of the session they stand for.** Hovering a bar shows a
+  card with where and when the session ran, its tokens, turns, tools, errors and models,
+  and how much of it was in daylight. Clicking a bar opens a side panel with the list's
+  full row details and a **Copy resume command** button. The calendar stays where it
+  was, so you can click through a day's sessions without losing your place in a long
+  scroll. A modified click still opens the session in a new tab.
+
 ### Removed
 
 - **The CLI is no longer published to npm** ([ADR 0033](docs/design/decisions/0033-no-npm-package.md)).

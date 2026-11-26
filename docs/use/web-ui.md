@@ -26,6 +26,13 @@ The start page lists every recorded session, in one of two views chosen in the U
   [`userSettings.location`](../start/configuration.md#settings) or, if that's unset,
   for your browser's time zone's reference city.
 
+  Hovering a bar shows the session's project, host and directory, when it ran, its
+  tokens, turns, tools, errors and models, and how much of it fell in daylight.
+  Clicking a bar opens a panel beside the calendar with the same details as an
+  expanded list row, the session id, its data links, a **Copy resume command** button
+  (`cd <dir> && claude --resume <id>`) and **Open session**. Click another bar to
+  switch, and press Escape or ✕ to close. Ctrl- or ⌘-click opens the session in a new tab.
+
 Filters (project directory, model, host, recording source, a date range) live in the
 URL and show as removable chips, so a filtered view can be bookmarked or shared.
 

@@ -4,7 +4,8 @@
  * right cell (24h lane with session bars positioned by clock time).
  *
  * Opens on all of history, newest day first, loaded as you scroll; **Month** narrows
- * it to one month with ‹ › / Today navigation. Click a bar to open the session detail.
+ * it to one month with ‹ › / Today navigation. Hovering a bar shows its figures; clicking
+ * it opens a side panel with the rest, and a modified click (new tab) opens the session.
  *
  * Each lane is shaded by daylight — night, civil twilight, day — at the configured
  * location or the browser's time zone's reference point (see `daylight.ts`), so a
@@ -23,7 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useUserSettings } from "../../api/blueprint";
 import type { SessionSummary } from "../../api/generated";
 import {
@@ -33,14 +34,7 @@ import {
   type LightStop,
   lightStops,
 } from "../../daylight";
-import {
-  durationSplit,
-  formatCount,
-  formatDuration,
-  formatTimestamp,
-  projectName,
-  totalTools,
-} from "../../format";
+import { durationSplit, formatDuration, projectName } from "../../format";
 import {
   dayKey,
   dayPlacements,
@@ -51,6 +45,12 @@ import {
 } from "../../sessions-view";
 import { MONO } from "../../theme";
 import { BELOW_HEADER_STICKY } from "../Header";
+import {
+  HOVER_CARD_SX,
+  PANEL_WIDTH,
+  SessionDetailPanel,
+  SessionHoverCard,
+} from "./CalendarSessionDetail";
 
 /** Even-hour labels for the axis header. */
 const HOUR_LABELS = Array.from({ length: 12 }, (_, i) => i * 2);
@@ -164,22 +164,6 @@ function DaylightKey({ place }: { place: DaylightPlace | undefined }) {
   );
 }
 
-/** Tooltip content for a session bar. */
-function sessionTooltip(s: SessionSummary): string {
-  return [
-    projectName(s.cwd),
-    `${s.sessionId.slice(0, 8)} · ${s.cwd}`,
-    `Started: ${formatTimestamp(s.startTimestamp ?? s.timestamp)}`,
-    `Runtime: ${formatDuration(s.durationMs)}`,
-    s.activeMs !== undefined ? `Active: ${formatDuration(s.activeMs)}` : null,
-    `Model: ${s.model ?? "—"}`,
-    `${formatCount(s.promptCount)} prompts · ${formatCount(totalTools(s.toolCounts))} tools`,
-    `Status: ${s.status}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
 interface Placed {
   session: SessionSummary;
   interval: Interval;
@@ -191,11 +175,15 @@ function DayLane({
   placed,
   now,
   place,
+  selectedId,
+  onSelect,
 }: {
   dayStart: number;
   placed: Placed[];
   now: number;
   place: DaylightPlace | undefined;
+  selectedId: string | undefined;
+  onSelect: (sessionId: string) => void;
 }) {
   const todayKey = dayKey(now);
   const thisKey = dayKey(dayStart);
@@ -287,27 +275,39 @@ function DayLane({
 
         {/* Session bars */}
         {sessionsOnDay.map(({ session, interval }) => {
-          const place = placements.get(interval.sessionId);
-          if (!place) return null;
+          const slot = placements.get(interval.sessionId);
+          if (!slot) return null;
           const split = durationSplit(session.durationMs, session.activeMs);
           const activeRatio = split.activePct !== undefined ? split.activePct / 100 : 0.5;
           const opacity = 0.2 + 0.35 * activeRatio;
           // Horizontal positioning: start_hour / 24 for left, runtime_hours / 24 for width.
-          const leftPct = place.topPct; // dayPlacements topPct = clock position as %
-          const widthPct = Math.max(0.4, place.heightPct); // floored at 0.4%
-          const laneHeight = 100 / Math.max(1, place.laneCount);
+          const leftPct = slot.topPct; // dayPlacements topPct = clock position as %
+          const widthPct = Math.max(0.4, slot.heightPct); // floored at 0.4%
+          const laneHeight = 100 / Math.max(1, slot.laneCount);
 
           return (
-            <Tooltip key={session.sessionId} title={sessionTooltip(session)}>
+            <Tooltip
+              key={session.sessionId}
+              title={<SessionHoverCard session={session} interval={interval} place={place} />}
+              slotProps={{ tooltip: { sx: HOVER_CARD_SX } }}
+              disableInteractive
+            >
               <Link
                 to="/sessions/$id"
                 params={{ id: session.sessionId }}
                 data-testid="calendar-session-bar"
+                aria-current={session.sessionId === selectedId ? "true" : undefined}
+                onClick={(e) => {
+                  // A plain click selects; a modified one (new tab, new window) is still a link.
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  onSelect(session.sessionId);
+                }}
                 style={{
                   position: "absolute",
                   left: `${leftPct}%`,
                   width: `${widthPct}%`,
-                  top: `${place.lane * laneHeight}%`,
+                  top: `${slot.lane * laneHeight}%`,
                   height: `${laneHeight}%`,
                   minHeight: 8,
                   textDecoration: "none",
@@ -326,6 +326,11 @@ function DayLane({
                     textOverflow: "ellipsis",
                     color: "text.primary",
                     "&:hover": { filter: "brightness(1.15)" },
+                    ...(session.sessionId === selectedId && {
+                      outline: 2,
+                      outlineColor: "primary.main",
+                      outlineOffset: -1,
+                    }),
                   }}
                 >
                   {widthPct > 3 ? projectName(session.cwd) : ""}
@@ -357,6 +362,10 @@ export function SessionsCalendar({
 }) {
   const { location } = useUserSettings();
   const place = useMemo(() => daylightPlace(location, browserTimeZone()), [location]);
+  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const close = useCallback(() => setSelectedId(undefined), []);
+  // Gone when it's no longer loaded (another month), and the panel closes with it.
+  const selected = sessions.find((s) => s.sessionId === selectedId);
 
   const placed: Placed[] = [];
   let undated = 0;
@@ -375,7 +384,14 @@ export function SessionsCalendar({
   const dayGroups = groupByOverlap(placed, (p) => p.interval);
 
   return (
-    <Box data-testid="calendar-lanes">
+    <Box
+      data-testid="calendar-lanes"
+      // Make room for the open panel, so it doesn't hide the evening hours.
+      sx={{
+        mr: { sm: selected ? `${PANEL_WIDTH}px` : 0 },
+        transition: "margin-right 150ms ease-out",
+      }}
+    >
       {/* Range: all of history, or one month with its navigation */}
       <Stack
         direction="row"
@@ -473,6 +489,8 @@ export function SessionsCalendar({
               placed={group.items}
               now={now}
               place={place}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
             />
           ))
         )}
@@ -489,6 +507,7 @@ export function SessionsCalendar({
             : `${undated} sessions have no start time and aren't shown; they are in the list view.`}
         </Typography>
       )}
+      <SessionDetailPanel session={selected} onClose={close} />
     </Box>
   );
 }
