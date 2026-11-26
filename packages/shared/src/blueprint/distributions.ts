@@ -51,7 +51,7 @@ export const COMPONENTS: ComponentDef[] = [
 /** Components that are not entries in SERVICES (the rest are, by key). */
 export const NON_SERVICE_COMPONENTS: ComponentKey[] = ["docs", "plugin"];
 
-export type DistributionKind = "image" | "compose" | "kubernetes" | "binary" | "npm" | "plugin";
+export type DistributionKind = "image" | "compose" | "kubernetes" | "binary" | "plugin";
 
 export interface DistributionDef {
   key: string;
@@ -202,16 +202,6 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     builtBy: [".github/workflows/release-cli.yml", "install.sh"],
     platforms: "linux-x64, linux-arm64, darwin-x64, darwin-arm64",
     note: "Self-contained (Bun runtime embedded). install.sh fetches and verifies one, then runs `install`.",
-  },
-  {
-    key: "npm",
-    title: "npm package",
-    kind: "npm",
-    contains: ["cli"],
-    publishedAt: "npm: @claude-transcripts/cli",
-    builtBy: ["scripts/build-cli-npm.ts", ".github/workflows/release-cli.yml"],
-    platforms: "anywhere Bun runs",
-    note: "A bun-runnable bundle, no dependencies (`bunx @claude-transcripts/cli`). Needs Bun; the binaries don't.",
   },
   {
     key: "plugin",

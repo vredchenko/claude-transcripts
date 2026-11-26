@@ -37,10 +37,10 @@ publish a chart whose version isn't the tag's.
 | Helm chart `claude-transcripts` | `oci://ghcr.io/<owner>/charts/claude-transcripts` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Backing images: Garage mirrored (every platform upstream publishes); CouchDB, Meilisearch, the Garage web UI, the Meilisearch UI and Fossil built here. Each passes the scan gate before it is pushed | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
 | CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
-| `@claude-transcripts/cli` on npm (needs Bun at runtime) | npmjs.org | `release-cli.yml`, skipped with a warning until `NPM_TOKEN` is set |
 
-The binaries embed the Bun runtime and need nothing else. The npm package is a bundle
-with no runtime dependencies, for `bunx @claude-transcripts/cli`.
+The binaries embed the Bun runtime and need nothing else. There is no npm package
+([ADR 0033](../design/decisions/0033-no-npm-package.md)): `install.sh` is the one-line
+install, and a release needs no secrets.
 
 What each artefact carries, platforms included, is in
 [distributions.md](../reference/distributions.md).
@@ -93,9 +93,7 @@ Images are pushed with the built-in `GITHUB_TOKEN`; no secret is needed.
 1. After the first publish, make each GHCR package public (package page → Package
    settings → Change visibility), the `charts/claude-transcripts` chart included. Workflow permissions (Settings → Actions → General)
    must allow read/write.
-2. For npm: create the `claude-transcripts` org on npmjs, create an Automation access
-   token and store it as the repo secret `NPM_TOKEN`.
-3. Optionally, a protected `release` environment for a manual approval gate.
+2. Optionally, a protected `release` environment for a manual approval gate.
 
 ## Pulling from your own registry
 

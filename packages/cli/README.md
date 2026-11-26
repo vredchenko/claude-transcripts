@@ -1,4 +1,4 @@
-# @claude-transcripts/cli
+# Claude Transcripts CLI
 
 **Self-hosted history for your [Claude Code](https://claude.com/claude-code)
 sessions** — the command-line interface.
@@ -18,27 +18,9 @@ This CLI sets the whole system up, controls it, and reads the history back.
 > user on a single trusted machine, so don't expose it to a network or point it at
 > anything you can't afford to lose. Issues and feedback are welcome.
 
-## Requires Bun
-
-This package is a [Bun](https://bun.sh)-runnable bundle and **needs `bun` on your
-`PATH` at runtime** — it uses Bun's file, hashing, and subprocess APIs. It does not run
-on Node.
-
-| | |
-|---|---|
-| `bunx @claude-transcripts/cli` | ✅ |
-| `bun add -g @claude-transcripts/cli` | ✅ |
-| `npx` / `npm i -g` | ⚠️ works only if Bun is already installed |
-| Node | ❌ |
-
-**If you don't have Bun, don't use this package** — use the standalone binaries below
-instead. They embed their own runtime and need nothing installed.
-
 ## Install
 
-### The easy way — no Bun, no clone
-
-One command. It fetches the release binary for your platform, verifies its checksum,
+One command, no Bun and no clone needed. It fetches the release binary for your platform, verifies its checksum,
 and hands over to `claude-transcripts install`, which generates this instance's secrets
 and ports, starts the backing services, provisions the stores, starts the app, sets up
 search, and registers the hook with Claude Code:
@@ -51,13 +33,6 @@ Needs **Docker** and **Claude Code**. Standalone binaries for Linux and macOS (x
 arm64), with SHA-256 sums, are attached to
 [every release](https://github.com/vredchenko/claude-transcripts/releases/latest) if
 you'd rather fetch one yourself.
-
-### With Bun
-
-```bash
-bunx @claude-transcripts/cli install     # one-off
-bun add -g @claude-transcripts/cli       # or install it globally
-```
 
 ## Quick start
 

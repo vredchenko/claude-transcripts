@@ -20,9 +20,6 @@
     "packages/cli": {
       "name": "@claude-transcripts/cli",
       "version": "0.13.0",
-      "bin": {
-        "claude-transcripts": "dist/cli.js",
-      },
       "dependencies": {
         "@claude-transcripts/shared": "workspace:*",
         "ink": "^6.8.0",

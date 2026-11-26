@@ -26,10 +26,7 @@ describe("runningFromSource", () => {
     expect(runningFromSource(import.meta.path)).toBe(true);
   });
 
-  test("a compiled binary or the npm bundle is not", () => {
+  test("a compiled binary is not", () => {
     expect(runningFromSource("/$bunfs/root/claude-transcripts")).toBe(false);
-    expect(runningFromSource("/usr/lib/node_modules/@claude-transcripts/cli/dist/cli.js")).toBe(
-      false,
-    );
   });
 });

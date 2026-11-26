@@ -3,7 +3,7 @@
  * Generate the CLI command reference from the blueprint — a PROJECTION of CLI_SPEC
  * (`toCliDocs`), spliced into the hand-written pages between markers:
  *
- *   packages/cli/README.md     summary tables (the npm landing page)
+ *   packages/cli/README.md     summary tables (the package's README)
  *   docs/reference/cli.md      tables + a section per command
  *
  * Edit the spec (packages/shared/src/blueprint/cli.ts), not the generated region; CI runs
