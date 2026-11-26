@@ -59,9 +59,10 @@ The two workflows above are now five; `publish-image.yml` also runs on `main`
 |---|---|---|
 | `ci.yml` | push + PR to `main` | lint/typecheck/test/build, generated-file and contract checks, the Bun-floor check, browser tests |
 | `publish-image.yml` | `v*.*.*` tag, push to `main`, dispatch | the combined image ([tags](../../develop/releasing.md#app-image-tags)); grype/trivy before push. Since 2026-11-19 only a tag pushes; `main` builds and scans |
-| `release-cli.yml` | `v*.*.*` tag, dispatch | cross-compiled CLI binaries on the GitHub Release, and the npm package |
+| `release-cli.yml` | `v*.*.*` tag, dispatch | cross-compiled CLI binaries on the GitHub Release (and, until 2026-11-26, the npm package: [ADR 0033](0033-no-npm-package.md)) |
 | `mirror-images.yml` | `v*.*.*` tag, dispatch | mirrors the backing-service images ([ADR 0024](0024-mirror-backing-images-to-registry.md)) |
 | `pages.yml` | push to `main` (site/docs paths), dispatch | the project site and rendered docs on GitHub Pages |
 
-`release-cli.yml` needs one optional secret, `NPM_TOKEN`; without it the npm step is
-skipped with a warning.
+`release-cli.yml` needed one optional secret, `NPM_TOKEN`, for the npm step. Since
+[ADR 0033](0033-no-npm-package.md) there is no npm step, and no release workflow needs a
+secret.

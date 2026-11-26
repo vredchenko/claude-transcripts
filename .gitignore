@@ -38,6 +38,3 @@ tests/browser/.results/
 tests/browser/.captures/
 playwright-report/
 
-# Staged into packages/cli at npm-build time by scripts/build-cli-npm.ts
-# (npm includes LICENSE from the package dir; the tracked copy is at the repo root).
-packages/cli/LICENSE

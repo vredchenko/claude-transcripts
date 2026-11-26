@@ -8,6 +8,14 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+
+- **The CLI is no longer published to npm** ([ADR 0033](docs/design/decisions/0033-no-npm-package.md)).
+  `@claude-transcripts/cli` stops at 0.12.1, and `bunx @claude-transcripts/cli` gets no new
+  versions. Install with `curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/install.sh | sh`,
+  which needs no Bun, or take a binary from the GitHub Release. A release no longer needs
+  an `NPM_TOKEN` secret.
+
 ## [0.13.0] — 2026-11-25
 
 A calendar that covers your whole history and shows day and night. No action is needed

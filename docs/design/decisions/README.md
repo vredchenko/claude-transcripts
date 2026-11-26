@@ -16,7 +16,7 @@ Lightweight records of non-obvious decisions. See
 | [0009](0009-meilisearch-search.md) | Meilisearch for search (Phase 2) | Accepted (amended by 0032) |
 | [0010](0010-claude-code-specific-scope.md) | Claude-Code-specific scope (not a generic agent-session logger) | Accepted |
 | [0011](0011-read-couch-attachments-over-http.md) | Read CouchDB attachments over HTTP, not nano's `attachment.get` | Superseded by 0014 |
-| [0012](0012-github-actions-and-ghcr-for-releases.md) | GitHub Actions + GHCR for releases | Accepted (amended 2026-09-30) |
+| [0012](0012-github-actions-and-ghcr-for-releases.md) | GitHub Actions + GHCR for releases | Accepted (amended 2026-09-30, 2026-11-26) |
 | [0013](0013-s3-is-the-transcript-home-couch-attachment-opt-in.md) | S3 is the transcript's durable home; the CouchDB attachment is opt-in | Superseded by 0014 |
 | [0014](0014-transcripts-live-in-s3-only.md) | Transcripts live in S3 only — CouchDB attachment support removed | Accepted (supersedes 0013; narrowed by 0027) |
 | [0015](0015-tiered-architecture.md) | Tiered architecture (Tier 1 / 2 / 3) | Accepted |
@@ -37,3 +37,4 @@ Lightweight records of non-obvious decisions. See
 | [0030](0030-kubernetes-deploy-generated-from-the-model.md) | Kubernetes deploy, generated from the app model (amended: a Helm chart too) | Accepted |
 | [0031](0031-fossil-as-bundled-infrastructure.md) | Fossil as bundled infrastructure, built from source | Accepted (read path only) |
 | [0032](0032-live-and-archive-turn-indexes.md) | Live and archive turn indexes, searched as one | Accepted |
+| [0033](0033-no-npm-package.md) | No npm package: the CLI ships as release binaries | Accepted |

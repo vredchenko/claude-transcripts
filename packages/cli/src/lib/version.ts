@@ -13,7 +13,7 @@ export const VERSION: string = APP_VERSION;
 
 /**
  * True when this is `bun run packages/cli/src/cli.tsx` out of a checkout, not a compiled
- * binary (`/$bunfs/…`) or the npm bundle — i.e. code that may be ahead of the release
+ * binary (`/$bunfs/…`) — i.e. code that may be ahead of the release
  * its `package.json` names.
  */
 export function runningFromSource(path: string = import.meta.path): boolean {
