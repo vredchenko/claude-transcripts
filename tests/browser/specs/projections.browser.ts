@@ -60,6 +60,30 @@ test.describe("calendar", () => {
     await expect(bars).not.toHaveCount(0);
   });
 
+  test("fills a bar where the session was active, and falls back without spans", async ({
+    page,
+  }) => {
+    test.skip(LIVE, "asserts fixture sessions");
+    await setupPage(page);
+    const list = new SessionsListPage(page);
+    await list.goto(`?view=calendar&month=${MONTH}`);
+
+    const bar = (id: string) =>
+      page.locator(`[data-testid="calendar-session-bar"][href*="${id}"] [data-activity]`);
+    // The multi-day session carries spans: every lane it crosses draws its own share.
+    const multi = bar(MULTI_DAY_SESSION.sessionId);
+    await expect(multi.first()).toHaveAttribute("data-activity", "spans");
+    const spans = page.locator(
+      `[data-testid="calendar-session-bar"][href*="${MULTI_DAY_SESSION.sessionId}"] [data-testid="calendar-active-span"]`,
+    );
+    // Six spans across its lanes, none lost to the clipping. More where the runner's time
+    // zone puts local midnight inside one, which then draws on both days.
+    await expect(spans.first()).toBeVisible();
+    expect(await spans.count()).toBeGreaterThanOrEqual(6);
+    // A session the API derived no spans for is still drawn, as one solid bar.
+    await expect(bar(SESSIONS[3]!.sessionId).first()).toHaveAttribute("data-activity", "share");
+  });
+
   test("hovering a bar shows its figures", async ({ page }) => {
     test.skip(LIVE, "asserts fixture sessions");
     test.skip(test.info().project.name.endsWith("-mobile"), "no hover on a phone");

@@ -6,6 +6,7 @@
  */
 import { Box, Button, Drawer, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
+import { activeDaylightShare, sessionSpans } from "../../activity";
 import type { SessionSummary } from "../../api/generated";
 import { type DaylightPlace, daylightShare } from "../../daylight";
 import {
@@ -54,7 +55,12 @@ export function SessionHoverCard({
 }) {
   const start = s.startTimestamp ?? s.timestamp;
   const end = statusTime(s)?.iso;
-  const light = place ? daylightShare(interval.start, interval.end, place.location) : undefined;
+  // Of the active time when the spans say when that was, else of the whole runtime.
+  const spans = sessionSpans(s);
+  const activeLight = place && spans ? activeDaylightShare(spans, place) : undefined;
+  const light =
+    activeLight ??
+    (place ? daylightShare(interval.start, interval.end, place.location) : undefined);
   const line = (text: string, color = "text.secondary") => (
     <Typography variant="caption" component="div" sx={{ color, lineHeight: 1.5 }}>
       {text}
@@ -95,7 +101,10 @@ export function SessionHoverCard({
         {s.errorCount > 0 &&
           line(`${formatCount(s.errorCount)} error${s.errorCount === 1 ? "" : "s"}`, "error.main")}
         {line(modelsLabel(s))}
-        {light !== undefined && line(`${Math.round(light * 100)}% in daylight`)}
+        {light !== undefined &&
+          line(
+            `${Math.round(light * 100)}% ${activeLight !== undefined ? "of active time " : ""}in daylight`,
+          )}
         {s.status !== "ended" && line(s.status === "running" ? "Still running" : "Incomplete")}
       </Box>
       <Typography variant="caption" component="div" sx={{ mt: 0.75, color: "text.secondary" }}>

@@ -1,7 +1,10 @@
 # Activity spans: when a session was worked on, not just how long it was open
 
 **Date:** 2026-11-26
-**Status:** Proposed.
+**Status:** Accepted → [ADR 0034](../docs/design/decisions/0034-activity-spans.md).
+Open questions settled on a real corpus of ~800 sessions: a median of 3 spans, p99 30,
+maximum 45, so 48 stays as a guard; about one span in ten is a single event, so points
+are drawn.
 
 ## The problem
 

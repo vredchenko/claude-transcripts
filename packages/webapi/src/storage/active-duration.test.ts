@@ -68,6 +68,21 @@ describe("activeDurations", () => {
     expect(active.has("s2")).toBe(false);
   });
 
+  test("reports when the session was active, not only how long", async () => {
+    // Worked 0–2, idle for an hour, one event at 62, idle, then 130–133.
+    const { db } = fakeView({ s1: [at(0), at(1), at(2), at(62), at(130), at(133)] });
+    const active = await activeDurations(db, [query("s1")], IDLE, createActiveDurationCache());
+    const ms = (minutes: number) => Date.parse(at(minutes));
+    expect(active.get("s1")).toEqual({
+      activeMs: 5 * MINUTE,
+      spans: [
+        [ms(0), ms(2)],
+        [ms(62), ms(62)],
+        [ms(130), ms(133)],
+      ],
+    });
+  });
+
   test("answers for many sessions in one request", async () => {
     const { db, calls } = fakeView({
       s1: [at(0), at(1)],
@@ -80,8 +95,8 @@ describe("activeDurations", () => {
       createActiveDurationCache(),
     );
     expect(calls).toEqual([["s1", "s2"]]);
-    expect(active.get("s1")).toBe(MINUTE);
-    expect(active.get("s2")).toBe(3 * MINUTE);
+    expect(active.get("s1")?.activeMs).toBe(MINUTE);
+    expect(active.get("s2")?.activeMs).toBe(3 * MINUTE);
   });
 
   test("serves a repeat question from the memo instead of the view", async () => {
@@ -90,7 +105,7 @@ describe("activeDurations", () => {
     await activeDurations(db, [query("s1", "t1")], IDLE, cache);
     const again = await activeDurations(db, [query("s1", "t1")], IDLE, cache);
     expect(calls).toHaveLength(1);
-    expect(again.get("s1")).toBe(MINUTE);
+    expect(again.get("s1")?.activeMs).toBe(MINUTE);
   });
 
   test("recomputes once the session has newer activity", async () => {
@@ -102,7 +117,7 @@ describe("activeDurations", () => {
     corpus.s1 = [at(0), at(1), at(4)];
     const after = await activeDurations(db, [query("s1", at(4))], IDLE, cache);
     expect(calls).toHaveLength(2);
-    expect(after.get("s1")).toBe(4 * MINUTE);
+    expect(after.get("s1")?.activeMs).toBe(4 * MINUTE);
   });
 
   test("does not re-query a session it already found nothing for", async () => {
@@ -117,11 +132,13 @@ describe("activeDurations", () => {
     const corpus = { s1: [at(0), at(2), at(62), at(65)] };
     const { db } = fakeView(corpus);
     const cache = createActiveDurationCache();
-    expect((await activeDurations(db, [query("s1")], IDLE, cache)).get("s1")).toBe(5 * MINUTE);
-    // Two hours of tolerance swallows the hour-long gap, so the whole span is active.
-    expect((await activeDurations(db, [query("s1")], 2 * 60 * MINUTE, cache)).get("s1")).toBe(
-      65 * MINUTE,
+    expect((await activeDurations(db, [query("s1")], IDLE, cache)).get("s1")?.activeMs).toBe(
+      5 * MINUTE,
     );
+    // Two hours of tolerance swallows the hour-long gap, so the whole span is active.
+    expect(
+      (await activeDurations(db, [query("s1")], 2 * 60 * MINUTE, cache)).get("s1")?.activeMs,
+    ).toBe(65 * MINUTE);
   });
 
   test("batches a large request rather than sending one enormous key list", async () => {

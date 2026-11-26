@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AppContext } from "../context";
-import { reconciledThenResumed, sessionRoutes, sessionStatus } from "./sessions";
+import { reconciledThenResumed, sessionRoutes, sessionStatus, spanOffsets } from "./sessions";
 
 type Key = unknown[];
 type Row = { key: Key; value: unknown };
@@ -232,5 +232,23 @@ describe("sessionStatus", () => {
     expect(reconciledThenResumed(s, "2026-11-09T10:00:00.001Z")).toBe(true);
     expect(reconciledThenResumed(s, "")).toBe(false);
     expect(reconciledThenResumed(null, "2026-11-09T11:00:00Z")).toBe(false);
+  });
+});
+
+describe("spanOffsets", () => {
+  test("whole seconds from the start, never shrinking a span", () => {
+    const start = Date.parse("2026-03-18T09:00:00.000Z");
+    expect(
+      spanOffsets(
+        [
+          [start + 400, start + 61_200],
+          [start + 90_000, start + 90_000],
+        ],
+        start,
+      ),
+    ).toEqual([
+      [0, 62],
+      [90, 90],
+    ]);
   });
 });

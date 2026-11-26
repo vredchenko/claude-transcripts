@@ -30,6 +30,8 @@ export interface SessionSummary {
   startTimestamp?: string;
   durationMs?: number;
   activeMs?: number;
+  /** When the session was active: [startOffsetS, endOffsetS] pairs, in whole seconds from the session's start (startTimestamp, else timestamp), ascending and non-overlapping, at most 48. A pair with equal ends is a single event. Absent when activeMs is. */
+  activeSpans?: number[][];
   model?: string;
   models?: string[];
   cwds?: string[];

@@ -1,5 +1,6 @@
 /**
- * Active (working) duration per session: the wall-clock span minus idle gaps.
+ * Active (working) duration per session, and when it was active: the wall-clock span
+ * minus idle gaps, and the spans that remain.
  *
  * A session's runtime is the distance from its first event to its last, which counts
  * the hours it sat open in a tmux pane doing nothing. Active time is the same span with
@@ -14,7 +15,18 @@
  * `reduce=false`, but its value is the entire per-session rollup — affordable for the
  * one session on a detail page, not for fifty.
  */
-import { sumActiveDurationMs } from "@claude-transcripts/shared";
+import { type ActiveSpan, activeSpans, capActiveSpans } from "@claude-transcripts/shared";
+
+/**
+ * What a session's event timestamps say about its activity. `activeMs` is summed from
+ * every span; `spans` is capped for drawing (`capActiveSpans`), so it can read slightly
+ * more active than `activeMs` when the cap closed a gap.
+ */
+export interface Activity {
+  activeMs: number;
+  /** Epoch ms, ascending, at most `MAX_ACTIVE_SPANS`. */
+  spans: ActiveSpan[];
+}
 
 /**
  * How many sessions to ask for in one view request. A list page is 50 and a calendar
@@ -55,13 +67,13 @@ export interface ActiveQuery {
  * tests and between two webapis in one process, and buys nothing.
  */
 export interface ActiveDurationCache {
-  get(key: string): number | null | undefined;
-  set(key: string, value: number | null): void;
+  get(key: string): Activity | null | undefined;
+  set(key: string, value: Activity | null): void;
   readonly size: number;
 }
 
 export function createActiveDurationCache(limit = CACHE_LIMIT): ActiveDurationCache {
-  const entries = new Map<string, number | null>();
+  const entries = new Map<string, Activity | null>();
   return {
     get: (key) => entries.get(key),
     set(key, value) {
@@ -101,7 +113,7 @@ export function groupTimestamps(rows: { key?: unknown; value?: unknown }[]): Map
 }
 
 /**
- * Active duration in ms for each of `wanted` that has one.
+ * Active duration and spans for each of `wanted` that has them.
  *
  * Degrades to what it already knows on any read failure: the view doesn't exist until
  * migration v9 has been applied, and a split that can't be computed must cost the
@@ -112,8 +124,8 @@ export async function activeDurations(
   wanted: ActiveQuery[],
   idleMs: number,
   cache: ActiveDurationCache,
-): Promise<Map<string, number>> {
-  const found = new Map<string, number>();
+): Promise<Map<string, Activity>> {
+  const found = new Map<string, Activity>();
   const pending: ActiveQuery[] = [];
   for (const query of wanted) {
     const cached = cache.get(cacheKey(query, idleMs));
@@ -138,7 +150,12 @@ export async function activeDurations(
       const list = stamps.get(query.sessionId) ?? [];
       // One timestamp is a point, not a span: report nothing rather than zero, which
       // would read as "ran, and did nothing".
-      const active = list.length < 2 ? null : sumActiveDurationMs(list, idleMs);
+      let active: Activity | null = null;
+      if (list.length >= 2) {
+        const spans = activeSpans(list, idleMs);
+        const activeMs = spans.reduce((sum, [start, end]) => sum + (end - start), 0);
+        active = { activeMs, spans: capActiveSpans(spans) };
+      }
       cache.set(cacheKey(query, idleMs), active);
       if (active !== null) found.set(query.sessionId, active);
     }

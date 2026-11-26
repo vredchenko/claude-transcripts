@@ -14,12 +14,13 @@ The start page lists every recorded session, in one of two views chosen in the U
 
 - **List** (default): grouped by day, newest first, loading more as you scroll. Each
   row shows start time, project with its host and full working directory, runtime with
-  an active/idle bar, model, top tools, tokens, status with when it applies (the end
+  a bar of when the session was active along it, model, top tools, tokens, status with when it applies (the end
   time of an ended session, the last write of a live or abandoned one), and the short
   session id with a copy button and a `⋯` menu of links to the session's raw data.
   Columns are not sortable.
 - **Calendar**: a 24-hour lane per day, bars placed by clock time and coloured per
-  project, opacity showing the active share. It opens on all of history, newest day
+  project. A bar is faint across the time the session was open and filled where it was
+  active; a thin tick is a single event between idle gaps. It opens on all of history, newest day
   first, loading more as you scroll; **Month** narrows it to one month (`&month=`)
   with ‹ › and Today to page through. Each lane is shaded by
   that day's daylight (night, civil twilight, day), worked out for
@@ -27,7 +28,8 @@ The start page lists every recorded session, in one of two views chosen in the U
   for your browser's time zone's reference city.
 
   Hovering a bar shows the session's project, host and directory, when it ran, its
-  tokens, turns, tools, errors and models, and how much of it fell in daylight.
+  tokens, turns, tools, errors and models, and how much of its active time fell in
+  daylight.
   Clicking a bar opens a panel beside the calendar with the same details as an
   expanded list row, the session id, its data links, a **Copy resume command** button
   (`cd <dir> && claude --resume <id>`) and **Open session**. Click another bar to
@@ -40,7 +42,11 @@ Status reads **live** (running, a pulsing dot), **abandoned** (the session stopp
 without ending cleanly, a hollow ring) or **ended** (a square). Provenance chips read
 **live** (recorded by the hook as it happened) or **backfilled** (adopted later by
 [`backfill`](../operate/tools.md)). Active time is runtime minus gaps longer than
-`system.sessions.idleThresholdMs`; it shows `—` where it couldn't be derived.
+`system.sessions.idleThresholdMs`; it shows `—` where it couldn't be derived. The same
+gaps split a session into the active stretches both views draw (served as `activeSpans`
+in the API). "Active" means hook events were arriving, so a single tool call or model
+turn longer than the threshold shows as a gap. Where a session has too few events to
+measure, its bars show the active share instead.
 
 ## One session
 
