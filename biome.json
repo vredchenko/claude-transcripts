@@ -79,6 +79,25 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "// Vendored upstream icons, kept byte-for-byte as published (brand/icons/README.md).",
+        "// They are drawn into the stack diagram as decoration beside a text label, not shown",
+        "// on their own, so the title rule doesn't apply and editing them would break provenance.",
+        "brand/icons/github*.svg",
+        "brand/icons/docker.svg",
+        "brand/icons/hono.svg",
+        "brand/icons/react.svg",
+        "brand/icons/lucide/*.svg"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noSvgWithoutTitle": "off"
+          }
+        }
+      }
     }
   ]
 }

@@ -51,7 +51,7 @@ running stack and webapi ([testing.md](testing.md)).
 
 ## Layout
 
-![Claude Code fires a hook that writes events, summaries and transcripts through the webapi gateway into CouchDB and S3; the same gateway reads them back for the web UI, the CLI and agents.](../assets/architecture.svg)
+![Where Claude Transcripts runs: on your machine, Claude Code, the plugin, the hook and the CLI reach the server only through the webapi; on your server, the webapi serves the webui and is the only path into CouchDB, Garage, Meilisearch and Fossil; GitHub builds and publishes the binaries, images and docs.](../assets/architecture-stack.png)
 
 | Path | What it is |
 |------|------------|

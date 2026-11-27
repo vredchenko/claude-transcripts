@@ -55,9 +55,22 @@ bun run test:e2e                                # full write→read path (needs 
 ```
 
 `bun run gen:all` refreshes every generated artifact (hooks bindings, hook-events doc,
-architecture diagram, compose files, k8s base, inlined deploy assets, CLI reference).
+compose files, k8s base, inlined deploy assets, CLI reference).
 Generated files are committed — regenerate, don't hand-edit; CI re-runs `gen:all` and
 fails on a diff.
+
+### Stack diagram
+
+The architecture picture (`docs/assets/architecture-stack{,-dark}.png`) is **drawn, not
+generated** ([ADR 0035](docs/design/decisions/0035-hand-drawn-stack-diagram.md)); its
+prose source is the "Where things run" section of `docs/design/architecture.md`. When you
+change that doc in a way the picture shows, redraw in development, never in CI: edit
+`scripts/stack-diagram/architecture.html` with the `stack-diagram` skill (icon names
+resolve through `scripts/stack-diagram/icons.json` to files vendored in `brand/icons/`;
+add a new icon there with a provenance row, never fetch at render time), run
+`bun run diagram:stack`, and look at both PNGs before committing. If the change doesn't
+affect the picture, run `bun run diagram:stack stamp` instead. `diagram:stack check`
+(lefthook, CI) only warns.
 
 ## Contributing
 

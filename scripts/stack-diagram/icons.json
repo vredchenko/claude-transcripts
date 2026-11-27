@@ -1,0 +1,22 @@
+{
+  "$comment": "Every %%ICON_<name>%% in architecture.html, by name, as a path from the repo root. All of them are vendored in brand/icons/ with provenance in its README: a redraw must not change because an upstream did. Lucide line icons (brand/icons/lucide/) are tinted to the diagram's ink at render time, as the stack-diagram skill tints them; brand marks are used as published.",
+  "actions": "./brand/icons/githubactions.svg",
+  "ghcr": "./brand/icons/lucide/package.svg",
+  "github": "./brand/icons/github.svg",
+  "github_dark": "./brand/icons/github-dark.svg",
+  "docker": "./brand/icons/docker.svg",
+  "hono": "./brand/icons/hono.svg",
+  "react": "./brand/icons/react.svg",
+  "terminal": "./brand/icons/lucide/terminal.svg",
+  "webhook": "./brand/icons/lucide/webhook.svg",
+  "you": "./brand/icons/lucide/user.svg",
+  "claude": "./brand/icons/claude.svg",
+  "couchdb": "./brand/icons/couchdb.svg",
+  "garage": "./brand/icons/garage.svg",
+  "meilisearch": "./brand/icons/meilisearch.svg",
+  "fossil": "./brand/icons/fossil.svg",
+  "pages": "./brand/icons/lucide/book-open.svg",
+  "releases": "./brand/icons/lucide/tag.svg",
+  "plugin": "./brand/icons/lucide/puzzle.svg",
+  "laptop": "./brand/icons/lucide/laptop.svg"
+}

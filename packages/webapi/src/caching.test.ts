@@ -54,7 +54,7 @@ const GZIP = { "accept-encoding": "gzip, deflate, br" };
 
 describe("cacheControlFor", () => {
   test("the docs tree revalidates even under assets/ — it is never hashed", () => {
-    expect(cacheControlFor("docs", "/docs-dist/assets/architecture.svg")).toBe("no-cache");
+    expect(cacheControlFor("docs", "/docs-dist/assets/architecture-stack.png")).toBe("no-cache");
     expect(cacheControlFor("docs", "/docs-dist/design/architecture.html")).toBe("no-cache");
   });
 });

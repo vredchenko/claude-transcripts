@@ -269,8 +269,11 @@
         </div>
       </section>
 
-      <img class="diagram" id="how" src="./docs/assets/architecture.svg"
-           alt="Claude Code fires a hook that writes events, summaries and transcripts through the webapi gateway into CouchDB and S3; the same gateway reads them back for the web UI, the CLI and agents.">
+      <picture id="how">
+        <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/architecture-stack-dark.png">
+        <img class="diagram" src="./docs/assets/architecture-stack.png"
+             alt="Where Claude Transcripts runs: on your machine, Claude Code, the plugin, the hook and the CLI reach the server only through the webapi; on your server, the webapi serves the webui and is the only path into CouchDB, Garage, Meilisearch and Fossil; GitHub builds and publishes the binaries, images and docs.">
+      </picture>
 
       <div class="grid">
         <div class="card">

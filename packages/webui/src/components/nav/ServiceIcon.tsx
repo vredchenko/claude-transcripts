@@ -1,5 +1,5 @@
 /**
- * The marks the architecture diagram draws, reused in the header menus.
+ * Third-party marks for the backing services, shown in the header menus.
  *
  * Imported straight from `brand/icons/` rather than copied: those files are the
  * vendored masters (see their README), and a second copy here would be one more to

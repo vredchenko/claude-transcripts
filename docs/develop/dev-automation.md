@@ -14,7 +14,6 @@ Generated files are committed. `bun run gen:all` runs every generator below exce
 | `gen:clients` | `regenerate-api-clients.ts` | `openapi.json` + the orval clients in `packages/cli/src/api/` and `packages/webui/src/api/` |
 | `gen:hooks` | `sync-hooks.ts` | `hooks/hooks/hooks.json` (events, timeouts, `async`) from `BINDINGS` |
 | `gen:hook-events` | `gen-hook-events.ts` | [`docs/reference/hook-events.md`](../reference/hook-events.md) |
-| `gen:diagram` | `gen-diagram.ts` | `docs/assets/architecture{,-light,-dark}.svg` |
 | `gen:compose` | `gen-compose.ts` | `deploy/docker-compose.yml` |
 | `gen:compose-override` | `gen-compose-override.ts` | `deploy/docker-compose.upstream.yml` (public upstream images) |
 | `gen:k8s` | `gen-k8s.ts` | `deploy/k8s/base/` ([ADR 0030](../design/decisions/0030-kubernetes-deploy-generated-from-the-model.md)) |
@@ -24,8 +23,7 @@ Generated files are committed. `bun run gen:all` runs every generator below exce
 | `gen:mock` | `regenerate-mock-fixtures.ts` | synthetic content for the hook fixtures under `tests/mock/` (not in `gen:all`) |
 
 Output must not depend on your local `config.json` or `.env`, or CI fails for a reason
-it can't reproduce: `gen-diagram` reads `config.template.json` with an empty
-environment, and `gen-compose` emits `${VAR}` placeholders rather than resolved values.
+it can't reproduce: `gen-compose` emits `${VAR}` placeholders rather than resolved values.
 
 ### API clients
 
@@ -41,13 +39,27 @@ generated functions. Three settings make the output usable as is:
 - Each mutator exports `ErrorType`, so callers' error types match what the mutator
   throws.
 
-### Architecture diagram
+## Stack diagram
 
-The nodes and edges are declared in `packages/shared/src/blueprint/topology.ts`;
-`gen-diagram.ts` only does layout. `architecture.svg` follows `prefers-color-scheme`
-and is used by the docs; the README uses the light/dark pair inside `<picture>`,
-because GitHub's image proxy needs that to switch themes. Third-party marks are inlined
-from `brand/icons/`, since an SVG served this way can't fetch anything.
+The architecture picture (`docs/assets/architecture-stack{,-dark}.png`, in the README,
+the landing page and the docs) is **drawn, not generated**
+([ADR 0035](../design/decisions/0035-hand-drawn-stack-diagram.md)). Its source is
+`scripts/stack-diagram/architecture.html`, edited by an agent with the vendored
+`stack-diagram` skill (`.claude/skills/stack-diagram`) from the prose in
+[architecture.md](../design/architecture.md#where-things-run).
+
+| Command | Does |
+|---------|------|
+| `bun run diagram:stack` | Renders the draft to both PNGs (light and dark), recompressed losslessly, and stamps the draft with a sha256 of architecture.md. The self-contained HTML goes to `build/stack-diagram/`. |
+| `bun run diagram:stack stamp` | Records that the draft still matches architecture.md, for a doc change that doesn't affect the picture. |
+| `bun run diagram:stack check` | Says whether architecture.md changed since the last stamp. Warn-only, in lefthook and CI (`--ci` prints a GitHub annotation). |
+
+Rendering needs Python 3.9+ (the skill's `build.py`) and a Playwright Chromium
+(`bun run test:browser:install`, or `CHROMIUM_PATH`), and no network: every icon is
+vendored in `brand/icons/` and mapped by name in `scripts/stack-diagram/icons.json`.
+Redraw in development, never in CI. `topology.test.ts` fails if the draft stops naming a
+component the blueprint's topology has, which catches a missing or renamed box but not
+a wrong arrow.
 
 ## Other scripts
 

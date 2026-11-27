@@ -39,3 +39,4 @@ Lightweight records of non-obvious decisions. See
 | [0032](0032-live-and-archive-turn-indexes.md) | Live and archive turn indexes, searched as one | Accepted |
 | [0033](0033-no-npm-package.md) | No npm package: the CLI ships as release binaries | Accepted |
 | [0034](0034-activity-spans.md) | Active time is a set of spans, derived on read | Accepted |
+| [0035](0035-hand-drawn-stack-diagram.md) | The architecture picture is a hand-drawn stack diagram | Accepted |

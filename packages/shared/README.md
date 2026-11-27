@@ -6,7 +6,7 @@ dependency (zod), so the Bun server and the React client both use it.
 
 | Path (`src/`) | Holds |
 |---------------|-------|
-| `blueprint/` | The central description of the system: services and ports, stores, hook events, actions and bindings, routes, env schema, the CLI spec (`cli.ts`), the recall policy. Built once from `config/` and the environment (`buildAppBlueprint`) and projected into the manifest at `/`, the Compose files, the k8s base, the plugin's `hooks.json`, the architecture diagram and the CLI reference. Extend it; don't re-derive its facts elsewhere. |
+| `blueprint/` | The central description of the system: services and ports, stores, hook events, actions and bindings, routes, env schema, the CLI spec (`cli.ts`), the recall policy. Built once from `config/` and the environment (`buildAppBlueprint`) and projected into the manifest at `/`, the Compose files, the k8s base, the plugin's `hooks.json` and the CLI reference. Extend it; don't re-derive its facts elsewhere. |
 | `migrations/` | The self-built CouchDB migrations: the registry, the runner, and the design documents (views) they install ([ADR 0021](../../docs/design/decisions/0021-self-built-couchdb-migrations.md)). |
 | `docs/` | The CouchDB document schemas (zod), exported as `@claude-transcripts/shared/docs`. Defined once here, validated at the webapi on write; the CLI's document types derive from them. |
 | `claude-code-spec.ts` | Claude Code's hook surface as data, and the drift check against our catalogue. |

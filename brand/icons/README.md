@@ -1,19 +1,23 @@
 # Third-party icons
 
-Marks for the software Claude Transcripts interoperates with, used in the generated
-architecture diagram (`bun run gen:diagram`) and in the webui's header menus. They are
-**not** our brand — for that, see [`../README.md`](../README.md).
+Marks for the software Claude Transcripts interoperates with or is built on, and a few
+generic line icons, used in the stack diagram (`bun run diagram:stack`) and in the
+webui's header menus. They are **not** our brand — for that, see
+[`../README.md`](../README.md).
 
 ## Why they live here
 
-Each file has exactly one declared consumer: a `TopologyNodeDef.icon` value in
-[`packages/shared/src/blueprint/topology.ts`](../../packages/shared/src/blueprint/topology.ts).
-The generator inlines them at build time — an SVG loaded through GitHub's image
-proxy cannot fetch anything external, so a referenced icon would simply not appear.
-The webui imports the same files (`packages/webui/src/components/nav/ServiceIcon.tsx`),
-keyed by the same `IconKey`, rather than keeping copies.
-`loadIcon` throws on a missing or malformed file, so a bad icon is a build failure
-rather than a silently broken picture.
+Two consumers, and neither fetches anything:
+
+- **The stack diagram.** `scripts/stack-diagram/icons.json` maps each icon name in the
+  drawing to a file here ([ADR 0035](../../docs/design/decisions/0035-hand-drawn-stack-diagram.md)).
+  Vendored rather than fetched at render time, so a redraw changes only when this repo
+  does, and so every mark it shows has a provenance row below. The Lucide icons are
+  tinted to the diagram's ink when it renders; the files stay as published.
+- **The webui's header menus** (`packages/webui/src/components/nav/ServiceIcon.tsx`)
+  import the backing services' marks, keyed by the blueprint's `IconKey`
+  ([`topology.ts`](../../packages/shared/src/blueprint/topology.ts)), rather than
+  keeping copies.
 
 ## Provenance
 
@@ -23,10 +27,13 @@ rather than a silently broken picture.
 | `couchdb.svg` | Apache CouchDB mark. **One edit**: `viewBox="0 0 64 64"` added and `width`/`height` dropped — the original declared only pixel dimensions, so it would not scale. The declared 64×64 makes the viewBox exactly recoverable. |
 | `garage.svg` | [Garage](https://garagehq.deuxfleurs.fr) (Deuxfleurs). **Adapted** — see the comment inside the file for exactly what was removed and why the viewBox changed. |
 | `meilisearch.svg` | [Meilisearch](https://www.meilisearch.com) brand mark, Simple Icons house style. As published. |
+| `github.svg`, `github-dark.svg` | GitHub Invertocat, from [svgl](https://svgl.app) (`github_light`, `github_dark`). As published. Fetched 2026-11-27. |
+| `githubactions.svg` | GitHub Actions mark from [devicon](https://devicon.dev) at commit [`32fe1d3`](https://github.com/devicons/devicon/blob/32fe1d3b3f36ad11f90ab94f7db59738139c2bf6/icons/githubactions/githubactions-original.svg) (`githubactions-original`). As published. |
+| `docker.svg` | Docker mark, from [svgl](https://svgl.app) (`docker`). As published. Fetched 2026-11-27. |
+| `hono.svg` | [Hono](https://hono.dev) mark, from [svgl](https://svgl.app) (`hono`). As published. Fetched 2026-11-27. |
+| `react.svg` | [React](https://react.dev) mark, from [svgl](https://svgl.app) (`react_light`). As published. Fetched 2026-11-27. |
+| `lucide/*.svg` | [Lucide](https://lucide.dev) icons from `lucide-static@1.82.0`, ISC licence in [`lucide/LICENSE`](lucide/LICENSE). Generic line icons, not marks. As published. |
 | `fossil.svg` | [Fossil SCM](https://fossil-scm.org) mark from [Simple Icons](https://simpleicons.org) (`fossilscm`, CC0). Fossil publishes its logo only as a GIF. **One edit**: Simple Icons' brand colour `#548294` set as `fill`, matching `meilisearch.svg`. |
-
-Our own mark (`../mark/mark-colour.svg`) stands in for the webapi and is referenced in
-place, not copied.
 
 **Policy:** upstream brand marks are used as the projects publish them. If one is
 ever restyled upstream, refresh the file here rather than editing it in a consumer.
@@ -36,9 +43,10 @@ header.
 ## Trademarks
 
 This repository is MIT-licensed. **These marks are not.** Each is the trademark of
-its project — Anthropic, the Apache Software Foundation, Deuxfleurs, Meili SAS and
-the Fossil project respectively — reproduced here nominatively, to identify the software this project
-talks to. Their inclusion implies no affiliation with or endorsement by those
+its owner — Anthropic, the Apache Software Foundation, Deuxfleurs, Meili SAS, the
+Fossil project, GitHub, Docker, the Hono project and Meta — reproduced here
+nominatively, to identify the software this project talks to or is built on. The Lucide
+icons are not marks; they are under the ISC licence in `lucide/LICENSE`. Their inclusion implies no affiliation with or endorsement by those
 projects, and the repository's LICENSE does not extend to them. If you fork this
 project and rebrand it, review these separately.
 
