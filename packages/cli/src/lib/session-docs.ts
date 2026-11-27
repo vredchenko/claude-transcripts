@@ -171,8 +171,8 @@ const clip = (s: string): string => (s.length > PREVIEW_LIMIT ? s.slice(0, PREVI
  * `CwdChanged` where its `cwd` does, at the first line that shows the new value — the
  * hook fires both earlier, so the time is approximate, and the switch's `source` and
  * cost estimate are not in the transcript. Each marker carries the cwd in force then,
- * as a live one does. `DirectoryAdded` leaves no trace in the file and has no
- * reconstruction.
+ * as a live one does. `DirectoryAdded` and `PreSkillShellCommand` leave no trace
+ * in the file and have no reconstruction.
  *
  * `SubagentStart`/`SubagentStop` markers, and the tool markers of subagent lines kept
  * in their own files, come from `buildSubagentEventDocs` (subagents.ts).

@@ -114,6 +114,7 @@ export const BINDINGS: HookActionBinding[] = [
   { event: "PostModelSwitch", actions: ["write-event-marker"] },
   { event: "CwdChanged", actions: ["write-event-marker"] },
   { event: "DirectoryAdded", actions: ["write-event-marker"] },
+  { event: "PreSkillShellCommand", actions: ["write-event-marker"] },
   { event: "SessionEnd", actions: ["flush-transcript-chunk", "write-summary", "upload-blobs"] },
 ];
 

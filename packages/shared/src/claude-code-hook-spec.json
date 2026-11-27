@@ -1,6 +1,6 @@
 {
-  "claudeCode": "2.1.328",
-  "sdk": "0.3.328",
+  "claudeCode": "2.1.332",
+  "sdk": "0.3.332",
   "base": {
     "agent_id": [],
     "agent_type": [],
@@ -221,6 +221,14 @@
       "index": [],
       "message_id": [],
       "turn_id": []
+    },
+    "PreSkillShellCommand": {
+      "command_name": [],
+      "command_source": [],
+      "invoked_by": ["claude", "other", "user"],
+      "tool_input": [],
+      "tool_name": [],
+      "tool_use_id": []
     }
   }
 }

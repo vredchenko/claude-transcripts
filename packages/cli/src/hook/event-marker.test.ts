@@ -47,6 +47,20 @@ describe("write-event-marker", () => {
     });
   });
 
+  test("PreSkillShellCommand records the command, its skill and who started it (#328)", async () => {
+    const doc = await marker("pre-skill-shell-command/user.json");
+    expect(doc).toMatchObject({
+      event: "PreSkillShellCommand",
+      shell: "Bash",
+      command_name: "release-notes",
+      command_source: "projectSettings",
+      invoked_by: "user",
+      input_preview: "git log --oneline -5",
+    });
+    // Not a tool call: the tool views count every event that has a `tool_name`.
+    expect(doc.tool_name).toBeUndefined();
+  });
+
   test("DirectoryAdded records the directory and how it was added", async () => {
     const doc = await marker("directory-added/slash-command.json");
     expect(doc).toMatchObject({
