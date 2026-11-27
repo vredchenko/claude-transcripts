@@ -32,6 +32,8 @@ on:
       - package.json
       - bun.lock
       - .github/workflows/omnibus.yml
+      # The scan gate itself: a change to it is tested by a real scan here.
+      - .github/actions/scan-image/**
   push:
     branches: [main]
     paths: *paths
