@@ -1,0 +1,77 @@
+name: lockfile-scan
+
+# Known vulnerabilities in the locked dependencies (#302 item 6), with osv-scanner
+# over bun.lock. This covers what the image scans can't: the CLI's binaries and its
+# dependencies, and every transitive version. Dependabot's alerts don't help here,
+# because they read package.json only.
+#
+# - On a PR that changes dependencies: fail on any finding. The change must not leave
+#   the lockfile with a known advisory.
+# - Weekly, and on main when dependencies change: report to code scanning (Security →
+#   Code scanning, tool "osv-scanner") without failing. A newly published advisory
+#   shows up there and doesn't turn every unrelated PR red.
+#
+# The scanner runs as its official image, pinned by digest in
+# .github/actions/scan-image/scanners.Dockerfile, like the image gate's.
+
+on:
+  pull_request:
+    branches: [main]
+    paths: &paths
+      - bun.lock
+      - "**/package.json"
+      - .github/actions/scan-image/scanners.Dockerfile
+      - .github/workflows/lockfile-scan.yml
+  push:
+    branches: [main]
+    paths: *paths
+  schedule:
+    - cron: "41 6 * * 1" # Mondays, 06:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF report (not on PRs)
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Resolve the pinned osv-scanner image
+        id: pin
+        run: |
+          set -euo pipefail
+          img=$(awk '$1 == "FROM" && $NF == "osv-scanner" { print $2 }' .github/actions/scan-image/scanners.Dockerfile)
+          [ -n "$img" ] || { echo "::error::no osv-scanner pin in scanners.Dockerfile"; exit 1; }
+          echo "image=$img" >> "$GITHUB_OUTPUT"
+
+      - name: Scan bun.lock (fail on any finding)
+        if: github.event_name == 'pull_request'
+        env:
+          IMAGE: ${{ steps.pin.outputs.image }}
+        run: docker run --rm -v "$PWD:$PWD:ro" -w "$PWD" "$IMAGE" scan source -L bun.lock
+
+      # osv-scanner exits 1 when it finds something; that's the report's job here, so
+      # only other codes (a real error) fail the step. The checkout is mounted at its own
+      # path so the SARIF's file URIs resolve against the repo.
+      - name: Scan bun.lock (report)
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ${{ steps.pin.outputs.image }}
+        run: |
+          set -uo pipefail
+          docker run --rm -v "$PWD:$PWD:ro" -w "$PWD" "$IMAGE" \
+            scan source -L bun.lock --format sarif > osv.sarif
+          code=$?
+          [ "$code" -eq 0 ] || [ "$code" -eq 1 ] || exit "$code"
+
+      - name: Upload to code scanning
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          sarif_file: osv.sarif
+          category: osv-scanner
