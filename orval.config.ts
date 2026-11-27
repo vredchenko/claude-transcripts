@@ -25,6 +25,9 @@ export default defineConfig({
         // generated types describe an envelope the mutator has already unwrapped, and
         // every consumer reads `.data.data`.
         fetch: { includeHttpResponseReturnType: false },
+        // The webui's package.json declares react-query, not the root one orval looks
+        // at, so it can't detect the major and would type options for the wrong one.
+        query: { version: 5 },
       },
     },
   },
