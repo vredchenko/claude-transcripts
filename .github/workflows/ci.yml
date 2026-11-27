@@ -13,13 +13,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # The contract check compares this branch's spec against the base branch's,
           # which it reads out of git. The default shallow checkout has no such ref,
           # and the check would skip itself into permanent uselessness.
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
@@ -85,7 +85,7 @@ jobs:
   floor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - id: floor
         name: read the declared Bun floor, and check every manifest agrees
         run: |
@@ -109,7 +109,7 @@ jobs:
           version="$(echo "$declared" | sed 's/^[^0-9]*//')"
           echo "declared: $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ steps.floor.outputs.version }}
       - run: bun install --frozen-lockfile
@@ -124,15 +124,15 @@ jobs:
   browser:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run test:browser:install
       - run: bun run test:browser
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: playwright-results
           # Traces and failure screenshots — the only way to see what a layout looked
