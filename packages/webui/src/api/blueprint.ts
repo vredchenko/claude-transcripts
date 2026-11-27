@@ -5,6 +5,7 @@ import {
   resolveUserSettings,
   type ServiceDef,
   type StoreModel,
+  stripTrailingSlashes,
   type TopologyModel,
   type UserSettings,
 } from "@claude-transcripts/shared";
@@ -47,7 +48,7 @@ export function couchProxyUrl(db: string, path: string): string {
 
 /** Fauxton's hash route for a database path, tolerating a trailing slash on its URL. */
 export function fauxtonUrlFor(fauxtonUrl: string, db: string, path: string): string {
-  return `${fauxtonUrl.replace(/\/+$/, "")}/#/database/${encodeURIComponent(db)}/${path}`;
+  return `${stripTrailingSlashes(fauxtonUrl)}/#/database/${encodeURIComponent(db)}/${path}`;
 }
 
 /** The blueprint rarely changes within a session, so cache it for the whole run. */

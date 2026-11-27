@@ -20,6 +20,7 @@
  *   the statusline renders. Nothing is buffered: a session recorded while the webapi
  *   was down is recovered with `backfill`, and the statusline says so.
  */
+import { stripTrailingSlashes } from "@claude-transcripts/shared";
 
 /** A webapi this machine writes into: its own instance, or a mirror. */
 export interface WebapiTarget {
@@ -52,9 +53,9 @@ export type MirrorTarget = WebapiTarget;
 export function webapiKey(url: string): string {
   try {
     const u = new URL(url.trim());
-    return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`;
+    return `${u.protocol}//${u.host}${stripTrailingSlashes(u.pathname)}`;
   } catch {
-    return url.trim().replace(/\/+$/, "").toLowerCase();
+    return stripTrailingSlashes(url.trim()).toLowerCase();
   }
 }
 
@@ -93,7 +94,7 @@ const DEFAULT_TIMEOUT_MS = 2_000;
 const DEFAULT_BLOB_TIMEOUT_MS = 60_000;
 
 export function baseUrl(target: WebapiTarget): string {
-  return target.url.replace(/\/+$/, "");
+  return stripTrailingSlashes(target.url);
 }
 
 export function authHeaders(target: WebapiTarget): Record<string, string> {

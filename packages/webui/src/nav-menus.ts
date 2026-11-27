@@ -9,6 +9,7 @@
  * Add a service, a store or a route to the blueprint and the menus follow.
  */
 import type { IconKey, StoreModel } from "@claude-transcripts/shared";
+import { stripTrailingSlashes } from "@claude-transcripts/shared";
 import { type AppBlueprintInfo, couchProxyUrl, fauxtonUrlFor } from "./api/blueprint";
 
 export interface NavLink {
@@ -129,13 +130,13 @@ function storesOf(
         entry.adminLabel = "fauxton";
       }
     } else if (kind === "indexes" && serviceUrl) {
-      entry.href = `${serviceUrl.replace(/\/+$/, "")}/indexes/${encodeURIComponent(name)}`;
+      entry.href = `${stripTrailingSlashes(serviceUrl)}/indexes/${encodeURIComponent(name)}`;
     } else if (kind === "repositories") {
       // The JSON proxy is keyed by the logical key, like the S3 one; Fossil itself serves
       // each repository's web UI at /<name>/.
       entry.href = `/api/fossil/${encodeURIComponent(key)}/json/timeline/checkin`;
       if (serviceUrl) {
-        entry.adminHref = `${serviceUrl.replace(/\/+$/, "")}/${encodeURIComponent(name)}/`;
+        entry.adminHref = `${stripTrailingSlashes(serviceUrl)}/${encodeURIComponent(name)}/`;
         entry.adminLabel = "web ui";
       }
     }
@@ -168,7 +169,8 @@ export function devMenuSections(model: AppBlueprintInfo | undefined): NavSection
 
 /** The About menu's project links, all derived from the repository URL. */
 export function aboutLinks(model: AppBlueprintInfo | undefined): NavLink[] {
-  const repo = model?.identity?.repository?.replace(/\/+$/, "");
+  const repoUrl = model?.identity?.repository;
+  const repo = repoUrl === undefined ? undefined : stripTrailingSlashes(repoUrl);
   if (!repo) return [];
   const short = repo.replace(/^https?:\/\/(www\.)?github\.com\//, "");
   return [
@@ -241,6 +243,6 @@ export function sessionLinks(
     });
   }
   if (!origin) return links;
-  const base = origin.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(origin);
   return links.map((l) => (l.href.startsWith("/") ? { ...l, href: base + l.href } : l));
 }

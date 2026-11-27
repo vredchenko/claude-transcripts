@@ -15,7 +15,7 @@
  * has a layout role isn't reassigned, an existing bucket is reused, and keys are only
  * created when the instance env has none (and earlier app keys are then deleted).
  */
-import { resolveCouchUrl } from "@claude-transcripts/shared";
+import { resolveCouchUrl, stripTrailingSlashes } from "@claude-transcripts/shared";
 import type { EnvMap } from "./instance-env";
 import { updateInstanceEnv } from "./instance-env";
 
@@ -72,9 +72,8 @@ const KEY_NAME = "claude-transcripts-app";
 function garageApi(env: EnvMap) {
   // GARAGE_ADMIN_URL reaches a Garage that isn't on this machine's loopback — another
   // pod, another host — the way COUCHDB_URL does for CouchDB.
-  const admin = (env.GARAGE_ADMIN_URL || `http://127.0.0.1:${env.GARAGE_ADMIN_PORT}`).replace(
-    /\/+$/,
-    "",
+  const admin = stripTrailingSlashes(
+    env.GARAGE_ADMIN_URL || `http://127.0.0.1:${env.GARAGE_ADMIN_PORT}`,
   );
   const token = env.GARAGE_ADMIN_TOKEN ?? "";
   return async function api(method: string, path: string, body?: unknown): Promise<ApiResult> {

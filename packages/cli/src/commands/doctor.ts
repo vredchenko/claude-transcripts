@@ -17,6 +17,7 @@
  * time a user searches rather than at setup.
  */
 import { hostname } from "node:os";
+import { stripTrailingSlashes } from "@claude-transcripts/shared";
 import { getSession, getSessionTranscript, resetSession, search } from "../api/generated";
 import { webapiUrl } from "../api/http";
 import { probeWebapi } from "../hook/ingest";
@@ -182,7 +183,7 @@ async function checkHookTarget(testing: string): Promise<boolean> {
         `remove it from \`mirrors\` in ${path} (or re-run \`claude-transcripts setup\`)`,
     );
   }
-  const same = redactUrl(testing).replace(/\/+$/, "") === target.replace(/\/+$/, "");
+  const same = stripTrailingSlashes(redactUrl(testing)) === stripTrailingSlashes(target);
   console.log(
     `doctor: hook writes to ${target} — reachable${same ? "" : " (not the target tested below)"}`,
   );
