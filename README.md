@@ -8,6 +8,7 @@
 # Claude Transcripts
 
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-CC785C?logo=anthropic&logoColor=white)](https://claude.com/claude-code)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vredchenko/claude-transcripts/badge)](https://scorecard.dev/viewer/?uri=github.com/vredchenko/claude-transcripts)
 
 **Self-hosted history for your [Claude Code](https://claude.com/claude-code)
 sessions.** A Claude Code hook logs every session — events, an end-of-session
