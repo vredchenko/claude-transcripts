@@ -1,20 +1,32 @@
 name: release-cli
-# On a vMAJOR.MINOR.PATCH tag: cross-compile the CLI to standalone binaries
-# (Linux + macOS, x64 + arm64) and attach them to the GitHub Release. A manual
-# dispatch builds the binaries and uploads them as workflow artifacts only (no
-# publish). There is no npm package (ADR 0033), so this needs no secrets.
+# On a vMAJOR.MINOR.PATCH tag: cross-compile the CLI to standalone binaries for every
+# target in packages/shared/src/blueprint/cli-targets.ts, run each one on its own
+# platform through install.sh, and only then attach them to the GitHub Release
+# (ADR 0036). A manual dispatch, or a PR that touches the build, does everything but
+# publish. There is no npm package (ADR 0033), so this needs no secrets.
 # Lockstep-versioned with the app image (ADR 0023); see docs/develop/releasing.md.
+#
+# The target list and the smoke matrix are generated (`bun run gen:distributions`);
+# edit cli-targets.ts, not the marked regions.
 on:
   push:
     tags: ["v*.*.*"]
+  pull_request:
+    paths:
+      - .github/workflows/release-cli.yml
+      - install.sh
+      - scripts/smoke-cli-binary.sh
+      - packages/shared/src/blueprint/cli-targets.ts
   workflow_dispatch:
 
 permissions:
-  contents: write # attach binaries to the GitHub Release
+  contents: read
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -28,37 +40,107 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: bun run scripts/release.ts "${GITHUB_REF_NAME#v}" --check
 
-      - name: Cross-compile binaries (Linux + macOS)
+      - id: version
+        run: echo "version=v$(jq -r .version packages/cli/package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile binaries
         run: |
           set -euo pipefail
           mkdir -p out
+          # gen:cli-build-targets:start — generated from cli-targets.ts; do not edit
+          targets="bun-linux-x64 bun-linux-x64-baseline bun-linux-x64-musl bun-linux-x64-musl-baseline bun-linux-arm64 bun-linux-arm64-musl bun-darwin-x64 bun-darwin-arm64"
+          # gen:cli-build-targets:end
           # --splitting keeps Ink out of the entry chunk; without it piped stdout is
           # truncated (#146). Still one self-contained binary.
-          for t in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
+          for t in $targets; do
             plat="${t#bun-}"
             bun build --compile --splitting --target="$t" packages/cli/src/cli.tsx \
               --outfile "out/claude-transcripts-$plat"
           done
           (cd out && for f in claude-transcripts-*; do sha256sum "$f" > "$f.sha256"; done)
           ls -la out
-          # The binary reports the version it was stamped with, not something else.
-          want="v$(jq -r .version packages/cli/package.json)"
-          got="$(./out/claude-transcripts-linux-x64 --version)"
-          if [ "$got" != "$want" ]; then
-            echo "::error::compiled CLI reports $got, package.json says $want"
-            exit 1
-          fi
 
-      # Tag build → publish. Dispatch → upload artifacts only.
-      - name: Attach binaries to the Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
-        with:
-          files: out/*
-
-      - name: Upload binaries as artifacts (dispatch)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v6
         with:
           name: cli-binaries
           path: out/*
+
+  # Each binary, on its own platform, installed by install.sh from the build's assets:
+  # it must pick the right one where it can detect it, verify it, and the binary must
+  # print the stamped version, render help and handle a hook event offline.
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # gen:cli-smoke-matrix:start — generated from cli-targets.ts; do not edit
+          - asset: linux-x64
+            runner: ubuntu-latest
+            image: ""
+            qemu_cpu: ""
+            detected: true
+          - asset: linux-x64-baseline
+            runner: ubuntu-latest
+            image: "ubuntu:24.04"
+            qemu_cpu: "Nehalem"
+            detected: false
+          - asset: linux-x64-musl
+            runner: ubuntu-latest
+            image: "alpine:3"
+            qemu_cpu: ""
+            detected: true
+          - asset: linux-x64-musl-baseline
+            runner: ubuntu-latest
+            image: "alpine:3"
+            qemu_cpu: "Nehalem"
+            detected: false
+          - asset: linux-arm64
+            runner: ubuntu-24.04-arm
+            image: ""
+            qemu_cpu: ""
+            detected: true
+          - asset: linux-arm64-musl
+            runner: ubuntu-24.04-arm
+            image: "alpine:3"
+            qemu_cpu: ""
+            detected: true
+          # gen:cli-smoke-matrix:end
+    runs-on: ${{ matrix.runner }}
+    name: smoke (${{ matrix.asset }})
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: cli-binaries
+          path: out
+      - name: Install and run ${{ matrix.asset }}
+        env:
+          SMOKE_QEMU_CPU: ${{ matrix.qemu_cpu }}
+          SMOKE_DETECTED: ${{ matrix.detected }}
+          WANT: ${{ needs.build.outputs.version }}
+        run: |
+          set -eu
+          # In a container through `docker run`, not a job `container:`: JavaScript
+          # actions don't run in Alpine on arm64 runners, and this needs none.
+          if [ -n "${{ matrix.image }}" ]; then
+            docker run --rm -v "$PWD:/w" -w /w -e SMOKE_QEMU_CPU -e SMOKE_DETECTED \
+              "${{ matrix.image }}" sh scripts/smoke-cli-binary.sh "${{ matrix.asset }}" out "$WANT"
+          else
+            sh scripts/smoke-cli-binary.sh "${{ matrix.asset }}" out "$WANT"
+          fi
+
+  publish:
+    needs: [build, smoke]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # attach binaries to the GitHub Release
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: cli-binaries
+          path: out
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: out/*

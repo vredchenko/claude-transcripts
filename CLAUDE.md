@@ -55,7 +55,8 @@ bun run test:e2e                                # full write→read path (needs 
 ```
 
 `bun run gen:all` refreshes every generated artifact (hooks bindings, hook-events doc,
-compose files, k8s base, inlined deploy assets, CLI reference).
+compose files, k8s base, inlined deploy assets, CLI reference, distribution tables and
+the CLI release targets wherever they are listed).
 Generated files are committed — regenerate, don't hand-edit; CI re-runs `gen:all` and
 fails on a diff.
 

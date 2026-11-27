@@ -72,9 +72,10 @@ an authenticating proxy.
 Also inside:
 
 - **The CLI**, on `PATH`: `docker exec -it claude-transcripts claude-transcripts sessions`.
-- **Downloads** at `/downloads/`: the CLI for Linux and macOS (x64 and arm64), each
-  with a `.sha256`, and the Claude Code plugin as a local marketplace, with install
-  instructions on the page. Built from the same sources as the app, so the versions
+- **Downloads** at `/downloads/`: the CLI for glibc Linux and macOS (x64 and arm64),
+  each with a `.sha256`, and the Claude Code plugin as a local marketplace, with install
+  instructions on the page. The musl and baseline builds are on the GitHub release only.
+  `CT_DOWNLOAD_URL=<this instance>/downloads` points `install.sh` here. Built from the same sources as the app, so the versions
   match.
 - **The source repository**, cloned at build time to `/workspace/claude-transcripts`
   and fetched on every boot (best-effort; set `OMNIBUS_GIT_FETCH=0` to skip). It can

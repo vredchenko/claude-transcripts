@@ -110,8 +110,11 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} GOTOOLCHAI
 # release workflow (release-cli.yml); --splitting is the #146 fix.
 FROM --platform=$BUILDPLATFORM ${APP_IMAGE} AS downloads
 WORKDIR /app
+# gen:omnibus-cli-targets:start — generated from cli-targets.ts (`omnibus: true`); do not edit
+ARG CLI_TARGETS="linux-x64 linux-arm64 darwin-x64 darwin-arm64"
+# gen:omnibus-cli-targets:end
 RUN set -eu; mkdir -p /downloads; \
-  for t in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do \
+  for t in $CLI_TARGETS; do \
     bun build --compile --splitting --target="bun-$t" packages/cli/src/cli.tsx \
       --outfile "/downloads/claude-transcripts-$t"; \
   done
