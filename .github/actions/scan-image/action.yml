@@ -13,29 +13,54 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install grype + trivy
+    # The scanners run as their official images, pinned by digest in
+    # scanners.Dockerfile (#302 item 2). They used to be installed by piping each
+    # project's install script from its `main` branch into sh: unpinned third-party
+    # code with registry credentials in scope, which also failed whenever GitHub's
+    # release redirect returned a 504.
+    - name: Resolve the pinned scanner images
+      id: pins
       shell: bash
       run: |
         set -euo pipefail
-        command -v grype >/dev/null || curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-        command -v trivy >/dev/null || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+        pins="${{ github.action_path }}/scanners.Dockerfile"
+        pin() { awk -v stage="$1" '$1 == "FROM" && $NF == stage { print $2 }' "$pins"; }
+        grype="$(pin grype)"; trivy="$(pin trivy)"
+        [ -n "$grype" ] && [ -n "$trivy" ] || { echo "::error::no scanner pins in $pins"; exit 1; }
+        echo "grype=$grype" >> "$GITHUB_OUTPUT"
+        echo "trivy=$trivy" >> "$GITHUB_OUTPUT"
+        # Registry credentials (from docker/login-action) are mounted read-only, so a
+        # registry scan of a private image works and nothing else of the runner's is.
+        echo "docker_config=${DOCKER_CONFIG:-$HOME/.docker}" >> "$GITHUB_OUTPUT"
 
     - name: Scan with grype (fail on HIGH+)
       shell: bash
       env:
         IMAGE: ${{ inputs.image }}
         REGISTRY: ${{ inputs.registry }}
+        SCANNER: ${{ steps.pins.outputs.grype }}
+        CONFIG: ${{ steps.pins.outputs.docker_config }}
       run: |
         set -euo pipefail
-        src="$IMAGE"; [ "$REGISTRY" = true ] && src="registry:$IMAGE"
-        grype "$src" --fail-on high --only-fixed
+        src="docker:$IMAGE"; [ "$REGISTRY" = true ] && src="registry:$IMAGE"
+        mkdir -p "$CONFIG"
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v "$CONFIG:/docker-config:ro" -e DOCKER_CONFIG=/docker-config \
+          "$SCANNER" "$src" --fail-on high --only-fixed
 
     - name: Scan with trivy (fail on HIGH/CRITICAL)
       shell: bash
       env:
         IMAGE: ${{ inputs.image }}
         REGISTRY: ${{ inputs.registry }}
+        SCANNER: ${{ steps.pins.outputs.trivy }}
+        CONFIG: ${{ steps.pins.outputs.docker_config }}
       run: |
         set -euo pipefail
-        src=(); [ "$REGISTRY" = true ] && src=(--image-src remote)
-        trivy image "${src[@]}" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE"
+        src=(--image-src docker); [ "$REGISTRY" = true ] && src=(--image-src remote)
+        mkdir -p "$CONFIG"
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v "$CONFIG:/docker-config:ro" -e DOCKER_CONFIG=/docker-config \
+          "$SCANNER" image "${src[@]}" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE"
