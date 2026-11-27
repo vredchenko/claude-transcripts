@@ -1,0 +1,61 @@
+# Routine version updates (#302 item 1). Security updates are on in the repo settings
+# and come regardless of this file. One grouped PR per ecosystem a week keeps the noise
+# down; a cooldown lets a new release age a few days before we take it.
+#
+# What is deliberately NOT here:
+# - Backing-service and base images. Their tags are declared once, in the blueprint
+#   (packages/shared/src/blueprint/services.ts), and reach the Dockerfiles as build
+#   args, so there is nothing for Dependabot to bump in them. deploy/fossil/Dockerfile
+#   names its images literally, but it is inlined into a generated file, which a
+#   Dependabot PR can't regenerate.
+#
+# A bump that changes generated output (orval → the API clients, for instance) fails
+# CI's `gen:all` diff check; regenerate on the PR branch with `bun run gen:all`.
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # Minor and patch together. A major bump gets a PR of its own, so one breaking
+      # change can't hold up the rest.
+      bun-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # The scan gate's pinned grype and trivy images (scanners.Dockerfile).
+  - package-ecosystem: docker
+    directory: /.github/actions/scan-image
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      scanners:
+        patterns: ["*"]
