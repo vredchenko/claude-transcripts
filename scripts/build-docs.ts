@@ -341,8 +341,15 @@ function renderInline(text: string): string {
   out = escapeHtml(out);
 
   // Images before links (same bracket shape).
+  // An image with an `x-dark.ext` beside it becomes a <picture> that switches with the
+  // reader's theme, as the README does by hand: the page follows prefers-color-scheme,
+  // so a light-only picture would sit on a dark page.
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, src: string) => {
-    return `<img src="${rewriteLink(src)}" alt="${alt}" />`;
+    const img = `<img src="${rewriteLink(src)}" alt="${alt}" />`;
+    const dark = src.replace(/(\.[a-z]+)$/i, "-dark$1");
+    const local = !/^[a-z]+:/i.test(src) && !src.startsWith("//") && dark !== src;
+    if (!local || !existsSync(join(DOCS_DIR, normalize(join(currentDir, dark))))) return img;
+    return `<picture><source media="(prefers-color-scheme: dark)" srcset="${rewriteLink(dark)}" />${img}</picture>`;
   });
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, href: string) => {
     const external = /^[a-z]+:/i.test(href);

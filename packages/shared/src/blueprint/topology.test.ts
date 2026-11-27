@@ -6,6 +6,8 @@
  * write goes through the webapi" (#288) becomes checkable, so these are the checks.
  */
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildAppBlueprint } from "./build";
 import { toArchitectureDiagram } from "./project";
 import { SERVICES } from "./services";
@@ -100,5 +102,29 @@ describe("toArchitectureDiagram", () => {
       expect(e.from).not.toBe("garage");
       expect(e.to).not.toBe("garage");
     }
+  });
+});
+
+/**
+ * The architecture picture is drawn by hand (ADR 0035), so it can drift the way the
+ * hand-typed diagrams before it did. This is the part of "is it still right?" a test
+ * can answer: every component the topology has at the compact level is named in the
+ * drawing, as a box or in a box's caption ("CLI — you + agents"). It catches a
+ * component left out or renamed, not a wrong arrow.
+ */
+describe("the drawn stack diagram", () => {
+  const draft = readFileSync(
+    join(import.meta.dir, "../../../../scripts/stack-diagram/architecture.html"),
+    "utf8",
+  );
+  const text = [...draft.matchAll(/<div class="(?:name|role)"><span>([^<]*)<\/span>/g)]
+    .map((m) => m[1]!.toLowerCase())
+    .join(" | ");
+
+  test("names every compact topology node", () => {
+    const missing = toArchitectureDiagram(model, { level: "compact" })
+      .nodes.map((n) => n.label)
+      .filter((label) => !new RegExp(`\\b${label.toLowerCase()}\\b`).test(text));
+    expect(missing).toEqual([]);
   });
 });

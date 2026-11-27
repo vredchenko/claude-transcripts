@@ -42,6 +42,11 @@ jobs:
       - name: generated files are reproducible
         run: git diff --exit-code
 
+      # The stack diagram is drawn, not generated, so CI cannot redraw it. It can say
+      # that architecture.md (what it is drawn from) moved since: a warning, never a fail.
+      - name: stack diagram is in step with architecture.md
+        run: bun run diagram:stack check --ci
+
       # Does this change break a consumer generated against the base branch's spec?
       # Additive changes pass; a break passes only if a commit declares it. Consumers
       # are generated, so a break surfaces at *their* next codegen, not here.

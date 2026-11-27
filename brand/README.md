@@ -72,6 +72,7 @@ Claude Code statusline.
 
 ## Third-party marks
 
-`icons/` holds **other projects'** marks (CouchDB, Garage, Meilisearch, Claude, Fossil)
-used in the architecture diagram. Not our brand, and not covered by this repo's LICENSE
+`icons/` holds **other projects'** marks and icons (CouchDB, Garage, Meilisearch, Claude,
+Fossil, GitHub, Docker, Hono, React, Lucide), used in the stack diagram and the webui's
+header menus. Not our brand, and not covered by this repo's LICENSE
 — see [`icons/README.md`](icons/README.md).

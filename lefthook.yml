@@ -5,3 +5,7 @@ pre-commit:
       glob: "*.{js,jsx,ts,tsx,json,jsonc}"
       run: bunx biome check --write {staged_files}
       stage_fixed: true
+    # Not a gate: says when the prose the stack diagram is drawn from has moved.
+    stack-diagram:
+      glob: "docs/design/architecture.md"
+      run: bun run scripts/stack-diagram.ts check
