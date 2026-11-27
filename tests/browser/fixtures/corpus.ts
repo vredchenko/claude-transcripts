@@ -215,6 +215,20 @@ export const SESSIONS: Session[] = [
   }),
 ];
 
+/**
+ * A long history: `count` ordinary sessions, one a day going back from the anchor,
+ * newest first. For specs about paging, where the fixed corpus is too short to leave
+ * a page unloaded.
+ */
+export function longHistory(count: number): Session[] {
+  return Array.from({ length: count }, (_, i) =>
+    session({
+      sessionId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      startTimestamp: iso(-(i + 1) * DAY),
+    }),
+  );
+}
+
 export const RUNNING_SESSION = SESSIONS[0]!;
 export const MULTI_DAY_SESSION = SESSIONS[1]!;
 export const BARE_SESSION = SESSIONS[3]!;
