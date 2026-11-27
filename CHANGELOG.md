@@ -8,6 +8,13 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The hook records `PreSkillShellCommand` (Claude Code 2.1.332): each `` !`cmd` `` a skill or
+  slash command runs becomes an event marker with the command, its skill and who invoked
+  it. It only records; the command is never blocked. The pinned hook spec moves to
+  2.1.332. (#328)
+
 ## [0.15.0] — 2026-11-27
 
 Calendar bars that show when a session was actually worked on, CLI binaries for Alpine

@@ -75,6 +75,14 @@ export const HOOK_TYPES: HookTypeDef[] = [
   },
   // ── Tool lifecycle ──
   {
+    event: "PreSkillShellCommand",
+    category: "tool",
+    canBlock: true,
+    wired: true,
+    summary:
+      "Before a shell command embedded in a skill or slash command (`` !`cmd` ``) runs — `command_name`, the command with arguments filled in, the shell (`tool_name`), `invoked_by` ∈ `user`/`claude`/`other`. Not a tool call: it leaves nothing in the transcript. Can block the command; the hook only records it.",
+  },
+  {
     event: "PreToolUse",
     category: "tool",
     canBlock: true,

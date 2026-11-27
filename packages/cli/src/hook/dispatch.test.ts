@@ -60,6 +60,21 @@ describe("hook run without an instance", () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toBe("");
   });
+
+  // A blocking pre-hook: any decision or updatedInput on stdout, or a non-zero exit,
+  // would stop or change the user's command. The hook only records it (#328).
+  test("PreSkillShellCommand prints nothing and exits 0, so the command runs", async () => {
+    const r = await hookRun({
+      hook_event_name: "PreSkillShellCommand",
+      session_id: "t1",
+      tool_name: "Bash",
+      tool_input: { command: "git status" },
+      command_name: "status",
+      invoked_by: "user",
+    });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe("");
+  });
 });
 
 /**

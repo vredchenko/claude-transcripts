@@ -81,6 +81,7 @@ Every hook receives these on stdin; per-event fields are layered on top.
 
 | Hook | Fires when | Docs | Examples | What we do |
 |------|------------|------|----------|------------|
+| `PreSkillShellCommand` | Before a shell command embedded in a skill or slash command (`` !`cmd` ``) runs — `command_name`, the command with arguments filled in, the shell (`tool_name`), `invoked_by` ∈ `user`/`claude`/`other`. Not a tool call: it leaves nothing in the transcript. Can block the command; the hook only records it. | [ref](https://code.claude.com/docs/en/hooks#preskillshellcommand) | [pre-skill-shell-command/](../../tests/mock/claude-code/hooks/pre-skill-shell-command/) | `write-event-marker` |
 | `PreToolUse` | Before a tool executes — `tool_name` + `tool_input` available. Can block or modify the input. | [ref](https://code.claude.com/docs/en/hooks#pretooluse) | [pre-tool-use/](../../tests/mock/claude-code/hooks/pre-tool-use/) | _ignored — Blocking pre-hook; an observe-only writer gains nothing — `PostToolUse` captures the outcome._ |
 | `PermissionRequest` | A permission dialog is about to be shown for a tool call. | [ref](https://code.claude.com/docs/en/hooks#permissionrequest) | [permission-request/](../../tests/mock/claude-code/hooks/permission-request/) | _ignored — Permission-dialog control hook, not session history._ |
 | `PermissionDenied` | A tool call was denied (auto-classifier or user). | [ref](https://code.claude.com/docs/en/hooks#permissiondenied) | [permission-denied/](../../tests/mock/claude-code/hooks/permission-denied/) | _ignored — Permission control event, not session history._ |
@@ -156,8 +157,8 @@ Every hook receives these on stdin; per-event fields are layered on top.
 
 ## Coverage vs. what we wire today
 
-We currently bind actions to **14** of the 33 events —
-`SessionStart`, `UserPromptSubmit`, `PostModelSwitch`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `CwdChanged`, `DirectoryAdded`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`. The rest are **intentionally ignored** — the "What we do" column gives
+We currently bind actions to **15** of the 34 events —
+`SessionStart`, `UserPromptSubmit`, `PostModelSwitch`, `PreSkillShellCommand`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`, `CwdChanged`, `DirectoryAdded`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `SessionEnd`. The rest are **intentionally ignored** — the "What we do" column gives
 the reason per event: a passive, observe-only writer gains nothing from
 blocking / UX / orchestration hooks, and every hook invocation costs a Bun startup,
 so we wire only the events that carry the session record ([actions.md](actions.md)).

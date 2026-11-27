@@ -168,6 +168,18 @@ const writeEventMarker: Handler = async (ctx) => {
       doc.directory = p.directory;
       doc.source = p.source;
       break;
+    // A skill's `!`cmd``, about to run. Recorded only: this hook prints nothing and
+    // exits 0, which lets it run. The shell goes in `shell`, not `tool_name`: it is not
+    // a tool call, and the tool views count every event with a `tool_name`.
+    case "PreSkillShellCommand": {
+      const input = (p.tool_input ?? {}) as { command?: unknown };
+      doc.shell = p.tool_name;
+      doc.command_name = p.command_name;
+      doc.command_source = p.command_source;
+      doc.invoked_by = p.invoked_by;
+      doc.input_preview = String(input.command ?? "").slice(0, 200);
+      break;
+    }
   }
   await ctx.writer.event(doc);
 };
