@@ -40,3 +40,4 @@ Lightweight records of non-obvious decisions. See
 | [0033](0033-no-npm-package.md) | No npm package: the CLI ships as release binaries | Accepted |
 | [0034](0034-activity-spans.md) | Active time is a set of spans, derived on read | Accepted |
 | [0035](0035-hand-drawn-stack-diagram.md) | The architecture picture is a hand-drawn stack diagram | Accepted |
+| [0036](0036-cli-release-targets.md) | CLI release targets: one list, every Linux binary run on its platform | Accepted |

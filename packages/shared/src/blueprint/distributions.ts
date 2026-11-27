@@ -1,3 +1,4 @@
+import { CLI_TARGETS } from "./cli-targets";
 import { SERVICES } from "./services";
 
 /**
@@ -199,9 +200,13 @@ export const DISTRIBUTIONS: DistributionDef[] = [
     kind: "binary",
     contains: ["cli"],
     publishedAt: "GitHub Releases, claude-transcripts-<os>-<arch> + .sha256",
-    builtBy: [".github/workflows/release-cli.yml", "install.sh"],
-    platforms: "linux-x64, linux-arm64, darwin-x64, darwin-arm64",
-    note: "Self-contained (Bun runtime embedded). install.sh fetches and verifies one, then runs `install`.",
+    builtBy: [
+      "packages/shared/src/blueprint/cli-targets.ts",
+      ".github/workflows/release-cli.yml",
+      "install.sh",
+    ],
+    platforms: CLI_TARGETS.map((t) => t.asset).join(", "),
+    note: "Self-contained (Bun runtime embedded). install.sh picks the one for the machine (musl on Alpine, baseline without AVX2), verifies it, then runs `install`. The musl builds need libstdc++ and libgcc (`apk add libstdc++ libgcc`).",
   },
   {
     key: "plugin",

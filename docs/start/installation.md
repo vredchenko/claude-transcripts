@@ -11,10 +11,44 @@ Needs **Docker** (with Compose v2) and **Claude Code**. Nothing else, not even B
 curl -fsSL https://raw.githubusercontent.com/vredchenko/claude-transcripts/main/install.sh | sh
 ```
 
-`install.sh` fetches the release binary for your platform (Linux or macOS, x64 or
-arm64), verifies its checksum, puts it in `~/.local/bin` and runs
-`claude-transcripts install`. `CT_INSTALL_VERSION=vX.Y.Z` pins a release (`CT_VERSION` still works, deprecated), `CT_BIN_DIR` changes
-the target directory, `CT_NO_RUN=1` installs the binary only.
+`install.sh` fetches the release binary for your platform ([below](#platforms)),
+verifies its checksum, checks it runs, puts it in `~/.local/bin` and runs
+`claude-transcripts install`. `CT_INSTALL_VERSION=vX.Y.Z` pins a release (`CT_VERSION`
+still works, deprecated), `CT_BIN_DIR` changes the target directory, `CT_NO_RUN=1`
+installs the binary only. `CT_INSTALL_TARGET=<platform>` picks a binary instead of
+detecting one, and `CT_DOWNLOAD_URL` fetches from somewhere other than the GitHub
+release, such as an [omnibus](../operate/omnibus.md) instance's `/downloads`.
+
+### Platforms
+
+<!-- gen:cli-targets:start — generated from the blueprint (cli-targets.ts); do not edit -->
+| Platform | Release asset | Checked before release |
+| --- | --- | --- |
+| Linux x64 (glibc) | `claude-transcripts-linux-x64` | run on `ubuntu-latest` |
+| Linux x64 (glibc), CPUs without AVX2 | `claude-transcripts-linux-x64-baseline` | run under QEMU (`-cpu Nehalem`) in `ubuntu:24.04` |
+| Linux x64 (musl, e.g. Alpine) | `claude-transcripts-linux-x64-musl` | run on `ubuntu-latest` in `alpine:3` |
+| Linux x64 (musl), CPUs without AVX2 | `claude-transcripts-linux-x64-musl-baseline` | run under QEMU (`-cpu Nehalem`) in `alpine:3` |
+| Linux arm64 (glibc) | `claude-transcripts-linux-arm64` | run on `ubuntu-24.04-arm` |
+| Linux arm64 (musl, e.g. Alpine) | `claude-transcripts-linux-arm64-musl` | run on `ubuntu-24.04-arm` in `alpine:3` |
+| macOS Intel | `claude-transcripts-darwin-x64` | built, not run in CI |
+| macOS Apple Silicon | `claude-transcripts-darwin-arm64` | built, not run in CI |
+<!-- gen:cli-targets:end -->
+
+`install.sh` picks one for you:
+
+- **Alpine and other musl distributions** get a `-musl` build. These link the C++
+  runtime dynamically, which a minimal Alpine lacks: `apk add libstdc++ libgcc` first
+  (the installer stops and says so if they're missing).
+- **x86-64 CPUs without AVX2** (pre-2013 CPUs, some VMs and emulators) get a
+  `-baseline` build, picked by reading `/proc/cpuinfo`. The default build would die
+  with `Illegal instruction`. If detection gets it wrong, set
+  `CT_INSTALL_TARGET=linux-x64-baseline` (or `linux-x64-musl-baseline`).
+- Windows: install inside WSL2. There is no 32-bit, RISC-V or other build; Bun, which
+  the binaries are built with, can't target them.
+
+The CI check runs each binary through `install.sh` and executes it on that platform.
+For the baseline builds the CPU is emulated by QEMU, which shows the binary starts
+there but can't prove it never uses AVX2; that is Bun's guarantee.
 
 With the binary already on your `PATH`:
 
@@ -92,7 +126,7 @@ useful for a sandboxed trial.
 There is no `upgrade` command yet. Replace the binary:
 
 ```sh
-P=linux-x64                # or linux-arm64, darwin-x64, darwin-arm64
+P=linux-x64                # or another platform from the table above
 B=https://github.com/vredchenko/claude-transcripts/releases/latest/download
 curl -fLO "$B/claude-transcripts-$P"
 curl -fLO "$B/claude-transcripts-$P.sha256"

@@ -18,6 +18,29 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   active time. The API serves the stretches as `activeSpans` on every session (second
   offsets from its start), derived from the same event timestamps as `activeMs`, so
   nothing new is stored and no migration runs.
+- **CLI binaries for Alpine and for older x86-64 CPUs**
+  ([ADR 0036](docs/design/decisions/0036-cli-release-targets.md)). Each release adds
+  `linux-x64-musl`, `linux-arm64-musl`, `linux-x64-baseline` and
+  `linux-x64-musl-baseline`. `install.sh` picks the right one: musl on Alpine, baseline
+  on a CPU without AVX2, where the default build crashed with `Illegal instruction`. On
+  Alpine it stops before downloading if `libstdc++`/`libgcc` are missing and names the
+  `apk add`. It also test-runs the binary before installing it, and takes
+  `CT_INSTALL_TARGET` to choose a build and `CT_DOWNLOAD_URL` to install from a mirror
+  such as an omnibus instance's `/downloads`. Every Linux binary is now run on its own
+  platform, through `install.sh`, before a release publishes it.
+
+### Changed
+
+- **The architecture picture shows where things run**
+  ([ADR 0035](docs/design/decisions/0035-hand-drawn-stack-diagram.md)): your machine,
+  your server and GitHub, with light and dark versions, in the README, the landing page
+  and the docs.
+
+### Fixed
+
+- **The all-history calendar loads the rest of your history as you scroll.** After
+  switching from the list to the calendar, it stopped at the pages the list had already
+  loaded.
 
 ## [0.14.0] — 2026-11-26
 

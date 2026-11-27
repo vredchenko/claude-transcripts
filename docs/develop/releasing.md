@@ -36,9 +36,16 @@ publish a chart whose version isn't the tag's.
 | Omnibus image `claude-transcripts-omnibus` (the whole stack, one container) | `ghcr.io/<owner>/claude-transcripts-omnibus` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Helm chart `claude-transcripts` | `oci://ghcr.io/<owner>/charts/claude-transcripts` | [`publish-image.yml`](../../.github/workflows/publish-image.yml) |
 | Backing images: Garage mirrored (every platform upstream publishes); CouchDB, Meilisearch, the Garage web UI, the Meilisearch UI and Fossil built here. Each passes the scan gate before it is pushed | `ghcr.io/<owner>/claude-transcripts-*` | [`mirror-images.yml`](../../.github/workflows/mirror-images.yml) |
-| CLI binaries (Linux and macOS, x64 and arm64) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
+| CLI binaries (every target in `cli-targets.ts`: Linux glibc and musl, x64 and arm64, x64 baseline; macOS) + `.sha256` files | GitHub Release assets | [`release-cli.yml`](../../.github/workflows/release-cli.yml) |
 
-The binaries embed the Bun runtime and need nothing else. There is no npm package
+The binaries embed the Bun runtime and need nothing else (the musl builds also want
+`libstdc++` and `libgcc`). The target list lives in the blueprint
+(`packages/shared/src/blueprint/cli-targets.ts`, [ADR 0036](../design/decisions/0036-cli-release-targets.md))
+and is generated into the workflow, `install.sh`, the omnibus downloads and the install
+docs. Before anything is published, every Linux binary is installed through
+`install.sh` and run on its own platform (`scripts/smoke-cli-binary.sh`): on the x64
+and arm64 runners, in Alpine for musl, and under QEMU with a pre-AVX2 CPU for baseline.
+The macOS builds are cross-compiled and published without being run. There is no npm package
 ([ADR 0033](../design/decisions/0033-no-npm-package.md)): `install.sh` is the one-line
 install, and a release needs no secrets.
 
@@ -46,7 +53,9 @@ What each artefact carries, platforms included, is in
 [distributions.md](../reference/distributions.md).
 
 `release-cli` and `mirror-images` can also be run by hand from the Actions tab; a
-manual `release-cli` run uploads the binaries as workflow artifacts without publishing.
+manual `release-cli` run builds and smoke-tests the binaries and uploads them as
+workflow artifacts without publishing. `release-cli` also runs on a PR that touches the
+workflow, `install.sh`, the smoke script or the target list.
 
 ### App image tags
 
@@ -61,8 +70,8 @@ so a base-image CVE can block a merge build too.
 The version every component reports (`--version`, `/health`, the OpenAPI document, the
 statusline, the omnibus downloads page) is read from the committed `package.json`;
 nothing injects it at build time. On a tag, `publish-image` and `release-cli` run
-`release.ts <version> --check` and fail if the tag disagrees with the manifests, the
-compiled CLI's `--version` is checked against them, and the omnibus smoke test checks
+`release.ts <version> --check` and fail if the tag disagrees with the manifests, every
+smoke-tested binary's `--version` is checked against them, and the omnibus smoke test checks
 `/health` and the bundled CLI.
 
 ### The scan gate

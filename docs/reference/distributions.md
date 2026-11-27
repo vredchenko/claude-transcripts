@@ -34,7 +34,7 @@ the app image among them, and the table marks what they run. For how each is bui
 | Helm chart | kubernetes | whatever its images support | oci://ghcr.io/&lt;owner&gt;/charts/claude-transcripts | `scripts/gen-helm.ts`, `deploy/helm/claude-transcripts/Chart.yaml`, `.github/workflows/chart.yml`, `.github/workflows/publish-image.yml` |
 | Mirrored backing images | image | every platform upstream publishes (the multi-arch index is copied as is) | ghcr.io/&lt;owner&gt;/claude-transcripts-&lt;service&gt; | `scripts/mirror-images.ts`, `.github/workflows/mirror-images.yml` |
 | Backing images built from source | image | linux/amd64 | ghcr.io/&lt;owner&gt;/claude-transcripts-&lt;service&gt; | `deploy/couchdb/Dockerfile`, `deploy/fossil/Dockerfile`, `deploy/garage-ui/Dockerfile`, `deploy/meilisearch/Dockerfile`, `deploy/meilisearch-ui/Dockerfile`, `scripts/mirror-images.ts`, `.github/workflows/mirror-images.yml` |
-| CLI binaries | binary | linux-x64, linux-arm64, darwin-x64, darwin-arm64 | GitHub Releases, claude-transcripts-&lt;os&gt;-&lt;arch&gt; + .sha256 | `.github/workflows/release-cli.yml`, `install.sh` |
+| CLI binaries | binary | linux-x64, linux-x64-baseline, linux-x64-musl, linux-x64-musl-baseline, linux-arm64, linux-arm64-musl, darwin-x64, darwin-arm64 | GitHub Releases, claude-transcripts-&lt;os&gt;-&lt;arch&gt; + .sha256 | `packages/shared/src/blueprint/cli-targets.ts`, `.github/workflows/release-cli.yml`, `install.sh` |
 | Claude Code plugin | plugin | anywhere Claude Code runs; needs Bun and the CLI | this repo as a plugin marketplace (.claude-plugin/marketplace.json → hooks/) | `.claude-plugin/marketplace.json`, `hooks/` |
 
 - **App image**: webapi serving the webui (/app), docs (/docs) and the CLI binary (/cli/download). Release tags only.
@@ -44,7 +44,7 @@ the app image among them, and the table marks what they run. For how each is bui
 - **Helm chart**: `helm install`, Argo CD or Flux. Generated from the same objects as the kustomize base; pulls every image from the project's registry, generates secrets on install and keeps them on upgrade, and provisions Garage with a hook Job. Release tags only.
 - **Mirrored backing images**: Upstream images copied under the project's names, so the stack can pull only from your registry (ADR 0024).
 - **Backing images built from source**: For software that publishes no image (Fossil), or whose image fails the scan gate: CouchDB without its unused Nouveau service, Meilisearch with its Alpine packages upgraded, the Garage web UI rebuilt from the same release with a current Go, and the Meilisearch UI as static files behind nginx. `--upstream` and `install` build Fossil locally and pull the rest from upstream.
-- **CLI binaries**: Self-contained (Bun runtime embedded). install.sh fetches and verifies one, then runs `install`.
+- **CLI binaries**: Self-contained (Bun runtime embedded). install.sh picks the one for the machine (musl on Alpine, baseline without AVX2), verifies it, then runs `install`. The musl builds need libstdc++ and libgcc (`apk add libstdc++ libgcc`).
 - **Claude Code plugin**: A thin shim: every hook event goes to `claude-transcripts hook run`.
 <!-- gen:distributions:end -->
 

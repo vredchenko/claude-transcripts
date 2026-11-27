@@ -14,14 +14,17 @@
 </head>
 <body>
 <h1>Claude Transcripts @VERSION@</h1>
-<p>Served by this instance. Each file has a <code>.sha256</code> next to it.</p>
+<p>Served by this instance. Each file has a <code>.sha256</code> next to it. Other
+platforms (Alpine/musl, CPUs without AVX2) are on the GitHub release.</p>
 
 <h2>CLI</h2>
 <table>
-  <tr><td>Linux x64</td><td><a href="claude-transcripts-linux-x64">claude-transcripts-linux-x64</a></td></tr>
-  <tr><td>Linux arm64</td><td><a href="claude-transcripts-linux-arm64">claude-transcripts-linux-arm64</a></td></tr>
-  <tr><td>macOS x64</td><td><a href="claude-transcripts-darwin-x64">claude-transcripts-darwin-x64</a></td></tr>
-  <tr><td>macOS arm64</td><td><a href="claude-transcripts-darwin-arm64">claude-transcripts-darwin-arm64</a></td></tr>
+<!-- gen:downloads-cli:start — generated from cli-targets.ts; do not edit -->
+  <tr><td>Linux x64 (glibc)</td><td><a href="claude-transcripts-linux-x64">claude-transcripts-linux-x64</a></td></tr>
+  <tr><td>Linux arm64 (glibc)</td><td><a href="claude-transcripts-linux-arm64">claude-transcripts-linux-arm64</a></td></tr>
+  <tr><td>macOS Intel</td><td><a href="claude-transcripts-darwin-x64">claude-transcripts-darwin-x64</a></td></tr>
+  <tr><td>macOS Apple Silicon</td><td><a href="claude-transcripts-darwin-arm64">claude-transcripts-darwin-arm64</a></td></tr>
+<!-- gen:downloads-cli:end -->
 </table>
 <pre>BASE=http://127.0.0.1:7650/downloads   # this page's address
 curl -fsSLO "$BASE/claude-transcripts-linux-x64"

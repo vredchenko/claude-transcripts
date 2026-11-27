@@ -12,7 +12,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP_VERSION } from "@claude-transcripts/shared";
+import { APP_VERSION, CLI_TARGETS, cliAssetName } from "@claude-transcripts/shared";
 import { $ } from "bun";
 
 const IMAGE = process.argv[2] ?? "claude-transcripts-omnibus:local";
@@ -66,8 +66,7 @@ async function main(): Promise<void> {
   check((await get("/app/")).ok, "webui at /app/");
   check((await get("/docs/")).ok, "docs at /docs/");
 
-  for (const plat of ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"]) {
-    const name = `claude-transcripts-${plat}`;
+  for (const name of CLI_TARGETS.filter((t) => t.omnibus).map(cliAssetName)) {
     const bin = new Uint8Array(await (await get(`/downloads/${name}`)).arrayBuffer());
     const sum = (await (await get(`/downloads/${name}.sha256`)).text()).split(/\s+/)[0];
     check(bin.length > 1_000_000, `/downloads/${name} is a binary`);
