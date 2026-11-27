@@ -28,7 +28,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -60,7 +60,7 @@ jobs:
           (cd out && for f in claude-transcripts-*; do sha256sum "$f" > "$f.sha256"; done)
           ls -la out
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-binaries
           path: out/*
@@ -109,8 +109,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: smoke (${{ matrix.asset }})
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: cli-binaries
           path: out
@@ -137,7 +137,7 @@ jobs:
     permissions:
       contents: write # attach binaries to the GitHub Release
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: cli-binaries
           path: out

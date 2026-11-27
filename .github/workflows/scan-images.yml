@@ -20,7 +20,7 @@ jobs:
     outputs:
       images: ${{ steps.plan.outputs.images }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -46,7 +46,7 @@ jobs:
         image: ${{ fromJSON(needs.plan.outputs.images) }}
     name: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v4

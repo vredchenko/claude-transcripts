@@ -28,7 +28,7 @@ jobs:
     outputs:
       images: ${{ steps.plan.outputs.images }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -48,7 +48,7 @@ jobs:
       # GHCR paths must be lowercase; repository_owner is the login (already lc).
       TARGET: ghcr.io/${{ github.repository_owner }}/${{ matrix.dest }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v4

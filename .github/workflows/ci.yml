@@ -13,7 +13,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # The contract check compares this branch's spec against the base branch's,
           # which it reads out of git. The default shallow checkout has no such ref,
@@ -85,7 +85,7 @@ jobs:
   floor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - id: floor
         name: read the declared Bun floor, and check every manifest agrees
         run: |
@@ -124,7 +124,7 @@ jobs:
   browser:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -132,7 +132,7 @@ jobs:
       - run: bun run test:browser:install
       - run: bun run test:browser
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-results
           # Traces and failure screenshots — the only way to see what a layout looked
