@@ -11,7 +11,7 @@
   "dependencies": {
     "@claude-transcripts/shared": "workspace:*",
     "@hono/zod-openapi": "^1.6.3",
-    "@scalar/hono-api-reference": "^0.12.14",
+    "@scalar/hono-api-reference": "^0.12.23",
     "hono": "^4.13.23",
     "nano": "^10.1.4",
     "zod": "^4.6.7"

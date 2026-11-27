@@ -58,16 +58,16 @@
     "bun": ">=1.4.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.0.0",
-    "@playwright/test": "^1.62.1",
+    "@biomejs/biome": "^2.6.8",
+    "@playwright/test": "^1.65.1",
     "@resvg/resvg-js": "^2.6.2",
     "@types/bun": "latest",
     "@types/svg2ttf": "^5.0.3",
-    "lefthook": "^2.1.3",
+    "lefthook": "^2.2.2",
     "orval": "^8.49.0",
     "svg2ttf": "^6.1.0",
     "typescript": "^5.9.0",
-    "yaml": "^2.6.0"
+    "yaml": "^2.9.1"
   },
   "overrides": {
     "axios": "^1.20.0",
