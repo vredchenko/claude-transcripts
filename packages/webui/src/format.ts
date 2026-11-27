@@ -1,4 +1,5 @@
-/** Presentation helpers — pure, no React. Deliberately dependency-free. */
+/** Presentation helpers — pure, no React, no npm dependencies. */
+import { stripTrailingSlashes } from "@claude-transcripts/shared";
 
 /** Human-readable byte size (1024-based). */
 export function formatBytes(bytes: number | undefined): string {
@@ -80,7 +81,7 @@ export function formatDuration(ms: number | undefined): string {
 /** Trailing path segment of a cwd, for a compact "project" label. */
 export function projectName(cwd: string | undefined): string {
   if (!cwd) return "—";
-  const parts = cwd.replace(/\/+$/, "").split("/");
+  const parts = stripTrailingSlashes(cwd).split("/");
   return parts[parts.length - 1] || cwd;
 }
 

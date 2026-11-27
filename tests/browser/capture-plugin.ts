@@ -110,8 +110,14 @@ const SGR_STYLE: Record<string, string> = {
   "33": "color:var(--yellow)",
   "36": "color:var(--cyan)",
 };
+// Quotes too: the result also lands in `href="…"` attributes.
 const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 function ansiToHtml(s: string): string {
   let out = "";

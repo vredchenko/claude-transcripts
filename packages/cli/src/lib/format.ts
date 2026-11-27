@@ -6,6 +6,7 @@
  * and where it's cut, rather than growing near-copies that drift.
  */
 import { isatty } from "node:tty";
+import { stripTrailingSlashes } from "@claude-transcripts/shared";
 
 /**
  * Terminal width, or 0 when stdout isn't a TTY. Only touches `process.stdout` on a
@@ -48,7 +49,7 @@ export function num(n: number | undefined): string {
 
 /** The last path segment of a cwd — the project name, as a table cell. */
 export function project(cwd: string | undefined): string {
-  const parts = (cwd ?? "").replace(/\/+$/, "").split("/");
+  const parts = stripTrailingSlashes(cwd ?? "").split("/");
   return parts[parts.length - 1] || cwd || "—";
 }
 

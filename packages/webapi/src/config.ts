@@ -15,6 +15,7 @@ import {
   type AppConfigFile,
   DEFAULT_IDLE_THRESHOLD_MS,
   resolveCouchUrl,
+  stripTrailingSlashes,
 } from "@claude-transcripts/shared";
 
 const env = process.env;
@@ -140,7 +141,7 @@ export function loadConfig(): Config {
       },
     },
     fossil: {
-      url: (env.FOSSIL_URL ?? "http://127.0.0.1:7658").replace(/\/+$/, ""),
+      url: stripTrailingSlashes(env.FOSSIL_URL ?? "http://127.0.0.1:7658"),
       // Defaulted like the Meilisearch indexes, for configs that predate the key.
       repositories: {
         sessions: "claude-transcripts-sessions",

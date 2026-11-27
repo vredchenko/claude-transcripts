@@ -27,6 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AppConfigFile } from "@claude-transcripts/shared";
+import { stripTrailingSlashes } from "@claude-transcripts/shared";
 import { searchReindex } from "../api/generated";
 import { setWebapiUrl } from "../api/http";
 import { probeWebapi } from "../hook/ingest";
@@ -194,7 +195,8 @@ export async function runSetup(argv: string[]): Promise<number> {
   const project = options.project === true;
   // The instance this machine records into. Explicit beats everything, so a client
   // can be pointed at a remote deployment with nothing else configured.
-  const explicit = strOpt(options, "webapi")?.replace(/\/+$/, "");
+  const webapiOpt = strOpt(options, "webapi");
+  const explicit = webapiOpt === undefined ? undefined : stripTrailingSlashes(webapiOpt);
   if (explicit) setWebapiUrl(explicit);
 
   if (IN_CHECKOUT) console.log(`setup: repo ${REPO_ROOT}`);

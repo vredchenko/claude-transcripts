@@ -178,7 +178,11 @@ export function toCliDocs(spec: CliSpec, bin: string, detail = true): string {
 function describe(a: CliArgDef): string {
   const hint = cliArgHint(a);
   const req = !isFlag(a) && a.required ? "required. " : "";
-  return `${req}${a.description ?? ""}${hint ? ` ${hint}` : ""}`.trim().replace(/\|/g, "\\|");
+  // Markdown text in a table cell: escape backslashes, then the pipes that would end it.
+  return `${req}${a.description ?? ""}${hint ? ` ${hint}` : ""}`
+    .trim()
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|");
 }
 
 // ── Completions ────────────────────────────────────────────────────────────────
@@ -349,7 +353,8 @@ complete -F ${fn} ${bin}
 /** A single-quoted zsh word. */
 const zshQ = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
 /** A `_describe` entry: `name:description`, with colons in the name escaped. */
-const zshEntry = (name: string, desc = "") => zshQ(`${name.replace(/:/g, "\\:")}:${desc}`);
+const zshEntry = (name: string, desc = "") =>
+  zshQ(`${name.replace(/\\/g, "\\\\").replace(/:/g, "\\:")}:${desc}`);
 
 function zshCompletions(m: CompletionModel, bin: string, fn: string): string {
   const entries = (args: CliArgDef[]) => args.map((a) => zshEntry(a.name, a.description)).join(" ");

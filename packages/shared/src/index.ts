@@ -14,6 +14,7 @@ export * from "./highlight";
 export * from "./migrations";
 // Session → Markdown / printable HTML. Shared so a CLI export can reuse the webui's.
 export * from "./session-export";
+export * from "./strings";
 // The lockstep app version, read from package.json — the single source (#289).
 export * from "./version";
 

@@ -82,7 +82,7 @@ async function sdkReleases(): Promise<{ releases: SdkRelease[]; latest: string }
     versions: Record<string, SdkRelease>;
     "dist-tags": Record<string, string>;
     time: Record<string, string>;
-  }>(`${REGISTRY}/${SDK_PACKAGE.replace("/", "%2f")}`);
+  }>(`${REGISTRY}/${SDK_PACKAGE.replace(/\//g, "%2f")}`);
   const releases = Object.values(doc.versions).sort((a, b) =>
     (doc.time[a.version] ?? "").localeCompare(doc.time[b.version] ?? ""),
   );

@@ -13,6 +13,7 @@
  * `COUCHDB_PASSWORD` only where a client actually needs them (nano takes auth
  * in the URL). Mirrors the CLI's `CT_WEBAPI_URL` override.
  */
+import { stripTrailingSlashes } from "./strings";
 
 export const DEFAULT_COUCHDB_HOST = "127.0.0.1";
 export const DEFAULT_COUCHDB_PORT = "7652";
@@ -35,7 +36,7 @@ export interface CouchEnv {
 
 /** Drop trailing slashes so callers can always append `/<db>`. */
 function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
+  return stripTrailingSlashes(url);
 }
 
 /**

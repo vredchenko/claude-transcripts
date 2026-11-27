@@ -9,6 +9,7 @@
  * either.
  */
 import type { ChunkEntry } from "./index";
+import { stripTrailingSlashes } from "./strings";
 
 /** The session facts printed above the transcript. All optional bar the id. */
 export interface SessionExportMeta {
@@ -135,7 +136,7 @@ export function exportTimestamp(iso: string | undefined): string | undefined {
 /** The last path segment of a cwd — the name the webui shows for a project. */
 function projectOf(cwd: string | undefined): string | undefined {
   if (!cwd) return undefined;
-  const parts = cwd.replace(/\/+$/, "").split("/");
+  const parts = stripTrailingSlashes(cwd).split("/");
   return parts[parts.length - 1] || cwd;
 }
 

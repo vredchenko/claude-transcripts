@@ -5,6 +5,7 @@ import {
   type SessionStatus,
   type SessionSummary,
   sessionValuesInOrder,
+  stripTrailingSlashes,
 } from "@claude-transcripts/shared";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bucketName, idleThresholdMs, liveWindowMs } from "../config";
@@ -412,7 +413,7 @@ export function isRealSession(agg: SessionAggregate | undefined): agg is Session
  */
 /** Exact directory match, tolerant of a trailing slash on either side. */
 function sameDir(a: string, b: string): boolean {
-  return a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
+  return stripTrailingSlashes(a) === stripTrailingSlashes(b);
 }
 
 function overlapsRange(
