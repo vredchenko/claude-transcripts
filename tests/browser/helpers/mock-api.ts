@@ -80,6 +80,10 @@ export interface MockApiOptions {
   empty?: boolean;
   /** Fail every `/api/sessions*` read with a 500, for the error state. */
   failSessions?: boolean;
+  /** Serve these sessions instead of the fixed corpus, e.g. a long history for paging. */
+  sessions?: Session[];
+  /** Override `userSettings.sessionListPageSize`, so a short corpus still pages. */
+  sessionListPageSize?: number;
 }
 
 /**
@@ -89,7 +93,17 @@ export interface MockApiOptions {
  * spec that quietly hit a real backend would be the worst of both worlds.
  */
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
-  const sessions = options.empty ? [] : SESSIONS;
+  const sessions = options.empty ? [] : (options.sessions ?? SESSIONS);
+  const blueprint =
+    options.sessionListPageSize === undefined
+      ? APP_BLUEPRINT
+      : {
+          ...APP_BLUEPRINT,
+          userSettings: {
+            ...APP_BLUEPRINT.userSettings,
+            sessionListPageSize: options.sessionListPageSize,
+          },
+        };
 
   // Matched by pathname prefix, not by a `**/api/**` glob: the app's own source
   // includes `src/api/generated.ts`, which such a glob happily swallows — the dev
@@ -101,7 +115,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       const url = new URL(route.request().url());
       const path = url.pathname;
 
-      if (path === "/api/blueprint") return json(route, APP_BLUEPRINT);
+      if (path === "/api/blueprint") return json(route, blueprint);
 
       // The Services menu lists each database's design views, read through the CouchDB
       // proxy. The shipped designs stand in for whatever the migrations installed.

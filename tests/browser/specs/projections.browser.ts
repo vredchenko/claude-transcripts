@@ -6,7 +6,7 @@
  * different geometry, so each needs its own visual assertions.
  */
 import { expect, test } from "@playwright/test";
-import { MULTI_DAY_SESSION, NOW, SESSIONS } from "../fixtures/corpus";
+import { longHistory, MULTI_DAY_SESSION, NOW, SESSIONS } from "../fixtures/corpus";
 import { LIVE, SessionsListPage, setupPage } from "../helpers/app";
 
 /** The corpus's anchor, as the calendar's month key. */
@@ -201,6 +201,34 @@ test.describe("calendar", () => {
     // A calendar that fetched the whole corpus would work on this fixture and fall
     // over on a real one.
     expect(requests.some((url) => url.includes("from=") && url.includes("to="))).toBe(true);
+  });
+
+  test("all of history keeps loading as you scroll, after switching from the list", async ({
+    page,
+  }) => {
+    test.skip(LIVE, "pages a synthetic history");
+    const history = longHistory(60);
+    await setupPage(page, { sessions: history, sessionListPageSize: 10 });
+    const list = new SessionsListPage(page);
+    await list.goto();
+    await expect(list.rows.first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    // The list stops with pages still to load, so the calendar inherits a live
+    // sentinel. It used to keep watching the list's, now detached: nothing past the
+    // pages the list had loaded ever arrived.
+    expect(await list.rows.count()).toBeLessThan(history.length);
+
+    await list.selectView("Calendar");
+    await expect(list.calendarLanes).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          return list.calendarSessionBars.count();
+        },
+        { timeout: 20_000 },
+      )
+      .toBe(history.length);
   });
 });
 
