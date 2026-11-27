@@ -8,10 +8,17 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-11-27
+
+Calendar bars that show when a session was actually worked on, CLI binaries for Alpine
+and older x86-64 CPUs, and a new architecture picture. Upgrade as usual; no migration or
+reindex. If the CLI didn't install or run for you on Alpine or an older CPU, re-run
+`install.sh`: it now picks a build that does.
+
 ### Added
 
 - **Bars show when a session was worked on, not just how long it was open**
-  ([ADR 0034](docs/design/decisions/0034-activity-spans.md)). A calendar bar is faint
+  ([#327], [ADR 0034](docs/design/decisions/0034-activity-spans.md)). A calendar bar is faint
   across the time a session was open and filled where it was active, so a terminal left
   open over a weekend no longer looks like a weekend of work. The list's runtime bar is
   the same timeline in miniature, and the hover card's daylight figure now counts only
@@ -19,7 +26,7 @@ is [semver](https://semver.org/spec/v2.0.0.html).
   offsets from its start), derived from the same event timestamps as `activeMs`, so
   nothing new is stored and no migration runs.
 - **CLI binaries for Alpine and for older x86-64 CPUs**
-  ([ADR 0036](docs/design/decisions/0036-cli-release-targets.md)). Each release adds
+  ([#329], [ADR 0036](docs/design/decisions/0036-cli-release-targets.md)). Each release adds
   `linux-x64-musl`, `linux-arm64-musl`, `linux-x64-baseline` and
   `linux-x64-musl-baseline`. `install.sh` picks the right one: musl on Alpine, baseline
   on a CPU without AVX2, where the default build crashed with `Illegal instruction`. On
@@ -32,13 +39,13 @@ is [semver](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **The architecture picture shows where things run**
-  ([ADR 0035](docs/design/decisions/0035-hand-drawn-stack-diagram.md)): your machine,
+  ([#299], [ADR 0035](docs/design/decisions/0035-hand-drawn-stack-diagram.md)): your machine,
   your server and GitHub, with light and dark versions, in the README, the landing page
   and the docs.
 
 ### Fixed
 
-- **The all-history calendar loads the rest of your history as you scroll.** After
+- **The all-history calendar loads the rest of your history as you scroll** ([#327]). After
   switching from the list to the calendar, it stopped at the pages the list had already
   loaded.
 
@@ -2384,6 +2391,8 @@ of them had ever executed:
 [#269]: https://github.com/vredchenko/claude-transcripts/pull/269
 [#289]: https://github.com/vredchenko/claude-transcripts/issues/289
 [#288]: https://github.com/vredchenko/claude-transcripts/issues/288
+[#329]: https://github.com/vredchenko/claude-transcripts/pull/329
+[#327]: https://github.com/vredchenko/claude-transcripts/pull/327
 [#324]: https://github.com/vredchenko/claude-transcripts/pull/324
 [#323]: https://github.com/vredchenko/claude-transcripts/pull/323
 [#321]: https://github.com/vredchenko/claude-transcripts/pull/321
@@ -2410,6 +2419,8 @@ of them had ever executed:
 [#278]: https://github.com/vredchenko/claude-transcripts/pull/278
 [#279]: https://github.com/vredchenko/claude-transcripts/pull/279
 [#270]: https://github.com/vredchenko/claude-transcripts/pull/270
+[#299]: https://github.com/vredchenko/claude-transcripts/pull/299
+[0.15.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.15.0
 [0.14.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.14.0
 [0.13.0]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.13.0
 [0.12.1]: https://github.com/vredchenko/claude-transcripts/releases/tag/v0.12.1
